@@ -1,0 +1,12 @@
+#!/bin/bash
+
+set -eo pipefail
+set -x
+
+HERE=$(cd $(dirname $0)/..; pwd)
+
+exec docker run -i --rm \
+    -v "$HERE:/cue" \
+    -w /cue \
+    cuelang/cue:0.6.0 \
+    "$@"
