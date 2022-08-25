@@ -72,6 +72,8 @@
     let u = new URL('ws', window.location.href)
     if (window.location.protocol == "https:") {
       u.protocol = 'wss:'
+    } else {
+      u.protocol = 'ws:'
     }
     let url = u.toString()
 

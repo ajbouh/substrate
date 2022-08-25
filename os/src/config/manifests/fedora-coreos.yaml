@@ -5,8 +5,8 @@
 ref: fedora/${basearch}/coreos/${stream}
 rojig:
   license: MIT
-  name: fedora-coreos
-  summary: Fedora CoreOS ${stream}
+  name: substrateos
+  summary: SubstrateOS ${stream}
 
 add-commit-metadata:
   fedora-coreos.stream: ${stream}
@@ -186,7 +186,7 @@ exclude-packages:
   - perl-interpreter
   - nodejs
   - dnf
-  - grubby
+  # - grubby
   - cowsay  # Just in case
   # Let's make sure initscripts doesn't get pulled back in
   # https://github.com/coreos/fedora-coreos-tracker/issues/220#issuecomment-611566254

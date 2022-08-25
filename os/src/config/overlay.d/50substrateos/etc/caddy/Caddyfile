@@ -1,0 +1,17 @@
+{
+  debug
+  log
+  local_certs
+  skip_install_trust
+  admin off
+}
+
+{$HOSTNAME} {
+  redir /debug/shell /debug/shell/
+  reverse_proxy /debug/shell/* http://127.0.0.1:8181
+  redir /debug/vscode /debug/vscode/
+  handle_path /debug/vscode/* {
+    reverse_proxy http://127.0.0.1:3001
+  }
+  reverse_proxy http://127.0.0.1:8080
+}

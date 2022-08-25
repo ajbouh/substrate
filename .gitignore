@@ -1,0 +1,4 @@
+.docker
+.fly
+.gen
+os/overrides/rpm/*.rpm

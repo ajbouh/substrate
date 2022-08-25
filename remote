@@ -1,0 +1,80 @@
+#!/bin/bash
+
+set -eo pipefail
+
+HERE=$(cd $(dirname $0); pwd)
+
+# Assumes ~/.ssh/config has a stanza
+# Host substrate.home.arpa
+#     User core
+#     IdentityFile ~/.ssh/id_substrate
+
+# how we connect
+: ${REMOTE_HOST:=core@substrate.home.arpa}
+
+# where to put source code on remote machine
+: ${REMOTE_ROOT:=/var/home/core/source}
+
+# Remote branch to use
+: ${REMOTE_BRANCH:=main}
+
+push() {
+  ssh $REMOTE_HOST "mkdir -p $REMOTE_ROOT && git -C $REMOTE_ROOT init . && git -C $REMOTE_ROOT config receive.denyCurrentBranch ignore"
+  ssh $REMOTE_HOST -t "[ ! -e /var/lib/resourcedirs ] || ([ -e $REMOTE_ROOT/os/gen/oob/resourcedirs ] || (mkdir -p $REMOTE_ROOT/os/gen/oob/resourcedirs && sudo chown -R core:core /var/lib/resourcedirs && sudo mount --bind /var/lib/resourcedirs source/os/gen/oob/resourcedirs))"
+  git push --force ssh://${REMOTE_HOST}${REMOTE_ROOT}/.git +HEAD:$REMOTE_BRANCH
+  ssh $REMOTE_HOST "cd $REMOTE_ROOT && git reset --hard $REMOTE_BRANCH && git clean -fd"
+  if ! git diff --cached -s --exit-code; then
+    git diff --cached | ssh $REMOTE_HOST "cd $REMOTE_ROOT && git apply"
+  fi
+  if ! git diff -s --exit-code; then
+    git diff | ssh $REMOTE_HOST "cd $REMOTE_ROOT && git apply"
+  fi
+
+  # NB disable cache syncing for now because it seems to destroy xattrs
+  # [ ! -e os/cache ] || rsync -aP --no-perms --no-times --no-owner --no-group os/cache/. ${REMOTE_HOST}:${REMOTE_ROOT}/os/cache/
+  # [ ! -e os/gen/oob ] || rsync -aP --no-perms --no-times --no-owner --no-group os/gen/oob/. ${REMOTE_HOST}:${REMOTE_ROOT}/os/gen/oob/
+  [ ! -e tools/cue ] || rsync -aP --no-perms --no-times --no-owner --no-group tools/cue/. ${REMOTE_HOST}:${REMOTE_ROOT}/tools/cue/
+}
+
+pull() {
+  # NB disable cache syncing for now because it seems to destroy xattrs
+  # rsync -aP --no-perms --no-times --no-owner --no-group ${REMOTE_HOST}:${REMOTE_ROOT}/os/cache/. os/cache/
+  # rsync -aP --no-perms --no-times --no-owner --no-group ${REMOTE_HOST}:${REMOTE_ROOT}/os/gen/oob/. os/gen/oob/
+  rsync -aP --no-perms --no-times --no-owner --no-group ${REMOTE_HOST}:${REMOTE_ROOT}/os/builds/. os/builds/
+  rsync -aP --no-perms --no-times --no-owner --no-group ${REMOTE_HOST}:${REMOTE_ROOT}/tools/cue/. tools/cue/
+}
+
+pull_latest() {
+  LATEST_BUILD=$(ssh $REMOTE_HOST "readlink $REMOTE_ROOT/os/builds/latest")
+  rsync -aP --no-perms --no-times --no-owner --no-group ${REMOTE_HOST}:${REMOTE_ROOT}/os/builds/$LATEST_BUILD os/builds/
+  rsync -aP --no-perms --no-times --no-owner --no-group ${REMOTE_HOST}:${REMOTE_ROOT}/os/builds/latest os/builds/
+}
+
+case "$1" in
+  ssh)
+    shift
+    exec ssh $REMOTE_HOST "$@"
+    ;;
+  push)
+    shift
+    push
+    ;;
+  pull)
+    shift
+    pull
+    ;;
+  pull-latest)
+    shift
+    pull_latest
+    ;;
+  -h|--help)
+    echo "usage: $0 ssh"
+    echo "       $0 pull"
+    echo "       $0 push"
+    echo "       $0 ./dev.sh reload"
+    ;;
+  *)
+    push
+    exec ssh $REMOTE_HOST "cd $REMOTE_ROOT && $@"
+    ;;
+esac

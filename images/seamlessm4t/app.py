@@ -153,6 +153,7 @@ def ogg2wav(ogg: bytes):
 def transcribe(request: Request) -> Response:
     tgt_lang = fuzzy_find_alpha_3(request.target_language or "eng", "target")
     duration = None
+    translated_text = ""
 
     if request.audio_data:
         print("base64 decoding audio_data len=", len(request.audio_data))
