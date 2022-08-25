@@ -1,0 +1,8 @@
+#!/bin/bash
+
+set -eo pipefail
+set -x
+
+HERE=$(cd $(dirname $0)/..; pwd)
+
+exec docker run -i --rm ghcr.io/tomwright/dasel:v2.1.1 "$@"

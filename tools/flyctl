@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -eo pipefail
+set -x
+
+HERE=$(cd $(dirname $0)/..; pwd)
+
+exec docker run -i --rm \
+  -v "$(pwd):$(pwd):ro" \
+  -v "$HERE:$HERE:ro" \
+  -v "/var/run/docker.sock:/var/run/docker.sock" \
+  -v "$HOME/.fly:/.fly" \
+  -w "$(pwd)" \
+  --network host \
+  --env "FLY_NO_UPDATE_CHECK=1" \
+  --env "FLY_API_TOKEN" \
+  --env "BUILDKIT_PROGRESS=plain" \
+  flyio/flyctl:v0.0.383 "$@"
