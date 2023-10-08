@@ -1,3 +1,4 @@
+# https://coreos.github.io/butane/config-fcos-v1_5/
 variant: fcos
 version: 1.5.0
 passwd:
@@ -8,79 +9,71 @@ passwd:
         - sudo
         - wheel
         - docker
+      ssh_authorized_keys_local:
+        - adamb-ssh-key.pub
 storage:
-  files:
-    # Currently we are using cgroupsv1 FCOS nodes as nvidia-container-runtime is generating errors
-    # when cgroupsv2 is enabled.  This probably means some config here or close by needs tuning...
-    - path: /etc/nvidia-container-runtime/config.toml
-      mode: 0644
-      contents:
-        inline: |
-          disable-require = false
-          swarm-resource = "DOCKER_RESOURCE_GPU"
-
-          [nvidia-container-cli]
-          root = "/run/nvidia/driver"
-          path = "/usr/bin/nvidia-container-cli"
-          environment = []
-          debug = "/var/log/nvidia-container-toolkit.log"
-          load-kmods = true
-          ldconfig = "/sbin/ldconfig"
-
-          [nvidia-container-runtime]
-          debug = "/var/log/nvidia-container-runtime.log"
+  disks:
+  - device: /dev/disk/by-id/coreos-boot-disk
+    wipe_table: false
+    partitions:
+    - number: 4
+      label: root
+      size_mib: 8192
+      resize: true
+    - size_mib: 0
+      label: var
+  filesystems:
+    - path: /var
+      device: /dev/disk/by-partlabel/var
+      format: btrfs
+      with_mount_unit: true
+#   files:
+#     - path: /etc/ostree/auth.json
+#       mode: 0600
+#       contents:
+#         inline: >
+#               {
+#                    "auths": {
+#                         "quay.io": {
+#                              "auth": "..."
+#                         }
+#                    }
+#               }
 systemd:
   units:
-    - name: acme-corp-layer-nvidia-container-runtime.service
+    - name: getty@tty0.service
+      dropins:
+      - name: autologin-substrate.conf
+        contents: |
+          [Service]
+          # Override Execstart in main unit
+          ExecStart=
+          # Add new Execstart with `-` prefix to ignore failure
+          ExecStart=-/usr/sbin/agetty --autologin substrate --noclear %I $TERM
+          TTYVTDisallocate=no
+    - name: docker.service
+      mask: true
+    # - name: serial-getty@ttyS0.service
+    #   dropins:
+    #   - name: autologin-substrate.conf
+    #     contents: |
+    #       [Service]
+    #       # Override Execstart in main unit
+    #       ExecStart=
+    #       # Add new Execstart with `-` prefix to ignore failure
+    #       ExecStart=-/usr/sbin/agetty --autologin substrate --noclear %I $TERM
+    #       TTYVTDisallocate=no
+    - name: substrateos-autorebase.service
       enabled: true
       contents: |
         [Unit]
-        Description=Layer nvidia-container-runtime
+        Description=SubstrateOS autorebase to OCI and reboot
+        ConditionFirstBoot=true
         After=network-online.target
-        Before=zincati.service
-        ConditionPathExists=!/var/lib/%N.stamp
-
         [Service]
+        After=ignition-firstboot-complete.service
         Type=oneshot
         RemainAfterExit=yes
-        ExecStart=/bin/sh -c 'FEDORA_VERSION_ID=$(cat /etc/os-release | grep VERSION_ID | cut -d = -f2); \
-            curl -s -L https://container-toolkit-fcos.gitlab.io/container-runtime/stable/fedora$$FEDORA_VERSION_ID/container-runtime.repo \
-                > /etc/yum.repos.d/container-runtime.repo'
-        ExecStart=/usr/bin/rpm-ostree install --idempotent --apply-live --allow-inactive nvidia-container-runtime
-        ExecStart=nvidia-ctk runtime configure --runtime=docker
-        ExecStart=/bin/touch /var/lib/%N.stamp
-        Restart=on-failure
-        RestartSec=60
-
-        [Install]
-        WantedBy=multi-user.target
-    - name: acme-corp-layer-nvidia-driver.service
-      enabled: true
-      contents: |
-        [Unit]
-        Requires=network-online.target
-        After=network-online.target
-
-        [Service]
-        TimeoutStartSec=250
-        ExecStartPre=-/bin/podman stop nvidia-driver
-        ExecStartPre=-/bin/podman rm nvidia-driver
-        # Switch off SELINUX enforcement...interested in knowing how to avoid requiring this...
-        ExecStartPre=-setenforce 0
-        ExecStartPre=-/bin/mkdir -p /run/nvidia
-        ExecStartPre=-/bin/sh -c 'KERNEL_VERSION=$(/bin/uname -r);FEDORA_VERSION_ID=$(cat /etc/os-release | grep VERSION_ID | cut -d = -f2); \
-            /bin/podman pull registry.gitlab.com/container-toolkit-fcos/driver:535.104.12-$$KERNEL_VERSION-$$FEDORA_VERSION_ID'
-        ExecStartPre=-/usr/sbin/modprobe video
-        ExecStart=/bin/sh -c 'KERNEL_VERSION=$(/bin/uname -r);FEDORA_VERSION_ID=$(cat /etc/os-release | grep VERSION_ID | cut -d = -f2);/bin/podman run --name nvidia-driver \
-            -v /run/nvidia:/run/nvidia:shared \
-            -v /var/log:/var/log \
-            --privileged \
-            --pid=host \
-            registry.gitlab.com/container-toolkit-fcos/driver:535.104.12-$$KERNEL_VERSION-fedora$$FEDORA_VERSION_ID \
-                --accept-license'
-        ExecStop=/bin/podman stop nvidia-driver
-        Restart=on-failure
-        RestartSec=300
-
+        ExecStart=rpm-ostree rebase --reboot ostree-unverified-registry:ghcr.io/ajbouh/substrate:substrateos
         [Install]
         WantedBy=multi-user.target

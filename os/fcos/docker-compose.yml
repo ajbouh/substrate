@@ -1,0 +1,11 @@
+services:
+  substrateos:
+    # image: localhost:5000/substrateos:latest
+    image: ghcr.io/ajbouh/substrate:substrateos
+    build:
+      dockerfile: Containerfile
+  substrate:
+    image: ghcr.io/ajbouh/substrate:substrate
+    build:
+      dockerfile: services/substrate/Dockerfile
+      context: ../../

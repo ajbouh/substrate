@@ -1,0 +1,40 @@
+# Documentation https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html
+# see rendered unit with /usr/libexec/podman/quadlet -dryrun
+
+[Unit]
+Requires=network-online.target
+After=network-online.target
+Requires=substrate-pull.service
+After=substrate-pull.service
+Requires=podman.socket
+After=podman.socket
+
+[Container]
+ContainerName=substrate
+Image=ghcr.io/ajbouh/substrate:substrate
+# SecurityLabelDisable=true
+PublishPort=80:8080
+PublishPort=4222:4222
+Volume=substrate_data:/var/lib/substrate:rw
+Volume=/var/run/podman/podman.sock:/var/run/docker.sock:rw
+Volume=plane:/system/shared:rw
+Pull=never
+Environment=DEBUG=1
+Environment=PORT=8080
+Environment=SUBSTRATE_DB=/var/lib/substrate/substrate.sqlite
+Environment=LENSES={"substrate":{"name":"substrate","activities":{"new":{"activity":"user:new-space","image":"data:image/svg+xml;utf8,\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 20 20\" fill=\"currentColor\" \u003e\u003cpath fill-rule=\"evenodd\" d=\"M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z\" clip-rule=\"evenodd\" /\u003e\u003c/svg\u003e","label":"Create new space","request":{"path":"/api/v1/spaces","method":"POST"},"response":{"schema":{"space":{"type":"space","path":["space"],"from":"body"}}}},"fork":{"activity":"user:new-space","image":"data:image/svg+xml;utf8,\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 20 20\" fill=\"currentColor\"\u003e\u003cpath d=\"M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z\" /\u003e\u003cpath d=\"M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5z\" /\u003e\u003c/svg\u003e","label":"fork space","request":{"path":"/api/v1/spaces","method":"POST","schema":{"space_base_ref":{"type":"space","body":["space_base_ref"]}}},"response":{"schema":{"space":{"type":"space","path":["space"],"from":"body"}}}}}},"ui":{"name":"ui","spawn":{"jamsocket":{"service":"substrate-adamb-ui","env":{}},"env":{}}},"files":{"name":"files","spawn":{"jamsocket":{"service":"substrate-adamb-files","env":{}},"schema":{"data":{"type":"space"}}},"activities":{"previewJupyverse":{"activity":"system:preview:activity:jupyverse","request":{"interactive":true,"path":"/nbpreview","method":"GET"},"priority":10},"previewJupyterLab":{"activity":"system:preview:activity:jupyter-lab","request":{"interactive":true,"path":"/nbpreview","method":"GET"},"priority":10},"browseFiles":{"activity":"user:open","label":"browse files...","request":{"interactive":true,"method":"GET"},"image":"data:image/svg+xml;utf8,\u003csvg class=\"-ml-1 mr-2 h-5 w-5 {iconClass}\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 20 20\" fill=\"currentColor\"\u003e\u003cpath d=\"M4.75 3A1.75 1.75 0 003 4.75v2.752l.104-.002h13.792c.035 0 .07 0 .104.002V6.75A1.75 1.75 0 0015.25 5h-3.836a.25.25 0 01-.177-.073L9.823 3.513A1.75 1.75 0 008.586 3H4.75zM3.104 9a1.75 1.75 0 00-1.673 2.265l1.385 4.5A1.75 1.75 0 004.488 17h11.023a1.75 1.75 0 001.673-1.235l1.384-4.5A1.75 1.75 0 0016.896 9H3.104z\" /\u003e\u003c/svg\u003e"}}},"datasette":{"name":"datasette","spawn":{"jamsocket":{"service":"substrate-adamb-datasette","env":{}},"schema":{"data":{"type":"space"}}}},"fastcups":{"name":"fastcups","spawn":{"jamsocket":{"service":"substrate-adamb-fastcups","env":{}}}},"redbean":{"name":"redbean","spawn":{"jamsocket":{"service":"substrate-adamb-redbean","env":{}}}},"git-export":{"name":"git-export","spawn":{"jamsocket":{"service":"substrate-adamb-git-export","env":{}},"schema":{"config":{"type":"space"},"data":{"type":"spaces","collection":{"attributes":{}},"optional":true}}},"activities":{"export":{"activity":"user:collection:space","label":"export spaces to git repository","request":{"path":"/runs/export/","method":"POST"}},"init":{"activity":"user:collection:space","label":"set up config space for git export","request":{"path":"/runs/init/","method":"POST"}}}},"gotty":{"name":"gotty","spawn":{"jamsocket":{"service":"substrate-adamb-gotty","env":{}},"schema":{"data":{"type":"space"}}},"activities":{"previewTerminal":{"activity":"system:preview:activity:gotty","request":{"interactive":true,"path":"/","method":"GET"},"priority":10},"terminal":{"activity":"user:open","label":"open terminal","request":{"interactive":true,"method":"GET"}}}},"jupyverse":{"name":"jupyverse","spawn":{"jamsocket":{"service":"substrate-adamb-jupyverse","env":{}},"schema":{"data":{"type":"space"}}},"space":{"preview":"index.ipynb"},"activities":{"open":{"activity":"user:open","priority":10,"request":{"interactive":true,"path":"/retro/notebooks/:path","method":"GET","schema":{"file":{"type":"file","path":":path","default":"index.ipynb"}}},"label":"open notebook with Jupyverse","image":"data:image/svg+xml;utf8,\u003csvg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 20 20\" fill=\"currentColor\"\u003e\u003cpath d=\"M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z\" /\u003e\u003c/svg\u003e"}}},"screenshot":{"name":"screenshot","spawn":{"jamsocket":{"service":"substrate-adamb-screenshot","env":{}}}},"visualizer":{"name":"visualizer","spawn":{"jamsocket":{"service":"substrate-adamb-visualizer","env":{}},"schema":{"data":{"type":"space"}}},"activities":{"previewFiles":{"activity":"system:preview:space","request":{"interactive":true,"path":"/","method":"GET"},"priority":1}}},"openplayground":{"name":"openplayground","activities":{"open":{"activity":"user:open","priority":10,"request":{"interactive":true,"path":"/","method":"GET"},"label":"open openplayground"}},"spawn":{"jamsocket":{"service":"substrate-adamb-openplayground","env":{}}}}}
+Environment=PLANE_DRONE_SUBSTRATEFS_MOUNTPOINT=/mnt/substrate
+Environment=ORIGIN=https://100-85-122-130.my.local-ip.co
+Environment=PLANE_HTTP__services_substrate-adamb-ui=my.localip.co
+Environment=PLANE_CLUSTER_DOMAIN=my.localip.co
+Environment=PLANE_AGENT__IP=100.85.122.130
+Environment=PLANE_DATA_DIR=/system/shared
+Environment=PLANE_ACME__ADMIN_EMAIL=paul@driftingin.space
+Environment=PLANE_ACME__SERVER=https://acme-v02.api.letsencrypt.org/directory
+Environment=PLANE_AGENT__DOCKER__CONNECTION__SOCKET=/var/run/docker.sock
+Environment=PLANE_PROXY__BIND_IP=0.0.0.0
+Environment=SESSION_SECRET=NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk
+
+
+[Install]
+WantedBy=multi-user.target

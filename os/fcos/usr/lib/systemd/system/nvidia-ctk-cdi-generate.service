@@ -1,0 +1,10 @@
+[Unit]
+ConditionPathExists=!/etc/cdi/nvidia.yaml
+
+[Service]
+Type=oneshot
+ExecStart=nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

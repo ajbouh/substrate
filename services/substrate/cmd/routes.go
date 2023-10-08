@@ -61,9 +61,14 @@ func newHTTPHandler(s *substrate.Substrate) http.Handler {
 		}
 	}
 
-	// router.Handle("GET", "/", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
-	// 	http.Redirect(rw, req, "/ui/", http.StatusTemporaryRedirect)
-	// })
+	if os.Getenv("GIHUB_CLIENT_ID") == "" {
+		fmt.Printf("Disabling authentication\n")
+		router.Handle("GET", "/", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
+			http.Redirect(rw, req, "/ui/", http.StatusTemporaryRedirect)
+		})
+
+		return router
+	}
 
 	githubRedirectURL := s.Origin + "/auth/github/callback"
 	fmt.Printf("Origin=%s\n", githubRedirectURL)
