@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/nats-io/nats-server/v2/server"
 )
@@ -12,7 +13,11 @@ type NatsConfig struct {
 	Username string
 	Password string
 
+	Trace bool
+	Debug bool
+
 	Host string
+	Port int
 }
 
 type NatsCoordinates struct {
@@ -38,18 +43,10 @@ func startNatsServer(ctx context.Context, config *NatsConfig) (*server.Server, *
 
 		// NoAuthUser: true,
 		Host: config.Host,
+		Port: config.Port,
 
-		Debug: true,
-		Trace: true,
-
-		// StoreDir:  mustGetenv("PLANE_DATA_DIR") + "/nats",
-		// Username: "someuser",
-		// Password: "somepassword",
-		// Host: "127.0.0.1",
-
-		// Users: []*server.User{
-		// 	user,
-		// },
+		Debug: config.Debug,
+		Trace: config.Trace,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -77,10 +74,9 @@ func startNatsServer(ctx context.Context, config *NatsConfig) (*server.Server, *
 	// return nil
 
 	return s, &NatsCoordinates{
-		Username: config.Username,
-		Password: config.Password,
-		// Host:     s.Addr().String(),
-		Host:      "127.0.0.1:4222",
+		Username:  config.Username,
+		Password:  config.Password,
+		Host:      "nats://127.0.0.1:" + strconv.Itoa(config.Port),
 		ClientURL: s.ClientURL(),
 	}, nil
 }

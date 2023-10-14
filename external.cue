@@ -1,5 +1,8 @@
 package external
 
+// import (
+//   "strings"
+// )
 
 #namespace: string @tag(namespace)
 
@@ -22,7 +25,7 @@ jamsocket: {
 fly: {
   // From https://fly.io/docs/reference/regions/
   org: "personal"
-  default_region: *"dfw" | "ams" |  "cdg" |  "den" |  "dfw" |  "ewr" |  "fra" |  "gru" |  "hkg" |  "iad" |  "jnb" |  "lax" |  "lhr" |  "maa" |  "mad" |  "mia" |  "nrt" |  "ord" |  "otp" |  "scl" |  "sea" |  "sin" |  "sjc" |  "syd" |  "waw" |  "yul" |  "yyz"
+  default_region: *"sjc" | "ams" |  "cdg" |  "den" |  "dfw" |  "ewr" |  "fra" |  "gru" |  "hkg" |  "iad" |  "jnb" |  "lax" |  "lhr" |  "maa" |  "mad" |  "mia" |  "nrt" |  "ord" |  "otp" |  "scl" |  "sea" |  "sin" |  "sjc" |  "syd" |  "waw" |  "yul" |  "yyz"
 }
 
 nomad: {
@@ -31,7 +34,6 @@ nomad: {
 
 tailscale: {
   drone_ip: "100.64.51.49"
-  TAILSCALE_AUTHKEY: string
 }
 
 github: {
@@ -45,8 +47,10 @@ github: {
 }
 
 aws: {
-  S3_BUCKET: "mieco-dev-adamb-us-east-2"
-  AWS_ACCESS_KEY_ID: string
-  AWS_SECRET_ACCESS_KEY: string
-  AWS_REGION: "us-east-2"
+  [string]: {
+    S3_BUCKET: string
+    AWS_ACCESS_KEY_ID: string
+    AWS_SECRET_ACCESS_KEY: string
+    AWS_REGION: string
+  }
 }

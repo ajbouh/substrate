@@ -55,6 +55,7 @@ type LensSpaceOptions struct {
 
 type LensJamsocketOptions struct {
 	Service string            `json:"service"`
+	Image   string            `json:"image"`
 	Env     map[string]string `json:"env,omitempty"`
 }
 

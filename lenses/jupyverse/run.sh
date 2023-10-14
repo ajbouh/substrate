@@ -52,9 +52,7 @@ fi
 
 #   --frontend.base_url=${JAMSOCKET_BASE_URL}/ \
 jupyverse \
-  --no-open-browser \
-  --auth.mode=noauth \
-  --lab.collaborative \
-  --jupyterlab.enabled=false \
+  --set auth.mode=noauth \
+  --set frontend.collaborative=true \
   --host=0.0.0.0 \
   --port=$PORT

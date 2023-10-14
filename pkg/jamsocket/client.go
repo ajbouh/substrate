@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -19,6 +20,8 @@ type Client struct {
 	URL    string
 	Token  string
 	User   string
+
+	HackDroneProxyPort int
 }
 
 type SpawnRequest struct {
@@ -128,7 +131,9 @@ func (c *Client) newRequest(ctx context.Context, method string, path string, bod
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.Token)
+	if c.Token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.Token)
+	}
 	return req, nil
 }
 
@@ -232,7 +237,13 @@ func (c *Client) Spawn(ctx context.Context, sreq *SpawnRequest) (*SpawnResponse,
 	}
 
 	body := bytes.NewReader(b)
-	req, err := c.newRequest(ctx, "POST", fmt.Sprintf("/user/%s/service/%s/spawn", c.User, sreq.Service), body)
+	var reqURL string
+	if c.User != "" {
+		reqURL = fmt.Sprintf("/user/%s/service/%s/spawn", c.User, sreq.Service)
+	} else {
+		reqURL = fmt.Sprintf("/service/%s/spawn", sreq.Service)
+	}
+	req, err := c.newRequest(ctx, "POST", reqURL, body)
 	if err != nil {
 		c.logf("spawn service=%s user=%s api=%s err=%d", sreq.Service, c.User, c.URL, err)
 		return nil, err
@@ -257,6 +268,12 @@ func (c *Client) Spawn(ctx context.Context, sreq *SpawnRequest) (*SpawnResponse,
 	err = json.NewDecoder(res.Body).Decode(&sres)
 	if err != nil {
 		return nil, err
+	}
+
+	// HACK jamsocket should properly include the drone proxy port in the URL
+	if (strings.HasPrefix(sres.URL, "http:") && c.HackDroneProxyPort != 80) ||
+		(strings.HasPrefix(sres.URL, "https:") && c.HackDroneProxyPort != 443) {
+		sres.URL = sres.URL + ":" + strconv.Itoa(c.HackDroneProxyPort)
 	}
 
 	c.logf("spawn service=%s user=%s api=%s status=%q statuscode=%d backend=%s spawnreq=%q", sreq.Service, c.User, c.URL, res.Status, res.StatusCode, sres.Name, string(b))

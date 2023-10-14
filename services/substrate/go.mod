@@ -37,6 +37,7 @@ require (
 	github.com/nats-io/nats-server/v2 v2.9.20 // indirect
 	github.com/nats-io/nkeys v0.4.4 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
+	github.com/pelletier/go-toml/v2 v2.1.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go4.org/mem v0.0.0-20210711025021-927187094b94 // indirect
 	go4.org/netipx v0.0.0-20220725152314-7e7bdc8411bf // indirect

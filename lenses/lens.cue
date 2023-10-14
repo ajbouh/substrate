@@ -76,6 +76,7 @@ let #Lens = close({
   spawn?: {
     jamsocket ?: {
       service: string
+      image: string
       env: {[string]: string}
     }
 

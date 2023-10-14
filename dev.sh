@@ -101,15 +101,17 @@ case "$1" in
           16G
       cd -
     fi
-    qemu-kvm \
+    # need qemu ≥ 7.1.0 for vmnet-bridge to work, but nixpkgs build still lacks it.
+    qemu-system-x86_64 \
       -m 2048 \
-      -cpu host \
       -nographic \
+      -cpu host \
       -snapshot \
-      -accel hvf \
+      -M accel=hvf \
       -drive if=virtio,file=.gen/substrate-fcos-$FCOS_VERSION-qemu.x86_64.qcow2 \
       -fw_cfg name=opt/com.coreos/config,file=.gen/substrate.ign \
-      -nic user,model=virtio,hostfwd=tcp::2222-:22,hostfwd=tcp::2280-:80
+      -nic user,model=virtio,hostfwd=tcp::2222-:22,hostfwd=tcp::2280-:2280
+
     ;;
   os-qemu-rebase)
     shift
@@ -119,9 +121,25 @@ case "$1" in
     ;;
   os-qemu-update-containers)
     shift
+    # re-render /etc
+    mkdir -p $HERE/os/fcos/.gen/etc/containers/systemd
+    cue_export text $CUE_MODULE:dev 'systemd.containers["substrate.container"].#text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate.container
+    cue_export text $CUE_MODULE:dev 'systemd.containers["substrate.container"].#environment_file_text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate.env
+    # substrate
     docker compose -f $HERE/os/fcos/docker-compose.yml build substrate
-    tar -cv $HERE/os/fcos/etc | ssh_qemu sudo tar xv --no-same-owner -C /etc
+    # build lenses
+    docker_compose_yml=$(make_docker_compose_yml dev-lenses docker_compose_lenses)
+    docker_compose $docker_compose_yml build
+    # replace /etc
+    tar -cv -C $HERE/os/fcos/.gen/etc . | ssh_qemu sudo tar xv --no-same-owner -C /etc
+    # update substrate
     docker image save ghcr.io/ajbouh/substrate:substrate | ssh_qemu sudo skopeo copy docker-archive:/dev/stdin containers-storage:ghcr.io/ajbouh/substrate:substrate
+    # update lenses
+    LENS_IMAGES=$(cue_export text $CUE_MODULE:dev 'lens_images.#out')
+    echo LENS_IMAGES=$LENS_IMAGES
+    for lens_image in $LENS_IMAGES; do
+      docker image save $lens_image | ssh_qemu sudo skopeo copy docker-archive:/dev/stdin containers-storage:$lens_image
+    done
     ssh_qemu sudo systemctl daemon-reload
     ssh_qemu sudo systemctl restart substrate
     ssh_qemu sudo journalctl -xlfeu substrate.service
@@ -129,6 +147,17 @@ case "$1" in
   os-qemu-ssh)
     shift
     ssh_qemu "$@"
+    ;;
+  fcos-iso-live)
+    shift
+    butane --pretty --strict < $HERE/os/fcos/substrate.bu > $HERE/os/fcos/substrate.ign
+    fcos_installer download -s stable -p metal -f iso
+    fcos_installer \
+      iso customize \
+      '--live-karg-append=coreos.liveiso.fromram' \
+      '--live-ignition=./substrate.ign' \
+      -o substrate-live-fcos-$FCOS_VERSION.x86_64.iso \
+      fedora-coreos-$FCOS_VERSION-live.x86_64.iso
     ;;
   up)
     shift
@@ -162,6 +191,10 @@ case "$1" in
       viewname=${viewspec%=*}
       localdir_raw=${viewspec#*=}
 
+      # if [[ $localdir_raw != '"'* ]] || [[ $localdir_raw != "'"* ]]; then
+      #   # TODO parse lens.cue and pull out environment variable name for this field...
+      #   env_args+=("-e" "$localdir_raw")
+      # el
       if [[ $localdir_raw != ','* ]]; then
         localdir=$localdir_raw
 

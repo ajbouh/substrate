@@ -162,9 +162,9 @@ flyctl_ensure() {
   flyctl_ensure_regions $basename $fly_app_name
   flyctl_ensure_ips $basename $fly_app_name
   flyctl_ensure_volumes $basename $fly_app_name
-  flyctl_ensure_scaled $basename $fly_app_name
   flyctl_ensure_secrets $basename $fly_app_name
   flyctl_ensure_deployed $basename $fly_app_name
+  flyctl_ensure_scaled $basename $fly_app_name
 }
 
 docker_compose() {

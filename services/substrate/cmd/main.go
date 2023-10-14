@@ -15,6 +15,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/ajbouh/substrate/pkg/jamsocket"
 	"github.com/ajbouh/substrate/pkg/substratefs"
 	"github.com/ajbouh/substrate/services/substrate"
 )
@@ -25,6 +26,15 @@ func mustGetenv(name string) string {
 		log.Fatalf("%s not set", name)
 	}
 	return value
+}
+
+func mustGetenvAsInt(name string) int {
+	v := mustGetenv(name)
+	i, err := strconv.Atoi(v)
+	if err != nil {
+		log.Fatalf("%s not an integer: %s", v, err)
+	}
+	return i
 }
 
 func main() {
@@ -58,7 +68,27 @@ func main() {
 		log.Fatalf("error starting db: %s", err)
 	}
 
+	controllerHTTPPort := 9090
+
+	jamsocketServices := map[string]string{}
+	for _, lens := range lenses {
+		if lens.Spawn.Jamsocket == nil {
+			continue
+		}
+
+		jamsocketServices[lens.Spawn.Jamsocket.Service] = lens.Spawn.Jamsocket.Image
+	}
+
+	droneProxyPort := mustGetenvAsInt("PLANE_PROXY__HTTP_PORT")
 	sub := &substrate.Substrate{
+		JamsocketClient: &jamsocket.Client{
+			Client: &http.Client{},
+			Logf: func(format string, args ...interface{}) {
+				log.Printf(format, args...)
+			},
+			URL:                "http://localhost:" + strconv.Itoa(controllerHTTPPort),
+			HackDroneProxyPort: droneProxyPort,
+		},
 		Layout: substratefs.NewLayout(substratefsMountpoint),
 		Lenses: lenses,
 		DB:     db,
@@ -72,6 +102,7 @@ func main() {
 		Password: "somepassword",
 		// Host:     "127.0.0.1",
 		Host: "0.0.0.0",
+		Port: mustGetenvAsInt("NATS_PORT"),
 	})
 	if err != nil {
 		log.Fatalf("error starting nats: %s", err)
@@ -84,7 +115,10 @@ func main() {
 		RustLog:       "debug",
 		RustBacktrace: "full",
 
-		NatsHosts:    natsCoords.Host,
+		Port:     controllerHTTPPort,
+		Services: jamsocketServices,
+
+		NatsHosts:    []string{natsCoords.Host},
 		NatsUsername: natsCoords.Username,
 		NatsPassword: natsCoords.Password,
 
@@ -96,11 +130,23 @@ func main() {
 
 	time.Sleep(5 * time.Second)
 
+	bindsStr := os.Getenv("PLANE_AGENT__DOCKER__BINDS")
+	binds := []string{}
+	if bindsStr != "" {
+		binds = strings.Split(bindsStr, ",")
+	}
+
+	extraHostsStr := os.Getenv("PLANE_AGENT__DOCKER__EXTRA_HOSTS")
+	extraHosts := []string{}
+	if extraHostsStr != "" {
+		extraHosts = strings.Split(extraHostsStr, ",")
+	}
+
 	err = startPlaneDrone(ctx, &PlaneDroneConfig{
 		RustLog:       "debug",
 		RustBacktrace: "full",
 
-		NatsHosts:    natsCoords.Host,
+		NatsHosts:    []string{natsCoords.Host},
 		NatsUsername: natsCoords.Username,
 		NatsPassword: natsCoords.Password,
 
@@ -111,7 +157,10 @@ func main() {
 		ClusterDomain: mustGetenv("PLANE_CLUSTER_DOMAIN"),
 		DroneIP:       mustGetenv("PLANE_AGENT__IP"),
 		DockerSocket:  mustGetenv("PLANE_AGENT__DOCKER__CONNECTION__SOCKET"),
-		DockerBinds:   strings.Split(os.Getenv("PLANE_AGENT__DOCKER__BINDS"), ","),
+		DockerBinds:   binds,
+		DockerExtraHosts:   extraHosts,
+
+		HTTPPort: droneProxyPort,
 
 		DockerRuntime:           "runc",
 		DockerInsecureGPU:       true,

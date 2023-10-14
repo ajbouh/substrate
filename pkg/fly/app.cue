@@ -105,7 +105,7 @@ for group in #groups {
 }
 #scale: {
   [string]: {
-    vm: string | *"dedicated-cpu-1x"
+    vm: string | *"performance-1x"
     count: string | *"1"
   }
 }

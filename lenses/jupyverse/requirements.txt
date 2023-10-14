@@ -1,6 +1,6 @@
 # necessary requirements
 jupyter-server-proxy
-jupyverse[retrolab,auth]==0.0.50
+jupyverse[retrolab,auth]==0.1.3
 
 # optional requirements -- these will be installed with pip
 # penkit==0.0.8
@@ -21,3 +21,4 @@ torch
 fastai
 pandas
 langchain
+lmql
