@@ -1,3 +1,0 @@
-package resource
-
-name: string

@@ -1,12 +1,14 @@
 package service
 
-volumes: [...string]
+volumes ?: [...string]
 command ?: [...string]
 
-build: {
+image ?: string
+
+build ?: {
   target ?: string
   context ?: string
   dockerfile ?: string
 }
 
-environment: [string]: string
+environment ?: [string]: string

@@ -224,7 +224,7 @@ func (s *Substrate) newSpawnRequest(ctx context.Context, req *SpawnRequest) (*ja
 		// TODO need to add to preview, ui, and gateway first
 		// TODO need to add headers to return value of provision func (gateway, ui)
 		// TODO need to allow provisionfun to return a URL that will redirect (preview)
-		RequireBearerToken: true,
+		RequireBearerToken: false,
 	}
 
 	if lens.Spawn.Jamsocket.Env != nil {
@@ -244,6 +244,7 @@ func (s *Substrate) newSpawnRequest(ctx context.Context, req *SpawnRequest) (*ja
 	spawnRequest.Env["JAMSOCKET_SUBSTRATE_ORIGIN_RESOLVER"] = s.OriginResolver
 
 	spawnRequest.Env["PUBLIC_EXTERNAL_ORIGIN"] = s.Origin
+	// spawnRequest.Env["ORIGIN"] = s.Origin
 
 	if req.User != "" {
 		spawnRequest.Env["JAMSOCKET_USER"] = req.User
@@ -381,6 +382,11 @@ func (s *Substrate) Spawn(ctx context.Context, req *SpawnRequest) (*SpawnResult,
 				ForkedFromRef: forkedFromRef,
 				ForkedFromID:  forkedFromID,
 				CreatedAt:     now,
+				// InitialLens:   &req.ActivitySpec.LensName,
+				// InitialMount: &SpaceMount{
+				// 	Name:  viewName,
+				// 	Multi: multi,
+				// },
 			})
 		}
 
@@ -420,6 +426,7 @@ func (s *Substrate) Spawn(ctx context.Context, req *SpawnRequest) (*SpawnResult,
 		ID:        eventID,
 		Type:      "spawn",
 		Timestamp: now,
+		// Parameters:       req.ActivitySpec.Parameters,
 		ActivitySpec: viewspecReq,
 		User:         req.User,
 		Lens:         req.ActivitySpec.LensName,

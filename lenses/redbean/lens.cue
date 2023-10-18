@@ -1,3 +1,0 @@
-package lens
-
-name: "redbean"

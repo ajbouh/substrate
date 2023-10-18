@@ -45,6 +45,12 @@ func withUser(ctx context.Context, user *User) context.Context {
 }
 
 func UserFromContext(ctx context.Context) (*User, bool) {
+	// HACK hardcode this
+	return &User{
+		GithubUsername: "nobody",
+	}, true
+
+
 	v := ctx.Value(userContextKey)
 	if v != nil {
 		user, ok := v.(*User)

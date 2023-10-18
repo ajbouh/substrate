@@ -1,30 +1,33 @@
 package dev
 
 import (
-  "encoding/json"
   "strings"
 
   "github.com/ajbouh/substrate:external"
 
-  "github.com/ajbouh/substrate/pkg/podman:quadlet"
+  "github.com/ajbouh/substrate/pkg/systemd"
+  docker_compose_service "github.com/ajbouh/substrate/pkg/docker/compose:service"
 
-  build_services "github.com/ajbouh/substrate/services"
+  build_daemons "github.com/ajbouh/substrate/services:daemons"
 
-  build_lenses "github.com/ajbouh/substrate/lenses"
+  build_lenses "github.com/ajbouh/substrate/services:lenses"
 )
 
 #namespace: string @tag(namespace)
 
-#services: (build_services & {
+#lenses: (build_lenses & {
+  #var: {
+    "namespace": #namespace
+    "image_prefix": "\(external.jamsocket.registry)/\(external.jamsocket.account)-lens-"
+  }
+})
+
+#daemons: (build_daemons & {
   #var: {
     "namespace": "\(#namespace)-dev"
     "hostprefix": "\(#namespace)-dev-"
-    "lenses": (build_lenses & {
-      #var: {
-        "namespace": #namespace
-        "image_prefix": "\(external.jamsocket.registry)/\(external.jamsocket.account)-lens-"
-      }
-    })
+    "image_prefix": "\(external.jamsocket.registry)/\(external.jamsocket.account)-daemon-"
+    "lenses": #lenses
     "secrets": {
       "substrate": {
         "session_secret": "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
@@ -33,16 +36,15 @@ import (
     "substrate": {
       // internal_port: 443
       // origin: "https://\(#namespace)-substrate.tail87070.ts.net"
-      internal_port: 8080
+      internal_port: 2280
       // origin: "http://127.0.0.1:18080"
     }
-    "plane_drone_substratefs_mountpoint": "/mnt/substrate"
   }
 })
 
 lens_images: {
   #lens_images: [
-    for service, def in #services.#var.lenses if def.spawn != _|_ {
+    for lens, def in #daemons.#var.lenses if def.spawn != _|_ {
       def.spawn.jamsocket.image
     }
   ]
@@ -50,70 +52,181 @@ lens_images: {
   #out: strings.Join(#lens_images, "\n")
 }
 
-systemd: {
-  containers: {
-    [=~".*\\.container$"]: quadlet.#Quadlet
+"fcos": ignition: {
+// https://coreos.github.io/butane/config-fcos-v1_5/
+  variant: "fcos"
+  version: "1.5.0"
+  passwd: users: [
+    {
+      name: "substrate"
+      password_hash: "$y$j9T$zK4DDIlSx4fT3sjXMxklf.$JaBgIM8q9CXCcfgVa5ScYdp9/6Dg.wSk/dfYm3Uvo0B"
+      groups: [
+        "sudo",
+        "wheel",
+        "docker",
+      ]
+      ssh_authorized_keys_local: [
+        "adamb-ssh-key.pub",
+      ]
+    }
+  ]
+  storage: {
+    disks: [
+      {
+        device: "/dev/disk/by-id/coreos-boot-disk"
+        wipe_table: false
+        partitions: [
+          {
+            number: 4
+            label: "root"
+            size_mib: 8192
+            resize: true
+          },
+          {
+            label: "var"
+            size_mib: 0
+          }
+        ]
+      }
+    ]
+    filesystems: [
+      {
+        path: "/var"
+        device: "/dev/disk/by-partlabel/var"
+        format: "btrfs"
+        with_mount_unit: true
+      }
+    ]
+    files: [
+      {
+        path: "/etc/ostree/auth.json"
+        mode: 0o600
+        contents: {
+          inline: """
+             {
+                 "auths": {
+                       "quay.io": {
+                           "auth": "..."
+                       }
+                 }
+             }
+             """
+        }
+      }
+    ]
+  }
+  systemd: {
+    units: [
+      {
+        name: "getty@tty0.service"
+        dropins: [
+          {
+            name: "autologin-substrate.conf"
+            contents: """
+              [Service]
+              # Override Execstart in main unit
+              ExecStart=
+              # Add new Execstart with `-` prefix to ignore failure
+              ExecStart=-/usr/sbin/agetty --autologin substrate --noclear %I $TERM
+              TTYVTDisallocate=no
+              """
+          }
+        ]
+      },
+      {
+        name: "docker.service"
+        mask: true
+      },
+      // {
+      //   name: "serial-getty@ttyS0.service"
+      //   dropins: {
+      //     name: "autologin-substrate.conf"
+      //     contents: """
+      //       [Service]
+      //       # Override Execstart in main unit
+      //       ExecStart=
+      //       # Add new Execstart with `-` prefix to ignore failure
+      //       ExecStart=-/usr/sbin/agetty --autologin substrate --noclear %I $TERM
+      //       TTYVTDisallocate=no
+      //     """
+      //   }
+      // },
+      {
+        name: "substrateos-autorebase.service"
+        enabled: true
+        contents: """
+          [Unit]
+          Description=SubstrateOS autorebase to OCI and reboot
+          ConditionFirstBoot=true
+          After=network-online.target
+          [Service]
+          After=ignition-firstboot-complete.service
+          Type=oneshot
+          RemainAfterExit=yes
+          ExecStart=rpm-ostree rebase --reboot ostree-unverified-registry:ghcr.io/ajbouh/substrate:substrateos
+          [Install]
+          WantedBy=multi-user.target
+          """
+      }
+    ]
   }
 }
 
-systemd: {
-  containers: {
-    "substrate.container": {
-      Unit: {
-        Requires: ["network-online.target", "substrate-pull.service", "podman.socket"]
-        After: ["network-online.target", "substrate-pull.service", "podman.socket"]
-      }
-      Install: {
-        WantedBy: ["multi-user.target"]
-      }
-      Container: {
-        ContainerName: "substrate"
-        Image: "ghcr.io/ajbouh/substrate:substrate"
-        SecurityLabelDisable: true
-        PublishPort: [
-          "8081:\(#Environment.PLANE_PROXY__HTTP_PORT)",
-          "2280:\(#Environment.PORT)",
-          "4222:\(#Environment.NATS_PORT)"
-        ]
-        Volume: [
-          "substrate_data:/var/lib/substrate:rw",
-          "/var/run/podman/podman.sock:/var/run/docker.sock:rw",
-          "plane:/system/shared:rw",
-        ]
-        Pull: "never"
-        EnvironmentFile: "substrate.env"
-        #Environment: {
-          DEBUG: "1"
-          PORT: "2280"
-          SUBSTRATE_DB: "/var/lib/substrate/substrate.sqlite"
-          PLANE_DRONE_SUBSTRATEFS_MOUNTPOINT: "/mnt/substrate"
-          ORIGIN: "http://127-0-0-1.my.local-ip.co:\(#Environment.PORT)"
-          PLANE_CLUSTER_DOMAIN: "127-0-0-1.my.local-ip.co"
-          PLANE_AGENT__IP: "127.0.0.1"
-          // PLANE_DATA_DIR: "/system/shared"
-          PLANE_DATA_DIR: "/tmp"
-          // PLANE_ACME__ADMIN_EMAIL: "paul@driftingin.space"
-          // PLANE_ACME__SERVER: "https://acme-v02.api.letsencrypt.org/directory"
-          NATS_PORT: "4222"
-          PLANE_AGENT__DOCKER__CONNECTION__SOCKET: "/var/run/docker.sock"
-          PLANE_AGENT__DOCKER__EXTRA_HOSTS: "127-0-0-1.my.local-ip.co:10.0.2.15"
-          PLANE_PROXY__BIND_IP: "0.0.0.0"
-          PLANE_PROXY__HTTP_PORT: "8081"
-          PLANE_PROXY__HTTPS_PORT: "4333"
-          SESSION_SECRET: "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
-          LENSES: json.Marshal(#services.#var.lenses)
+
+"systemd": containers: {
+  for name, def in #daemons {
+    if def.#systemd_units != _|_ {
+      for unit_name, unit in def.#systemd_units {
+        if unit_name =~ "\\.(image|container)$" {
+          "\(unit_name)": unit & {
+            #text: (systemd.#render & {#unit: unit}).#out
+
+            if unit_name =~ "\\.container$" {
+              if unit.Container.#Environment != _|_ {
+                #environment_file_text: strings.Join([
+                  for k, v in unit.Container.#Environment {
+                    "\(k)=\(v)",
+                  }
+                ], "\n")
+              }
+            }
+          }
         }
       }
     }
   }
 }
 
-docker_compose_lenses: {
-  "services": {
-    for name, lens in #services.#var.lenses {
+"systemd": containers: {
+  "substrate.container": {
+    Container: {
+      #Environment: {
+        PLANE_AGENT__IP: "127.0.0.1"
+      }
+    }
+  }
+}
+
+docker_compose_build: {
+  services: {
+    for name, daemon in #daemons {
+      if daemon.build != null {
+        "daemon-\(name)": {
+          if daemon.build.image != _|_ { image: daemon.build.image }
+          if daemon.build.args != _|_ { build: args: daemon.build.args }
+          if daemon.build.dockerfile != _|_ { build: dockerfile: daemon.build.dockerfile }
+          if daemon.build.target != _|_ { build: target: daemon.build.target }
+          if daemon.build.context != _|_ { build: context: daemon.build.context }
+        }
+      }
+    }
+
+    for name, lens in #daemons.#var.lenses {
       if lens.#build != null {
         "lens-\(name)": {
-          image: lens.spawn.jamsocket.image
+          if lens.spawn != _|_ {
+            image: lens.spawn.jamsocket.image
+          }
           build: dockerfile: lens.#build.dockerfile
           if lens.#build.args != _|_ {
             build: args: lens.#build.args
@@ -122,67 +235,70 @@ docker_compose_lenses: {
       }
     }
   }
+
+  #images: strings.Join([
+    for name, def in services if def.image != _|_ {
+      def.image
+    }
+  ], "\n")
 }
 
 docker_compose: {
   "volumes": {
     for name, def in docker_compose.services {
-      if #services[name].#docker_compose_volumes != _|_ {
-        #services[name].#docker_compose_volumes
+      if #daemons[name].#docker_compose_volumes != _|_ {
+        #daemons[name].#docker_compose_volumes
       }
     }
   }
 
-  "services": {
-    // [name=string]: {
-    //   if #services[name].#docker_compose_service != _|_ {
-    //     #services[name].#docker_compose_service
-    //   }
-    // }
+  services: [string]: docker_compose_service
 
-    datasette: {
-      let lens = #services.#var.lenses["datasette"]
-      build: dockerfile: "lenses/\(lens.name)/Dockerfile"
-      build: args: lens.#build.args
+  services: {
+    if #lenses["datasette"] != _|_ {
+      datasette: {
+        build: dockerfile: "services/\(#lenses["datasette"].name)/Dockerfile"
+        build: args: #lenses["datasette"].#build.args
 
-      environment: {
-        PORT: "8081"
-      }
-
-      ports: [
-        "18083:\(environment.PORT)",
-      ]
-
-      // Mount the same volumes as substrate, so we can spy on the database
-      environment: DATASETTE_DB: substrate.environment.SUBSTRATE_DB
-
-      volumes: substrate.volumes
-    }
-
-    ui: {
-      let lens = #services.#var.lenses["ui"]
-      build: target: "dev"
-      build: dockerfile: "lenses/\(lens.name)/Dockerfile"
-
-      volumes: [
-        "./lenses/\(lens.name)/static:/app/static:ro",
-        "./lenses/\(lens.name)/src:/app/src:ro",
-      ]
-
-      environment: {
-        if lens.env != _|_ {
-          lens.env
+        environment: {
+          PORT: "8081"
         }
 
-        PORT: "8080"
-        // ORIGIN: substrate.environment.ORIGIN
-        // ORIGIN: "https://\(#services.#var.namespace)-substrate.tail87070.ts.net"
-        ORIGIN: "http://127-0-0-1.my.local-ip.co"
-        PUBLIC_EXTERNAL_ORIGIN: ORIGIN
+        ports: [
+          "18083:\(environment.PORT)",
+        ]
+
+        // Mount the same volumes as substrate, so we can spy on the database
+        environment: DATASETTE_DB: substrate.environment.SUBSTRATE_DB
+
+        volumes: substrate.volumes
+      }
+    }
+    if #lenses["ui"] != _|_ {
+      ui: {
+        build: target: "dev"
+        build: dockerfile: "services/\(#lenses["ui"].name)/Dockerfile"
+
+        volumes: [
+          "./services/\(#lenses["ui"].name)/static:/app/static:ro",
+          "./services/\(#lenses["ui"].name)/src:/app/src:ro",
+        ]
+
+        environment: {
+          if #lenses["ui"].env != _|_ {
+            #lenses["ui"].env
+          }
+
+          PORT: "8080"
+          // ORIGIN: substrate.environment.ORIGIN
+          // ORIGIN: "https://\(#daemons.#var.namespace)-substrate.tail87070.ts.net"
+          ORIGIN: "http://127-0-0-1.my.local-ip.co"
+          PUBLIC_EXTERNAL_ORIGIN: ORIGIN
+        }
       }
     }
     substrate: {
-      #services["substrate"].#docker_compose_service
+      #daemons["substrate"].#docker_compose_service
 
       ports: [
         // "80:8080",
@@ -193,8 +309,10 @@ docker_compose: {
 
       environment: {
         ORIGIN: "http://127-0-0-1.my.local-ip.co"
-        EXTERNAL_UI_HANDLER: "http://ui:\(ui.environment.PORT)"
-        PLANE_AGENT__IP: "100.85.122.130"
+        if #lenses["ui"] != _|_ {
+          EXTERNAL_UI_HANDLER: "http://ui:\(services.ui.environment.PORT)"
+        }
+        // PLANE_AGENT__IP: "100.85.122.130"
       }
     }
   }

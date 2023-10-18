@@ -1,0 +1,7 @@
+fastapi==0.95.2
+fairseq2==0.1
+pydub
+https://github.com/facebookresearch/seamless_communication/archive/e2da150.zip
+numpy==1.24.3
+pydantic==1.10.8
+uvicorn==0.22.0

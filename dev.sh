@@ -66,7 +66,7 @@ case "$1" in
     shift
     cd $HERE/os/fcos/
     mkdir -p .gen .fetch
-    butane --pretty --strict --files-dir=./ substrate.bu --output .gen/substrate.ign
+    cue_export yaml $CUE_MODULE:dev 'fcos.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output .gen/substrate.ign
     fcos_installer download -s $FCOS_STREAM -p metal -f iso -C .fetch
     fcos_installer \
         iso customize \
@@ -86,19 +86,20 @@ case "$1" in
     shift
     cd $HERE/os/fcos/
     mkdir -p .gen .fetch
-    butane --pretty --strict --files-dir=./ substrate.bu --output .gen/substrate.ign
+    cue_export yaml $CUE_MODULE:dev 'fcos.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output .gen/substrate.ign
     if [ ! -f .gen/fedora-coreos-$FCOS_VERSION-qemu.x86_64.qcow2 ]; then
       fcos_installer download -s $FCOS_STREAM -p qemu -f qcow2.xz -C .fetch
       unxz <.fetch/fedora-coreos-$FCOS_VERSION-qemu.x86_64.qcow2.xz >.gen/fedora-coreos-$FCOS_VERSION-qemu.x86_64.qcow2
     fi
     if [ ! -f .gen/substrate-fcos-$FCOS_VERSION-qemu.x86_64.qcow2 ]; then
       cd .gen
+      ssh-keygen -R '[localhost]:2222'
       qemu-img create \
           -f qcow2 \
           -F qcow2 \
           -b fedora-coreos-$FCOS_VERSION-qemu.x86_64.qcow2 \
           substrate-fcos-$FCOS_VERSION-qemu.x86_64.qcow2 \
-          16G
+          32G
       cd -
     fi
     # need qemu ≥ 7.1.0 for vmnet-bridge to work, but nixpkgs build still lacks it.
@@ -110,7 +111,7 @@ case "$1" in
       -M accel=hvf \
       -drive if=virtio,file=.gen/substrate-fcos-$FCOS_VERSION-qemu.x86_64.qcow2 \
       -fw_cfg name=opt/com.coreos/config,file=.gen/substrate.ign \
-      -nic user,model=virtio,hostfwd=tcp::2222-:22,hostfwd=tcp::2280-:2280
+      -nic user,model=virtio,hostfwd=tcp::2222-:22,hostfwd=tcp::2280-:2280,hostfwd=tcp::2281-:2281,hostfwd=tcp::4222-:4222
 
     ;;
   os-qemu-rebase)
@@ -123,22 +124,19 @@ case "$1" in
     shift
     # re-render /etc
     mkdir -p $HERE/os/fcos/.gen/etc/containers/systemd
+    # cue_export text $CUE_MODULE:dev 'systemd.containers["substrate-pull.image"].#text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate-pull.image
     cue_export text $CUE_MODULE:dev 'systemd.containers["substrate.container"].#text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate.container
     cue_export text $CUE_MODULE:dev 'systemd.containers["substrate.container"].#environment_file_text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate.env
-    # substrate
-    docker compose -f $HERE/os/fcos/docker-compose.yml build substrate
-    # build lenses
-    docker_compose_yml=$(make_docker_compose_yml dev-lenses docker_compose_lenses)
+    # build
+    docker_compose_yml=$(make_docker_compose_yml dev-build docker_compose_build)
     docker_compose $docker_compose_yml build
     # replace /etc
     tar -cv -C $HERE/os/fcos/.gen/etc . | ssh_qemu sudo tar xv --no-same-owner -C /etc
-    # update substrate
-    docker image save ghcr.io/ajbouh/substrate:substrate | ssh_qemu sudo skopeo copy docker-archive:/dev/stdin containers-storage:ghcr.io/ajbouh/substrate:substrate
-    # update lenses
-    LENS_IMAGES=$(cue_export text $CUE_MODULE:dev 'lens_images.#out')
-    echo LENS_IMAGES=$LENS_IMAGES
-    for lens_image in $LENS_IMAGES; do
-      docker image save $lens_image | ssh_qemu sudo skopeo copy docker-archive:/dev/stdin containers-storage:$lens_image
+    # update
+    IMAGES=$(cue_export text $CUE_MODULE:dev 'docker_compose_build.#images')
+    echo IMAGES=$IMAGES
+    for image in $IMAGES; do
+      docker image save $image | ssh_qemu sudo skopeo copy docker-archive:/dev/stdin containers-storage:$image
     done
     ssh_qemu sudo systemctl daemon-reload
     ssh_qemu sudo systemctl restart substrate

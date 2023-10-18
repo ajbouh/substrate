@@ -7,8 +7,6 @@ import (
 	"path"
 	"time"
 
-	"github.com/ajbouh/substrate/pkg/juicefs"
-
 	ulid "github.com/oklog/ulid/v2"
 )
 
@@ -264,17 +262,19 @@ func (l *Layout) EnsureCheckpointReady(r *CheckpointRef) error {
 		return logError("error EnsureCheckpointReady action=IsTipReady ref=%s (tip not ready, can't sync checkpoint from it)", r.String())
 	}
 
-	err = juicefs.Sync(l.TipTreePath(tip), l.CheckpointTreePath(r))
-	if err != nil {
-		return logError("error EnsureCheckpointReady action=sync ref=%s (%w)", r.String(), err)
-	}
+	return logError("error EnsureCheckpointReady not fully implemented for local substratefs. TODO.")
 
-	err = l.markCheckpointReady(r)
-	if err != nil {
-		return logError("error EnsureCheckpointReady action=markCheckpointReady ref=%s (%w)", r.String(), err)
-	}
+	// err = juicefs.Sync(l.TipTreePath(tip), l.CheckpointTreePath(r))
+	// if err != nil {
+	// 	return logError("error EnsureCheckpointReady action=sync ref=%s (%w)", r.String(), err)
+	// }
 
-	return nil
+	// err = l.markCheckpointReady(r)
+	// if err != nil {
+	// 	return logError("error EnsureCheckpointReady action=markCheckpointReady ref=%s (%w)", r.String(), err)
+	// }
+
+	// return nil
 }
 
 func (l *Layout) EnsureTipReady(r *TipRef) error {
@@ -304,11 +304,13 @@ func (l *Layout) EnsureTipReady(r *TipRef) error {
 			return logError("error EnsureTipReady action=EnsureCheckpointReady ref=%s (%w)", r.String(), err)
 		}
 
-		err = juicefs.Sync(l.CheckpointTreePath(initialCkpt), l.TipTreePath(r))
-		if err != nil {
-			// defer tipClaim.Release()
-			return logError("error EnsureTipReady action=Sync ref=%s (%w)", r.String(), err)
-		}
+		return logError("error EnsureCheckpointReady not fully implemented for local substratefs. TODO.")
+
+		// err = juicefs.Sync(l.CheckpointTreePath(initialCkpt), l.TipTreePath(r))
+		// if err != nil {
+		// 	// defer tipClaim.Release()
+		// 	return logError("error EnsureTipReady action=Sync ref=%s (%w)", r.String(), err)
+		// }
 	}
 
 	recentCkpt, err := readCheckpointRef(l.TipRecentPath(r))

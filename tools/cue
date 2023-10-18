@@ -8,5 +8,5 @@ HERE=$(cd $(dirname $0)/..; pwd)
 exec docker run -i --rm \
     -v "$HERE:/cue" \
     -w /cue \
-    cuelang/cue:0.5.0-beta.2 -- \
+    cuelang/cue:0.6.0 \
     "$@"

@@ -12,8 +12,4 @@ entry=$2
 expr=$3
 shift 3
 
-if [ "$format" = "toml" ]; then
-  $HERE/tools/cue export --out json $entry --inject=namespace=$NAMESPACE -e "$expr" "$@" | $HERE/tools/dasel -r json -w $format
-else
-  $HERE/tools/cue export --out $format $entry --inject=namespace=$NAMESPACE -e "$expr" "$@"
-fi
+$HERE/tools/cue export --out $format $entry --inject=namespace=$NAMESPACE -e "$expr" "$@"
