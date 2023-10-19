@@ -1,0 +1,25 @@
+site_name: llama-cpp-python
+repo_url: https://github.com/abetlen/llama-cpp-python
+
+theme:
+  name: "material"
+
+plugins:
+  - mkdocstrings
+  - search
+
+watch:
+  - llama_cpp
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.magiclink:
+      repo_url_shorthand: true
+      user: abetlen
+      repo: llama-cpp-python
+  - pymdownx.snippets
+  - pymdownx.superfences
