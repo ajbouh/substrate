@@ -12,3 +12,7 @@ build ?: {
 }
 
 environment ?: [string]: string
+
+ports ?: [...string]
+
+depends_on ?: [...string]

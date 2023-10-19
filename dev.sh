@@ -24,7 +24,7 @@ docker_compose() {
 make_docker_compose_yml() {
   suffix=$1
   expr=$2
-  docker_compose_yml=$HERE/.gen/docker/docker-compose-$NAMESPACE-$suffix.yml
+  docker_compose_yml=$HERE/.gen/docker/$NAMESPACE-$suffix.yml
   mkdir -p $(dirname $docker_compose_yml)
   cue_export yaml $CUE_MODULE:dev $expr > $docker_compose_yml
   echo $docker_compose_yml
@@ -126,7 +126,7 @@ case "$1" in
     ;;
   os-qemu-rebase)
     shift
-    docker_compose_yml=$(make_docker_compose_yml dev-build substrateos.docker_compose_build)
+    docker_compose_yml=$(make_docker_compose_yml os substrateos.docker_compose_build)
     docker_compose $docker_compose_yml build "rebase"
     REBASE_IMAGE=$(cue_export text $CUE_MODULE:dev 'substrateos.#rebase_image')
     docker image save $REBASE_IMAGE | ssh_qemu 'skopeo copy docker-archive:/dev/stdin ostree:$REBASE_IMAGE@/ostree/repo'
@@ -140,7 +140,7 @@ case "$1" in
     cue_export text $CUE_MODULE:dev 'substrateos.systemd.containers["substrate.container"].#text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate.container
     cue_export text $CUE_MODULE:dev 'substrateos.systemd.containers["substrate.container"].#environment_file_text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate.env
     # build
-    docker_compose_yml=$(make_docker_compose_yml $NAMESPACE substrateos.docker_compose_build)
+    docker_compose_yml=$(make_docker_compose_yml os substrateos.docker_compose_build)
     docker_compose $docker_compose_yml build
     # replace /etc
     tar -cv -C $HERE/os/fcos/.gen/etc . | ssh_qemu sudo tar xv --no-same-owner -C /etc
@@ -160,11 +160,11 @@ case "$1" in
     ;;
   bridge-docker-compose)
     shift
-    docker_compose $(make_docker_compose_yml $NAMESPACE-bridge bridge.docker_compose) "$@"
+    docker_compose $(make_docker_compose_yml bridge bridge.docker_compose) "$@"
     ;;
   bridge-docker-compose-up)
     shift
-    docker_compose $(make_docker_compose_yml $NAMESPACE-bridge bridge.docker_compose) up \
+    docker_compose $(make_docker_compose_yml bridge bridge.docker_compose) up \
         --always-recreate-deps \
         --remove-orphans \
         --force-recreate \
@@ -173,7 +173,7 @@ case "$1" in
   docker-compose-up)
     shift
     # docker_compose down || true
-    docker_compose $(make_docker_compose_yml $NAMESPACE docker_compose) up \
+    docker_compose $(make_docker_compose_yml substrate docker_compose) up \
         --always-recreate-deps \
         --remove-orphans \
         --force-recreate \
@@ -246,7 +246,7 @@ case "$1" in
     : ${PORT:=8080}
     internal_port=8080
 
-    docker_compose_yml=$(make_docker_compose_yml dev-lenses docker_compose_lenses)
+    docker_compose_yml=$(make_docker_compose_yml lenses docker_compose_lenses)
     docker_compose $docker_compose_yml build "lens-$lens"
     docker_compose $docker_compose_yml run \
         --rm \

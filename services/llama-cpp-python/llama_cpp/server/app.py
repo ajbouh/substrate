@@ -34,7 +34,7 @@ BaseSettings.model_config['protected_namespaces'] = ()
 
 
 class Settings(BaseSettings):
-    hf_model: str = Field(
+    hf_model: Optional[str] = Field(
         default=None,
         description="The hugginface path to the model to use for generating completions."
     )

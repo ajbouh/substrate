@@ -111,11 +111,11 @@ func (r *Router) Start() error {
 		interval := 1
 		for o := range r.capturedAudio {
 			count++
-			fmt.Printf("capturedaudio count=%d", count)
+			// fmt.Printf("capturedaudio count=%d", count)
 			r.visitListeners(func(l Listeners) {
 				if l.CapturedAudio != nil {
 					if count % interval == 0 {
-						fmt.Printf("capturedaudio count=%d listener=%#v\n", count, l.CapturedAudio)
+						// fmt.Printf("capturedaudio count=%d listener=%#v\n", count, l.CapturedAudio)
 					}
 					l.CapturedAudio <- o
 				}
@@ -129,11 +129,11 @@ func (r *Router) Start() error {
 		interval := 10
 		for o := range r.capturedSample {
 			count++
-			fmt.Printf("capturedsample count=%d", count)
+			// fmt.Printf("capturedsample count=%d", count)
 			r.visitListeners(func(l Listeners) {
 				if l.CapturedSample != nil {
 					if count % interval == 0 {
-						fmt.Printf("capturedsample count=%d listener=%#v\n", count, l.CapturedSample)
+						// fmt.Printf("capturedsample count=%d listener=%#v\n", count, l.CapturedSample)
 					}
 					l.CapturedSample <- o
 				}

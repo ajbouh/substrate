@@ -56,17 +56,15 @@ import (
           if unit_name =~ "\\.(image|container|volume|network)$" {
             "\(unit_name)": unit & {
               #text: (systemd.#render & {#unit: unit}).#out
-
-              if unit_name =~ "\\.container$" {
-                if unit.Container.#Environment != _|_ {
-                  #environment_file_text: strings.Join([
-                    for k, v in unit.Container.#Environment {
-                      "\(k)=\(v)",
-                    }
-                  ], "\n")
-                }
-              }
+              #environment_file_text ?: string
             }
+          }
+
+          // A hack to allow large environment variables that are improperly escaped by quadlet
+          if unit_name =~ "\\.container$" && (unit.Container.#Environment != _|_) {
+            "\(unit_name)": #environment_file_text: strings.Join([
+              for k, v in unit.Container.#Environment { "\(k)=\(v)" }
+            ], "\n")
           }
         }
       }
@@ -115,31 +113,53 @@ import (
   }
 }
 
+
+// HACK so we can share hardware
+#namespace_port_start: {[string]: int} & {
+  "substrate-nobody": 17000
+  "substrate-ajbouh": 18000
+  "substrate-progrium": 19000
+}
+
+#service_port_start: {[string]: [string]: int} & {
+  "bridge": "web": 1
+}
+
+#service_port: {
+  #service: string
+  #port_name: string
+  #out: #namespace_port_start[#namespace] + #service_port_start[#service][#port_name]
+}
+
 "bridge": {
   docker_compose: {
     services: [string]: docker_compose_service
 
     services: {
+      "bridge": #lenses["bridge"].#docker_compose_service
+      "llama-cpp-python": #lenses["llama-cpp-python"].#docker_compose_service
+      "asr-faster-whisper": #lenses["asr-faster-whisper"].#docker_compose_service
+      "asr-seamlessm4t": #lenses["asr-seamlessm4t"].#docker_compose_service
+
       bridge: {
-        #lenses["bridge"].#docker_compose_service
+        ports: [
+          "127.0.0.1:\((#service_port & {#service: "bridge", #port_name: "web"}).#out):\(environment.PORT)",
+        ]
         environment: {
+          PORT: "8080"
           BRIDGE_TRANSCRIPTION: "http://asr-faster-whisper:8000/v1/transcribe"
           BRIDGE_TRANSLATOR_text_eng_en: "http://asr-seamlessm4t:8000/v1/transcribe"
-          BRIDGE_ASSISTANT_Bridge: "http://chat-llama-cpp-python:8000/v1"
+          BRIDGE_ASSISTANT_Bridge: "http://llama-cpp-python:8000/v1"
           // BRIDGE_TRANSLATOR_audio_en: "http://asr-faster-whisper:8000/v1/transcribe"
           // TRANSCRIPTION_SERVICE: "http://asr-whisperx:8000/transcribe"
           // TRANSLATOR_SERVICE: "http://asr-seamlessm4t:8000/translate"
         }
         depends_on: [
-          "chat-llama-cpp-python",
+          "llama-cpp-python",
           "asr-faster-whisper",
           "asr-seamlessm4t",
         ]
       }
-      
-      "chat-llama-cpp-python": #lenses["chat-llama-cpp-python"].#docker_compose_service
-      "asr-faster-whisper": #lenses["asr-faster-whisper"].#docker_compose_service
-      "asr-seamlessm4t": #lenses["asr-seamlessm4t"].#docker_compose_service
     }
   }
 

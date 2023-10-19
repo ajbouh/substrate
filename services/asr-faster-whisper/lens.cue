@@ -6,7 +6,7 @@ name: "asr-faster-whisper"
   dockerfile: "./services/asr-faster-whisper/Dockerfile"
 }
 
-environment: {
+spawn: jamsocket: env: {
   MODEL_SIZE: "large-v2"
   MODEL_DEVICE: "cuda"
   MODEL_COMPUTE_TYPE: "float16"
@@ -15,10 +15,3 @@ environment: {
   CUDA_VISIBLE_DEVICES: "0"
   HF_HOME: "/cache/huggingface"
 }
-
-volumes: [
-  "torch-cache:/cache/torch",
-  "huggingface-cache:/cache/huggingface",
-]
-
-deploy: resources: reservations: devices: [{driver: "nvidia", count: "all", capabilities: ["gpu"]}]

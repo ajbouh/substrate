@@ -1,20 +1,10 @@
 package lens
 
-name: "chat-llama-cpp-python"
+name: "llama-cpp-python"
 
 #build: {
-  dockerfile: "docker/cuda_simple/Dockerfile"
-  context: "./services/chat-llama-cpp-python"
-  args: {
-    MODEL_ACCOUNT: "TheBloke"
-    MODEL_TAG: "llama"
-  }
+  dockerfile: "./services/llama-cpp-python/docker/cuda/Dockerfile"
 }
-
-command: [
-  "--hf_model=TheBloke/Airoboros-L2-13B-2.2-GGUF/airoboros-l2-13b-2.2.Q5_K_M.gguf",
-  "--n_gpu_layers=43",
-]
 
 spawn: jamsocket: env: {
   USE_MLOCK: "0"
@@ -23,10 +13,3 @@ spawn: jamsocket: env: {
   CUDA_VISIBLE_DEVICES: "1,0"
   HF_HOME: "/cache/huggingface"
 }
-
-volumes: [
-  "torch-cache:/cache/torch",
-  "huggingface-cache:/cache/huggingface",
-]
-
-deploy: resources: reservations: devices: [{driver: "nvidia", count: "all", capabilities: ["gpu"]}]

@@ -1,5 +1,7 @@
 import os
 import sys
+import yaml
+import json
 import uuid
 import time
 import math
@@ -1596,7 +1598,7 @@ class Llama:
             return self._convert_text_completion_chunks_to_chat(chunks)
         else:
             completion: Completion = completion_or_chunks  # type: ignore
-            return self._convert_text_completion_to_chat(completion)
+            return self._convert_text_completion_to_chat(completion, decode_function_call=bool(functions))
 
     def create_chat_completion(
         self,
@@ -1675,10 +1677,9 @@ class Llama:
         chat_history.append(prefix_by_role["assistant"].rstrip())
         PROMPT = "\n".join(chat_history)
         print("PROMPT", PROMPT)
-        PROMPT_STOP = [prefix_by_role["assistant"], prefix_by_role["user"]]
+        stop += [prefix_by_role["assistant"], prefix_by_role["user"]]
         completion_or_chunks = self(
             prompt=PROMPT,
-            stop=PROMPT_STOP + stop,
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,

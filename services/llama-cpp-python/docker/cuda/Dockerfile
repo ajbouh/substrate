@@ -14,17 +14,18 @@ RUN apt-get update && apt-get upgrade -y \
 # Install depencencies
 RUN python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools fastapi uvicorn sse-starlette pydantic-settings starlette-context huggingface_hub pyyaml
 
-COPY setup.py README.md pyproject.toml CMakeLists.txt .
-COPY vendor/llama.cpp vendor/llama.cpp
-COPY .git/modules/vendor/llama.cpp .git/modules/vendor/llama.cpp
-COPY llama_cpp llama_cpp
+COPY ./services/llama-cpp-python/README.md ./services/llama-cpp-python/pyproject.toml ./services/llama-cpp-python/CMakeLists.txt .
+COPY ./services/llama-cpp-python/vendor/llama.cpp vendor/llama.cpp
+COPY ./services/llama-cpp-python/llama_cpp llama_cpp
+COPY .git .git
 
 # setting build related env vars
 ENV CUDA_DOCKER_ARCH=all
 ENV LLAMA_CUBLAS=1
 
 # Install llama-cpp-python (build with cuda)
-RUN CMAKE_ARGS="-DLLAMA_CUBLAS=on" FORCE_CMAKE=1 python3 setup.py develop
+RUN CMAKE_ARGS="-DLLAMA_CUBLAS=on" FORCE_CMAKE=1 pip install .
 
 # Run the server
 ENTRYPOINT ["python3", "-m", "llama_cpp.server"]
+CMD ["--hf_model=TheBloke/Airoboros-L2-13B-2.2-GGUF/airoboros-l2-13b-2.2.Q5_K_M.gguf", "--n_gpu_layers=43"]

@@ -13,10 +13,3 @@ spawn: jamsocket: env: {
   TORCH_HOME: "/cache/torch"
   HF_HOME: "/cache/huggingface"
 }
-
-volumes: [
-  "torch-cache:/cache/torch",
-  "huggingface-cache:/cache/huggingface",
-]
-
-deploy: resources: reservations: devices: [{driver: "nvidia", count: "all", capabilities: ["gpu"]}]
