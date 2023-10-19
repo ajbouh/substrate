@@ -39,6 +39,12 @@ pub struct DockerConfig {
     pub network: Option<String>,
 
     #[serde(default)]
+    pub binds: Vec<String>,
+
+    #[serde(default)]
+    pub extra_hosts: Vec<String>,
+
+    #[serde(default)]
     pub insecure_gpu: bool,
 
     /// If true, spawn requests will be allowed to pass volume mounts on to

@@ -47,6 +47,8 @@ pub struct DockerInterface {
     docker: Docker,
     runtime: Option<String>,
     network: Option<String>,
+    binds: Vec<String>,
+    extra_hosts: Vec<String>,
     gpu: bool,
     allow_volume_mounts: bool,
     syslog: Option<String>,
@@ -67,6 +69,8 @@ impl DockerInterface {
             docker,
             runtime: config.runtime.clone(),
             network: config.network.clone(),
+            binds: config.binds.clone(),
+            extra_hosts: config.extra_hosts.clone(),
             gpu: config.insecure_gpu,
             allow_volume_mounts: config.allow_volume_mounts,
             syslog: config.syslog.clone(),
@@ -227,6 +231,8 @@ impl DockerInterface {
                     network_mode: self.network.clone(),
                     runtime: self.runtime.clone(),
                     memory: executable_config.resource_limits.memory_limit_bytes,
+                    binds: Some(self.binds.clone()),
+                    extra_hosts: Some(self.extra_hosts.clone()),
                     cpu_period: executable_config
                         .resource_limits
                         .cpu_period
