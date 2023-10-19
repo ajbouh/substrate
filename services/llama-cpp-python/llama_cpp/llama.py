@@ -1503,22 +1503,46 @@ class Llama:
         )
 
     def _convert_text_completion_to_chat(
-        self, completion: Completion
+        self,
+        completion: Completion,
+        decode_function_call: bool = False,
     ) -> ChatCompletion:
+        content = completion["choices"][0]["text"]
+        choice = {
+            "index": 0,
+            "message": {
+                "role": "assistant",
+                "content": content,
+            },
+            "finish_reason": completion["choices"][0]["finish_reason"],
+        }
+
+        stripped_content = content.strip()
+        print("decode_function_call=", decode_function_call)
+        print("stripped_content=", stripped_content)
+        if decode_function_call and stripped_content:
+            try:
+                json_content = json.loads(stripped_content)
+                function_call_name = json_content.get("function")
+                function_call_args = json_content.get("parameters")
+                if function_call_name:
+                    choice["message"]["function_call"] = {
+                        "name": function_call_name,
+                        "arguments": json.dumps(function_call_args),
+                    }
+                    choice["finish_reason"] = "function_call"            
+            except Exception as e:
+                print(e)
+                traceback.print_exc()
+        print("choice=", choice)
+
         return {
             "id": "chat" + completion["id"],
             "object": "chat.completion",
             "created": completion["created"],
             "model": completion["model"],
             "choices": [
-                {
-                    "index": 0,
-                    "message": {
-                        "role": "assistant",
-                        "content": completion["choices"][0]["text"],
-                    },
-                    "finish_reason": completion["choices"][0]["finish_reason"],
-                }
+                choice,
             ],
             "usage": completion["usage"],
         }
@@ -1611,19 +1635,50 @@ class Llama:
         Returns:
             Generated chat completion or a stream of chat completion chunks.
         """
-
-        format = llama_chat_format.get_chat_format(self.chat_format)
-        result = format(
-            messages=messages,
+        stop = (
+            stop if isinstance(stop, list) else [stop] if isinstance(stop, str) else []
         )
-        prompt = result.prompt
-        if result.stop is not None:
-            stop = [] if stop is None else [stop] if isinstance(stop, str) else stop
-            rstop = result.stop if isinstance(result.stop, list) else [result.stop]
-            stop = stop + rstop
+        prefix_by_role = {
+            "user": "USER: ",
+            "assistant": "ASSISTANT: ",
+            "system": "",
+            # "user": "### Human:",
+            # "assistant": "### Assistant:",
+            # "system": "### System:",
+        }
+        default_role = "user"
+        chat_history = []
 
-        completion_or_chunks = self.create_completion(
-            prompt=prompt,
+        # prepend system
+        system_prefix = prefix_by_role['system']
+        for message in messages:
+            if message["role"] == "system":
+                chat_history.append(f'{system_prefix}{message["content"].strip()}')        
+
+        if functions:
+            # Based on https://huggingface.co/jondurbin/airoboros-l2-7b-2.2
+            chat_history.append("""Please select the most suitable function and parameters from the list of available functions below, based on the user's input. Provide your response in JSON format.""")
+            chat_history.append(f'Available functions:')
+            chat_history.append(yaml.dump({
+                fn["name"]: {
+                    "description": fn["description"] or "",
+                    "parameters": fn["parameters"] or {},
+                }
+                for fn in functions
+            }))
+
+        for message in messages:
+            if message["role"] == "system":
+                continue
+            chat_history.append(f'{prefix_by_role.get(message["role"], prefix_by_role[default_role])}{message["content"].strip()}')        
+
+        chat_history.append(prefix_by_role["assistant"].rstrip())
+        PROMPT = "\n".join(chat_history)
+        print("PROMPT", PROMPT)
+        PROMPT_STOP = [prefix_by_role["assistant"], prefix_by_role["user"]]
+        completion_or_chunks = self(
+            prompt=PROMPT,
+            stop=PROMPT_STOP + stop,
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,
