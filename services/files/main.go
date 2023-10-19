@@ -10,18 +10,18 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+
+	"github.com/ajbouh/substrate/services/files/assets"
 )
 
 const (
-	addrEnvVarName           = "ADDR"
-	allowUploadsEnvVarName   = "UPLOADS"
-	allowDeletesEnvVarName   = "DELETES"
-	defaultAddr              = ":8080"
-	portEnvVarName           = "PORT"
-	quietEnvVarName          = "QUIET"
-	rootRoute                = "/"
-	sslCertificateEnvVarName = "SSL_CERTIFICATE"
-	sslKeyEnvVarName         = "SSL_KEY"
+	addrEnvVarName         = "ADDR"
+	allowUploadsEnvVarName = "UPLOADS"
+	allowDeletesEnvVarName = "DELETES"
+	defaultAddr            = ":8080"
+	portEnvVarName         = "PORT"
+	quietEnvVarName        = "QUIET"
+	rootRoute              = "/"
 )
 
 var (
@@ -31,9 +31,6 @@ var (
 	portFlag64, _    = strconv.ParseInt(os.Getenv(portEnvVarName), 10, 64)
 	portFlag         = int(portFlag64)
 	quietFlag        = os.Getenv(quietEnvVarName) == "true"
-	routesFlag       routes
-	sslCertificate   = os.Getenv(sslCertificateEnvVarName)
-	sslKey           = os.Getenv(sslKeyEnvVarName)
 )
 
 func init() {
@@ -43,81 +40,71 @@ func init() {
 		addrFlag = defaultAddr
 	}
 	flag.StringVar(&addrFlag, "addr", addrFlag, fmt.Sprintf("address to listen on (environment variable %q)", addrEnvVarName))
-	flag.StringVar(&addrFlag, "a", addrFlag, "(alias for -addr)")
 	flag.IntVar(&portFlag, "port", portFlag, fmt.Sprintf("port to listen on (overrides -addr port) (environment variable %q)", portEnvVarName))
-	flag.IntVar(&portFlag, "p", portFlag, "(alias for -port)")
 	flag.BoolVar(&quietFlag, "quiet", quietFlag, fmt.Sprintf("disable all log output (environment variable %q)", quietEnvVarName))
-	flag.BoolVar(&quietFlag, "q", quietFlag, "(alias for -quiet)")
 	flag.BoolVar(&allowUploadsFlag, "uploads", allowUploadsFlag, fmt.Sprintf("allow uploads (environment variable %q)", allowUploadsEnvVarName))
-	flag.BoolVar(&allowUploadsFlag, "u", allowUploadsFlag, "(alias for -uploads)")
 	flag.BoolVar(&allowDeletesFlag, "deletes", allowDeletesFlag, fmt.Sprintf("allow deletes (environment variable %q)", allowDeletesEnvVarName))
-	flag.BoolVar(&allowDeletesFlag, "d", allowDeletesFlag, "(alias for -deletes)")
-	flag.Var(&routesFlag, "route", routesFlag.help())
-	flag.Var(&routesFlag, "r", "(alias for -route)")
-	flag.StringVar(&sslCertificate, "ssl-cert", sslCertificate, fmt.Sprintf("path to SSL server certificate (environment variable %q)", sslCertificateEnvVarName))
-	flag.StringVar(&sslKey, "ssl-key", sslKey, fmt.Sprintf("path to SSL private key (environment variable %q)", sslKeyEnvVarName))
 	flag.Parse()
 	if quietFlag {
 		log.SetOutput(ioutil.Discard)
 	}
-	for i := 0; i < flag.NArg(); i++ {
-		arg := flag.Arg(i)
-		err := routesFlag.Set(arg)
-		if err != nil {
-			log.Fatalf("%q: %v", arg, err)
-		}
-	}
 }
 
 func main() {
+	for _, env := range os.Environ() {
+		fmt.Println(env)
+	}
+
 	addr, err := addr()
 	if err != nil {
 		log.Fatalf("address/port: %v", err)
 	}
-	err = server(addr, routesFlag)
+	err = server(addr)
 	if err != nil {
 		log.Fatalf("start server: %v", err)
 	}
 }
 
-func server(addr string, routes routes) error {
-	mux := http.DefaultServeMux
-	handlers := make(map[string]http.Handler)
-	paths := make(map[string]string)
+func server(addr string) error {
+	mux := http.NewServeMux()
+	mux.Handle("/raw/", &fileHandler{
+		route:       "/raw/",
+		path:        "/spaces/data/tree",
+		allowUpload: allowUploadsFlag,
+		allowDelete: allowDeletesFlag,
+	})
 
-	if len(routes.Values) == 0 {
-		_ = routes.Set(".")
-	}
+	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(assets.Content))))
 
-	for _, route := range routes.Values {
-		handlers[route.Route] = &fileHandler{
-			route:       route.Route,
-			path:        route.Path,
-			allowUpload: allowUploadsFlag,
-			allowDelete: allowDeletesFlag,
+	nbpreviewHandler := func(rw http.ResponseWriter, req *http.Request) {
+		var buf = newBufferedResponseWriter()
+		rawReq := req.Clone(req.Context())
+		rawReq.URL.Path = "/raw" + rawReq.URL.Path
+
+		// assume 404
+		buf.statusCode = 404
+		mux.ServeHTTP(buf, rawReq)
+		if buf.statusCode != 200 {
+			header := rw.Header()
+			for k, v := range buf.Header() {
+				header[k] = v
+			}
+			rw.WriteHeader(buf.statusCode)
+			return
 		}
-		paths[route.Route] = route.Path
-	}
 
-	for route, path := range paths {
-		mux.Handle(route, handlers[route])
-		log.Printf("serving local path %q on %q", path, route)
+		rw.Write(assets.RenderNBPreview(
+			[]byte(os.Getenv("SPAWNER_URL")),
+			[]byte(strconv.Quote(buf.b.String())),
+		))
 	}
-
-	_, rootRouteTaken := handlers[rootRoute]
-	if !rootRouteTaken {
-		route := routes.Values[0].Route
-		mux.Handle(rootRoute, http.RedirectHandler(route, http.StatusTemporaryRedirect))
-		log.Printf("redirecting to %q from %q", route, rootRoute)
-	}
+	mux.Handle("/nbpreview/retro/notebooks/", http.StripPrefix("/nbpreview/retro/notebooks", http.HandlerFunc(nbpreviewHandler)))
+	mux.Handle("/nbpreview/", http.StripPrefix("/nbpreview", http.HandlerFunc(nbpreviewHandler)))
+	mux.Handle("/", http.RedirectHandler("/raw/", http.StatusFound))
 
 	binaryPath, _ := os.Executable()
 	if binaryPath == "" {
 		binaryPath = "server"
-	}
-	if sslCertificate != "" && sslKey != "" {
-		log.Printf("%s (HTTPS) listening on %q", filepath.Base(binaryPath), addr)
-		return http.ListenAndServeTLS(addr, sslCertificate, sslKey, mux)
 	}
 	log.Printf("%s listening on %q", filepath.Base(binaryPath), addr)
 	return http.ListenAndServe(addr, mux)

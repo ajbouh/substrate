@@ -1,3 +1,3 @@
-module github.com/sgreben/http-file-server
+module github.com/ajbouh/substrate/services/files
 
-go 1.16
+go 1.18
