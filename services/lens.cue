@@ -1,5 +1,9 @@
 package lens
 
+import (
+  docker_compose_service "github.com/ajbouh/substrate/pkg/docker/compose:service"
+)
+
 #SpawnSchema: {
   [string]: {
     type: "space" | "spaces" | "string"
@@ -63,7 +67,14 @@ let #Lens = close({
 
   #build: null | *{
     dockerfile?: string
+    context?: string
     args?: {[string]: string}
+  }
+
+  #docker_compose_service: docker_compose_service & {
+    if #build != null { build: #build }
+    if spawn.jamsocket.env != _|_ { environment: spawn.jamsocket.env }
+    if spawn.env != _|_ { environment: spawn.env }
   }
 
   activities ?: [string]: #Activity

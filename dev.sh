@@ -55,8 +55,16 @@ ssh_qemu() {
 
 FCOS_STREAM=stable
 FCOS_VERSION=38.20230918.3.0
+QEMU_RAM=2048
+QEMU_DISK=32G
+SUBSTRATEOS_QCOW2_FILE_BASENAME=substrateos-qemu.qcow2
+SUBSTRATEOS_ISO_BASENAME=substrateos.iso
 
 case "$1" in
+  fcos-installer)
+    shift
+    fcos_installer "$@"
+    ;;
   os-rebase-push)
     shift
     docker compose -f $HERE/os/fcos/docker-compose.yml build
@@ -66,74 +74,78 @@ case "$1" in
     shift
     cd $HERE/os/fcos/
     mkdir -p .gen .fetch
-    cue_export yaml $CUE_MODULE:dev 'fcos.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output .gen/substrate.ign
-    fcos_installer download -s $FCOS_STREAM -p metal -f iso -C .fetch
+    cue_export yaml $CUE_MODULE:dev 'substrateos.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output .gen/substrate.ign
+    FCOS_INSTALLER_ISO=$(fcos_installer download -s $FCOS_STREAM -p metal -f iso -C .fetch)
     fcos_installer \
         iso customize \
         '--dest-device=/dev/nvme0n1' \
         '--dest-ignition=./.gen/substrate.ign' \
         '--dest-console=tty0' \
-        -o .gen/substrate-install-fcos-$FCOS_VERSION.x86_64.iso \
-        .fetch/fedora-coreos-$FCOS_VERSION-live.x86_64.iso
+        -o .gen/$SUBSTRATEOS_ISO_BASENAME \
+        $FCOS_INSTALLER_ISO
     ;;
   os-qemu-reset)
     shift
     cd $HERE/os/fcos/
-    rm .gen/substrate-fcos-$FCOS_VERSION-qemu.x86_64.qcow2
+    rm .gen/$SUBSTRATEOS_QCOW2_FILE_BASENAME
     ssh-keygen -R '[localhost]:2222'
     ;;
   os-qemu-run)
     shift
     cd $HERE/os/fcos/
     mkdir -p .gen .fetch
-    cue_export yaml $CUE_MODULE:dev 'fcos.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output .gen/substrate.ign
-    if [ ! -f .gen/fedora-coreos-$FCOS_VERSION-qemu.x86_64.qcow2 ]; then
-      fcos_installer download -s $FCOS_STREAM -p qemu -f qcow2.xz -C .fetch
-      unxz <.fetch/fedora-coreos-$FCOS_VERSION-qemu.x86_64.qcow2.xz >.gen/fedora-coreos-$FCOS_VERSION-qemu.x86_64.qcow2
-    fi
-    if [ ! -f .gen/substrate-fcos-$FCOS_VERSION-qemu.x86_64.qcow2 ]; then
+    IGNITION_FILE=.gen/substrate.ign
+    cue_export yaml $CUE_MODULE:dev 'substrateos.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output $IGNITION_FILE
+    if [ ! -f .gen/$SUBSTRATEOS_QCOW2_FILE_BASENAME ]; then
+      FCOS_QCOW2_XZ_FILE=$(fcos_installer download -s $FCOS_STREAM -p qemu -f qcow2.xz -C .fetch)
+      FCOS_QCOW2_FILE=.gen/$(basename $FCOS_QCOW2_XZ_FILE .xz)
+      if [ ! -f $FCOS_QCOW2_FILE ]; then
+        unxz <$FCOS_QCOW2_XZ_FILE >$FCOS_QCOW2_FILE
+      fi
       cd .gen
       ssh-keygen -R '[localhost]:2222'
       qemu-img create \
           -f qcow2 \
           -F qcow2 \
-          -b fedora-coreos-$FCOS_VERSION-qemu.x86_64.qcow2 \
-          substrate-fcos-$FCOS_VERSION-qemu.x86_64.qcow2 \
-          32G
+          -b $FCOS_QCOW2_FILE \
+          $SUBSTRATEOS_QCOW2_FILE_BASENAME \
+          $QEMU_DISK
       cd -
     fi
     # need qemu ≥ 7.1.0 for vmnet-bridge to work, but nixpkgs build still lacks it.
     qemu-system-x86_64 \
-      -m 2048 \
+      -m $QEMU_RAM \
       -nographic \
       -cpu host \
       -snapshot \
       -M accel=hvf \
-      -drive if=virtio,file=.gen/substrate-fcos-$FCOS_VERSION-qemu.x86_64.qcow2 \
-      -fw_cfg name=opt/com.coreos/config,file=.gen/substrate.ign \
+      -drive if=virtio,file=.gen/$SUBSTRATEOS_QCOW2_FILE_BASENAME \
+      -fw_cfg name=opt/com.coreos/config,file=$IGNITION_FILE \
       -nic user,model=virtio,hostfwd=tcp::2222-:22,hostfwd=tcp::2280-:2280,hostfwd=tcp::2281-:2281,hostfwd=tcp::4222-:4222
 
     ;;
   os-qemu-rebase)
     shift
-    # docker compose -f $HERE/os/fcos/docker-compose.yml build substrate
-    docker image save ghcr.io/ajbouh/substrate:substrateos | ssh_qemu 'skopeo copy docker-archive:/dev/stdin ostree:ghcr.io/ajbouh/substrate:substrateos@/ostree/repo'
-    ssh_qemu sudo rpm-ostree rebase --reboot --cache-only ghcr.io/ajbouh/substrate:substrateos
+    docker_compose_yml=$(make_docker_compose_yml dev-build substrateos.docker_compose_build)
+    docker_compose $docker_compose_yml build "rebase"
+    REBASE_IMAGE=$(cue_export text $CUE_MODULE:dev 'substrateos.#rebase_image')
+    docker image save $REBASE_IMAGE | ssh_qemu 'skopeo copy docker-archive:/dev/stdin ostree:$REBASE_IMAGE@/ostree/repo'
+    ssh_qemu sudo rpm-ostree rebase --reboot --cache-only $REBASE_IMAGE
     ;;
   os-qemu-update-containers)
     shift
     # re-render /etc
     mkdir -p $HERE/os/fcos/.gen/etc/containers/systemd
     # cue_export text $CUE_MODULE:dev 'systemd.containers["substrate-pull.image"].#text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate-pull.image
-    cue_export text $CUE_MODULE:dev 'systemd.containers["substrate.container"].#text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate.container
-    cue_export text $CUE_MODULE:dev 'systemd.containers["substrate.container"].#environment_file_text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate.env
+    cue_export text $CUE_MODULE:dev 'substrateos.systemd.containers["substrate.container"].#text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate.container
+    cue_export text $CUE_MODULE:dev 'substrateos.systemd.containers["substrate.container"].#environment_file_text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate.env
     # build
-    docker_compose_yml=$(make_docker_compose_yml dev-build docker_compose_build)
+    docker_compose_yml=$(make_docker_compose_yml $NAMESPACE substrateos.docker_compose_build)
     docker_compose $docker_compose_yml build
     # replace /etc
     tar -cv -C $HERE/os/fcos/.gen/etc . | ssh_qemu sudo tar xv --no-same-owner -C /etc
     # update
-    IMAGES=$(cue_export text $CUE_MODULE:dev 'docker_compose_build.#images')
+    IMAGES=$(cue_export text $CUE_MODULE:dev 'substrateos.docker_compose_build.#images')
     echo IMAGES=$IMAGES
     for image in $IMAGES; do
       docker image save $image | ssh_qemu sudo skopeo copy docker-archive:/dev/stdin containers-storage:$image
@@ -146,21 +158,22 @@ case "$1" in
     shift
     ssh_qemu "$@"
     ;;
-  fcos-iso-live)
+  bridge-docker-compose)
     shift
-    butane --pretty --strict < $HERE/os/fcos/substrate.bu > $HERE/os/fcos/substrate.ign
-    fcos_installer download -s stable -p metal -f iso
-    fcos_installer \
-      iso customize \
-      '--live-karg-append=coreos.liveiso.fromram' \
-      '--live-ignition=./substrate.ign' \
-      -o substrate-live-fcos-$FCOS_VERSION.x86_64.iso \
-      fedora-coreos-$FCOS_VERSION-live.x86_64.iso
+    docker_compose $(make_docker_compose_yml $NAMESPACE-bridge bridge.docker_compose) "$@"
     ;;
-  up)
+  bridge-docker-compose-up)
+    shift
+    docker_compose $(make_docker_compose_yml $NAMESPACE-bridge bridge.docker_compose) up \
+        --always-recreate-deps \
+        --remove-orphans \
+        --force-recreate \
+        --build "$@"
+    ;;
+  docker-compose-up)
     shift
     # docker_compose down || true
-    docker_compose $(make_docker_compose_yml dev docker_compose) up \
+    docker_compose $(make_docker_compose_yml $NAMESPACE docker_compose) up \
         --always-recreate-deps \
         --remove-orphans \
         --force-recreate \

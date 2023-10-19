@@ -1,3 +1,19 @@
+# TODO
+# write up basic concepts
+# preview should different for spaces vs activities
+# demo:
+# - backup
+# - terminal
+# - notebook creation
+# - forking
+# models:
+# - whisper
+# - codegen
+# - llama
+# - alpaca
+# - gpt4all
+# - cerebras
+
 # Substrate
 
 Substrate has a small number of "always available" servers running at well known addresses. These are:

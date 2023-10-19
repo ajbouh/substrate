@@ -79,14 +79,14 @@ RUN npm i
 FROM deps as build
 COPY services/ui/src ./src
 COPY services/ui/static ./static
-COPY services/ui/*.sh services/ui/*.js services/ui/*.json services/ui/*.cjs services/ui/.npmrc services/ui/.env ./
+COPY services/ui/*.sh services/ui/*.js services/ui/*.json services/ui/*.cjs services/ui/.npmrc ./
 RUN npm run build
 
 FROM node as dev
 WORKDIR /app
 RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
 COPY --from=deps /app/ ./
-COPY services/ui/*.sh services/ui/*.js services/ui/*.json services/ui/*.cjs services/ui/.npmrc services/ui/.env ./
+COPY services/ui/*.sh services/ui/*.js services/ui/*.json services/ui/*.cjs services/ui/.npmrc ./
 
 ENTRYPOINT ["npm", "run", "dev", "--", "--host=0.0.0.0"]
 

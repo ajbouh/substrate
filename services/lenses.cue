@@ -10,10 +10,12 @@ import (
   lens_substrate "github.com/ajbouh/substrate/services/substrate:lens"
   lens_visualizer "github.com/ajbouh/substrate/services/visualizer:lens"
   lens_bridge "github.com/ajbouh/substrate/services/bridge:lens"
-  // lens_asr_faster_whisper "github.com/ajbouh/substrate/services/asr-faster-whisper:lens"
-  // lens_asr_pyannote_audio "github.com/ajbouh/substrate/services/asr-pyannote-audio:lens"
-  // lens_asr_seamlessm4t "github.com/ajbouh/substrate/services/asr-seamlessm4t:lens"
-  // lens_chat_llama_cpp_python "github.com/ajbouh/substrate/services/chat-llama-cpp-python:lens"
+
+  lens_asr_faster_whisper "github.com/ajbouh/substrate/services/asr-faster-whisper:lens"
+  lens_asr_pyannote_audio "github.com/ajbouh/substrate/services/asr-pyannote-audio:lens"
+  lens_asr_seamlessm4t "github.com/ajbouh/substrate/services/asr-seamlessm4t:lens"
+  lens_chat_llama_cpp_python "github.com/ajbouh/substrate/services/chat-llama-cpp-python:lens"
+
   // lens_fastcups "github.com/ajbouh/substrate/services/fastcups:lens"
   // lens_gitexport "github.com/ajbouh/substrate/services/git-export:lens"
   // lens_redbean "github.com/ajbouh/substrate/services/redbean:lens"
@@ -31,6 +33,10 @@ import (
 
 #filter: {[string]: bool} | *null
 
+// #filter: {
+//   bridge: true
+// }
+
 let all = [
   lens_substrate,
   lens_ui,
@@ -40,11 +46,13 @@ let all = [
   lens_screenshot,
   lens_visualizer,
   lens_bridge,
+
+  lens_asr_faster_whisper,
+  lens_asr_pyannote_audio,
+  lens_asr_seamlessm4t,
+  lens_chat_llama_cpp_python,
+
   // lens_jupyverse,
-  // lens_asr_faster_whisper,
-  // lens_asr_pyannote_audio,
-  // lens_asr_seamlessm4t,
-  // lens_chat_llama_cpp_python,
   // lens_fastcups,
   // lens_redbean,
   // lens_gitexport,
