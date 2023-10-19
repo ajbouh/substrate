@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "metrics",
+    "cli",
+    "controller",
+    "core",
+    "core/nats-macros",
+    "dev",
+    "dev/integration-test",
+    "drone",
+]
