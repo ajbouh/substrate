@@ -186,8 +186,7 @@ export const Tree = (
 
   return (
     <svg
-      width={width}
-      height={height}
+      viewBox={`0 0 ${width} ${height}`}
       style={{
         background: "white",
         fontFamily: "sans-serif",
