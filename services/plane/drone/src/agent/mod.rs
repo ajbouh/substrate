@@ -185,12 +185,14 @@ pub struct AgentSupervisors {
 pub async fn run_agent(agent_opts: AgentOptions) -> Result<AgentSupervisors> {
     let nats = &agent_opts.nats;
 
-    tracing::info!("Connecting to Docker.");
+    tracing::info!("Connecting to Docker...");
     let docker = DockerInterface::try_new(&agent_opts.docker_options).await?;
-    tracing::info!("Connecting to sqlite.");
+    tracing::info!("Connecting to sqlite...");
     let db = agent_opts.db;
     let cluster = agent_opts.cluster_domain.clone();
+    tracing::info!("getting ip...");
     let ip = do_with_retry(|| agent_opts.ip.get_ip(), 10, Duration::from_secs(10)).await?;
+    tracing::info!("got ip");
 
     let request = DroneConnectRequest {
         drone_id: agent_opts.drone_id.clone(),
@@ -200,11 +202,15 @@ pub async fn run_agent(agent_opts: AgentOptions) -> Result<AgentSupervisors> {
         git_hash: GIT_HASH.map(|s| s.to_string()),
     };
 
+    tracing::info!("making nats request...");
     nats.request(&request).await?;
+    tracing::info!("made nats request");
 
     let executor = Executor::new(docker, db.clone(), nats.clone(), ip, cluster.clone());
+    tracing::info!("executor");
 
     let (send_state, recv_state) = watch::channel(DroneState::Ready);
+    tracing::info!("send_state, recv_state");
 
     let ready_loop = {
         let nats = nats.clone();
@@ -221,6 +227,7 @@ pub async fn run_agent(agent_opts: AgentOptions) -> Result<AgentSupervisors> {
             )
         }
     };
+    tracing::info!("ready_loop");
 
     let listen_for_drain = {
         let nats = nats.clone();
@@ -236,6 +243,7 @@ pub async fn run_agent(agent_opts: AgentOptions) -> Result<AgentSupervisors> {
             )
         }
     };
+    tracing::info!("listen_for_drain");
 
     let listen_for_spawn_requests = {
         let nats = nats.clone();
@@ -251,12 +259,14 @@ pub async fn run_agent(agent_opts: AgentOptions) -> Result<AgentSupervisors> {
             )
         }
     };
+    tracing::info!("listen_for_spawn_requests");
 
     let listen_for_termination_requests = {
         let nats = nats.clone();
         let cluster = cluster.clone();
         move || listen_for_termination_requests(executor.clone(), nats.clone(), cluster.clone())
     };
+    tracing::info!("listen_for_termination_requests");
 
     Ok(AgentSupervisors {
         _ready_loop: Supervisor::new("ready_loop", ready_loop),

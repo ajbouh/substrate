@@ -108,12 +108,14 @@ async fn controller_main() -> Result<()> {
     };
 
     let _http_supervisor = if let Some(http_options) = http_plan {
+        tracing::debug!("have http options!!");
         let nats = nats.clone();
         let http_options = http_options;
         Some(Supervisor::new("http", move || {
             crate::http_server::serve(http_options.clone(), nats.clone())
         }))
     } else {
+        tracing::debug!("do not have http options!! :(");
         None
     };
 

@@ -235,6 +235,7 @@ async fn status(
 
 pub async fn serve(options: HttpOptions, nats: TypedNats) -> Result<Never> {
     let addr = SocketAddr::new(options.bind_ip, options.port);
+    tracing::debug!(port = options.port, "starting http server.");
 
     let server_state = Arc::new(ServerState {
         nats,

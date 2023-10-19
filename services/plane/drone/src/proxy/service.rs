@@ -61,6 +61,7 @@ impl MakeProxyService {
         passthrough: Option<SocketAddr>,
         allow_path_routing: bool,
     ) -> Self {
+        tracing::info!("MakeProxyService");
         MakeProxyService {
             db,
             client: Client::new(),
@@ -85,6 +86,7 @@ impl<'a> Service<&'a AddrStream> for MakeProxyService {
     }
 
     fn call(&mut self, req: &'a AddrStream) -> Self::Future {
+        tracing::info!("Service ...call(AddrStream)");
         let remote_ip = req.remote_addr().ip();
         ready(Ok(ProxyService {
             db: self.db.clone(),
@@ -112,6 +114,7 @@ impl<'a> Service<&'a TlsStream> for MakeProxyService {
 
     fn call(&mut self, req: &'a TlsStream) -> Self::Future {
         let remote_ip = req.remote_ip;
+        tracing::info!("Service ...call(TlsStream)");
         ready(Ok(ProxyService {
             db: self.db.clone(),
             client: self.client.clone(),
@@ -326,7 +329,7 @@ impl ProxyService {
             .header("Location", params.redirect.as_deref().unwrap_or("/"))
             .header(
                 "Set-Cookie",
-                format!("{}={}", PLANE_AUTH_COOKIE, params.token),
+                format!("{}={}; SameSite=None; Secure", PLANE_AUTH_COOKIE, params.token),
             )
             .body(Body::empty())?)
     }

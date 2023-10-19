@@ -57,9 +57,13 @@ async fn run_server(options: ProxyOptions, connection_tracker: ConnectionTracker
         options.passthrough,
         options.allow_path_routing,
     );
+    tracing::info!("!!! run_server; will SocketAddr::new");
     let bind_address = SocketAddr::new(options.bind_ip, options.bind_port);
+    tracing::info!("!!! run_server; did SocketAddr::new");
 
     if let (Some(bind_redir_port), Some(key_pair)) = (options.bind_redir_port, options.key_pair) {
+        tracing::info!("!!! before assigning cert_refresher");
+
         let cert_refresher =
             CertRefresher::new(key_pair.clone()).context("Error building cert refresher.")?;
 
@@ -104,7 +108,9 @@ async fn run_server(options: ProxyOptions, connection_tracker: ConnectionTracker
             err = redirect_server => err.context("Error from HTTP redirect.")?
         }
     } else {
+        tracing::info!("!!! bind and serve");
         let server = Server::bind(&bind_address).serve(make_proxy);
+        tracing::info!("!!! bind and serve; after serve");
         server.await.context("Error from non-TLS proxy.")?;
     };
 
@@ -112,8 +118,9 @@ async fn run_server(options: ProxyOptions, connection_tracker: ConnectionTracker
 }
 
 pub async fn serve(options: ProxyOptions) -> NeverResult {
+    tracing::info!("!!! in serve; before connectiontracker");
     let connection_tracker = ConnectionTracker::default();
-
+    tracing::info!("!!! in serve; after connectiontracker");
     select! {
         result = record_connections(options.db.clone(), connection_tracker.clone()) => {
             tracing::info!("record_connections returned early.");

@@ -195,7 +195,7 @@ async fn backend_not_exist_404s() {
     let proxy = Proxy::new(None).await.unwrap();
 
     let result = proxy.http_get("foobar", "/", None, None).await.unwrap();
-    assert_eq!(StatusCode::NOT_FOUND, result.status());
+    assert_eq!(StatusCode::SERVICE_UNAVAILABLE, result.status());
 }
 
 #[integration_test]

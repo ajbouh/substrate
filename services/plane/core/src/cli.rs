@@ -40,6 +40,7 @@ pub fn init_cli<C: Serialize + DeserializeOwned>() -> Result<C> {
             .prefix_separator("_")
             .try_parsing(true)
             .list_separator(",")
+            .with_list_parse_key("agent.docker.binds")
             .with_list_parse_key("nats.hosts"),
     );
     let config: C = config_builder.build()?.try_deserialize()?;
