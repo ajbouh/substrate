@@ -19,6 +19,8 @@ type Engine struct {
 	energyThresh  float32
 	silenceThresh float32
 
+	vadGapSamples int
+
 	pcmWindow []float32
 	windowID  string
 
@@ -47,13 +49,14 @@ type Config struct {
 
 func NewEngine(config Config, audioCh chan<- *router.CapturedAudio) *Engine {
 	sampleRateMs := config.SampleRate / 1000
-	pcmWindowSize := int(config.SampleWindow.Seconds() * float64(sampleRateMs))
+	pcmWindowSize := int(config.SampleWindow.Seconds() * float64(config.SampleRate))
 	return &Engine{
 		sampleRateMs:  sampleRateMs,
 		pcmWindowSize: pcmWindowSize,
 		pcmWindow:     make([]float32, 0, pcmWindowSize),
 		audioCh:       audioCh,
 		isSpeaking:    false,
+		vadGapSamples: 10,
 
 		// this is an arbitrary number I picked after testing a bit
 		// feel free to play around
@@ -79,11 +82,6 @@ func New(config Config) router.MiddlewareFunc {
 	}
 }
 
-// XXX DANGER XXX
-// This is highly experiemential and will probably crash in very interesting ways. I have deadlines
-// and am hacking towards what I want to demo. Use at your own risk :D
-// XXX DANGER XXX
-//
 // writeVAD only buffers audio if somone is speaking. It will run inference after the audio transitions from
 // speaking to not speaking
 func (e *Engine) write(pcm []float32, endTimestamp uint32) {
@@ -97,37 +95,46 @@ func (e *Engine) write(pcm []float32, endTimestamp uint32) {
 
 	if len(e.pcmWindow)+len(pcm) > e.pcmWindowSize {
 		// This shouldn't happen hopefully...
-		Logger.Infof("GOING TO OVERFLOW PCM WINDOW BY %d", len(e.pcmWindow)+len(pcm)-e.pcmWindowSize)
+		Logger.Infof("GOING TO OVERFLOW PCM WINDOW BY %d len(e.pcmWindow)=%d len(pcm)=%d e.pcmWindowSize=%d", len(e.pcmWindow)+len(pcm)-e.pcmWindowSize, len(e.pcmWindow), len(pcm), e.pcmWindowSize)
 	}
+
 	e.pcmWindow = append(e.pcmWindow, pcm...)
 
-	forceFlush := false
+	flushNow := false
 	if len(e.pcmWindow) >= e.pcmWindowSize {
-		forceFlush = true
+		flushNow = true
 	}
 
-	isSpeaking, energy, silence := VAD(e.pcmWindow, e.energyThresh, e.silenceThresh)
+	// only look at the last N samples (at most) of pcmWindow, flush if we see silence there
+	vadGapSamples := e.vadGapSamples
+	vadStartIx := len(e.pcmWindow) - vadGapSamples
+	if vadStartIx < 0 {
+		vadStartIx = 0
+	}
 
-	defer func() {
-		e.isSpeaking = isSpeaking
-	}()
+	wasSpeaking := e.isSpeaking
+	isSpeaking, energy, silence := VAD(e.pcmWindow[vadStartIx:], e.energyThresh, e.silenceThresh)
+	if isSpeaking {
+		e.isSpeaking = true
+	}
 
-	if !isSpeaking && !e.isSpeaking || forceFlush {
-		// by having this here it gives us a bit of an opportunity to pause in our speech
-		if len(e.pcmWindow) != 0 {
-			e.audioCh <- &router.CapturedAudio{
-				ID:           e.windowID,
-				Final:        true,
-				PCM:          append([]float32(nil), e.pcmWindow...),
-				EndTimestamp: uint64(endTimestamp),
-				// HACK surely there's a better way to calculate this?
-				StartTimestamp: uint64(endTimestamp) - uint64(len(e.pcmWindow)/e.sampleRateMs),
-			}
-			e.windowID = ""
-			e.counter = 0
+	if len(e.pcmWindow) != 0 && !isSpeaking && wasSpeaking {
+		flushNow = true
+	}
 
-			e.pcmWindow = e.pcmWindow[:0]
+	if flushNow {
+		e.audioCh <- &router.CapturedAudio{
+			ID:           e.windowID,
+			Final:        true,
+			PCM:          append([]float32(nil), e.pcmWindow...),
+			EndTimestamp: uint64(endTimestamp),
+			// HACK surely there's a better way to calculate this?
+			StartTimestamp: uint64(endTimestamp) - uint64(len(e.pcmWindow)/e.sampleRateMs),
 		}
+		e.windowID = ""
+		e.counter = 0
+		e.isSpeaking = false
+		e.pcmWindow = e.pcmWindow[:0]
 
 		_ = silence
 		_ = energy
@@ -136,35 +143,27 @@ func (e *Engine) write(pcm []float32, endTimestamp uint32) {
 		return
 	}
 
-	if isSpeaking && e.isSpeaking {
+	if isSpeaking && wasSpeaking {
 		Logger.Info("STILL SPEAKING")
-		// add to buffer and wait
-		// FIXME make sure we have space
 	}
 
-	if isSpeaking && !e.isSpeaking {
+	if isSpeaking && !wasSpeaking {
 		Logger.Info("JUST STARTED SPEAKING")
-		e.isSpeaking = isSpeaking
-		// we just started speaking, add to buffer and wait
-		// FIXME make sure we have space
 	}
 
-	if !isSpeaking && e.isSpeaking {
-		Logger.Info("JUST STOPPED SPEAKING")
-		// TODO consider waiting for a few more samples?
-	}
-
-	if e.counter%3 == 0 {
-		e.audioCh <- &router.CapturedAudio{
-			ID:           e.windowID,
-			Final:        false,
-			PCM:          append([]float32(nil), e.pcmWindow...),
-			EndTimestamp: uint64(endTimestamp),
-			// HACK surely there's a better way to calculate this?
-			StartTimestamp: uint64(endTimestamp) - uint64(len(e.pcmWindow)/e.sampleRateMs),
+	if isSpeaking {
+		if e.counter%3 == 0 {
+			e.audioCh <- &router.CapturedAudio{
+				ID:           e.windowID,
+				Final:        false,
+				PCM:          append([]float32(nil), e.pcmWindow...),
+				EndTimestamp: uint64(endTimestamp),
+				// HACK surely there's a better way to calculate this?
+				StartTimestamp: uint64(endTimestamp) - uint64(len(e.pcmWindow)/e.sampleRateMs),
+			}
 		}
+		e.counter++
 	}
-	e.counter++
 }
 
 // NOTE This is a very rough implemntation. We should improve it :D

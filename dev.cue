@@ -142,8 +142,9 @@ import (
       "asr-seamlessm4t": #lenses["asr-seamlessm4t"].#docker_compose_service
 
       bridge: {
+        #host_mapped_port: "127.0.0.1:\((#service_port & {#service: "bridge", #port_name: "web"}).#out)"
         ports: [
-          "127.0.0.1:\((#service_port & {#service: "bridge", #port_name: "web"}).#out):\(environment.PORT)",
+          "\(#host_mapped_port):\(environment.PORT)",
         ]
         environment: {
           PORT: "8080"
@@ -161,18 +162,18 @@ import (
         ]
       }
     }
-  }
 
-  // HACK hardcode these for now.
-  volumes: "torch-cache": {}
-  volumes: "huggingface-cache": {}
-  services: [string]: {
-    volumes: [
-      "torch-cache:/cache/torch",
-      "huggingface-cache:/cache/huggingface",
-    ]
+    // HACK hardcode these for now.
+    volumes: "torch-cache": {}
+    volumes: "huggingface-cache": {}
+    services: [string]: {
+      volumes: [
+        "torch-cache:/cache/torch",
+        "huggingface-cache:/cache/huggingface",
+      ]
 
-    deploy: resources: reservations: devices: [{driver: "nvidia", count: "all", capabilities: ["gpu"]}]
+      deploy: resources: reservations: devices: [{driver: "nvidia", count: "all", capabilities: ["gpu"]}]
+    }
   }
 }
 

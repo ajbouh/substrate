@@ -16,3 +16,5 @@ environment ?: [string]: string
 ports ?: [...string]
 
 depends_on ?: [...string]
+
+deploy ?: resources ?: reservations ?: devices ?: [...{driver: string, count: string, capabilities: [...string]}]

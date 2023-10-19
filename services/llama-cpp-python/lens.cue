@@ -3,7 +3,8 @@ package lens
 name: "llama-cpp-python"
 
 #build: {
-  dockerfile: "./services/llama-cpp-python/docker/cuda/Dockerfile"
+  dockerfile: "docker/cuda/Dockerfile"
+  context: "./services/llama-cpp-python"
 }
 
 spawn: jamsocket: env: {

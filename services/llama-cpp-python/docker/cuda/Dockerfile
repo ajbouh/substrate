@@ -14,14 +14,20 @@ RUN apt-get update && apt-get upgrade -y \
 # Install depencencies
 RUN python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools fastapi uvicorn sse-starlette pydantic-settings starlette-context huggingface_hub pyyaml
 
-COPY ./services/llama-cpp-python/README.md ./services/llama-cpp-python/pyproject.toml ./services/llama-cpp-python/CMakeLists.txt .
-COPY ./services/llama-cpp-python/vendor/llama.cpp vendor/llama.cpp
-COPY ./services/llama-cpp-python/llama_cpp llama_cpp
-COPY .git .git
+COPY README.md pyproject.toml CMakeLists.txt .
+COPY vendor/llama.cpp vendor/llama.cpp
+COPY llama_cpp llama_cpp
 
 # setting build related env vars
 ENV CUDA_DOCKER_ARCH=all
 ENV LLAMA_CUBLAS=1
+
+# HACK make a fake git repo
+RUN cd vendor/llama.cpp \
+    && git init . \
+    && git config user.email "you@example.com" \
+    && git config user.name "Your Name" \
+    && git commit -m "Initial commit" --allow-empty
 
 # Install llama-cpp-python (build with cuda)
 RUN CMAKE_ARGS="-DLLAMA_CUBLAS=on" FORCE_CMAKE=1 pip install .

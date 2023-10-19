@@ -6,6 +6,14 @@ HERE=$(cd $(dirname $0); pwd)
 
 : ${NAMESPACE:=substrate-nobody}
 
+: ${BRIDGE_DOCKER_HOSTNAME:=129.146.163.132}
+: ${BRIDGE_DOCKER_HOST:=ssh://$BRIDGE_DOCKER_HOSTNAME}
+# Assumes you have an entry like this in ~/.ssh/config
+# Host 129.146.163.132
+#   User ubuntu
+#   IdentityFile ~/.ssh/id_substrateos
+
+
 cue_export() {
   NAMESPACE=$NAMESPACE $HERE/tools/cue-export.sh "$@"
 }
@@ -160,11 +168,11 @@ case "$1" in
     ;;
   bridge-docker-compose)
     shift
-    docker_compose $(make_docker_compose_yml bridge bridge.docker_compose) "$@"
+    DOCKER_HOST=$BRIDGE_DOCKER_HOST docker_compose $(make_docker_compose_yml bridge bridge.docker_compose) "$@"
     ;;
   bridge-docker-compose-up)
     shift
-    docker_compose $(make_docker_compose_yml bridge bridge.docker_compose) up \
+    DOCKER_HOST=$BRIDGE_DOCKER_HOST docker_compose $(make_docker_compose_yml bridge bridge.docker_compose) up \
         --always-recreate-deps \
         --remove-orphans \
         --force-recreate \
@@ -178,6 +186,10 @@ case "$1" in
         --remove-orphans \
         --force-recreate \
         --build "$@"
+    ;;
+  bridge-ssh-tunnel)
+    shift
+    ssh -L8080:127.0.0.1:17001 $BRIDGE_DOCKER_HOSTNAME
     ;;
   test-lens)
     cd $HERE/tests; go test -v ./...
