@@ -326,7 +326,7 @@ impl ProxyService {
             .header("Location", params.redirect.as_deref().unwrap_or("/"))
             .header(
                 "Set-Cookie",
-                format!("{}={}", PLANE_AUTH_COOKIE, params.token),
+                format!("{}={}; SameSite=None; Secure", PLANE_AUTH_COOKIE, params.token),
             )
             .body(Body::empty())?)
     }
