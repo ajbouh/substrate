@@ -6,6 +6,10 @@ services:
     build:
       dockerfile: ./drone/Dockerfile
       context: ../..
+    depends_on:
+      - controller
+      - nats
+      - ip-api
     volumes:
       - ../plane-config/drone.toml:/etc/plane/drone.toml:ro
       - /var/run/docker.sock:/var/run/docker.sock
@@ -26,6 +30,8 @@ services:
       - ../plane-config/controller.toml:/etc/plane/controller.toml:ro
     command:
       /etc/plane/controller.toml
+    depends_on:
+      - nats
     networks:
       plane:
         ipv4_address: 172.16.238.11
@@ -34,7 +40,7 @@ services:
     container_name: plane-nats
     image: nats:latest
     command:
-      "--jetstream ${NATS_FLAGS:-}"
+      "--jetstream ${NATS_FLAGS:-} --debug --trace" 
     ports:
       - "127.0.0.1:4222:4222"
     networks:
