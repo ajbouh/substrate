@@ -34,7 +34,12 @@ BaseSettings.model_config['protected_namespaces'] = ()
 
 
 class Settings(BaseSettings):
-    model: str = Field(
+    hf_model: Optional[str] = Field(
+        default=None,
+        description="The hugginface path to the model to use for generating completions."
+    )
+    model: Optional[str] = Field(
+        default=None,
         description="The path to the model to use for generating completions."
     )
     model_alias: Optional[str] = Field(
@@ -343,6 +348,13 @@ def create_app(settings: Optional[Settings] = None):
     )
     app.include_router(router)
     global llama
+
+    if settings.hf_model:
+        from huggingface_hub import hf_hub_download
+        model_account, model_repo, model_file = settings.hf_model.split("/", 2)
+        settings.model = hf_hub_download(repo_id=f"{model_account}/{model_repo}", filename=model_file)
+
+
     llama = llama_cpp.Llama(
         model_path=settings.model,
         seed=settings.seed,

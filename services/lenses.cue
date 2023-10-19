@@ -14,7 +14,7 @@ import (
   lens_asr_faster_whisper "github.com/ajbouh/substrate/services/asr-faster-whisper:lens"
   lens_asr_pyannote_audio "github.com/ajbouh/substrate/services/asr-pyannote-audio:lens"
   lens_asr_seamlessm4t "github.com/ajbouh/substrate/services/asr-seamlessm4t:lens"
-  lens_chat_llama_cpp_python "github.com/ajbouh/substrate/services/chat-llama-cpp-python:lens"
+  lens_llama_cpp_python "github.com/ajbouh/substrate/services/llama-cpp-python:lens"
 
   // lens_fastcups "github.com/ajbouh/substrate/services/fastcups:lens"
   // lens_gitexport "github.com/ajbouh/substrate/services/git-export:lens"
@@ -50,7 +50,7 @@ let all = [
   lens_asr_faster_whisper,
   lens_asr_pyannote_audio,
   lens_asr_seamlessm4t,
-  lens_chat_llama_cpp_python,
+  lens_llama_cpp_python,
 
   // lens_jupyverse,
   // lens_fastcups,
