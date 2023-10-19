@@ -1,9 +1,0 @@
-[nats]
-hosts = ["nats"]
-
-# An optional token is allowed for token authentication.
-# auth = { token = "my-secret-token" }
-
-[scheduler]
-
-[dns]
