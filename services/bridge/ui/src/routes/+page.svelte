@@ -81,13 +81,13 @@
     if (!noPub) {
       getMedia(mediaDevices).then(stream => {
         console.log(stream.getTracks());
-
+        
         client = new Client(stream, noPub, noSub, room, url, onBridgeEvent);
         micEnabled = client.micEnabled
         toggleMic = () => client.toggleMic()
         setMicTrack = async (deviceId) => {
-          const mic = await getMic(mediaDevices, deviceId)
-          client.setMicTrack(mic)
+          const micStream = await getMic(mediaDevices, deviceId)
+          client.setMicTrack(micStream.getAudioTracks()[0])
         }
 
         audioInputDevices = audioInputDeviceStore(mediaDevices)
@@ -112,7 +112,7 @@
     <div class="flex space-x-2">
       <select name="mic" id="mic"
         class="py-2 px-3 pr-9 border border-gray-600 rounded-md text-md focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-gray-400"
-        on:select={async ev => setMicTrack(ev.target.value)}
+        on:change={async ev => setMicTrack(ev.target.value)}
         disabled={audioInputDevicesDisabled}>
         {#each $audioInputDevices as device}
           <option value={device.deviceId}>{device.label}</option>
