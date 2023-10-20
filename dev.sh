@@ -166,11 +166,11 @@ case "$1" in
     shift
     ssh_qemu "$@"
     ;;
-  bridge-docker-compose)
+  remote-bridge-docker-compose)
     shift
     DOCKER_HOST=$BRIDGE_DOCKER_HOST docker_compose $(make_docker_compose_yml bridge bridge.docker_compose) "$@"
     ;;
-  bridge-docker-compose-up)
+  remote-bridge-docker-compose-up)
     shift
     DOCKER_HOST=$BRIDGE_DOCKER_HOST docker_compose $(make_docker_compose_yml bridge bridge.docker_compose) up \
         --always-recreate-deps \
@@ -178,18 +178,12 @@ case "$1" in
         --force-recreate \
         --build "$@"
     ;;
-  docker-compose-up)
+  remote-service-ssh-tunnel)
     shift
-    # docker_compose down || true
-    docker_compose $(make_docker_compose_yml substrate docker_compose) up \
-        --always-recreate-deps \
-        --remove-orphans \
-        --force-recreate \
-        --build "$@"
-    ;;
-  bridge-ssh-tunnel)
-    shift
-    ssh -L8080:127.0.0.1:17001 $BRIDGE_DOCKER_HOSTNAME
+    : ${REMOTE_SERVICE:=${1:-bridge}}
+    : ${LOCAL_PORT:=${2:-8080}}
+    REMOTE_PORT=$(cue_export text $CUE_MODULE:dev "\"\(#namespace_host_port_offset + #service_host_port_offset[\"$REMOTE_SERVICE\"])\"")
+    ssh -L$LOCAL_PORT:127.0.0.1:$REMOTE_PORT $BRIDGE_DOCKER_HOSTNAME
     ;;
   test-lens)
     cd $HERE/tests; go test -v ./...

@@ -115,26 +115,20 @@ import (
 
 
 // HACK so we can share hardware
-#namespace_port_start: {[string]: int} & {
+#namespace_host_port_offsets: {[string]: int} & {
   "substrate-nobody": 17000
-  "substrate-ajbouh": 18000
-  "substrate-progrium": 19000
+  "substrate-adamb": 18000
+  "substrate-ajbouh": 19000
+  "substrate-progrium": 20000
 }
+#namespace_host_port_offset: #namespace_host_port_offsets[#namespace]
 
-#service_port_start: {[string]: [string]: int} & {
-  "bridge": "web": 1
-}
-
-#service_port: {
-  #service: string
-  #port_name: string
-  #out: #namespace_port_start[#namespace] + #service_port_start[#service][#port_name]
+#service_host_port_offset: {[string]: int} & {
+  "bridge": 1
 }
 
 "bridge": {
   docker_compose: {
-    services: [string]: docker_compose_service
-
     services: {
       "bridge": #lenses["bridge"].#docker_compose_service
       "llama-cpp-python": #lenses["llama-cpp-python"].#docker_compose_service
@@ -142,10 +136,6 @@ import (
       "asr-seamlessm4t": #lenses["asr-seamlessm4t"].#docker_compose_service
 
       bridge: {
-        #host_mapped_port: "127.0.0.1:\((#service_port & {#service: "bridge", #port_name: "web"}).#out)"
-        ports: [
-          "\(#host_mapped_port):\(environment.PORT)",
-        ]
         environment: {
           PORT: "8080"
           BRIDGE_TRANSCRIPTION: "http://asr-faster-whisper:8000/v1/transcribe"
@@ -155,6 +145,9 @@ import (
           // TRANSCRIPTION_SERVICE: "http://asr-whisperx:8000/transcribe"
           // TRANSLATOR_SERVICE: "http://asr-seamlessm4t:8000/translate"
         }
+        ports: [
+          "127.0.0.1:\(#namespace_host_port_offset + #service_host_port_offset["bridge"]):8080",
+        ]
         depends_on: [
           "llama-cpp-python",
           "asr-faster-whisper",

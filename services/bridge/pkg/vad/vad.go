@@ -24,11 +24,10 @@ type Engine struct {
 	pcmWindow []float32
 	windowID  string
 
-	counter int
-
 	audioCh chan<- *router.CapturedAudio
 
 	isSpeaking bool
+	pendingMs  int
 }
 
 type Config struct {
@@ -56,7 +55,8 @@ func NewEngine(config Config, audioCh chan<- *router.CapturedAudio) *Engine {
 		pcmWindow:     make([]float32, 0, pcmWindowSize),
 		audioCh:       audioCh,
 		isSpeaking:    false,
-		vadGapSamples: 10,
+		vadGapSamples: sampleRateMs * 500,
+		pendingMs:     0,
 
 		// this is an arbitrary number I picked after testing a bit
 		// feel free to play around
@@ -99,10 +99,11 @@ func (e *Engine) write(pcm []float32, endTimestamp uint32) {
 	}
 
 	e.pcmWindow = append(e.pcmWindow, pcm...)
+	e.pendingMs += len(pcm) / e.sampleRateMs
 
-	flushNow := false
+	flushFinal := false
 	if len(e.pcmWindow) >= e.pcmWindowSize {
-		flushNow = true
+		flushFinal = true
 	}
 
 	// only look at the last N samples (at most) of pcmWindow, flush if we see silence there
@@ -119,10 +120,10 @@ func (e *Engine) write(pcm []float32, endTimestamp uint32) {
 	}
 
 	if len(e.pcmWindow) != 0 && !isSpeaking && wasSpeaking {
-		flushNow = true
+		flushFinal = true
 	}
 
-	if flushNow {
+	if flushFinal {
 		e.audioCh <- &router.CapturedAudio{
 			ID:           e.windowID,
 			Final:        true,
@@ -132,9 +133,9 @@ func (e *Engine) write(pcm []float32, endTimestamp uint32) {
 			StartTimestamp: uint64(endTimestamp) - uint64(len(e.pcmWindow)/e.sampleRateMs),
 		}
 		e.windowID = ""
-		e.counter = 0
 		e.isSpeaking = false
 		e.pcmWindow = e.pcmWindow[:0]
+		e.pendingMs = 0
 
 		_ = silence
 		_ = energy
@@ -151,18 +152,22 @@ func (e *Engine) write(pcm []float32, endTimestamp uint32) {
 		Logger.Info("JUST STARTED SPEAKING")
 	}
 
-	if isSpeaking {
-		if e.counter%3 == 0 {
-			e.audioCh <- &router.CapturedAudio{
-				ID:           e.windowID,
-				Final:        false,
-				PCM:          append([]float32(nil), e.pcmWindow...),
-				EndTimestamp: uint64(endTimestamp),
-				// HACK surely there's a better way to calculate this?
-				StartTimestamp: uint64(endTimestamp) - uint64(len(e.pcmWindow)/e.sampleRateMs),
-			}
+	flushDraft := false
+
+	if e.pendingMs >= 500 && isSpeaking || wasSpeaking {
+		flushDraft = true
+	}
+
+	if flushDraft {
+		e.audioCh <- &router.CapturedAudio{
+			ID:           e.windowID,
+			Final:        false,
+			PCM:          append([]float32(nil), e.pcmWindow...),
+			EndTimestamp: uint64(endTimestamp),
+			// HACK surely there's a better way to calculate this?
+			StartTimestamp: uint64(endTimestamp) - uint64(len(e.pcmWindow)/e.sampleRateMs),
 		}
-		e.counter++
+		e.pendingMs = 0
 	}
 }
 
