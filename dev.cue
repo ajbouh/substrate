@@ -120,6 +120,7 @@ import (
   "substrate-adamb": 18000
   "substrate-ajbouh": 19000
   "substrate-progrium": 20000
+  "substrate-yoshikiohshima": 21000
 }
 #namespace_host_port_offset: #namespace_host_port_offsets[#namespace]
 
