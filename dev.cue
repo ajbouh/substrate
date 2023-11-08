@@ -6,6 +6,7 @@ import (
   "github.com/ajbouh/substrate/pkg/systemd"
 
   fcos_ignition "github.com/ajbouh/substrate/os/fcos:ignition"
+  docker_compose "github.com/ajbouh/substrate/pkg/docker/compose:compose"
   docker_compose_service "github.com/ajbouh/substrate/pkg/docker/compose:service"
 
   build_daemons "github.com/ajbouh/substrate/services:daemons"
@@ -22,7 +23,7 @@ import (
   }
 })
 
-#daemons: (build_daemons & {
+let #daemons = (build_daemons & {
   #var: {
     "namespace": "\(#namespace)-dev"
     "hostprefix": "\(#namespace)-dev-"
@@ -33,10 +34,10 @@ import (
         "session_secret": "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
       }
     }
+    "host_docker_socket": "/var/run/docker.sock"
     "substrate": {
       // internal_port: 443
       // origin: "https://\(#namespace)-substrate.tail87070.ts.net"
-      internal_port: 2280
       // origin: "http://127.0.0.1:18080"
     }
   }
@@ -44,6 +45,11 @@ import (
 
 "substrateos": {
   #rebase_image: "ghcr.io/ajbouh/substrate:substrateos"
+  // let #daemons = daemons & {
+  //   #var: {
+  //     "host_docker_socket": "/var/run/podman/podman.sock"
+  //   }
+  // }
 
   "ignition": fcos_ignition & {#var: {
     rebase_image: #rebase_image
@@ -71,7 +77,7 @@ import (
     }
   }
 
-  docker_compose_build: {
+  docker_compose_build: docker_compose & {
     services: {
       "rebase": {
         build: {
@@ -94,7 +100,7 @@ import (
         if lens.#build != null {
           "lens-\(name)": {
             if lens.spawn != _|_ {
-              image: lens.spawn.jamsocket.image
+              image: lens.spawn.image
             }
             build: dockerfile: lens.#build.dockerfile
             if lens.#build.args != _|_ {
@@ -126,10 +132,11 @@ import (
 
 #service_host_port_offset: {[string]: int} & {
   "bridge": 1
+  "substrate": 100
 }
 
 "bridge": {
-  docker_compose: {
+  "docker_compose": docker_compose & {
     services: {
       "bridge": #lenses["bridge"].#docker_compose_service
       "llama-cpp-python": #lenses["llama-cpp-python"].#docker_compose_service
@@ -172,75 +179,131 @@ import (
 }
 
 "substrate": {
-  docker_compose: {
+  version: "3.8"
+  // let #daemons = daemons & {
+  //   #var: {
+  //     "host_docker_socket": "/var/run/docker.sock"
+  //   }
+  // }
+  docker_compose_lenses: docker_compose & {
+    services: {
+      for name, lens in #daemons.#var.lenses {
+        if lens.#build != null {
+          "lens-\(name)": {
+            if lens.spawn != _|_ {
+              image: lens.spawn.image
+            }
+            build: dockerfile: lens.#build.dockerfile
+            if lens.#build.context != _|_ { "build": context: lens.#build.context }
+            if lens.#build.args != _|_ {
+              build: args: lens.#build.args
+            }
+          }
+        }
+      }
+    }
+
+    #images: strings.Join([
+      for name, def in services if def.image != _|_ {
+        def.image
+      }
+    ], "\n")
+  }
+  "docker_compose": docker_compose & {
+    services: [string]: docker_compose_service
+
     "volumes": {
-      for name, def in docker_compose.services {
+      for name, def in services {
         if #daemons[name].#docker_compose_volumes != _|_ {
           #daemons[name].#docker_compose_volumes
         }
       }
     }
 
-    services: [string]: docker_compose_service
+    #docker_compose_prefix: "\(#namespace)-substrate_"
+    #internal_network_name: "substrate"
+
+    networks: "\(#internal_network_name)": {
+      // internal: true
+      attachable: true
+      driver: "bridge"
+      driver_opts: {
+        "com.docker.network.bridge.enable_icc": "true"
+        "com.docker.network.bridge.enable_ip_masquerade": "true"
+        "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0"
+      }
+      ipam: {
+          driver: "default"
+          config: [
+              {
+                subnet: "192.168.2.0/24"
+              },
+          ]
+      }
+    }
 
     services: {
-      if #lenses["datasette"] != _|_ {
-        datasette: {
-          build: dockerfile: "services/\(#lenses["datasette"].name)/Dockerfile"
-          build: args: #lenses["datasette"].#build.args
+      // if #lenses["datasette"] != _|_ {
+      //   datasette: {
+      //     build: dockerfile: "services/\(#lenses["datasette"].name)/Dockerfile"
+      //     build: args: #lenses["datasette"].#build.args
 
-          environment: {
-            PORT: "8081"
-          }
+      //     environment: {
+      //       PORT: "8081"
+      //     }
 
-          ports: [
-            "18083:\(environment.PORT)",
-          ]
+      //     ports: [
+      //       "18083:\(environment.PORT)",
+      //     ]
 
-          // Mount the same volumes as substrate, so we can spy on the database
-          environment: DATASETTE_DB: substrate.environment.SUBSTRATE_DB
+      //     // Mount the same volumes as substrate, so we can spy on the database
+      //     environment: DATASETTE_DB: substrate.environment.SUBSTRATE_DB
 
-          volumes: substrate.volumes
-        }
-      }
-      if #lenses["ui"] != _|_ {
-        ui: {
-          build: target: "dev"
-          build: dockerfile: "services/\(#lenses["ui"].name)/Dockerfile"
+      //     volumes: substrate.volumes
+      //   }
+      // }
+      // if #lenses["ui"] != _|_ {
+      //   ui: {
+      //     build: target: "dev"
+      //     build: dockerfile: "services/\(#lenses["ui"].name)/Dockerfile"
 
-          volumes: [
-            "./services/\(#lenses["ui"].name)/static:/app/static:ro",
-            "./services/\(#lenses["ui"].name)/src:/app/src:ro",
-          ]
+      //     volumes: [
+      //       "./services/\(#lenses["ui"].name)/static:/app/static:ro",
+      //       "./services/\(#lenses["ui"].name)/src:/app/src:ro",
+      //     ]
 
-          environment: {
-            if #lenses["ui"].env != _|_ {
-              #lenses["ui"].env
-            }
+      //     environment: {
+      //       if #lenses["ui"].env != _|_ {
+      //         #lenses["ui"].env
+      //       }
 
-            PORT: "8080"
-            // ORIGIN: substrate.environment.ORIGIN
-            // ORIGIN: "https://\(#daemons.#var.namespace)-substrate.tail87070.ts.net"
-            ORIGIN: "http://127-0-0-1.my.local-ip.co"
-            PUBLIC_EXTERNAL_ORIGIN: ORIGIN
-          }
-        }
-      }
+      //       PORT: "8080"
+      //       // ORIGIN: substrate.environment.ORIGIN
+      //       // ORIGIN: "https://\(#daemons.#var.namespace)-substrate.tail87070.ts.net"
+      //       ORIGIN: "http://127-0-0-1.my.local-ip.co"
+      //       PUBLIC_EXTERNAL_ORIGIN: ORIGIN
+      //     }
+      //   }
+      // }
       substrate: {
         #daemons["substrate"].#docker_compose_service
 
+        networks: [#internal_network_name]
+
         ports: [
-          // "80:8080",
-          "443:8443",
-          "80:80",
-          "14222:4222",
+          "127.0.0.1:\(#namespace_host_port_offset + #service_host_port_offset["substrate"]):\(environment.PORT)",
         ]
 
         environment: {
-          ORIGIN: "http://127-0-0-1.my.local-ip.co"
-          if #lenses["ui"] != _|_ {
-            EXTERNAL_UI_HANDLER: "http://ui:\(services.ui.environment.PORT)"
-          }
+          // PORT: "\(#namespace_host_port_offset + #service_host_port_offset["substrate"] + 1)"
+          PORT: "8080"
+
+          DOCKER_NETWORK: "\(#docker_compose_prefix)\(#internal_network_name)"
+
+          // ORIGIN: "http://127-0-0-1.my.local-ip.co"
+          // if #lenses["ui"] != _|_ {
+          //   EXTERNAL_UI_HANDLER: "http://ui:\(services.ui.environment.PORT)"
+          // }
           // PLANE_AGENT__IP: "100.85.122.130"
         }
       }

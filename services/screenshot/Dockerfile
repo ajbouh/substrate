@@ -2,12 +2,12 @@ FROM golang:1.19 as build
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg
 ADD pkg/go.mod pkg/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY pkg/. .
 
 WORKDIR /go/src/github.com/ajbouh/substrate/services/screenshot
 ADD services/screenshot/go.mod services/screenshot/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY services/screenshot/. .
 
 RUN CGO_ENABLED=0 GOOS=linux go build \

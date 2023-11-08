@@ -6,7 +6,7 @@ name: "asr-faster-whisper"
   dockerfile: "./services/asr-faster-whisper/Dockerfile"
 }
 
-spawn: jamsocket: env: {
+spawn: env: {
   MODEL_SIZE: "large-v2"
   MODEL_DEVICE: "cuda"
   MODEL_COMPUTE_TYPE: "float16"

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ajbouh/substrate/pkg/jamsocket"
+	"github.com/ajbouh/substrate/pkg/activityspec"
 	"github.com/ajbouh/substrate/pkg/substratefs"
 )
 
@@ -37,7 +37,7 @@ const createActivitiesTable = `CREATE TABLE IF NOT EXISTS "activities" (activity
 
 type ActivityWhere struct {
 	ActivitySpec *string `json:"activityspec,omitempty"`
-	Lens         *string `json:"lens,omitempty"`
+	Service      *string `json:"lens,omitempty"`
 }
 
 type ActivityListRequest struct {
@@ -49,19 +49,19 @@ type ActivityListRequest struct {
 type Activity struct {
 	ActivitySpec string    `json:"activityspec"`
 	CreatedAt    time.Time `json:"created_at"`
-	Lens         string    `json:"lens"`
+	Service      string    `json:"lens"`
 }
 
 func (s *Substrate) WriteActivity(ctx context.Context, Activity *Activity) error {
 	return s.dbExecContext(ctx, `INSERT INTO "activities" (activityspec, created_at_us, lens) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`,
-		Activity.ActivitySpec, Activity.CreatedAt.UnixMicro(), Activity.Lens)
+		Activity.ActivitySpec, Activity.CreatedAt.UnixMicro(), Activity.Service)
 }
 
 func (q *ActivityWhere) AppendWhere(query *Query) bool {
 	modified := false
-	if q.Lens != nil {
+	if q.Service != nil {
 		query.Where = append(query.Where, activitiesTable+".lens = ?")
-		query.WhereValues = append(query.WhereValues, *q.Lens)
+		query.WhereValues = append(query.WhereValues, *q.Service)
 		modified = true
 	}
 	if q.ActivitySpec != nil {
@@ -103,7 +103,7 @@ func (s *Substrate) ListActivities(ctx context.Context, request *ActivityListReq
 
 		var o Activity
 		var createdAt int64
-		err := rows.Scan(&o.ActivitySpec, &createdAt, &o.Lens)
+		err := rows.Scan(&o.ActivitySpec, &createdAt, &o.Service)
 		if err != nil {
 			return nil, err
 		}
@@ -150,7 +150,6 @@ type Space struct {
 	ForkedFromID  *string   `json:"forked_from_id,omitempty"`
 	ForkedFromRef *string   `json:"forked_from_ref,omitempty"`
 
-
 	Memberships []*SpaceCollectionMembership `json:"memberships"`
 }
 
@@ -166,11 +165,10 @@ type SpaceCollectionMembership struct {
 	IsPublic   bool           `json:"public"`
 }
 
-
 type EventWhere struct {
 	ActivitySpec *string `json:"viewspec,omitempty"`
 	User         *string `json:"user,omitempty"`
-	Lens         *string `json:"lens,omitempty"`
+	Service      *string `json:"lens,omitempty"`
 	Type         *string `json:"type,omitempty"`
 }
 
@@ -180,21 +178,18 @@ type EventListRequest struct {
 	OrderBy *OrderBy
 }
 
-type JamsocketSpawnEvent struct {
-	Request  *jamsocket.SpawnRequest  `json:"request"`
-	Response *jamsocket.SpawnResponse `json:"response"`
-}
-
 type Event struct {
-	JamsocketSpawn  *JamsocketSpawnEvent   `json:"jamsocket_spawn,omitempty"`
-	JamsocketStatus *jamsocket.StatusEvent `json:"jamsocket_status,omitempty"`
+	// DockerSpawn  *dockerprovisioner.SpawnEvent  `json:"docker_spawn,omitempty"`
+	// DockerStatus *dockerprovisioner.StatusEvent `json:"docker_status,omitempty"`
 
-	ID           string `json:"id"`
-	ActivitySpec string `json:"viewspec,omitempty"`
-	User      string    `json:"user"`
-	Lens      string    `json:"lens"`
-	Type      string    `json:"type"`
-	Timestamp time.Time `json:"ts"`
+	Response *activityspec.ActivitySpawnResponse
+
+	ID           string    `json:"id"`
+	ActivitySpec string    `json:"viewspec,omitempty"`
+	User         string    `json:"user"`
+	Service      string    `json:"lens"`
+	Type         string    `json:"type"`
+	Timestamp    time.Time `json:"ts"`
 }
 
 const eventsTable = "events"
@@ -209,14 +204,14 @@ func (s *Substrate) WriteEvent(ctx context.Context, event *Event) error {
 	}
 
 	return s.dbExecContext(ctx, `INSERT INTO "events" (id, viewspec, ts, type, user, lens, event) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		event.ID, event.ActivitySpec, event.Timestamp, event.Type, event.User, event.Lens, string(b))
+		event.ID, event.ActivitySpec, event.Timestamp, event.Type, event.User, event.Service, string(b))
 }
 
 func (q *EventWhere) AppendWhere(query *Query) bool {
 	modified := false
-	if q.Lens != nil {
+	if q.Service != nil {
 		query.Where = append(query.Where, eventsTable+".lens = ?")
-		query.WhereValues = append(query.WhereValues, *q.Lens)
+		query.WhereValues = append(query.WhereValues, *q.Service)
 		modified = true
 	}
 	if q.User != nil {
@@ -281,13 +276,13 @@ func (s *Substrate) ListEvents(ctx context.Context, request *EventListRequest) (
 	return results, rows.Err()
 }
 
-func (e *Event) SpawnResult() (*SpawnResult, error) {
-	asr, err := ParseActivitySpecRequest(e.ActivitySpec, false)
+func (e *Event) SpawnResult() (*activityspec.ActivitySpawnResponse, error) {
+	asr, err := activityspec.ParseActivitySpecRequest(e.ActivitySpec, false)
 	if err != nil {
 		return nil, err
 	}
 
-	u, err := url.Parse(e.JamsocketSpawn.Response.URL)
+	u, err := url.Parse(e.Response.BackendURL)
 	if err != nil {
 		return nil, err
 	}
@@ -297,16 +292,16 @@ func (e *Event) SpawnResult() (*SpawnResult, error) {
 		return nil, err
 	}
 
-	return &SpawnResult{
-		Name:         e.JamsocketSpawn.Response.Name,
+	return &activityspec.ActivitySpawnResponse{
+		Name:         e.Response.Name,
 		ActivitySpec: e.ActivitySpec,
 
-		urlJoiner: MakeJoiner(u, e.JamsocketSpawn.Response.BearerToken),
-		pathURL:   pathURL,
+		URLJoiner: activityspec.MakeJoiner(u, e.Response.BearerToken),
+		PathURL:   pathURL,
 
-		BackendURL:  e.JamsocketSpawn.Response.URL,
+		BackendURL:  e.Response.BackendURL,
 		Path:        asr.Path,
-		BearerToken: e.JamsocketSpawn.Response.BearerToken,
+		BearerToken: e.Response.BearerToken,
 	}, nil
 }
 
@@ -341,13 +336,13 @@ func (w *CollectionMembershipWhere) AppendWhere(query *Query) bool {
 		modified = true
 	}
 
-	if w.LensSpec != nil {
+	if w.ServiceSpec != nil {
 		query.Where = append(query.Where, collectionMembershipsTable+".lensspec = ?")
-		query.WhereValues = append(query.WhereValues, *w.LensSpec)
+		query.WhereValues = append(query.WhereValues, *w.ServiceSpec)
 		modified = true
 	}
 
-	if w.HasLensSpec {
+	if w.HasServiceSpec {
 		query.Where = append(query.Where,
 			collectionMembershipsTable+".lensspec NOT NULL",
 			collectionMembershipsTable+".lensspec != ''",
@@ -355,10 +350,10 @@ func (w *CollectionMembershipWhere) AppendWhere(query *Query) bool {
 		modified = true
 	}
 
-	if w.Lens != nil {
+	if w.Service != nil {
 		query.Where = append(query.Where,
 			"("+collectionMembershipsTable+".lensspec = ? OR "+collectionMembershipsTable+".lensspec LIKE ?)")
-		query.WhereValues = append(query.WhereValues, *w.Lens, *w.Lens+"[%")
+		query.WhereValues = append(query.WhereValues, *w.Service, *w.Service+"[%")
 		modified = true
 	}
 
@@ -457,11 +452,11 @@ func (s *Substrate) DeleteSpace(ctx context.Context, request *SpaceWhere) error 
 	return s.dbExecContext(ctx, q, values...)
 }
 
-func (s *Substrate) ResolveConcreteLensSpawnParameterRequests(ctx context.Context, lensName string, request LensSpawnParameterRequests, forceReadOnly bool) ([]*Space, LensSpawnParameters, error) {
-	lens := s.Lenses[lensName]
+func (s *Substrate) ResolveConcreteServiceSpawnParameterRequests(ctx context.Context, lensName string, request activityspec.ServiceSpawnParameterRequests, forceReadOnly bool) ([]*Space, activityspec.ServiceSpawnParameters, error) {
+	lens := s.Services[lensName]
 	if lens == nil {
 		lenses := []string{}
-		for k := range s.Lenses {
+		for k := range s.Services {
 			lenses = append(lenses, k)
 		}
 		return nil, nil, fmt.Errorf("no such lens: %q (have %#v)", lensName, lenses)
@@ -469,15 +464,18 @@ func (s *Substrate) ResolveConcreteLensSpawnParameterRequests(ctx context.Contex
 
 	spaceIDs := []string{}
 
-	selections := LensSpawnParameters{}
+	selections := activityspec.ServiceSpawnParameters{}
 
 	for viewName, viewReq := range request {
 		viewSchema := lens.Spawn.Schema[viewName]
 		switch viewSchema.Type {
-		case LensSpawnParameterTypeString:
-			s := viewReq.String()
-			selections[viewName] = &LensSpawnParameter{String: &s}
-		case LensSpawnParameterTypeSpace:
+		case activityspec.ServiceSpawnParameterTypeString:
+			selections[viewName] = &activityspec.ServiceSpawnParameter{
+				EnvVars: map[string]string{
+					*viewSchema.EnvironmentVariableName: viewReq.String(),
+				},
+			}
+		case activityspec.ServiceSpawnParameterTypeSpace:
 			space := viewReq.Space(forceReadOnly)
 			if space.SpaceID == "" {
 				return nil, nil, fmt.Errorf("all space selections must have a concrete id")
@@ -488,8 +486,8 @@ func (s *Substrate) ResolveConcreteLensSpawnParameterRequests(ctx context.Contex
 			}
 
 			spaceIDs = append(spaceIDs, space.SpaceID)
-			selections[viewName] = &LensSpawnParameter{Space: view}
-		case LensSpawnParameterTypeSpaces:
+			selections[viewName] = &activityspec.ServiceSpawnParameter{Space: view}
+		case activityspec.ServiceSpawnParameterTypeSpaces:
 			var views []substratefs.SpaceView
 			for _, m := range viewReq.Spaces(forceReadOnly) {
 				if m.SpaceID == "" {
@@ -505,7 +503,7 @@ func (s *Substrate) ResolveConcreteLensSpawnParameterRequests(ctx context.Contex
 				spaceIDs = append(spaceIDs, m.SpaceID)
 			}
 
-			selections[viewName] = &LensSpawnParameter{Spaces: &views}
+			selections[viewName] = &activityspec.ServiceSpawnParameter{Spaces: &views}
 		}
 	}
 
@@ -673,7 +671,7 @@ func findAndRemoveRootMember(members []*CollectionMember) (*CollectionMember, []
 	var root *CollectionMember
 	index := 0
 	for _, member := range members {
-		if member.LensSpec != "" || member.SpaceID != "" {
+		if member.ServiceSpec != "" || member.SpaceID != "" {
 			members[index] = member
 			index++
 		} else {
@@ -718,9 +716,9 @@ func (c *Collection) normalize() {
 }
 
 type CollectionMember struct {
-	SpaceID   string    `json:"space,omitempty"`
-	LensSpec  string    `json:"lensspec,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	SpaceID     string    `json:"space,omitempty"`
+	ServiceSpec string    `json:"lensspec,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
 	// DeletedAt time.Time
 	// UpdatedAt time.Time
 	IsPublic bool `json:"public"`
@@ -732,9 +730,9 @@ type CollectionMembership struct {
 	Owner string `json:"owner"`
 	Name  string `json:"name"`
 
-	SpaceID   string    `json:"space,omitempty"`
-	LensSpec  string    `json:"lensspec,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
+	SpaceID     string    `json:"space,omitempty"`
+	ServiceSpec string    `json:"lensspec,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
 	// DeletedAt time.Time
 	// UpdatedAt time.Time
 	IsPublic bool `json:"public"`
@@ -751,9 +749,9 @@ type CollectionMembershipWhere struct {
 	HasSpaceID bool
 	SpaceID    *string
 
-	HasLensSpec bool
-	Lens        *string
-	LensSpec    *string
+	HasServiceSpec bool
+	Service        *string
+	ServiceSpec    *string
 }
 
 type CollectionListQuery struct {
@@ -821,7 +819,7 @@ func (s *Substrate) WriteCollectionMembership(ctx context.Context, membership *C
 	}
 
 	return s.dbExecContext(ctx, `INSERT INTO "collection_memberships" (collection_owner, collection_name, space_id, lensspec, created_at_us, is_public, membership) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO UPDATE SET collection_owner=excluded.collection_owner, collection_name=excluded.collection_name, space_id=excluded.space_id, lensspec=excluded.lensspec, is_public=excluded.is_public, membership=excluded.membership`,
-		membership.Owner, membership.Name, membership.SpaceID, membership.LensSpec, membership.CreatedAt.UnixMicro(), membership.IsPublic, string(b))
+		membership.Owner, membership.Name, membership.SpaceID, membership.ServiceSpec, membership.CreatedAt.UnixMicro(), membership.IsPublic, string(b))
 }
 
 func (s *Substrate) DeleteCollectionMembership(ctx context.Context, request *CollectionMembershipWhere) error {

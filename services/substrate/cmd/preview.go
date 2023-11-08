@@ -3,19 +3,19 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/ajbouh/substrate/pkg/activityspec"
 	"github.com/ajbouh/substrate/pkg/auth"
 	"github.com/ajbouh/substrate/services/substrate"
 )
 
-func newPreviewHandler(s *substrate.Substrate, gw *substrate.Gateway) func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
-	consider := func(ctx context.Context, preview *substrate.ResolvedLensActivity, previewActivityName string) (*substrate.ResolvedLensActivity, bool, error) {
+func newPreviewHandler(s *substrate.Substrate, gw *activityspec.Provisioner) func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
+	consider := func(ctx context.Context, preview *activityspec.ResolvedActivity, previewActivityName string) (*activityspec.ResolvedActivity, bool, error) {
 		resolved, err := s.ResolveActivity(ctx, previewActivityName)
 		if err != nil {
 			return nil, false, err
@@ -37,8 +37,8 @@ func newPreviewHandler(s *substrate.Substrate, gw *substrate.Gateway) func(rw ht
 	f := func(
 		rw http.ResponseWriter,
 		req *http.Request,
-		activityspec *substrate.ActivitySpecRequest,
-		preview *substrate.ResolvedLensActivity,
+		as *activityspec.ActivitySpecRequest,
+		preview *activityspec.ResolvedActivity,
 		lensName string,
 	) {
 		user, ok := auth.UserFromContext(req.Context())
@@ -48,7 +48,7 @@ func newPreviewHandler(s *substrate.Substrate, gw *substrate.Gateway) func(rw ht
 			return
 		}
 
-		cacheKey, concrete := activityspec.ActivitySpec()
+		cacheKey, concrete := as.ActivitySpec()
 		if !concrete {
 			jsonrw := newJSONResponseWriter(rw)
 			jsonrw(nil, http.StatusBadRequest, fmt.Errorf("activityspec must be concrete"))
@@ -60,41 +60,36 @@ func newPreviewHandler(s *substrate.Substrate, gw *substrate.Gateway) func(rw ht
 			return
 		}
 
-		gw.ProvisionRedirector(cacheKey, func() substrate.ProvisionFunc {
-			return s.MakeProvisioner(func(fmt string, values ...any) {
-				log.Printf(fmt+" cacheKey=%s", append(values, cacheKey)...)
-			}, &substrate.SpawnRequest{
-				User:         user.GithubUsername,
-				ActivitySpec: *activityspec,
-				Ephemeral:    true,
-			})
-		}, func(targetFunc substrate.AuthenticatedURLJoinerFunc) (int, string, error) {
+		as.User = user.GithubUsername
+		as.Ephemeral = true
+
+		gw.ProvisionRedirector(cacheKey, func() activityspec.ProvisionFunc {
+			return s.NewProvisionFunc(cacheKey, as)
+		}, func(targetFunc activityspec.AuthenticatedURLJoinerFunc) (int, string, error) {
 			var previewPathSuffix string
 			if preview.Activity.Request != nil && preview.Activity.Request.Path != "" {
 				previewPathSuffix += "/" + strings.TrimPrefix(preview.Activity.Request.Path, "/")
 			}
 
 			if lensName != "" {
-				previewLens, err := s.ResolveLens(req.Context(), lensName)
+				previewService, err := s.ResolveService(req.Context(), lensName)
 				if err != nil {
 					return http.StatusInternalServerError, "", err
 				}
-				if previewLens == nil {
+				if previewService == nil {
 					return http.StatusInternalServerError, "", fmt.Errorf("could not resolve lens")
 				}
 
-				if previewLens.Space.Preview != "" {
+				if previewService.Space.Preview != "" {
 					previewPathSuffix = strings.TrimSuffix(previewPathSuffix, "/")
-					previewPathSuffix += "/" + strings.TrimPrefix(previewLens.Space.Preview, "/")
+					previewPathSuffix += "/" + strings.TrimPrefix(previewService.Space.Preview, "/")
 				}
 			}
 
 			previewSuffixURL, _ := url.Parse(previewPathSuffix)
 
-			target, _ := targetFunc(previewSuffixURL, substrate.ProvisionerCookieAuthenticationMode)
+			target, _ := targetFunc(previewSuffixURL, activityspec.ProvisionerCookieAuthenticationMode)
 
-			// fmt.Printf("oldtarget=%s\n", target)
-			// target.Path, target.RawPath = substrate.JoinURLPath(target, previewSuffixURL)
 			fmt.Printf("newtarget=%s\n", target)
 
 			return http.StatusFound, target.String(), nil
@@ -109,21 +104,21 @@ func newPreviewHandler(s *substrate.Substrate, gw *substrate.Gateway) func(rw ht
 		// look up space
 		activity := strings.TrimPrefix(p.ByName("activityspec"), "/")
 
-		activityspec, err := substrate.ParseActivitySpecRequest(activity, true)
+		activityspec, err := activityspec.ParseActivitySpecRequest(activity, true)
 		if err != nil {
 			newJSONResponseWriter(rw)(nil, http.StatusBadRequest, err)
 			return
 		}
 
 		// look up preview activity
-		previewActivityName := "system:preview:activity:" + activityspec.LensName
+		previewActivityName := "system:preview:activity:" + activityspec.ServiceName
 		preview, _, err := consider(req.Context(), nil, previewActivityName)
 		if err != nil {
 			newJSONResponseWriter(rw)(nil, http.StatusInternalServerError, err)
 			return
 		}
 
-		lensName := activityspec.LensName
+		lensName := activityspec.ServiceName
 		if preview == nil {
 			preview, _, err = consider(req.Context(), nil, activity)
 			if err != nil {
@@ -131,7 +126,7 @@ func newPreviewHandler(s *substrate.Substrate, gw *substrate.Gateway) func(rw ht
 				return
 			}
 		} else {
-			activityspec.LensName = preview.LensName
+			activityspec.ServiceName = preview.ServiceName
 		}
 
 		// fmt.Printf("activityspec=%s lensName=%s previewActivityName=%s\n", activityForDebug, lensName, previewActivityName)
@@ -142,10 +137,10 @@ func newPreviewHandler(s *substrate.Substrate, gw *substrate.Gateway) func(rw ht
 		// look up space
 		w := p.ByName("space")
 
-		var preview *substrate.ResolvedLensActivity
+		var preview *activityspec.ResolvedActivity
 
 		activityspecString := "[" + w + "]"
-		activityspec, err := substrate.ParseActivitySpecRequest(activityspecString, true)
+		activityspec, err := activityspec.ParseActivitySpecRequest(activityspecString, true)
 		if err != nil {
 			newJSONResponseWriter(rw)(nil, http.StatusInternalServerError, err)
 			return
@@ -157,12 +152,9 @@ func newPreviewHandler(s *substrate.Substrate, gw *substrate.Gateway) func(rw ht
 			return
 		}
 
-
-
-
 		// TODO sort by priority
 
-		activityspec.LensName = preview.LensName
+		activityspec.ServiceName = preview.ServiceName
 
 		f(rw, req, activityspec, preview, "")
 	})

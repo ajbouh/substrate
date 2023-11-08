@@ -12,4 +12,4 @@ entry=$2
 expr=$3
 shift 3
 
-$HERE/tools/cue export --out $format $entry --inject=namespace=$NAMESPACE -e "$expr" "$@"
+$HERE/tools/cue.sh export --out $format $entry --inject=namespace=$NAMESPACE -e "$expr" "$@"

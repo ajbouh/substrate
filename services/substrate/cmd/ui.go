@@ -9,11 +9,12 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/ajbouh/substrate/pkg/activityspec"
 	"github.com/ajbouh/substrate/pkg/auth"
 	"github.com/ajbouh/substrate/services/substrate"
 )
 
-func newUIHandler(sub *substrate.Substrate, gw *substrate.Gateway) ([]string, func(rw http.ResponseWriter, req *http.Request, p httprouter.Params), AllowOriginFunc) {
+func newUIHandler(sub *substrate.Substrate, gw *activityspec.Provisioner) ([]string, func(rw http.ResponseWriter, req *http.Request, p httprouter.Params), AllowOriginFunc) {
 	var allowOriginFunc AllowOriginFunc
 	var upstream http.Handler
 	externalUIHandler := os.Getenv("EXTERNAL_UI_HANDLER")
@@ -28,18 +29,12 @@ func newUIHandler(sub *substrate.Substrate, gw *substrate.Gateway) ([]string, fu
 		}
 	} else {
 
-		uiLens := "ui"
+		uiService := "ui"
 
-		cacheKey := uiLens
+		cacheKey := uiService
 		upstream = http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			gw.ProvisionReverseProxy(cacheKey, func() substrate.ProvisionFunc {
-				return sub.MakeProvisioner(func(fmt string, values ...any) {
-					log.Printf(fmt+" cacheKey=%s", append(values, cacheKey)...)
-				}, &substrate.SpawnRequest{
-					ActivitySpec: substrate.ActivitySpecRequest{
-						LensName: uiLens,
-					},
-				})
+			gw.ProvisionReverseProxy(cacheKey, func() activityspec.ProvisionFunc {
+				return sub.NewProvisionFunc(cacheKey, &activityspec.ActivitySpecRequest{ServiceName: uiService})
 			}).ServeHTTP(rw, req)
 		})
 		allowOriginFunc = func(origin string) bool {

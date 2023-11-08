@@ -18,6 +18,7 @@ let var = #var
   lenses: [string]: lens
   
   // plane_drone_host_plane_data_dir: "./data/plane"
+  host_docker_socket: string
 
   substrate: internal_port: int
   substrate: origin: string
@@ -45,7 +46,8 @@ let services = {
         "image": "\(var.image_prefix)substrate"
         "origin": var.substrate.origin
 
-        // host_plane_data_dir: var.plane_drone_host_plane_data_dir
+        "host_docker_socket": var.host_docker_socket
+
         // bind_mounts: [
         //   {source: "./cache", destination: "/cache"},
         // ]

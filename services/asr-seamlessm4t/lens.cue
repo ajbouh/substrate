@@ -6,7 +6,7 @@ name: "asr-seamlessm4t"
   dockerfile: "./services/asr-seamlessm4t/Dockerfile"
 }
 
-spawn: jamsocket: env: {
+spawn: env: {
   MODEL_SIZE: "seamlessM4T_large"
   MODEL_DEVICE: "cuda"
   MODEL_COMPUTE_TYPE: "float32"

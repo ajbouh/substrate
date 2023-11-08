@@ -1,7 +1,0 @@
-target
-.vscode
-.github
-tests
-Dockerfile
-docker-compose.yml
-sample-config

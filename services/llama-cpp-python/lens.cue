@@ -2,12 +2,7 @@ package lens
 
 name: "llama-cpp-python"
 
-#build: {
-  dockerfile: "docker/cuda/Dockerfile"
-  context: "./services/llama-cpp-python"
-}
-
-spawn: jamsocket: env: {
+spawn: env: {
   USE_MLOCK: "0"
   TORCH_HOME: "/cache/torch"
   CUDA_DEVICE_ORDER: "PCI_BUS_ID"

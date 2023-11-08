@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ajbouh/substrate/pkg/activityspec"
 	"github.com/ajbouh/substrate/pkg/auth"
 	"github.com/ajbouh/substrate/services/substrate"
 	"github.com/dghubble/gologin/v2"
@@ -28,7 +29,7 @@ var methods []string = []string{
 func newHTTPHandler(s *substrate.Substrate) http.Handler {
 	router := httprouter.New()
 
-	gw := substrate.NewGateway()
+	gw := activityspec.NewProvisioner()
 
 	previewHandler := newPreviewHandler(s, gw)
 	router.Handle("GET", "/preview/*rest", previewHandler)

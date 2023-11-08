@@ -9,11 +9,12 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/ajbouh/substrate/pkg/activityspec"
 	"github.com/ajbouh/substrate/pkg/auth"
 	"github.com/ajbouh/substrate/services/substrate"
 )
 
-func newLazyProxyHandler(sub *substrate.Substrate, gw *substrate.Gateway, api http.Handler) ([]string, func(rw http.ResponseWriter, req *http.Request, p httprouter.Params)) {
+func newLazyProxyHandler(sub *substrate.Substrate, gw *activityspec.Provisioner, api http.Handler) ([]string, func(rw http.ResponseWriter, req *http.Request, p httprouter.Params)) {
 	return []string{"/gw/:viewspec", "/gw/:viewspec/*rest"}, func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
 		log.Printf("%s %s %s", req.RemoteAddr, req.Method, req.URL.String())
 
@@ -56,12 +57,14 @@ func newLazyProxyHandler(sub *substrate.Substrate, gw *substrate.Gateway, api ht
 		}
 		req.URL.RawPath = ""
 
-		views, err := substrate.ParseActivitySpecRequest(viewspec, false)
+		views, err := activityspec.ParseActivitySpecRequest(viewspec, false)
 		if err != nil {
 			jsonrw := newJSONResponseWriter(rw)
 			jsonrw(nil, http.StatusBadRequest, err)
 			return
 		}
+
+		views.User = user.GithubUsername
 
 		cacheKey, concrete := views.ActivitySpec()
 		if !concrete {
@@ -70,13 +73,8 @@ func newLazyProxyHandler(sub *substrate.Substrate, gw *substrate.Gateway, api ht
 			return
 		}
 
-		gw.ProvisionReverseProxy(cacheKey, func() substrate.ProvisionFunc {
-			return sub.MakeProvisioner(func(fmt string, values ...any) {
-				log.Printf(fmt+" cacheKey=%s", append(values, cacheKey)...)
-			}, &substrate.SpawnRequest{
-				User:         user.GithubUsername,
-				ActivitySpec: *views,
-			})
+		gw.ProvisionReverseProxy(cacheKey, func() activityspec.ProvisionFunc {
+			return sub.NewProvisionFunc(cacheKey, views)
 		}).ServeHTTP(rw, req)
 	}
 }

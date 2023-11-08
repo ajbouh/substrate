@@ -1,13 +1,17 @@
-FROM golang:1.19 as gobuild
+FROM golang:1.21 as gobuild
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg
 ADD pkg/go.mod pkg/go.sum ./
 RUN go mod download
-COPY pkg/. .
 
 WORKDIR /go/src/github.com/ajbouh/substrate/services/substrate
 ADD services/substrate/go.mod services/substrate/go.sum ./
 RUN go mod download
+
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg
+COPY pkg/. .
+
+WORKDIR /go/src/github.com/ajbouh/substrate/services/substrate
 COPY services/substrate/. .
 
 # With the trick below, Go's build cache is kept between builds.
@@ -19,19 +23,6 @@ RUN --mount=type=cache,target=/go/pkg/mod \
   --ldflags '-linkmode external -extldflags "-static"' \
   -installsuffix 'static' \
   -o /app ./cmd
-
-FROM rust:1.70.0-buster as planebuild
-
-ARG GIT_HASH
-ENV GIT_HASH=${GIT_HASH}
-
-WORKDIR /work
-
-COPY services/plane .
-
-RUN cargo build --bin=plane-drone --release 
-RUN cargo build --bin=plane-controller --release 
-
 
 FROM gcr.io/distroless/cc-debian11 as ccbuild
 
@@ -53,11 +44,6 @@ ENV PORT 8080
 
 COPY --from=tailscale /app/tailscaled /app/tailscale /app/
 COPY --from=gobuild /app /app/app
-
-COPY --from=planebuild \
-  /work/target/release/plane-drone \
-  /work/target/release/plane-controller \
-  /bin/
 
 COPY --from=ccbuild \
   /usr/lib/x86_64-linux-gnu/libgomp.so.1 \

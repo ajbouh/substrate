@@ -69,8 +69,8 @@ for #lens in all {
       if #lens.#build != null {
         #build: dockerfile: string | *"services/\(#lens.name)/Dockerfile"
 
-        spawn: jamsocket: {
-          service: "\(#var.namespace)-\(#lens.name)"
+        spawn: {
+          // service: "\(#var.namespace)-\(#lens.name)"
           image: "\(#var.image_prefix)\(#lens.name)"
         }
       }

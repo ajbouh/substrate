@@ -78,7 +78,11 @@ let #def = {
 
     if command != _|_ { "command": command }
 
-    "build": build
+      if build.image != _|_ { image: build.image }
+      if build.args != _|_ { "build": args: build.args }
+      if build.dockerfile != _|_ { "build": dockerfile: build.dockerfile }
+      if build.target != _|_ { "build": target: build.target }
+      if build.context != _|_ { "build": context: build.context }
 
     "environment": {
       environment

@@ -4,7 +4,7 @@ import (
   docker_compose_service "github.com/ajbouh/substrate/pkg/docker/compose:service"
 )
 
-#SpawnSchema: {
+#ServiceDefSpawnSchema: {
   [string]: {
     type: "space" | "spaces" | "string"
     if type == "spaces" {
@@ -19,7 +19,7 @@ import (
   }
 }
 
-#RequestSchema: {
+#ActivityDefRequestSchema: {
   [string]: {
     type: "space" | "collection" | "file"
     body ?: [...[...string]] | [...string]  // If true, set body to it. If a string[], set those top-level JSON fields with it. If string[][], set those JSON field selections to it.
@@ -31,7 +31,20 @@ import (
   }
 }
 
-#Activity: {
+#ActivityDefResponseSchema: {
+  [name=string]: {
+    type: "space" | "collection" | "file"
+    from: "header" | *"body"
+    if from == "body" {
+      path: [...string] | *[name]
+    }
+    if from == "header" {
+      path: [string]
+    }
+  }
+}
+
+#ActivityDef: {
   activity: "user:new-space" | "user:open" | "user:fork" | "user:collection:space" | "system:preview:space" | =~ "^system:preview:activity:[^:]+$"
 
   label ?: string
@@ -45,24 +58,15 @@ import (
     path ?: string
     method: string | *"GET"
 
-    schema ?: #RequestSchema
+    schema ?: #ActivityDefRequestSchema
   }
 
   response ?: {
-    schema ?: [name=string]: {
-      type: "space" | "collection" | "file"
-      from: "header" | *"body"
-      if from == "body" {
-        path: [...string] | *[name]
-      }
-      if from == "header" {
-        path: [string]
-      }
-    }
+    schema ?: #ActivityDefResponseSchema
   }
 }
 
-let #Lens = close({
+let #ServiceDef = close({
   name!: string
 
   #build: null | *{
@@ -73,11 +77,10 @@ let #Lens = close({
 
   #docker_compose_service: docker_compose_service & {
     if #build != null { build: #build }
-    if spawn.jamsocket.env != _|_ { environment: spawn.jamsocket.env }
     if spawn.env != _|_ { environment: spawn.env }
   }
 
-  activities ?: [string]: #Activity
+  activities ?: [string]: #ActivityDef
 
   space?: {
     preview ?: string
@@ -85,16 +88,11 @@ let #Lens = close({
 
   // Configuration for spawn
   spawn?: {
-    jamsocket ?: {
-      service!: string
-      image!: string
-      env ?: {[string]: string}
-    }
-
+    image!: string
     env ?: {[string]: string}
 
-    schema?: #SpawnSchema
+    schema?: #ServiceDefSpawnSchema
   }
 })
 
-#Lens
+#ServiceDef

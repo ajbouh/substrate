@@ -15,8 +15,8 @@ import (
 
 	form "github.com/go-playground/form/v4"
 
+	"github.com/ajbouh/substrate/pkg/activityspec"
 	"github.com/ajbouh/substrate/pkg/auth"
-	"github.com/ajbouh/substrate/pkg/jamsocket"
 	"github.com/ajbouh/substrate/services/substrate"
 )
 
@@ -133,9 +133,9 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	}
 
 	type ActivityResult struct {
-		URL             string                 `json:"url"`
-		Status          *jamsocket.StatusEvent `json:"status"`
-		StatusStreamURL string                 `json:"status_stream_url"`
+		URL string `json:"url"`
+		// Status          *jamsocket.StatusEvent `json:"status"`
+		StatusStreamURL string `json:"status_stream_url"`
 
 		ActivitySpec string `json:"activityspec"`
 	}
@@ -163,20 +163,20 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 			statusStreamURLPrefix = statusStreamURLPrefix + "/"
 		}
 
-		views, err := substrate.ParseActivitySpecRequest(r.ActivitySpec, r.ForceReadOnly)
+		views, err := activityspec.ParseActivitySpecRequest(r.ActivitySpec, r.ForceReadOnly)
 		if err != nil {
 			return nil, http.StatusBadRequest, err
 		}
 
 		if !r.ForceSpawn {
-			activityspec, concrete := views.ActivitySpec()
+			as, concrete := views.ActivitySpec()
 			if !concrete {
-				return nil, http.StatusBadRequest, fmt.Errorf("activityspec must be concrete to be used with resume")
+				return nil, http.StatusBadRequest, fmt.Errorf("as must be concrete to be used with resume")
 			}
 
 			events, err := s.ListEvents(req.Context(), &substrate.EventListRequest{
 				EventWhere: substrate.EventWhere{
-					ActivitySpec: &activityspec,
+					ActivitySpec: &as,
 					Type:         stringPtr("spawn"),
 				},
 				OrderBy: &substrate.OrderBy{Descending: true},
@@ -190,42 +190,40 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 
 			if len(events) > 0 {
 				event := events[0]
-				backendStatus, err := s.JamsocketClient.Status(req.Context(), event.JamsocketSpawn.Response.Name)
+				backendStatus, err := s.Status(req.Context(), event.Response.Name)
 				if err != nil {
 					return nil, http.StatusInternalServerError, err
 				}
 
-				if backendStatus.State.IsReady() || backendStatus.State.IsPending() {
+				if backendStatus.IsReady() || backendStatus.IsPending() {
 					sres, err := event.SpawnResult()
 					if err != nil {
 						// Is this right? Or should we respawn?
 						return nil, http.StatusInternalServerError, err
 					}
 
-					u, _ := sres.URL(substrate.ProvisionerCookieAuthenticationMode)
+					u, _ := sres.URL(activityspec.ProvisionerCookieAuthenticationMode)
 
 					return &ActivityResult{
 						URL: u.String(),
-						Status:          backendStatus,
-						StatusStreamURL: statusStreamURLPrefix + event.JamsocketSpawn.Response.Name + "/status/stream",
+						// Status:          backendStatus,
+						StatusStreamURL: statusStreamURLPrefix + event.Response.Name + "/status/stream",
 						ActivitySpec:    event.ActivitySpec,
 					}, http.StatusOK, nil
 				}
 			}
 		}
 
-		sres, err := s.Spawn(req.Context(), &substrate.SpawnRequest{
-			User:         user.GithubUsername,
-			ActivitySpec: *views,
-		})
+		views.User = user.GithubUsername
+		sres, err := s.Spawn(req.Context(), views)
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
 
-		u, _ := sres.URL(substrate.ProvisionerCookieAuthenticationMode)
+		u, _ := sres.URL(activityspec.ProvisionerCookieAuthenticationMode)
 		return &ActivityResult{
 			URL: u.String(),
-			Status:          nil,
+			// Status:          nil,
 			StatusStreamURL: statusStreamURLPrefix + sres.Name + "/status/stream",
 			ActivitySpec:    sres.ActivitySpec,
 		}, http.StatusOK, nil
@@ -238,7 +236,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		}
 
 		// TODO should we allow setting an alias here?
-		r := &substrate.SpaceViewRequest{}
+		r := &activityspec.SpaceViewRequest{}
 		status, err := readRequestBody(req, &r)
 		if err != nil {
 			return nil, status, err
@@ -283,7 +281,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 			ForkedFromRef: forkedFromRef,
 			ForkedFromID:  forkedFromID,
 			CreatedAt:     createdAt,
-			// InitialLens:   &req.ActivitySpec.LensName,
+			// InitialService:   &req.ActivitySpec.ServiceName,
 			// InitialMount: &SpaceMount{
 			// 	Name:  viewName,
 			// 	Multi: multi,
@@ -352,8 +350,8 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		return nil, http.StatusOK, nil
 	})
 
-	handleRaw("GET", "/api/v1/backend/jamsocket/:backend/status/stream", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
-		ch, err := s.JamsocketClient.StatusStream(req.Context(), p.ByName("backend"))
+	handleRaw("GET", "/api/v1/backend/:backend/status/stream", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
+		ch, err := s.StatusStream(req.Context(), p.ByName("backend"))
 		if err != nil {
 			http.Error(rw, fmt.Sprintf("upstream error: %s", err), http.StatusInternalServerError)
 			return
@@ -383,7 +381,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	})
 
 	handle("GET", "/api/v1/lenses/:lens", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		lens, err := s.ResolveLens(req.Context(), p.ByName("lens"))
+		lens, err := s.ResolveService(req.Context(), p.ByName("lens"))
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
@@ -397,7 +395,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		query := req.URL.Query()
 		activities, err := s.ListActivities(req.Context(), &substrate.ActivityListRequest{
 			ActivityWhere: substrate.ActivityWhere{
-				Lens: getValueAsStringPtr(query, "lens"),
+				Service: getValueAsStringPtr(query, "lens"),
 			},
 			Limit: substrate.LimitFromPtr(getValueAsIntPtr(query, "limit")),
 		})
@@ -421,13 +419,13 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	})
 
 	handle("GET", "/api/v1/activities/*activityspec", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		activityspec := strings.TrimPrefix(p.ByName("activityspec"), "/")
-		activity, err := substrate.ParseActivitySpecRequest(activityspec, false)
+		as := strings.TrimPrefix(p.ByName("activityspec"), "/")
+		activity, err := activityspec.ParseActivitySpecRequest(as, false)
 		if err != nil {
 			return nil, http.StatusBadRequest, err
 		}
 
-		spaces, _, err := s.ResolveConcreteLensSpawnParameterRequests(req.Context(), activity.LensName, activity.Parameters, false)
+		spaces, _, err := s.ResolveConcreteServiceSpawnParameterRequests(req.Context(), activity.ServiceName, activity.Parameters, false)
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
@@ -466,7 +464,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	})
 
 	handle("GET", "/api/v1/lenses", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		lenses, err := s.AllLenses(req.Context())
+		lenses, err := s.AllServices(req.Context())
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
@@ -482,11 +480,11 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 				ForkedFromID: getValueAsStringPtr(query, "forked_from"),
 			},
 			SelectNestedCollections: &substrate.CollectionMembershipWhere{
-				Owner:      getValueAsStringPtr(query, "collection_owner"),
-				Name:       getValueAsStringPtr(query, "collection_name"),
-				NamePrefix: getValueAsStringPtr(query, "collection_prefix"),
-				LensSpec:   getValueAsStringPtr(query, "collection_lensspec"),
-				IsPublic:   getValueAsBoolPtr(query, "collection_public"),
+				Owner:       getValueAsStringPtr(query, "collection_owner"),
+				Name:        getValueAsStringPtr(query, "collection_name"),
+				NamePrefix:  getValueAsStringPtr(query, "collection_prefix"),
+				ServiceSpec: getValueAsStringPtr(query, "collection_lensspec"),
+				IsPublic:    getValueAsBoolPtr(query, "collection_public"),
 			},
 		})
 		if err != nil {
@@ -541,9 +539,9 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	// Attach a lens to a collection
 	handle("POST", "/api/v1/collections/:owner/:name/lenses", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		r := struct {
-			LensSpec   string         `json:"lensspec"`
-			IsPublic   bool           `json:"public,omitempty"`
-			Attributes map[string]any `json:"attributes,omitempty"`
+			ServiceSpec string         `json:"lensspec"`
+			IsPublic    bool           `json:"public,omitempty"`
+			Attributes  map[string]any `json:"attributes,omitempty"`
 		}{}
 		status, err := readRequestBody(req, &r)
 		if err != nil {
@@ -556,11 +554,11 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		// TODO
 
 		err = s.WriteCollectionMembership(req.Context(), &substrate.CollectionMembership{
-			Owner:      p.ByName("owner"),
-			Name:       p.ByName("name"),
-			LensSpec:   r.LensSpec,
-			IsPublic:   r.IsPublic,
-			Attributes: r.Attributes,
+			Owner:       p.ByName("owner"),
+			Name:        p.ByName("name"),
+			ServiceSpec: r.ServiceSpec,
+			IsPublic:    r.IsPublic,
+			Attributes:  r.Attributes,
 		})
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
@@ -608,9 +606,9 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	// Remove a lens from a collection
 	handle("DELETE", "/api/v1/collections/:owner/:name/lenses/:lensspec", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		err := s.DeleteCollectionMembership(req.Context(), &substrate.CollectionMembershipWhere{
-			Owner:    stringPtr(p.ByName("owner")),
-			Name:     stringPtr(p.ByName("name")),
-			LensSpec: stringPtr(p.ByName("lensspec")),
+			Owner:       stringPtr(p.ByName("owner")),
+			Name:        stringPtr(p.ByName("name")),
+			ServiceSpec: stringPtr(p.ByName("lensspec")),
 		})
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
@@ -660,10 +658,10 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		}
 		result, err := s.ListCollections(req.Context(), &substrate.CollectionListQuery{
 			CollectionMembershipWhere: substrate.CollectionMembershipWhere{
-				Owner:       stringPtr(p.ByName("owner")),
-				NamePrefix:  prefixP,
-				Name:        nameP,
-				HasLensSpec: true,
+				Owner:          stringPtr(p.ByName("owner")),
+				NamePrefix:     prefixP,
+				Name:           nameP,
+				HasServiceSpec: true,
 			},
 			Limit: substrate.LimitFromPtr(getValueAsIntPtr(query, "limit")),
 		})

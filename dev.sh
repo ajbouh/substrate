@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -ex
+set -exo pipefail
 
 HERE=$(cd $(dirname $0); pwd)
 
@@ -165,6 +165,28 @@ case "$1" in
   os-qemu-ssh)
     shift
     ssh_qemu "$@"
+    ;;
+  docker-compose-up)
+    shift
+    docker_compose $(make_docker_compose_yml lenses substrate.docker_compose_lenses) build
+    docker_compose $(make_docker_compose_yml substrate substrate.docker_compose) up \
+        --always-recreate-deps \
+        --remove-orphans \
+        --force-recreate \
+        --build "$@"
+    ;;
+  remote-docker-compose)
+    shift
+    DOCKER_HOST=$BRIDGE_DOCKER_HOST docker_compose $(make_docker_compose_yml substrate substrate.docker_compose) "$@"
+    ;;
+  remote-docker-compose-up)
+    shift
+    DOCKER_HOST=$BRIDGE_DOCKER_HOST docker_compose $(make_docker_compose_yml lenses substrate.docker_compose_lenses) build
+    DOCKER_HOST=$BRIDGE_DOCKER_HOST docker_compose $(make_docker_compose_yml substrate substrate.docker_compose) up \
+        --always-recreate-deps \
+        --remove-orphans \
+        --force-recreate \
+        --build "$@"
     ;;
   remote-bridge-docker-compose)
     shift
