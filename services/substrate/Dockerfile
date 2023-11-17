@@ -1,4 +1,4 @@
-FROM golang:1.21 as gobuild
+FROM docker.io/library/golang:1.21 as build
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg
 ADD pkg/go.mod pkg/go.sum ./
@@ -16,52 +16,23 @@ COPY services/substrate/. .
 
 # With the trick below, Go's build cache is kept between builds.
 # https://github.com/golang/go/issues/27719#issuecomment-514747274
-RUN --mount=type=cache,target=/go/pkg/mod \
-  --mount=type=cache,target=/root/.cache/go-build \
-  GOOS=linux go build \
+# RUN --mount=type=cache,target=/go/pkg/mod \
+#   --mount=type=cache,target=/root/.cache/go-build \
+RUN go build \
+  -ldflags "-linkmode external -extldflags -static" \
   -v \
-  --ldflags '-linkmode external -extldflags "-static"' \
-  -installsuffix 'static' \
-  -o /app ./cmd
+  -o /app .
 
-FROM gcr.io/distroless/cc-debian11 as ccbuild
+# WORKDIR /data
+# ENTRYPOINT ["/app"]
 
-FROM alpine:latest as tailscale
-WORKDIR /app
-ENV TSFILE=tailscale_1.34.1_amd64.tgz
-RUN wget https://pkgs.tailscale.com/stable/${TSFILE} && \
-  tar xzf ${TSFILE} --strip-components=1
+FROM gcr.io/distroless/static-debian11 as dist
 
-# https://github.com/istio/istio/blob/master/pilot/docker/Dockerfile.proxyv2#L10
-# This image is a custom built debian11 distroless image with multiarchitecture support.
-# It is built on the base distroless image, with iptables binary and libraries added
-# The source can be found at https://github.com/istio/distroless/tree/iptables
-# This version is from commit a8b3fb577adb785211ce704fdf892983fc268b11.
-FROM gcr.io/istio-release/iptables@sha256:dda02a0b385785d3042d075889a56fcf0ab00f201be0a4a725563fbfcff9938a as distroless
+# USER root:root
+# ENV PORT 8080
 
-USER root:root
-ENV PORT 8080
-
-COPY --from=tailscale /app/tailscaled /app/tailscale /app/
-COPY --from=gobuild /app /app/app
-
-COPY --from=ccbuild \
-  /usr/lib/x86_64-linux-gnu/libgomp.so.1 \
-  /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0 \
-  /usr/lib/x86_64-linux-gnu/libstdc++.so.6 \
-  /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.28 \
-  /usr/lib/x86_64-linux-gnu/
-COPY --from=ccbuild \
-  /lib/x86_64-linux-gnu/libgcc_s.so.1 \
-  /lib/x86_64-linux-gnu/
-COPY --from=ccbuild \
-  /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 \
-  /usr/lib/x86_64-linux-gnu/libssl.so.1.1 \
-  /usr/lib/x86_64-linux-gnu/
-COPY --from=ccbuild \
-  /usr/lib/ssl \
-  /usr/lib/ssl
+# WORKDIR /app
+COPY --from=build /app /app/app
 
 WORKDIR /data
-
 ENTRYPOINT ["/app/app"]

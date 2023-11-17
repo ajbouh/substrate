@@ -1,4 +1,4 @@
-FROM golang:1.19 as build
+FROM docker.io/library/golang:1.21 as build
 
 WORKDIR /go/src/github.com/ajbouh/substrate/files
 COPY services/files/. .

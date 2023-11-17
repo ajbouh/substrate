@@ -2,7 +2,7 @@ import torch
 from seamless_communication.models.inference import Translator
 import os
 
-from bridge.transcript import TranscriptionRequest, TranscriptionResponse, TranscriptionSegment, Word, new_v1_api_app
+from substrate.asr import Request, Response, Segment, Word, new_v1_api_app
 
 MODEL_DEVICE = os.environ.get("MODEL_DEVICE", "cpu")
 MODEL_COMPUTE_TYPE = os.environ.get("MODEL_COMPUTE_TYPE", "float32")
@@ -130,16 +130,30 @@ language_aliases = {
     "zh" : "cmn",
 }
 
-def transcribe(request: TranscriptionRequest) -> TranscriptionResponse:
+import base64
+import io
+import soundfile as sf
+
+def ogg2wav(ogg: bytes):
+    ogg_buf = io.BytesIO(ogg)
+    ogg_buf.name = 'file.opus'
+    data, samplerate = sf.read(ogg_buf, dtype='float32')
+    return data, samplerate
+
+def transcribe(request: Request) -> Response:
     # From https://huggingface.co/facebook/seamless-m4t-large
 
     # Initialize a Translator object with a multitask model, vocoder on the GPU.
     # translator = Translator("seamlessM4T_large", vocoder_name_or_card="vocoder_36langs", device=torch.device("cuda:0"))
 
-    if request.audio:
-        n_samples = len(request.audio.waveform)
-        sample_rate = request.audio.sample_rate
-        waveform = torch.cuda.FloatTensor([request.audio.waveform]).reshape(n_samples, 1)
+    if request.audio_data:
+        data = base64.b64decode(request.audio_data)
+        waveform, sample_rate = ogg2wav(data)
+        n_samples = waveform.shape[0]
+
+        # n_samples = len(request.audio.waveform)
+        # sample_rate = request.audio.sample_rate
+        # waveform = torch.cuda.FloatTensor([request.audio.waveform]).reshape(n_samples, 1)
         duration = n_samples / sample_rate
         translated_text, *_ = model.predict(
             waveform,
@@ -150,24 +164,30 @@ def transcribe(request: TranscriptionRequest) -> TranscriptionResponse:
     elif request.text:
         src_lang = request.source_language or None
         if src_lang not in supported:
-            src_lang = language_aliases[src_lang]
+            if src_lang in language_aliases:
+                src_lang = language_aliases[src_lang]
+            else:
+                print("warning: unknown language %s" % src_lang)
 
-        translated_text, *_ = model.predict(
-            request.text,
-            "T2TT",
-            request.target_language or "eng",
-            src_lang=src_lang,
-        )
+        if src_lang:
+            translated_text, *_ = model.predict(
+                request.text,
+                "T2TT",
+                request.target_language or "eng",
+                src_lang=src_lang,
+            )
+        else:
+            translated_text = ""
         duration = None
 
 
-    return TranscriptionResponse(
+    return Response(
         source_language=request.source_language,
         source_language_prob=None,
         target_language=request.target_language,
         duration=duration,
         segments=[
-            TranscriptionSegment(
+            Segment(
                 # id=segment.id,
                 # seek=segment.seek,
                 start=0.0,

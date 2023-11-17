@@ -163,6 +163,7 @@ func (a *AudioEngine) decodePacket(pkt *rtp.Packet) (int, error) {
 		a.capture <- &router.CapturedSample{
 			PCM:          incomingPCM,
 			EndTimestamp: timestampRecordingEnds,
+			Packet:       pkt,
 		}
 		return incomingSamplesPerChannel, nil
 	}

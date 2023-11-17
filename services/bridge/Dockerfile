@@ -81,32 +81,37 @@ COPY services/bridge/ui/static ./static
 COPY services/bridge/ui/*.sh services/bridge/ui/*.js services/bridge/ui/*.json services/bridge/ui/*.cjs services/bridge/ui/.npmrc ./
 RUN npm run build
 
-
-FROM golang:1.20 as builder
+FROM docker.io/library/golang:1.21 as builder
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     pkg-config \
     libopus-dev \
     libopusfile-dev \
   && rm -rf /var/lib/apt/lists/*
-WORKDIR /app 
-COPY services/bridge/go.mod services/bridge/go.sum .
+
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg
+ADD pkg/go.mod pkg/go.sum ./
 RUN go mod download
 
+WORKDIR /go/src/github.com/ajbouh/substrate/services/bridge
+COPY services/bridge/go.mod services/bridge/go.sum .
+COPY services/bridge/thirdparty thirdparty
+RUN go mod download
+
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg
+COPY pkg/. .
+
+WORKDIR /go/src/github.com/ajbouh/substrate/services/bridge
 COPY services/bridge/pkg pkg
 COPY services/bridge/cmd cmd
-RUN go build -o main ./cmd
+RUN go build \
+  -ldflags "-linkmode external -extldflags '-static -lopus -logg -lm'" \
+  -o /main ./cmd
 
 
-FROM golang:1.20
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
-    pkg-config \
-    libopus-dev \
-    libopusfile-dev \
-  && rm -rf /var/lib/apt/lists/*
+FROM gcr.io/distroless/static-debian11 as dist
 WORKDIR /app
-COPY --from=builder /app/main ./main
+COPY --from=builder /main ./main
 COPY ./services/bridge/cmd/config.toml ./config.toml
 COPY --from=uibuild /app/build ./ui/.
 EXPOSE 8088

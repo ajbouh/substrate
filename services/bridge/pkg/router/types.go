@@ -1,5 +1,9 @@
 package router
 
+import (
+	"github.com/pion/rtp"
+)
+
 type Word struct {
 	Start       float32 `json:"start"`
 	End         float32 `json:"end"`
@@ -23,14 +27,9 @@ type TranscriptionSegment struct {
 	IsAssistant bool   `json:"is_assistant"`
 }
 
-type Audio struct {
-	Waveform   []float32 `json:"waveform"`
-	SampleRate int       `json:"sample_rate"`
-}
-
 type TranscriptionRequest struct {
-	Audio *Audio  `json:"audio,omitempty"`
-	Text  *string `json:"text,omitempty"`
+	AudioData *[]byte `json:"audio_data,omitempty"`
+	Text      *string `json:"text,omitempty"`
 
 	Task           string  `json:"task"`
 	SourceLanguage *string `json:"source_language,omitempty"`
@@ -52,13 +51,17 @@ type TranscriptionResponse struct {
 type CapturedSample struct {
 	PCM          []float32
 	EndTimestamp uint32
+	Packet       *rtp.Packet
 }
 
 type CapturedAudio struct {
 	ID string `json:"id"`
 
-	PCM   []float32 `json:"-"`
-	Final bool      `json:"final"`
+	PCM                []float32     `json:"-"`
+	Packets            []*rtp.Packet `json:"-"`
+	PacketSampleCounts []int         `json:"-"`
+
+	Final bool `json:"final"`
 
 	StartTimestamp uint64 `json:"start"`
 	EndTimestamp   uint64 `json:"end"`

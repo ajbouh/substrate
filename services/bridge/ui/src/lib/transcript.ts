@@ -106,7 +106,7 @@ export function renderableTranscriptSession(transcriptions: Transcript[]): Rende
     const transcriptEndTimestampS = transcript.end / 1000
     const transcriptStartTimestampMs = transcript.start
     const transcriptStartTimestampS = transcriptStartTimestampMs / 1000
-    for (const segment of transcript.segments) {
+    for (const segment of transcript.segments || []) {
       const sessionTimeMs = (segment.start * 1000) + transcriptStartTimestampMs
       const sessionTimeS = Math.floor(sessionTimeMs / 1000)
       const precedingSilence = lastSegmentSessionEndTimeS == null ? sessionTimeS : sessionTimeS - lastSegmentSessionEndTimeS

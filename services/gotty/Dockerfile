@@ -1,4 +1,4 @@
-FROM golang:1.19 as build
+FROM docker.io/library/golang:1.21 as build
 
 RUN --mount=type=cache,target=/root/.cache/go-build \
   --mount=type=cache,target=/go/pkg \

@@ -9,7 +9,7 @@ import (
 )
 
 let #compose = {
-  version ?: string
+  version: string | *"3.8"
 
   services !: [string]: service
 

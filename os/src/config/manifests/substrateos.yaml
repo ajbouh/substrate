@@ -1,0 +1,12 @@
+# https://coreos.github.io/coreos-assembler/working/
+# https://coreos.github.io/rpm-ostree/treefile/
+
+include:
+  - fedora-coreos.yaml
+  - nvidia.yaml
+
+ostree-layers:
+  - gen-overlay/containers
+
+ostree-override-layers:
+  - overlay/50containers-storage-conf

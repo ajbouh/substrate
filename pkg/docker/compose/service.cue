@@ -12,6 +12,8 @@ let #service = {
     dockerfile ?: string
   }
 
+  profiles ?: [...string]
+
   environment ?: [string]: string
 
   ports ?: [...string]

@@ -272,8 +272,8 @@ func (a *Assistant) greedilyPopulateMessageHistory(doc router.Document, req *cha
 }
 
 func (a *Assistant) respondToDocument(doc router.Document) (*router.Transcription, bool) {
-	reqWithFunctions := a.newRequest(true)
-	transcriptSourcesWithFunctions, startWithFunctions := a.greedilyPopulateMessageHistory(doc, reqWithFunctions, 1)
+	// reqWithFunctions := a.newRequest(true)
+	// transcriptSourcesWithFunctions, startWithFunctions := a.greedilyPopulateMessageHistory(doc, reqWithFunctions, 1)
 
 	reqWithoutFunctions := a.newRequest(false)
 	transcriptSourcesWithoutFunctions, startWithoutFunctions := a.greedilyPopulateMessageHistory(doc, reqWithoutFunctions, 2000)
@@ -281,17 +281,19 @@ func (a *Assistant) respondToDocument(doc router.Document) (*router.Transcriptio
 	var transcriptSources []*router.Transcription
 	var start uint64
 	var gen string
+	var fnCall *chat.FunctionCall
+	var err error
 
-	genWithFunctions, fnCall, err := a.generate(reqWithFunctions)
-	if err == nil {
-		if fnCall != nil {
-			transcriptSources = transcriptSourcesWithFunctions
-			start = startWithFunctions
-			gen = genWithFunctions
-		}
-	} else {
-		fmt.Printf("error generating with functions: %s\n", err)
-	}
+	// genWithFunctions, fnCall, err := a.generate(reqWithFunctions)
+	// if err == nil {
+	// 	if fnCall != nil {
+	// 		transcriptSources = transcriptSourcesWithFunctions
+	// 		start = startWithFunctions
+	// 		gen = genWithFunctions
+	// 	}
+	// } else {
+	// 	fmt.Printf("error generating with functions: %s\n", err)
+	// }
 
 	if fnCall == nil || err != nil {
 		genWithoutFunctions, _, err := a.generate(reqWithoutFunctions)

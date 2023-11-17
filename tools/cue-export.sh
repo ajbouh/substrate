@@ -12,4 +12,30 @@ entry=$2
 expr=$3
 shift 3
 
-$HERE/tools/cue.sh export --out $format $entry --inject=namespace=$NAMESPACE -e "$expr" "$@"
+case "$format" in
+  # cue)
+  #   exec $HERE/tools/cue.sh def \
+  #     $entry \
+  #     -t "namespace=$NAMESPACE" \
+  #     --simplify \
+  #     --inline-imports \
+  #     "$@" \
+  #     -e "$expr"
+  #   ;;
+  cue)
+    exec $HERE/tools/cue.sh eval \
+      $entry \
+      -t "namespace=$NAMESPACE" \
+      --simplify \
+      "$@" \
+      -e "$expr"
+    ;;
+  *)
+    exec $HERE/tools/cue.sh export \
+      --out $format \
+      $entry \
+      -t "namespace=$NAMESPACE" \
+      "$@" \
+      -e "$expr"
+    ;;
+esac

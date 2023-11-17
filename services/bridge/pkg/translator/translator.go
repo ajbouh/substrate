@@ -1,10 +1,12 @@
 package translator
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
 	"github.com/ajbouh/bridge/pkg/asr"
+	"github.com/ajbouh/bridge/pkg/oggwriter"
 	"github.com/ajbouh/bridge/pkg/router"
 )
 
@@ -25,11 +27,15 @@ func New(url string, useAudio bool, targetLanguage string, languageAliases ...st
 	if useAudio {
 		fn = func(t *router.Transcription) (*router.TranscriptionResponse, error) {
 			audioSources := t.AudioSources
+			b := &bytes.Buffer{}
+
+			audioData, err := oggwriter.RenderOggPackets(b, 16000, 1, audioSources[0].Packets, audioSources[0].PacketSampleCounts)
+			if err != nil {
+				return nil, err
+			}
+
 			return client.Transcribe(&router.TranscriptionRequest{
-				Audio: &router.Audio{
-					Waveform:   audioSources[0].PCM,
-					SampleRate: 16000,
-				},
+				AudioData:      &audioData,
 				Task:           "translate",
 				TargetLanguage: &targetLanguage,
 			})

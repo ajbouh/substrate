@@ -1,0 +1,5 @@
+{
+  "onCreateCommand": [
+    ".devcontainer/install-podman.sh"
+  ]
+}

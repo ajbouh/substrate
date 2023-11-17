@@ -3,32 +3,48 @@ package dockerprovisioner
 import (
 	"context"
 	"errors"
+	"log"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
 )
 
-func (p *P) cleanup(
+func (p *P) Cleanup(
 	ctx context.Context,
-	generation string,
 ) error {
 	containers, err := p.cli.ContainerList(ctx, types.ContainerListOptions{})
 	if err != nil {
 		return err
 	}
 
-	removeContainers := []string{}
+	removeContainers := []types.Container{}
 	for _, container := range containers {
-		containerGeneration := container.Labels[LabelSubstrateGeneration]
-		if containerGeneration == "" || containerGeneration == generation {
+		containerNamespace := container.Labels[LabelSubstrateNamespace]
+		if containerNamespace == "" || containerNamespace != p.namespace {
 			continue
 		}
 
-		removeContainers = append(removeContainers, container.ID)
+		containerGeneration := container.Labels[LabelSubstrateGeneration]
+		if containerGeneration == "" || containerGeneration == p.generation {
+			continue
+		}
+
+		removeContainers = append(removeContainers, container)
 	}
 
 	errs := []error{}
-	for _, container := range removeContainers {
-		err := p.cli.ContainerRemove(ctx, container, types.ContainerRemoveOptions{
+	for _, c := range removeContainers {
+		switch c.State {
+		case "running", "paused", "restarting":
+			log.Printf("stopping container %s", c.ID)
+			err := p.cli.ContainerStop(ctx, c.ID, container.StopOptions{})
+			if err != nil {
+				errs = append(errs, err)
+			}
+		}
+
+		log.Printf("removing container %s", c.ID)
+		err := p.cli.ContainerRemove(ctx, c.ID, types.ContainerRemoveOptions{
 			RemoveVolumes: true,
 			RemoveLinks:   true,
 			Force:         true,
@@ -45,8 +61,13 @@ func (p *P) cleanup(
 
 	removeNetworks := []string{}
 	for _, network := range networks {
+		containerNamespace := network.Labels[LabelSubstrateNamespace]
+		if containerNamespace == "" || containerNamespace != p.namespace {
+			continue
+		}
+
 		networkGeneration := network.Labels[LabelSubstrateGeneration]
-		if networkGeneration == "" || networkGeneration == generation {
+		if networkGeneration == "" || networkGeneration == p.generation {
 			continue
 		}
 
@@ -54,6 +75,7 @@ func (p *P) cleanup(
 	}
 
 	for _, network := range removeNetworks {
+		log.Printf("removing network %s", network)
 		err := p.cli.NetworkRemove(ctx, network)
 		if err != nil {
 			errs = append(errs, err)
