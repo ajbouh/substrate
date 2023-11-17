@@ -1,0 +1,12 @@
+[Unit]
+ConditionPathExists=/run/media/iso/oob/oob.squashfs
+RequiresMountsFor=/run/media/iso
+
+[Mount]
+What=/run/media/iso/oob/oob.squashfs
+Where=/run/media/oob
+Type=squashfs
+Options=nofail
+
+[Install]
+WantedBy=substrate.service

@@ -1,0 +1,2 @@
+enable nvidia-ctk-cdi-generate.service
+enable run-media-oob.mount

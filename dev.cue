@@ -2,123 +2,61 @@ package dev
 
 import (
   "strings"
+  "encoding/hex"
+  cryptosha256 "crypto/sha256"
 
-  "github.com/ajbouh/substrate/pkg/systemd"
-
-  fcos_ignition "github.com/ajbouh/substrate/os/fcos:ignition"
+  systemd "github.com/ajbouh/substrate/pkg/systemd"
+  fcos_ignition "github.com/ajbouh/substrate/os:ignition"
+  lens "github.com/ajbouh/substrate/pkg/substrate:lens"
+  imagespec "github.com/ajbouh/substrate/pkg/substrate:imagespec"
+  containerspec "github.com/ajbouh/substrate/pkg/substrate:containerspec"
   docker_compose "github.com/ajbouh/substrate/pkg/docker/compose:compose"
-  docker_compose_service "github.com/ajbouh/substrate/pkg/docker/compose:service"
-
-  build_daemons "github.com/ajbouh/substrate/services:daemons"
-
-  build_lenses "github.com/ajbouh/substrate/services:lenses"
 )
 
-#namespace: string @tag(namespace)
+#no_cuda: string | *"" @tag(no_cuda)
 
-#lenses: (build_lenses & {
-  #var: {
-    "namespace": #namespace
-    "image_prefix": "ghcr.io/ajbouh/substrate:substrate-lens-"
-  }
-})
-
-let #daemons = (build_daemons & {
-  #var: {
-    "namespace": "\(#namespace)-dev"
-    "hostprefix": "\(#namespace)-dev-"
-    "image_prefix": "ghcr.io/ajbouh/substrate:substrate-daemon-"
-    "lenses": #lenses
-    "secrets": {
-      "substrate": {
-        "session_secret": "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
-      }
-    }
-    "host_docker_socket": "/var/run/docker.sock"
+#var: {
+  "namespace": string @tag(namespace)
+  "root_source_directory": string | *"" @tag(root_source_directory)
+  "image_prefix": "ghcr.io/ajbouh/substrate:substrate-"
+  "no_cuda": #no_cuda != ""
+  "build_lenses_expr_path": string | *"" @tag(build_lenses_expr_path)
+  "secrets": {
     "substrate": {
-      // internal_port: 443
-      // origin: "https://\(#namespace)-substrate.tail87070.ts.net"
-      // origin: "http://127.0.0.1:18080"
+      "session_secret": "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
     }
   }
-})
-
-"substrateos": {
-  #rebase_image: "ghcr.io/ajbouh/substrate:substrateos"
-  // let #daemons = daemons & {
-  //   #var: {
-  //     "host_docker_socket": "/var/run/podman/podman.sock"
-  //   }
-  // }
-
-  "ignition": fcos_ignition & {#var: {
-    rebase_image: #rebase_image
-  }}
-
-  "systemd": containers: {
-    for name, def in #daemons {
-      if def.#systemd_units != _|_ {
-        for unit_name, unit in def.#systemd_units {
-          if unit_name =~ "\\.(image|container|volume|network)$" {
-            "\(unit_name)": unit & {
-              #text: (systemd.#render & {#unit: unit}).#out
-              #environment_file_text ?: string
-            }
-          }
-
-          // A hack to allow large environment variables that are improperly escaped by quadlet
-          if unit_name =~ "\\.container$" && (unit.Container.#Environment != _|_) {
-            "\(unit_name)": #environment_file_text: strings.Join([
-              for k, v in unit.Container.#Environment { "\(k)=\(v)" }
-            ], "\n")
-          }
-        }
-      }
-    }
-  }
-
-  docker_compose_build: docker_compose & {
-    services: {
-      "rebase": {
-        build: {
-          image: "ghcr.io/ajbouh/substrate:substrateos"
-        }
-      }
-      for name, daemon in #daemons {
-        if daemon.build != null {
-          "daemon-\(name)": {
-            if daemon.build.image != _|_ { image: daemon.build.image }
-            if daemon.build.args != _|_ { build: args: daemon.build.args }
-            if daemon.build.dockerfile != _|_ { build: dockerfile: daemon.build.dockerfile }
-            if daemon.build.target != _|_ { build: target: daemon.build.target }
-            if daemon.build.context != _|_ { build: context: daemon.build.context }
-          }
-        }
-      }
-
-      for name, lens in #daemons.#var.lenses {
-        if lens.#build != null {
-          "lens-\(name)": {
-            if lens.spawn != _|_ {
-              image: lens.spawn.image
-            }
-            build: dockerfile: lens.#build.dockerfile
-            if lens.#build.args != _|_ {
-              build: args: lens.#build.args
-            }
-          }
-        }
-      }
-    }
-
-    #images: strings.Join([
-      for name, def in services if def.image != _|_ {
-        def.image
-      }
-    ], "\n")
+  "host_resourcedirs_root": string | *"" @tag(host_resourcedirs_root)
+  "host_resourcedirs_path": string | *"" @tag(host_resourcedirs_path)
+  "build_resourcedirs_root": string | *"" @tag(build_resourcedirs_root)
+  "host_docker_socket": string | *"/var/run/docker.sock" @tag(host_docker_socket)
+  // host_docker_socket: "/var/run/podman/podman.sock"
+  // host_docker_socket: "/run/user/1001/podman/podman.sock"
+  "substrate": {
+    internal_port: 8080
+    "docker_compose_prefix": "\(#var.namespace)-substrate_"
+    "origin": "http://localhost:\(internal_port)"
+    "internal_network_name": "substrate-internal"
+    "external_network_name": "substrate-external"
+    "resourcedirs_root": "/var/lib/substrate/resourcedirs"
   }
 }
 
+enable: [string]: bool
+
+imagespecs: [key=string]: imagespec & {
+  image: "\(#var.image_prefix)\(key)"
+  build: dockerfile: string | *"services/\(key)/Dockerfile"
+}
+
+resourcedirs: [id=string]: {
+  #containerspec: containerspec.#ContainerSpec
+  #imagespec: imagespec
+}
+
+lenses: [key=string]: lens & {"name": key}
+
+daemons: [key=string]: containerspec.#ContainerSpec
 
 // HACK so we can share hardware
 #namespace_host_port_offsets: {[string]: int} & {
@@ -128,184 +66,194 @@ let #daemons = (build_daemons & {
   "substrate-progrium": 20000
   "substrate-yoshikiohshima": 21000
 }
-#namespace_host_port_offset: #namespace_host_port_offsets[#namespace]
 
-#service_host_port_offset: {[string]: int} & {
-  "bridge": 1
-  "substrate": 100
+#out: {
+  ignition: fcos_ignition
+
+  // HACK so `cue def` works with less rewriting...
+  #lenses: [string]: lens
+
+  imagespecs: [string]: imagespec
+  daemons: [string]: containerspec.#ContainerSpec
+  systemd_containers: [string]: systemd.#Unit
+  systemd_container_contents: [string]: string
+  systemd_container_basenames: string
+  image_references: string
+  image_podman_build_options: [string]: string
+  "docker_compose": docker_compose
+
+  "resourcedir_fetches": [alias=string]: {
+    sha256: string
+    #containerspec: containerspec.#ContainerSpec
+    #imagespec: imagespec
+  }
+  "resourcedir_keys": string
+  resourcedir_fetch_podman_build_options: [string]: string
+  resourcedir_fetch_podman_run_options: [string]: string
+
+  namespace_host_port_offset: #namespace_host_port_offsets[#var.namespace]
+
+  service_host_port_offset: {[string]: int} & {
+    "bridge": 1
+    "substrate": 100
+    "openvscode": 200
+  }
 }
 
-"bridge": {
-  "docker_compose": docker_compose & {
-    services: {
-      "bridge": #lenses["bridge"].#docker_compose_service
-      "llama-cpp-python": #lenses["llama-cpp-python"].#docker_compose_service
-      "asr-faster-whisper": #lenses["asr-faster-whisper"].#docker_compose_service
-      "asr-seamlessm4t": #lenses["asr-seamlessm4t"].#docker_compose_service
-
-      bridge: {
-        environment: {
-          PORT: "8080"
-          BRIDGE_TRANSCRIPTION: "http://asr-faster-whisper:8000/v1/transcribe"
-          BRIDGE_TRANSLATOR_text_eng_en: "http://asr-seamlessm4t:8000/v1/transcribe"
-          BRIDGE_ASSISTANT_Bridge: "http://llama-cpp-python:8000/v1"
-          // BRIDGE_TRANSLATOR_audio_en: "http://asr-faster-whisper:8000/v1/transcribe"
-          // TRANSCRIPTION_SERVICE: "http://asr-whisperx:8000/transcribe"
-          // TRANSLATOR_SERVICE: "http://asr-seamlessm4t:8000/translate"
-        }
-        ports: [
-          "127.0.0.1:\(#namespace_host_port_offset + #service_host_port_offset["bridge"]):8080",
-        ]
-        depends_on: [
-          "llama-cpp-python",
-          "asr-faster-whisper",
-          "asr-seamlessm4t",
-        ]
-      }
-    }
-
-    // HACK hardcode these for now.
-    volumes: "torch-cache": {}
-    volumes: "huggingface-cache": {}
-    services: [string]: {
-      volumes: [
-        "torch-cache:/cache/torch",
-        "huggingface-cache:/cache/huggingface",
-      ]
-
-      deploy: resources: reservations: devices: [{driver: "nvidia", count: "all", capabilities: ["gpu"]}]
+#out: "imagespecs": {
+  for key, def in imagespecs {
+    if (enable[key]) {
+      (key): def
     }
   }
 }
 
-"substrate": {
-  version: "3.8"
-  // let #daemons = daemons & {
-  //   #var: {
-  //     "host_docker_socket": "/var/run/docker.sock"
-  //   }
-  // }
-  docker_compose_lenses: docker_compose & {
-    services: {
-      for name, lens in #daemons.#var.lenses {
-        if lens.#build != null {
-          "lens-\(name)": {
-            if lens.spawn != _|_ {
-              image: lens.spawn.image
-            }
-            build: dockerfile: lens.#build.dockerfile
-            if lens.#build.context != _|_ { "build": context: lens.#build.context }
-            if lens.#build.args != _|_ {
-              build: args: lens.#build.args
+for key, def in #out.#lenses {
+  if def.spawn != null {
+    for alias, rddef in def.spawn.resourcedirs {
+      resourcedirs: (rddef.id): _
+      #out: resourcedir_fetches: (rddef.id): {
+        sha256: rddef.sha256
+        #containerspec: (resourcedirs[rddef.id].#containerspec & {
+          image: resourcedirs[rddef.id].#imagespec.image
+          mounts: [{source: "\(#var.build_resourcedirs_root)/\(rddef.sha256)", "destination": "/res"}]
+        })
+        #imagespec: resourcedirs[rddef.id].#imagespec
+      }
+    }
+  }
+}
+
+#out: "resourcedir_keys": strings.Join([
+  for key, def in #out.resourcedir_fetches {
+    key,
+  }
+], "\n")
+
+#out: #lenses: {
+  for key, def in lenses {
+    if (enable[key]) {
+      (key): def & {
+        if def.spawn != null {
+          spawn: {
+            "image": #out.imagespecs[key].image
+            "resourcedirs": [alias=string]: {
+              id: string
+              sha256: hex.Encode(cryptosha256.Sum256(id))
             }
           }
         }
       }
     }
-
-    #images: strings.Join([
-      for name, def in services if def.image != _|_ {
-        def.image
-      }
-    ], "\n")
   }
-  "docker_compose": docker_compose & {
-    services: [string]: docker_compose_service
+}
 
-    "volumes": {
-      for name, def in services {
-        if #daemons[name].#docker_compose_volumes != _|_ {
-          #daemons[name].#docker_compose_volumes
-        }
+for key, def in daemons {
+  if (enable[key]) {
+    #out: "daemons": (key): def
+    #out: "daemons": (key): image: #out.imagespecs[key].image
+  }
+}
+
+for key, def in #out.daemons {
+  #out: "systemd_containers": (containerspec.#SystemdUnits & {#name: key, #containerspec: def}).#out
+}
+
+for basename, unit in #out.systemd_containers {
+  #out: "systemd_container_contents": (basename): (systemd.#render & {#unit: unit}).#out
+}
+
+#out: "systemd_container_basenames": strings.Join([
+  for key, def in #out.systemd_containers { key }
+], "\n")
+
+#out: "image_references": strings.Join([
+    for key, def in #out.imagespecs { def.image }
+  ], "\n")
+
+for key, def in #out.imagespecs {
+  #out: "image_podman_build_options": (def.image): def.#podman_build_options
+}
+
+for key, def in #out.resourcedir_fetches {
+  #out: "resourcedir_fetch_podman_build_options": (key): def.#imagespec.#podman_build_options
+  #out: "resourcedir_fetch_dirs": (key): strings.Join([def.#containerspec.mounts[0].source], " ")
+  #out: "resourcedir_fetch_podman_run_options": (key): (containerspec.#PodmanRunOptions & {
+    #containerspec: def.#containerspec
+  }).#out
+}
+
+#out: "docker_compose": {
+  for key, def in #out.imagespecs {
+    services: (key): profiles: [
+      if #out.daemons[key] != _|_ {
+        "daemons",
       }
+      "default",
+    ]
+  }
+
+  for key, def in #out.resourcedir_fetches {
+    services: "resourcedir-\(def.sha256)": {
+      profiles: [
+        "resourcedirs",
+        "default",
+      ]
+
+      (containerspec.#DockerComposeService & {
+        #containerspec: def.#containerspec
+        #imagespec: def.#imagespec
+      }).#out
     }
 
-    #docker_compose_prefix: "\(#namespace)-substrate_"
-    #internal_network_name: "substrate"
+    volumes: (containerspec.#DockerComposeVolumes & {
+      #containerspec: def.#containerspec
+    }).#out
+  }
 
-    networks: "\(#internal_network_name)": {
-      // internal: true
-      attachable: true
-      driver: "bridge"
-      driver_opts: {
-        "com.docker.network.bridge.enable_icc": "true"
-        "com.docker.network.bridge.enable_ip_masquerade": "true"
-        "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0"
+  for key, def in #out.imagespecs {
+    services: (key): (containerspec.#DockerComposeService & {
+      #imagespec: def
+    }).#out
+  }
+
+  for key, def in #out.daemons {
+    services: (key): (containerspec.#DockerComposeService & {#containerspec: def}).#out
+    volumes: (containerspec.#DockerComposeVolumes & {#containerspec: def}).#out
+    networks: (containerspec.#DockerComposeNetworks & {#containerspec: def}).#out
+  }
+
+  for key, def in #out.#lenses {
+    if def.spawn != null {
+      services: (key): (containerspec.#DockerComposeService & {
+        #containerspec: {"environment": def.spawn.environment}
+      }).#out
+    }
+  }
+
+  services: {
+    "openvscode" ?: {
+      environment: {
+        PORT: string
       }
-      ipam: {
-          driver: "default"
-          config: [
-              {
-                subnet: "192.168.2.0/24"
-              },
-          ]
-      }
+      ports: [
+        "127.0.0.1:\(#out.namespace_host_port_offset + #out.service_host_port_offset["openvscode"]):\(environment.PORT)",
+      ]
     }
 
-    services: {
-      // if #lenses["datasette"] != _|_ {
-      //   datasette: {
-      //     build: dockerfile: "services/\(#lenses["datasette"].name)/Dockerfile"
-      //     build: args: #lenses["datasette"].#build.args
+    "substrate": {
+      ports: [
+        "127.0.0.1:\(#out.namespace_host_port_offset + #out.service_host_port_offset["substrate"]):\(environment.PORT)",
+      ]
 
-      //     environment: {
-      //       PORT: "8081"
-      //     }
-
-      //     ports: [
-      //       "18083:\(environment.PORT)",
-      //     ]
-
-      //     // Mount the same volumes as substrate, so we can spy on the database
-      //     environment: DATASETTE_DB: substrate.environment.SUBSTRATE_DB
-
-      //     volumes: substrate.volumes
-      //   }
-      // }
-      // if #lenses["ui"] != _|_ {
-      //   ui: {
-      //     build: target: "dev"
-      //     build: dockerfile: "services/\(#lenses["ui"].name)/Dockerfile"
-
-      //     volumes: [
-      //       "./services/\(#lenses["ui"].name)/static:/app/static:ro",
-      //       "./services/\(#lenses["ui"].name)/src:/app/src:ro",
-      //     ]
-
-      //     environment: {
-      //       if #lenses["ui"].env != _|_ {
-      //         #lenses["ui"].env
-      //       }
-
-      //       PORT: "8080"
-      //       // ORIGIN: substrate.environment.ORIGIN
-      //       // ORIGIN: "https://\(#daemons.#var.namespace)-substrate.tail87070.ts.net"
-      //       ORIGIN: "http://127-0-0-1.my.local-ip.co"
-      //       PUBLIC_EXTERNAL_ORIGIN: ORIGIN
-      //     }
-      //   }
-      // }
-      substrate: {
-        #daemons["substrate"].#docker_compose_service
-
-        networks: [#internal_network_name]
-
-        ports: [
-          "127.0.0.1:\(#namespace_host_port_offset + #service_host_port_offset["substrate"]):\(environment.PORT)",
-        ]
-
-        environment: {
-          // PORT: "\(#namespace_host_port_offset + #service_host_port_offset["substrate"] + 1)"
-          PORT: "8080"
-
-          DOCKER_NETWORK: "\(#docker_compose_prefix)\(#internal_network_name)"
-
-          // ORIGIN: "http://127-0-0-1.my.local-ip.co"
-          // if #lenses["ui"] != _|_ {
-          //   EXTERNAL_UI_HANDLER: "http://ui:\(services.ui.environment.PORT)"
-          // }
-          // PLANE_AGENT__IP: "100.85.122.130"
-        }
+      environment: {
+        // PORT: "\(#namespace_host_port_offset + #service_host_port_offset["substrate"] + 1)"
+        "PORT": "8080"
+        "ORIGIN": "http://localhost:\(environment.PORT)"
+        // if #lenses["ui"] != _|_ {
+        //   EXTERNAL_UI_HANDLER: "http://ui:\(services.ui.environment.PORT)"
+        // }
+        ...
       }
     }
   }

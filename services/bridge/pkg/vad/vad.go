@@ -5,6 +5,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/pion/rtp"
+
 	logr "github.com/ajbouh/bridge/pkg/log"
 	"github.com/ajbouh/bridge/pkg/router"
 	"github.com/lucsky/cuid"
@@ -22,8 +24,10 @@ type Engine struct {
 	vadGapSamples int
 	maxPendingMs  int
 
-	pcmWindow []float32
-	windowID  string
+	pcmWindow          []float32
+	packets            []*rtp.Packet
+	packetSampleCounts []int
+	windowID           string
 
 	audioCh chan<- *router.CapturedAudio
 
@@ -74,7 +78,7 @@ func New(config Config) router.MiddlewareFunc {
 		ch := make(chan *router.CapturedSample, 100)
 		go func() {
 			for s := range ch {
-				e.write(s.PCM, s.EndTimestamp)
+				e.write(s)
 			}
 		}()
 
@@ -86,7 +90,11 @@ func New(config Config) router.MiddlewareFunc {
 
 // writeVAD only buffers audio if somone is speaking. It will run inference after the audio transitions from
 // speaking to not speaking
-func (e *Engine) write(pcm []float32, endTimestamp uint32) {
+func (e *Engine) write(captured *router.CapturedSample) {
+	pcm := captured.PCM
+	endTimestamp := captured.EndTimestamp
+	packet := captured.Packet
+
 	// TODO normalize PCM and see if we can make it better
 	// endTimestamp is the latest packet timestamp + len of the audio in the packet
 	// FIXME make these timestamps make sense
@@ -101,6 +109,8 @@ func (e *Engine) write(pcm []float32, endTimestamp uint32) {
 	}
 
 	e.pcmWindow = append(e.pcmWindow, pcm...)
+	e.packets = append(e.packets, packet)
+	e.packetSampleCounts = append(e.packetSampleCounts, len(pcm))
 	e.pendingMs += len(pcm) / e.sampleRateMs
 
 	flushFinal := false
@@ -127,16 +137,20 @@ func (e *Engine) write(pcm []float32, endTimestamp uint32) {
 
 	if flushFinal {
 		e.audioCh <- &router.CapturedAudio{
-			ID:           e.windowID,
-			Final:        true,
-			PCM:          append([]float32(nil), e.pcmWindow...),
-			EndTimestamp: uint64(endTimestamp),
+			ID:                 e.windowID,
+			Final:              true,
+			PCM:                append([]float32(nil), e.pcmWindow...),
+			Packets:            append([]*rtp.Packet(nil), e.packets...),
+			PacketSampleCounts: append([]int(nil), e.packetSampleCounts...),
+			EndTimestamp:       uint64(endTimestamp),
 			// HACK surely there's a better way to calculate this?
 			StartTimestamp: uint64(endTimestamp) - uint64(len(e.pcmWindow)/e.sampleRateMs),
 		}
 		e.windowID = ""
 		e.isSpeaking = false
 		e.pcmWindow = e.pcmWindow[:0]
+		e.packetSampleCounts = e.packetSampleCounts[:0]
+		e.packets = e.packets[:0]
 		e.pendingMs = 0
 
 		_ = silence
@@ -162,10 +176,12 @@ func (e *Engine) write(pcm []float32, endTimestamp uint32) {
 
 	if flushDraft {
 		e.audioCh <- &router.CapturedAudio{
-			ID:           e.windowID,
-			Final:        false,
-			PCM:          append([]float32(nil), e.pcmWindow...),
-			EndTimestamp: uint64(endTimestamp),
+			ID:                 e.windowID,
+			Final:              false,
+			PCM:                append([]float32(nil), e.pcmWindow...),
+			Packets:            append([]*rtp.Packet(nil), e.packets...),
+			PacketSampleCounts: append([]int(nil), e.packetSampleCounts...),
+			EndTimestamp:       uint64(endTimestamp),
 			// HACK surely there's a better way to calculate this?
 			StartTimestamp: uint64(endTimestamp) - uint64(len(e.pcmWindow)/e.sampleRateMs),
 		}

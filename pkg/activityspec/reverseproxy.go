@@ -81,7 +81,7 @@ func provisioningReverseProxy(
 			ModifyResponse: func(res *http.Response) error {
 				// If we see a 503, log it and return an error.
 				if res.StatusCode == 503 {
-					fmt.Printf("bad upstream status=%d target=%s url=%s fresh=%#v response=%#v\n", res.StatusCode, targetFunc, req.URL, fresh, res)
+					fmt.Printf("bad upstream status=%d target=%#v url=%s fresh=%#v response=%#v\n", res.StatusCode, targetFunc, req.URL, fresh, res)
 					return fmt.Errorf("bad upstream status=%d", res.StatusCode)
 				}
 
@@ -89,7 +89,7 @@ func provisioningReverseProxy(
 			},
 
 			// ErrorHandler is an optional function that handles errors reaching the backend or errors from ModifyResponse.
-			// If nil, the default is to log the provided error and return a 502 Status Bad Provisioner response.
+			// If nil, the default is to log the provided error and return a 502 Status Bad ProvisionerCache response.
 			ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {
 				ttlDecrement := 1
 				switch {
@@ -124,13 +124,18 @@ func provisioningReverseProxy(
 	})
 }
 
-func (r *Provisioner) ProvisionReverseProxy(cacheKey string, makeProvisioner func() ProvisionFunc) http.Handler {
+func (r *ProvisionerCache) ProvisionReverseProxy(asr *ServiceSpawnRequest) http.Handler {
+	cacheKey, concrete := asr.Format()
+	if !concrete {
+		return newDoomedHandler(http.StatusBadRequest, fmt.Errorf("viewspec must be concrete"))
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	fn := r.provisionerFuncs[cacheKey]
 	if fn == nil {
-		fn = makeProvisioner()
+		fn = r.makeProvisionFunc(asr)
 		r.provisionerFuncs[cacheKey] = fn
 	}
 

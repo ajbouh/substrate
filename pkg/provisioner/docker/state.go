@@ -8,6 +8,8 @@ const ReadyState State = "ready"
 const PausedState State = "paused"
 const RestartingState State = "restarting"
 const RemovingState State = "removing"
+const DestroyState State = "destroy"
+const DieState State = "die"
 const ExitedState State = "exited"
 const DeadState State = "dead"
 
@@ -37,7 +39,7 @@ func (s State) IsPending() bool {
 
 func (s State) IsGone() bool {
 	switch s {
-	case CreatedState, RunningState, PausedState, RestartingState, RemovingState, ExitedState, DeadState:
+	case PausedState, RemovingState, DestroyState, ExitedState, DeadState, DieState:
 		return true
 	}
 

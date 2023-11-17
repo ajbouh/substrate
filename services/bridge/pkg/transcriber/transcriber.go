@@ -1,10 +1,12 @@
 package transcriber
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
 	"github.com/ajbouh/bridge/pkg/asr"
+	"github.com/ajbouh/bridge/pkg/oggwriter"
 	"github.com/ajbouh/bridge/pkg/router"
 )
 
@@ -22,20 +24,24 @@ func New(url string) (router.MiddlewareFunc, error) {
 			CapturedAudio: listener,
 		}, nil
 	}, nil
-
 }
 
 func Run(s *asr.Client, transcriptionStream chan<- *router.Transcription, audioStream <-chan *router.CapturedAudio) {
+	b := &bytes.Buffer{}
+
 	for audio := range audioStream {
 		// we have not been speaking for at least 500ms now so lets run inference
 		fmt.Printf("transcribing with %d window length\n", len(audio.PCM))
 
+		audioData, err := oggwriter.RenderOggPackets(b, 16000, 1, audio.Packets, audio.PacketSampleCounts)
+		if err != nil {
+			fmt.Printf("error rendering: %s\n", err)
+			continue
+		}
+
 		response, err := s.Transcribe(&router.TranscriptionRequest{
-			Audio: &router.Audio{
-				Waveform:   audio.PCM,
-				SampleRate: 16000,
-			},
-			Task: "transcribe",
+			AudioData: &audioData,
+			Task:      "transcribe",
 		})
 
 		if err != nil {

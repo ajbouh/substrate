@@ -95,6 +95,8 @@ if __name__ == "__main__":
     settings = Settings(**{k: v for k, v in vars(args).items() if v is not None})
     app = create_app(settings=settings)
 
+    print(os.environ)
+
     uvicorn.run(
         app, host=os.getenv("HOST", settings.host), port=int(os.getenv("PORT", settings.port))
     )

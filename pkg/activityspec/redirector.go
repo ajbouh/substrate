@@ -1,6 +1,7 @@
 package activityspec
 
 import (
+	"fmt"
 	"net/http"
 )
 
@@ -30,13 +31,18 @@ func provisioningRedirector(
 	})
 }
 
-func (r *Provisioner) ProvisionRedirector(cacheKey string, makeProvisioner func() ProvisionFunc, redirector func(targetFunc AuthenticatedURLJoinerFunc) (int, string, error)) http.Handler {
+func (r *ProvisionerCache) ProvisionRedirector(asr *ServiceSpawnRequest, redirector func(targetFunc AuthenticatedURLJoinerFunc) (int, string, error)) http.Handler {
+	cacheKey, concrete := asr.Format()
+	if !concrete {
+		return newDoomedHandler(http.StatusBadRequest, fmt.Errorf("viewspec must be concrete"))
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	fn := r.provisionerFuncs[cacheKey]
 	if fn == nil {
-		fn = makeProvisioner()
+		fn = r.makeProvisionFunc(asr)
 		r.provisionerFuncs[cacheKey] = fn
 	}
 

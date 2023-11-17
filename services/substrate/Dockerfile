@@ -1,4 +1,16 @@
-FROM golang:1.21 as gobuild
+FROM docker.io/library/golang:1.21-bookworm as build
+
+RUN apt update \
+  && apt install -y --no-install-recommends \
+    libbtrfs-dev \
+    libgpgme-dev \
+    libdevmapper-dev \
+    libassuan-dev \
+    libgpg-error-dev \
+    libpcre2-dev \
+    dash \
+  && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
+	&& rm -rf /var/lib/apt/lists/*;
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg
 ADD pkg/go.mod pkg/go.sum ./
@@ -12,56 +24,50 @@ WORKDIR /go/src/github.com/ajbouh/substrate/pkg
 COPY pkg/. .
 
 WORKDIR /go/src/github.com/ajbouh/substrate/services/substrate
-COPY services/substrate/. .
+COPY services/substrate/*.go .
 
 # With the trick below, Go's build cache is kept between builds.
 # https://github.com/golang/go/issues/27719#issuecomment-514747274
-RUN --mount=type=cache,target=/go/pkg/mod \
-  --mount=type=cache,target=/root/.cache/go-build \
-  GOOS=linux go build \
+# RUN --mount=type=cache,target=/go/pkg/mod \
+#   --mount=type=cache,target=/root/.cache/go-build \
+RUN go build \
   -v \
-  --ldflags '-linkmode external -extldflags "-static"' \
-  -installsuffix 'static' \
-  -o /app ./cmd
+  -o /substrate .
 
-FROM gcr.io/distroless/cc-debian11 as ccbuild
+# RUN ldd /substrate; false
 
-FROM alpine:latest as tailscale
-WORKDIR /app
-ENV TSFILE=tailscale_1.34.1_amd64.tgz
-RUN wget https://pkgs.tailscale.com/stable/${TSFILE} && \
-  tar xzf ${TSFILE} --strip-components=1
+# WORKDIR /data
+# ENTRYPOINT ["/app"]
 
-# https://github.com/istio/istio/blob/master/pilot/docker/Dockerfile.proxyv2#L10
-# This image is a custom built debian11 distroless image with multiarchitecture support.
-# It is built on the base distroless image, with iptables binary and libraries added
-# The source can be found at https://github.com/istio/distroless/tree/iptables
-# This version is from commit a8b3fb577adb785211ce704fdf892983fc268b11.
-FROM gcr.io/istio-release/iptables@sha256:dda02a0b385785d3042d075889a56fcf0ab00f201be0a4a725563fbfcff9938a as distroless
+FROM docker.io/tianon/toybox:latest as toybox
 
-USER root:root
-ENV PORT 8080
+FROM gcr.io/distroless/base-nossl-debian12 as dist
 
-COPY --from=tailscale /app/tailscaled /app/tailscale /app/
-COPY --from=gobuild /app /app/app
+ARG LENSES_EXPR_SOURCE
+ARG LENSES_EXPR_TARGET
+# USER root:root
+# ENV PORT 8080
 
-COPY --from=ccbuild \
-  /usr/lib/x86_64-linux-gnu/libgomp.so.1 \
-  /usr/lib/x86_64-linux-gnu/libgomp.so.1.0.0 \
-  /usr/lib/x86_64-linux-gnu/libstdc++.so.6 \
-  /usr/lib/x86_64-linux-gnu/libstdc++.so.6.0.28 \
-  /usr/lib/x86_64-linux-gnu/
-COPY --from=ccbuild \
-  /lib/x86_64-linux-gnu/libgcc_s.so.1 \
+# WORKDIR /app
+COPY --from=build /substrate /app/substrate
+# Enable when we want to debug
+# COPY --from=toybox /usr/bin/. /usr/bin/
+COPY --from=build \
+  /lib/x86_64-linux-gnu/libgpgme.so.11 \
+  /lib/x86_64-linux-gnu/libdevmapper.so.1.02.1 \
+  /lib/x86_64-linux-gnu/libassuan.so.0 \
+  /lib/x86_64-linux-gnu/libgpg-error.so.0 \
+  /lib/x86_64-linux-gnu/libselinux.so.1 \
+  /lib/x86_64-linux-gnu/libudev.so.1 \
+  /lib/x86_64-linux-gnu/libpcre2-8.so.0 \
   /lib/x86_64-linux-gnu/
-COPY --from=ccbuild \
-  /usr/lib/x86_64-linux-gnu/libcrypto.so.1.1 \
-  /usr/lib/x86_64-linux-gnu/libssl.so.1.1 \
-  /usr/lib/x86_64-linux-gnu/
-COPY --from=ccbuild \
-  /usr/lib/ssl \
-  /usr/lib/ssl
-
+COPY $LENSES_EXPR_SOURCE $LENSES_EXPR_TARGET
 WORKDIR /data
 
-ENTRYPOINT ["/app/app"]
+# HACK use run-with-ldcache-hack.sh to run ldconfig before substrate starts. delete this when
+# we can figure out how to get the nvidia-container-toolkit logic to do it properly for this container
+# HACK this is needed because both this script and nvidia-container-toolkit rely on it
+COPY --from=build /sbin/ldconfig /sbin/ldconfig
+COPY --from=build /bin/dash /bin/sh
+COPY services/substrate/run-with-ldcache-hack.sh /app
+ENTRYPOINT ["/app/run-with-ldcache-hack.sh", "/app/substrate"]

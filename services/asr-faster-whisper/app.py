@@ -2,25 +2,39 @@ import numpy as np
 from faster_whisper import WhisperModel
 import os
 
-from bridge.transcript import TranscriptionRequest, TranscriptionResponse, TranscriptionSegment, Word, new_v1_api_app
+from substrate.asr import Request, Response, Segment, Word, new_v1_api_app
+
+import base64
+import io
+import soundfile as sf
+
+def ogg2wav(ogg: bytes):
+    ogg_buf = io.BytesIO(ogg)
+    ogg_buf.name = 'file.opus'
+    data, samplerate = sf.read(ogg_buf, dtype='float32')
+    return data, samplerate
+
 
 model = WhisperModel(
-    os.environ.get("MODEL_SIZE", "small"),
+    os.environ.get("MODEL_REPO", "tiny"),
     device=os.environ.get("MODEL_DEVICE", "cpu"),
     compute_type=os.environ.get("MODEL_COMPUTE_TYPE", "int8"),
-    # local_files_only=True,
+    local_files_only=True,
 )
 
-def transcribe(request: TranscriptionRequest) -> TranscriptionResponse:
+def transcribe(request: Request) -> Response:
+    data = base64.b64decode(request.audio_data)
+    waveform, sample_rate = ogg2wav(data)
+
     segments, info = model.transcribe(
-        np.array(request.audio.waveform, dtype=np.float32),
+        waveform,
         vad_filter=True,
         beam_size=5,
         word_timestamps=True,
         task=request.task,
     )
 
-    return TranscriptionResponse(
+    return Response(
         source_language=info.language,
         source_language_prob=info.language_probability,
         target_language=info.language,
@@ -30,7 +44,7 @@ def transcribe(request: TranscriptionRequest) -> TranscriptionResponse:
             for language, prob in info.all_language_probs
         } if info.all_language_probs else None,
         segments=[
-            TranscriptionSegment(
+            Segment(
                 id=segment.id,
                 seek=segment.seek,
                 start=segment.start,

@@ -78,7 +78,7 @@ func (c *ContainerStatusCheck) checkReady() bool {
 	return c.ready.Load()
 }
 
-func (c *ContainerStatusCheck) waitUntilReadyTCP(maxAttempts int) error {
+func (c *ContainerStatusCheck) waitUntilReadyTCP(ctx context.Context, maxAttempts int) error {
 	log.Printf("waitUntilReadyTCP host=%s port=%s maxAttempts=%d", c.host, c.port, maxAttempts)
 
 	c.readyMutex.Lock()
@@ -98,6 +98,8 @@ func (c *ContainerStatusCheck) waitUntilReadyTCP(maxAttempts int) error {
 			return fmt.Errorf("no more attempts allowed to check if container is ready")
 		}
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-timeout:
 			log.Printf("waitUntilReadyTCP timed out host=%s port=%s attempts=%d maxAttempts=%d", c.host, c.port, attempts, maxAttempts)
 			return fmt.Errorf("timed out waiting for the container to be ready")
@@ -122,7 +124,7 @@ func (c *ContainerStatusCheck) Status(ctx context.Context) (activityspec.Provisi
 
 	if c.containerJSON.State != nil {
 		if c.containerJSON.State.Status == "running" {
-			err := c.waitUntilReadyTCP(1)
+			err := c.waitUntilReadyTCP(ctx, 1)
 			if err == nil {
 				state = StateFromDockerStatus(c.containerJSON.State.Status, true)
 			} else {
@@ -167,7 +169,7 @@ func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan activit
 		}
 		emit(ev)
 		if ev.IsPending() {
-			if err := c.waitUntilReadyTCP(-1); err == nil {
+			if err := c.waitUntilReadyTCP(ctx, -1); err == nil {
 				now := time.Now().UTC()
 				emit(&StatusEvent{
 					Backend: c.containerID,
@@ -184,7 +186,7 @@ func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan activit
 			case event := <-events:
 				if c.containerJSON.State.Status == "running" {
 					// Do we already know it's ready? If so, that's all we care about.
-					if err := c.waitUntilReadyTCP(0); err == nil {
+					if err := c.waitUntilReadyTCP(ctx, 0); err == nil {
 						emit(&StatusEvent{
 							Backend: c.containerID,
 							State:   StateFromDockerStatus(event.Action, true),
@@ -197,7 +199,7 @@ func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan activit
 							State:   StateFromDockerStatus(event.Action, false),
 							Time:    time.Unix(event.Time, event.TimeNano).Format(time.RFC3339Nano),
 						})
-						if err := c.waitUntilReadyTCP(-1); err == nil {
+						if err := c.waitUntilReadyTCP(ctx, -1); err == nil {
 							emit(&StatusEvent{
 								Backend: c.containerID,
 								State:   StateFromDockerStatus(event.Action, true),

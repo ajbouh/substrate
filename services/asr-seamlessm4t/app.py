@@ -1,23 +1,12 @@
-import torch
-from seamless_communication.models.inference import Translator
+import torchaudio
+from transformers import AutoProcessor, SeamlessM4Tv2Model
 import os
+import pycountry
 
-from bridge.transcript import TranscriptionRequest, TranscriptionResponse, TranscriptionSegment, Word, new_v1_api_app
+from substrate.asr import Request, Response, Segment, Word, new_v1_api_app
 
-MODEL_DEVICE = os.environ.get("MODEL_DEVICE", "cpu")
-MODEL_COMPUTE_TYPE = os.environ.get("MODEL_COMPUTE_TYPE", "float32")
-
-model = Translator(
-    os.environ.get("MODEL_SIZE", "seamlessM4T_large"),
-    vocoder_name_or_card="vocoder_36langs",
-    device=torch.device(MODEL_DEVICE),
-    dtype={
-        'float32': torch.float32,
-        'float64': torch.float64,
-        'bfloat16': torch.bfloat16,
-        'int8': torch.int8,
-    }[MODEL_COMPUTE_TYPE],
-)
+processor = AutoProcessor.from_pretrained(os.environ.get("MODEL"))
+model = SeamlessM4Tv2Model.from_pretrained(os.environ.get("MODEL"))
 
 supported = {
     "afr": {"label": "Afrikaans",              "script": "Latn"}, #       | Sp, Tx | Tx     |
@@ -125,49 +114,79 @@ supported = {
     "zul": {"label": "Zulu",                   "script": "Latn"}, #       | Sp, Tx | Tx     |
 }
 
-language_aliases = {
-    "en" : "eng",
-    "zh" : "cmn",
-}
+import base64
+import io
+import soundfile as sf
 
-def transcribe(request: TranscriptionRequest) -> TranscriptionResponse:
-    # From https://huggingface.co/facebook/seamless-m4t-large
+def find_alpha_3(id, allowed=None):
+  found = pycountry.languages.lookup(id)
+  if not found:
+    return None, None
+  if found.alpha_3 and (allowed is None or (found.alpha_3 in allowed)):
+    return found.alpha_3, None
+  candidates = [l.alpha_3 for l in pycountry.languages if l.alpha_3 in allowed and found.name in l.name]
 
-    # Initialize a Translator object with a multitask model, vocoder on the GPU.
-    # translator = Translator("seamlessM4T_large", vocoder_name_or_card="vocoder_36langs", device=torch.device("cuda:0"))
+  return None, candidates
 
-    if request.audio:
-        n_samples = len(request.audio.waveform)
-        sample_rate = request.audio.sample_rate
-        waveform = torch.cuda.FloatTensor([request.audio.waveform]).reshape(n_samples, 1)
+def fuzzy_find_alpha_3(lang, kind):
+    lang_in = lang
+    lang, lang_candidates = find_alpha_3(lang_in, supported)
+    if lang:
+        pass
+    elif not lang and lang_candidates:
+        lang = lang_candidates[0]
+        if len(lang_candidates) > 1:
+            print("warning: no exact language match for %s language %s, using %s" % (kind, lang_in, lang))
+        else:
+            print("warning: no exact language match for %s language %s, using %s; other possibilities were %s" % (kind, lang_in, lang, lang_candidates[:1]))
+    else:
+        print("warning: unknown %s language %s" % (kind, lang_in))
+
+    return lang
+
+def ogg2wav(ogg: bytes):
+    ogg_buf = io.BytesIO(ogg)
+    ogg_buf.name = 'file.opus'
+    data, samplerate = sf.read(ogg_buf, dtype='float32')
+    return data, samplerate
+
+def transcribe(request: Request) -> Response:
+    tgt_lang = fuzzy_find_alpha_3(request.target_language or "eng", "target")
+
+    if request.audio_data:
+        print("base64 decoding audio_data len=", len(request.audio_data))
+        data = base64.b64decode(request.audio_data)
+        waveform, sample_rate = ogg2wav(data)
+        n_samples = waveform.shape[0]
+
         duration = n_samples / sample_rate
-        translated_text, *_ = model.predict(
-            waveform,
-            "S2TT",
-            request.target_language or "eng",
-            sample_rate=float(sample_rate),
-        )
-    elif request.text:
-        src_lang = request.source_language or None
-        if src_lang not in supported:
-            src_lang = language_aliases[src_lang]
+        print("decoded audio_data sample_rate=", sample_rate, "n_samples=", n_samples, "duration=", duration)
 
-        translated_text, *_ = model.predict(
-            request.text,
-            "T2TT",
-            request.target_language or "eng",
-            src_lang=src_lang,
-        )
+        audio =  torchaudio.functional.resample(waveform, orig_freq=sample_rate, new_freq=16_000) # must be a 16 kHz waveform array
+        audio_inputs = processor(audios=audio, return_tensors="pt")
+        output_tokens = model.generate(**audio_inputs, tgt_lang=tgt_lang, text_num_beams=5, generate_speech=False)
+        translated_text = processor.decode(output_tokens[0].tolist()[0], skip_special_tokens=True)
+
+    elif request.text:
+        src_lang = fuzzy_find_alpha_3(request.source_language or None, "source")
+
+        if src_lang:
+            if tgt_lang:
+                text_inputs = processor(text = request.text, src_lang=src_lang, return_tensors="pt")
+                output_tokens = model.generate(**text_inputs, tgt_lang=tgt_lang, text_num_beams=5, generate_speech=False)
+                translated_text = processor.decode(output_tokens[0].tolist()[0], skip_special_tokens=True)
+        else:
+            translated_text = ""
         duration = None
 
 
-    return TranscriptionResponse(
+    return Response(
         source_language=request.source_language,
         source_language_prob=None,
         target_language=request.target_language,
         duration=duration,
         segments=[
-            TranscriptionSegment(
+            Segment(
                 # id=segment.id,
                 # seek=segment.seek,
                 start=0.0,

@@ -4,4 +4,4 @@ variables:
 
 releasever: 39
 
-include: manifests/fedora-coreos.yaml
+include: manifests/substrateos.yaml
