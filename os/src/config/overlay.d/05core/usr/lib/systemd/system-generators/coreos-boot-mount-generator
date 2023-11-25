@@ -1,0 +1,115 @@
+#!/bin/bash
+export PATH="/usr/bin:/usr/sbin:${PATH}"
+set -euo pipefail
+
+. /usr/lib/coreos/generator-lib.sh
+
+# Turn out if you boot with "root=..." $UNIT_DIR is not writable.
+[ -w "${UNIT_DIR}" ] || {
+    echo "skipping coreos-boot-mount-generator: ${UNIT_DIR} is not writable"
+    exit 0
+}
+
+# If there's already an /etc/fstab entries for /boot, then this is is a non-FCOS
+# system, likely RHCOS pre-4.3 (which still used Anaconda).  In that case, we
+# don't want to overwrite what the systemd-fstab-generator will do.
+if findmnt --fstab /boot &>/dev/null; then
+    exit 0
+fi
+
+# Don't create mount units for /boot on live systems.
+# ConditionPathExists won't work here because conditions don't affect
+# the dependency on the underlying device unit.
+if [ -f /run/ostree-live ]; then
+    exit 0
+fi
+
+add_wants() {
+    local name="$1"; shift
+    local wants_dir="${UNIT_DIR}/local-fs.target.wants"
+    mkdir -p "${wants_dir}"
+    ln -sf "../${name}" "${wants_dir}/${name}"
+}
+
+# Generate mount units that work with device mapper. The traditional
+# device unit (dev-disk-by\x2dlabel...) does not work since it is not the
+# device that systemd will fsck. This code ensures that if the label
+# is backed by a device-mapper target the dev-mapper.*.device is used.
+mk_mount() {
+    local mount_pt="${1}"; shift
+    local path="${1}"; shift
+    local options="${1}"; shift
+
+    local devservice=$(systemd-escape -p ${path} --suffix=service)
+    local unit_name=$(systemd-escape -p ${mount_pt} --suffix=mount)
+
+    cat > "${UNIT_DIR}/${unit_name}" <<EOF
+# Automatically created by coreos-boot-mount-generator
+[Unit]
+Description=CoreOS Dynamic Mount for ${mount_pt}
+Documentation=https://github.com/coreos/fedora-coreos-config
+
+Before=local-fs.target
+Requires=systemd-fsck@${devservice}
+After=systemd-fsck@${devservice}
+
+[Mount]
+What=${path}
+Where=${mount_pt}
+Options=${options}
+EOF
+    add_wants "${unit_name}"
+}
+
+# Copied from
+# https://github.com/dracutdevs/dracut/blob/9491e599282d0d6bb12063eddbd192c0d2ce8acf/modules.d/99base/dracut-lib.sh#L586
+# rather than sourcing it.
+label_uuid_to_dev() {
+    local _dev
+    _dev="${1#block:}"
+    case "$_dev" in
+        LABEL=*)
+            echo "/dev/disk/by-label/$(echo "${_dev#LABEL=}" | sed 's,/,\\x2f,g;s, ,\\x20,g')"
+            ;;
+        PARTLABEL=*)
+            echo "/dev/disk/by-partlabel/$(echo "${_dev#PARTLABEL=}" | sed 's,/,\\x2f,g;s, ,\\x20,g')"
+            ;;
+        UUID=*)
+            echo "/dev/disk/by-uuid/$(echo "${_dev#UUID=}" | tr "[:upper:]" "[:lower:]")"
+            ;;
+        PARTUUID=*)
+            echo "/dev/disk/by-partuuid/$(echo "${_dev#PARTUUID=}" | tr "[:upper:]" "[:lower:]")"
+            ;;
+    esac
+}
+
+# If the root device is multipath, hook up /boot to use that too,
+# based on our custom udev rules in 90-coreos-device-mapper.rules
+# that creates "label found on mpath" links.
+# Otherwise, use the usual by-label symlink.
+# See discussion in https://github.com/coreos/fedora-coreos-config/pull/1022
+bootdev=/dev/disk/by-label/boot
+bootkarg=$(karg boot)
+mpath=$(karg rd.multipath)
+if [ -n "${mpath}" ] && [ "${mpath}" != 0 ]; then
+    bootdev=/dev/disk/by-label/dm-mpath-boot
+# Newer nodes inject boot=UUID=..., but we support a larger subset of the dracut/fips API
+elif [ -n "${bootkarg}" ]; then
+    # Adapted from https://github.com/dracutdevs/dracut/blob/9491e599282d0d6bb12063eddbd192c0d2ce8acf/modules.d/01fips/fips.sh#L17
+    case "$bootkarg" in
+        LABEL=* | UUID=* | PARTUUID=* | PARTLABEL=*)
+            bootdev="$(label_uuid_to_dev "$bootkarg")";;
+        /dev/*) bootdev=$bootkarg;;
+        *) echo "Unknown boot karg '${bootkarg}'; falling back to ${bootdev}";;
+    esac
+# This is used for the first boot only
+elif [ -f /run/coreos/bootfs_uuid ]; then
+    bootdev=/dev/disk/by-uuid/$(cat /run/coreos/bootfs_uuid)
+fi
+
+# We mount read-only by default mostly to protect
+# against accidental damage.  Only a few things
+# owned by CoreOS should be touching /boot or the ESP.
+# Use nodev,nosuid because some hardening guides want
+# that even though it's of minimal value.
+mk_mount /boot "${bootdev}" ro,nodev,nosuid

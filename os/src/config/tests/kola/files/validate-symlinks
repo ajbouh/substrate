@@ -1,0 +1,59 @@
+#!/bin/bash
+## kola:
+##   tags: "platform-independent"
+##   # This is a read-only test that can be run with other tests.
+##   exclusive: false
+##   description: Verify that there are no broken symlinks in /etc/ and /usr/,
+##     except the known files which require further investigation.
+
+# See https://github.com/coreos/fedora-coreos-config/issues/1782
+
+set -xeuo pipefail
+
+# shellcheck disable=SC1091
+. "$KOLA_EXT_DATA/commonlib.sh"
+
+# List of known broken symlinks that require further investigation.
+# The sym links in /usr/lib/firmware are often broken and are
+# typically not an issue, so let's skip this location altogether.
+list_broken_symlinks_skip=(
+    '/etc/mtab'
+    '/etc/ssl/'
+    '/etc/swid/swidtags.d/fedoraproject.org'
+    '/etc/xdg/systemd/user'
+    '/usr/lib/.build-id/'
+    '/usr/lib/firmware'
+    '/usr/lib/modules/'
+    '/usr/share/rhel/secrets/etc-pki-entitlement'
+    '/usr/share/rhel/secrets/redhat.repo'
+    '/usr/share/rhel/secrets/rhsm'
+)
+
+# If RHCOS, update the array of ignored symlinks
+if is_scos || is_rhcos; then
+    rhcos_list=(
+        '/etc/grub2-efi.cfg'
+        '/etc/pki/entitlement-host'
+        '/etc/pki/tls/'
+        '/etc/rhsm-host'
+        '/etc/sysconfig/grub'
+    )
+    list_broken_symlinks_skip+=("${rhcos_list[@]}")
+fi
+
+find /usr/ /etc/ -type l -not -path "/usr/etc*" | while read -r file_name; do
+    real_path=$(realpath -m "${file_name}")
+    if [[ -e "${real_path}" ]]; then
+        continue
+    fi
+    found="false"
+    for search_element in "${list_broken_symlinks_skip[@]}"; do
+        if [[ "${file_name}" == "${search_element}"* || "${file_name}" == "${search_element}" ]]; then
+            found="true"
+            break
+        fi
+    done
+    if [[ "${found}" == "false" ]]; then
+        fatal "Error: ${file_name} symlink to ${real_path} which does not exist"
+    fi
+done

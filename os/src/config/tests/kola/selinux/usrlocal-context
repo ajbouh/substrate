@@ -1,0 +1,17 @@
+#!/bin/bash
+## kola:
+##   exclusive: false
+##   description: Verify /usr/sbin and /var/usrlocal/sbin have
+##     the same SELinux security context.
+
+set -xeuo pipefail
+
+# shellcheck disable=SC1091
+. "$KOLA_EXT_DATA/commonlib.sh"
+
+bin_ctx=$(stat -c %C /usr/sbin)
+usrlocal_sbin_ctx=$(stat -c %C /var/usrlocal/sbin)
+if test "${bin_ctx}" != "${usrlocal_sbin_ctx}"; then
+    fatal "Error: /usr/sbin is ${bin_ctx} but /var/usrlocal/sbin is ${usrlocal_sbin_ctx}"
+fi
+ok "/usr/sbin /var/usrlocal/sbin have the same SELinux security context"

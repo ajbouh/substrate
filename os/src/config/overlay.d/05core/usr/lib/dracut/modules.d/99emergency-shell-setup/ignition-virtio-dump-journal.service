@@ -1,0 +1,17 @@
+[Unit]
+Description=Dump Journal to Virtio Port
+ConditionPathExists=/etc/initrd-release
+ConditionPathExists=!/run/coreos/secure-execution
+DefaultDependencies=false
+ConditionVirtualization=|kvm
+ConditionVirtualization=|qemu
+Requires=systemd-journald.service
+After=systemd-journald.service
+After=basic.target
+Before=initrd.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=/run/ignition.env
+ExecStart=/usr/bin/ignition-virtio-dump-journal
