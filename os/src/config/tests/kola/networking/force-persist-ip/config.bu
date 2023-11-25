@@ -1,0 +1,16 @@
+variant: fcos
+version: 1.4.0
+storage:
+  files:
+    - path: /etc/NetworkManager/system-connections/eth1.nmconnection
+      mode: 0600
+      contents:
+        inline: |
+          [connection]
+          id=eth1
+          type=ethernet
+          interface-name=eth1
+          [ipv4]
+          dns-search=
+          may-fail=false
+          method=auto

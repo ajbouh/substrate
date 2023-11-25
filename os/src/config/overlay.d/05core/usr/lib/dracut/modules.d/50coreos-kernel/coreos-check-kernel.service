@@ -1,0 +1,10 @@
+[Unit]
+Description=Check That Initrd Matches Kernel
+DefaultDependencies=false
+Before=sysinit.target systemd-modules-load.service
+ConditionPathIsDirectory=!/usr/lib/modules/%v
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/false

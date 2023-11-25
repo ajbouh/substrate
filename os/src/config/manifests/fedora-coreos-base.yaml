@@ -1,0 +1,207 @@
+# This file is most of a Fedora CoreOS like system; it inherits from "core".
+# Add things in this file which are somewhat "opinionated", not necessarily
+# core functionality.
+
+include:
+  - kernel.yaml
+  - system-configuration.yaml
+  - ignition-and-ostree.yaml
+  - file-transfer.yaml
+  - networking-tools.yaml
+  - user-experience.yaml
+  - shared-workarounds.yaml
+
+ostree-layers:
+  - overlay/05core
+  - overlay/08nouveau
+  - overlay/09misc
+  - overlay/20platform-chrony
+  - overlay/25azure-udev-rules
+  - overlay/30lvmdevices
+
+# Be minimal
+recommends: false
+
+ignore-removed-users:
+  - root
+ignore-removed-groups:
+  - root
+etc-group-members:
+  - wheel
+  - sudo
+  - systemd-journal
+  - adm
+
+check-passwd:
+  type: "file"
+  filename: "passwd"
+check-groups:
+  type: "file"
+  filename: "group"
+
+default-target: multi-user.target
+
+# we can drop this when it's the rpm-ostree default
+rpmdb: sqlite
+
+# ⚠⚠⚠ ONLY TEMPORARY HACKS ALLOWED HERE; ALL ENTRIES NEED TRACKER LINKS ⚠⚠⚠
+# See also the version of this in fedora-coreos.yaml
+postprocess:
+  # Enable SELinux booleans used by OpenShift
+  # https://github.com/coreos/fedora-coreos-tracker/issues/284
+  - |
+    #!/usr/bin/env bash
+    set -xeuo pipefail
+    setsebool -P -N container_use_cephfs on  # RHBZ#1692369
+    setsebool -P -N virt_use_samba on  # RHBZ#1754825
+
+  # Mask dnsmasq. We include dnsmasq for host services that use the dnsmasq
+  # binary but intentionally mask the systemd service so users can't easily
+  # use it as an external dns server. We prefer they use a container for that.
+  # https://github.com/coreos/fedora-coreos-tracker/issues/519
+  - |
+    #!/usr/bin/env bash
+    systemctl mask dnsmasq.service
+
+  # Default to iptables-nft. Otherwise, legacy wins. We can drop this once/if we
+  # remove iptables-legacy. This is needed because alternatives don't work
+  # https://github.com/coreos/fedora-coreos-tracker/issues/677
+  # https://github.com/coreos/fedora-coreos-tracker/issues/676
+  - |
+    #!/usr/bin/env bash
+    set -xeuo pipefail
+    ln -sf /usr/sbin/ip6tables-nft         /etc/alternatives/ip6tables
+    ln -sf /usr/sbin/ip6tables-nft-restore /etc/alternatives/ip6tables-restore
+    ln -sf /usr/sbin/ip6tables-nft-save    /etc/alternatives/ip6tables-save
+    ln -sf /usr/sbin/iptables-nft          /etc/alternatives/iptables
+    ln -sf /usr/sbin/iptables-nft-restore  /etc/alternatives/iptables-restore
+    ln -sf /usr/sbin/iptables-nft-save     /etc/alternatives/iptables-save
+
+  # Force the ssh-host-keys-migration to happen on every boot
+  # to handle cases where someone did a upgrade->rollback->upgrade
+  # See https://github.com/coreos/fedora-coreos-tracker/issues/1473
+  # We should remove this after the next barrier release.
+  - |
+    #!/usr/bin/env bash
+    set -xeuo pipefail
+    mkdir -p /usr/lib/systemd/system/ssh-host-keys-migration.service.d
+    cat <<'EOF' > /usr/lib/systemd/system/ssh-host-keys-migration.service.d/coreos-force-migration-on-every-boot.conf
+    # Force the ssh-host-keys-migration to happen on every boot
+    # to handle cases where someone did a upgrade->rollback->upgrade
+    # See https://github.com/coreos/fedora-coreos-tracker/issues/1473
+    [Unit]
+    ConditionPathExists=
+    EOF
+
+# Packages listed here should be specific to Fedore CoreOS (as in not yet
+# available in RHCOS or not desired in RHCOS). All other packages should go
+# into one of the sub-manifests listed at the top.
+packages:
+  # Security
+  - polkit
+  # Containers
+  - systemd-container catatonit
+  - fuse-overlayfs slirp4netns
+  # support for old style CNI networks and name resolution for
+  # podman containers with CNI networks
+  # https://github.com/coreos/fedora-coreos-tracker/issues/519
+  # https://github.com/coreos/fedora-coreos-tracker/issues/1128#issuecomment-1071338097
+  - containernetworking-plugins podman-plugins dnsmasq
+  # For podman v4 netavark gets pulled in but it only recommends
+  # aardvark-dns (which provides name resolution based on container
+  # names). This functionality was previously provided by dnsname from
+  # podman-plugins in the podman v3 stack.
+  # See https://github.com/containers/netavark/pull/217
+  - aardvark-dns
+  # Since we need `containernetworking-plugins` installed to continue
+  # to support CNI networks we need to also explicitly install
+  # `netavark` so we get both of them installed since both of them
+  # provide `container-network-stack`.
+  # https://github.com/coreos/fedora-coreos-tracker/issues/1128#issuecomment-1071458717
+  - netavark
+  # Minimal NFS client
+  - nfs-utils-coreos
+  # Active Directory support
+  - adcli
+  # Additional firewall support; we aren't including these in RHCOS or they
+  # don't exist in RHEL
+  - iptables-nft iptables-services
+  # WireGuard https://github.com/coreos/fedora-coreos-tracker/issues/362
+  - wireguard-tools
+  # Storage
+  - btrfs-progs
+  - WALinuxAgent-udev
+  # Allow communication between sudo and SSSD
+  # for caching sudo rules by SSSD.
+  # https://github.com/coreos/fedora-coreos-tracker/issues/445
+  - libsss_sudo
+  # SSSD; we only ship a subset of the backends
+  - sssd-client sssd-ad sssd-ipa sssd-krb5 sssd-ldap
+  # Used by admins interactively
+  - attr
+  - openssl
+  # Provides terminal tools like clear, reset, tput, and tset
+  - ncurses
+  # file-transfer: note fuse-sshfs is not in RHEL
+  # so we can't put it in file-transfer.yaml
+  - fuse-sshfs
+  # Improved MOTD experience
+  - console-login-helper-messages-motdgen
+  # i18n
+  - kbd
+  # zram-generator (but not zram-generator-defaults) for F33 change
+  # https://github.com/coreos/fedora-coreos-tracker/issues/509
+  - zram-generator
+  # resolved was broken out to its own package in rawhide/f35
+  - systemd-resolved
+  # In F35+ need `iptables-legacy` package
+  # See https://github.com/coreos/fedora-coreos-tracker/issues/676#issuecomment-928028451
+  - iptables-legacy
+  # GPU Firmware files (not broken out into subpackage of linux-firmware in RHEL yet)
+  - amd-gpu-firmware intel-gpu-firmware nvidia-gpu-firmware
+  # Wifi/BT firmware files https://github.com/coreos/fedora-coreos-tracker/issues/1575
+  - atheros-firmware brcmfmac-firmware mt7xxx-firmware realtek-firmware
+
+
+# - irqbalance
+#   - This thing is crying out to be pulled into systemd, but that hasn't happened
+#     yet.  Also we may want to add to rpm-ostree something like arch negation;
+#     basically right now it doesn't exist on s390x.
+#     Anyways, it was requested by the Red Hat perf team for RHCOS, so we have it here.
+#     https://serverfault.com/questions/513807/is-there-still-a-use-for-irqbalance-on-modern-hardware
+#     https://access.redhat.com/solutions/41535
+# - qemu-user-static-x86
+#   - Include this on non-x86_64 FCOS images to allow access to the large
+#     inventory of containers only built for x86_64.
+#     https://github.com/coreos/fedora-coreos-tracker/issues/1237
+#
+# - google-compute-engine-guest-configs-udev
+#   - Add this package on x86_64 and aarch64 (the two architectures
+#     GCP supports. https://github.com/coreos/fedora-coreos-tracker/issues/1494
+#     This should be moved to a shared manifest when RHEL has this package.
+packages-x86_64:
+  - irqbalance
+  - google-compute-engine-guest-configs-udev
+packages-ppc64le:
+  - irqbalance
+  - librtas
+  - powerpc-utils-core
+  - ppc64-diag-rtas
+  - qemu-user-static-x86
+packages-aarch64:
+  - irqbalance
+  - qemu-user-static-x86
+  - google-compute-engine-guest-configs-udev
+packages-s390x:
+  - qemu-user-static-x86
+
+# See https://github.com/coreos/bootupd
+arch-include:
+  x86_64: bootupd.yaml
+  aarch64: bootupd.yaml
+
+remove-from-packages:
+  # Hopefully short-term hack -- see https://github.com/coreos/fedora-coreos-config/pull/1206#discussion_r705425869.
+  # This keeps the size down and ensures nothing tries to use it, preventing us
+  # from shedding the dep eventually.
+  - [cracklib-dicts, .*]
