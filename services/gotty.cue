@@ -3,6 +3,8 @@ package services
 "lenses": "gotty": {
   name: "gotty"
 
+  disabled: true
+
   spawn: schema: {
     data: {
       type: "space"

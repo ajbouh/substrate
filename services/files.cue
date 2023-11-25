@@ -6,6 +6,7 @@ import (
 
 "lenses": "files": {
   name: "files"
+  disabled: true
 
   spawn: schema: data: type: "space"
 

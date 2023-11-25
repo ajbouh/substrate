@@ -6,6 +6,7 @@ import (
 
 "lenses": "asr-seamlessm4t": {
   name: "asr-seamlessm4t"
+  disabled: true
 
   spawn: environment: {
     MODEL_SIZE: "seamlessM4T_large"

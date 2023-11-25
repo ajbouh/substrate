@@ -3,6 +3,8 @@ package services
 "lenses": "visualizer": {
   name: "visualizer"
 
+  disabled: true
+
   spawn: schema: data: type: "space"
 
   activities: {

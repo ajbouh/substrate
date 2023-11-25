@@ -7,6 +7,7 @@ import (
 
 "lenses": "llama-cpp-python": {
   name: "llama-cpp-python"
+  disabled: true
 
   spawn: environment: {
     USE_MLOCK: "0"
