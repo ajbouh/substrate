@@ -1,0 +1,58 @@
+#!/bin/bash
+## kola:
+##   exclusive: false
+##   description: Verify that the initrd includes some specific files.
+##   # Currently the files we check only need to be available on x86_64 and aarch64
+##   architectures: x86_64 aarch64
+
+# This test runs on both FCOS & RHCOS. The initrd includes specific files which,
+# if omitted from the image, will cause some failures with certain Ignition
+# configs. This test doesn't assert the functionality of any files, it
+# simply gives a high level check to see if the files are available.
+# See https://github.com/coreos/fedora-coreos-config/issues/1775
+
+set -xeuo pipefail
+
+# shellcheck disable=SC1091
+. "$KOLA_EXT_DATA/commonlib.sh"
+
+required_initrd_files=(
+    # Files from the 25azure-udev-rules overlay
+    "/usr/lib/udev/rules.d/66-azure-storage.rules"
+    "/usr/lib/udev/rules.d/99-azure-product-uuid.rules"
+    # Files from the google-compute-engine-guest-configs-udev RPM (FCOS)
+    # or 30gcp-udev-rules overlay (RHCOS). We can probably remove these
+    # checks once RHCOS is using the RPM too.
+    "/usr/lib/udev/rules.d/65-gce-disk-naming.rules"
+    "/usr/lib/udev/google_nvme_id"
+)
+
+required_initrd_kmods=()
+
+if grep CONFIG_ISCSI_IBFT=m "/usr/lib/modules/$(uname -r)/config"; then
+    # iSCSI iBFT kernel module
+    # https://issues.redhat.com/browse/OCPBUGS-19811
+    required_initrd_kmods+=("iscsi_ibft")
+fi
+
+tmpd=$(mktemp -d)
+cleanup() {
+    rm -r "${tmpd}"
+}
+trap cleanup EXIT
+( cd "${tmpd}" && lsinitrd --unpack /boot/ostree/*/init* )
+
+for file in "${required_initrd_files[@]}"; do
+    if [ ! -e "${tmpd}/${file}" ]; then
+        fatal "${file} was not found in initrd"
+    fi
+done
+
+for kmod in "${required_initrd_kmods[@]}"; do
+    found=$(find "${tmpd}/usr/lib/modules/$(uname -r)" -name "${kmod}.ko*")
+    if [ -z "${found}" ]; then
+        fatal "kernel module ${kmod} was not found in initrd"
+    fi
+done
+
+ok "Found expected initrd files"

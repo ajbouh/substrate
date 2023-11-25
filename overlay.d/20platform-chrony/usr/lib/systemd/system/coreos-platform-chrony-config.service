@@ -1,0 +1,20 @@
+[Unit]
+Description=CoreOS Configure Chrony Based On The Platform
+ConditionKernelCommandLine=|ignition.platform.id=azurestack
+ConditionKernelCommandLine=|ignition.platform.id=azure
+ConditionKernelCommandLine=|ignition.platform.id=aws
+# RHCOS 4.1/4.2 bootimages
+ConditionKernelCommandLine=|ignition.platform.id=ec2
+# RHCOS 4.1/4.2 bootimages
+ConditionKernelCommandLine=|ignition.platform.id=gce
+ConditionKernelCommandLine=|ignition.platform.id=gcp
+ConditionKernelCommandLine=|ignition.platform.id=qemu
+Before=NetworkManager.service
+Before=chronyd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/coreos-platform-chrony-config
+RemainAfterExit=yes
+[Install]
+WantedBy=multi-user.target

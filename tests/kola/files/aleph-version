@@ -1,0 +1,14 @@
+#!/bin/bash
+## kola:
+##   exclusive: false
+##   description: Verify /sysroot/.coreos-aleph-version.json exists.
+
+# Defined in https://github.com/coreos/fedora-coreos-tracker/blob/master/internals/README-internals.md#aleph-version
+
+set -xeuo pipefail
+
+# shellcheck disable=SC1091
+. "$KOLA_EXT_DATA/commonlib.sh"
+
+jq . < /sysroot/.coreos-aleph-version.json >/dev/null
+ok aleph

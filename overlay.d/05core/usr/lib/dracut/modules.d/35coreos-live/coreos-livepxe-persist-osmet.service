@@ -1,0 +1,14 @@
+[Unit]
+Description=Persist Osmet Files (PXE)
+DefaultDependencies=false
+ConditionPathExists=/run/ostree-live
+ConditionKernelCommandLine=!coreos.liveiso
+# Downloads and unpacks the osmet files if not already appended
+After=coreos-livepxe-rootfs.service
+Before=initrd-switch-root.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/mkdir -p /run/coreos-installer/osmet
+ExecStart=/usr/bin/sh -c "if ls /*.osmet &>/dev/null; then cp /*.osmet /run/coreos-installer/osmet; fi"

@@ -1,0 +1,82 @@
+#!/bin/bash
+## kola:
+##   # This test builds a container from remote sources.
+##   # This test uses a remote NTP server.
+##   tags: "platform-independent needs-internet"
+##   # Pulling and building the container can take a long time if a
+##   # slow mirror gets chosen.
+##   timeoutMin: 15
+##   # There's a bug in dnf that is causing OOM on low memory systems:
+##   # https://bugzilla.redhat.com/show_bug.cgi?id=1907030
+##   # https://pagure.io/releng/issue/10935#comment-808601
+##   minMemory: 1536
+##   description: Verify that rootless+systemd works.
+
+# See https://github.com/containers/podman/issues/7441
+#
+# This script runs a rootless podman container (rootless because it's
+# run as the `core` user) with systemd inside that brings up httpd.
+#
+# If it gets easy to change the kargs in the future we should try this
+# both on cgroups v1 and cgroups v2.
+
+set -xeuo pipefail
+
+# shellcheck disable=SC1091
+. "$KOLA_EXT_DATA/commonlib.sh"
+
+runascoreuserscript='
+#!/bin/bash
+set -euxo pipefail
+
+# build systemd container (runs httpd via systemd)
+# NOTE: we may want to not build this in the future and run
+#       from a common testutils container. See
+#       https://github.com/coreos/coreos-assembler/issues/1645
+cd $(mktemp -d)
+cat <<EOF > Containerfile
+FROM quay.io/fedora/fedora:38
+RUN dnf -y update \
+&& dnf -y install systemd httpd \
+&& dnf clean all \
+&& systemctl enable httpd
+ENTRYPOINT [ "/sbin/init" ]
+EOF
+podman build -t httpd .
+
+# Run systemd container
+# Pass `-t` so systemd will print logs so `podman logs` will work
+podman run -t -d --name httpd --publish 8080:80 httpd
+'
+
+runascoreuser() {
+    # NOTE: If we don't use `| cat` the output won't get copied
+    # to our unit and won't show up in the `systemctl status` output
+    # of the ext test.
+    sudo -u core "$@" | cat
+}
+
+main() {
+
+    # Execute script as the core user to build/run the container
+    echo "$runascoreuserscript" > /tmp/runascoreuserscript
+    chmod +x /tmp/runascoreuserscript
+    runascoreuser /tmp/runascoreuserscript
+
+    sleep 5
+
+    retryflag="--retry-all-errors"
+    # --retry-all-errors flag passed to curl is not available on RHEL8
+    if is_rhcos8; then
+        retryflag="--retry-connrefused"
+    fi
+    # Try to grab the web page. Retry as it might not be up fully yet.
+    if ! curl --silent --show-error --retry 5 ${retryflag} http://localhost:8080 >/dev/null; then
+        runascoreuser podman logs httpd
+        fatal "setup http server container failed"
+    fi
+
+    ok "setup http server container successfully"
+}
+
+main

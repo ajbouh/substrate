@@ -1,0 +1,20 @@
+#!/bin/bash
+## kola:
+##   # This is a read-only test that can be run with other tests.
+##   exclusive: false
+##   description: Verify that CLHM wrote a snippet for the NIC IP info.
+
+# See https://github.com/coreos/fedora-coreos-tracker/issues/1153
+
+set -xeuo pipefail
+
+# shellcheck disable=SC1091
+. "$KOLA_EXT_DATA/commonlib.sh"
+
+for file in /etc/issue.d/22*.issue
+do
+    if [ ! -f "$file" ]; then
+    fatal "Network Device info does not exist"
+    fi
+done
+ok "Network Device info exists"

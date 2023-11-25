@@ -1,0 +1,17 @@
+[Unit]
+Description=Persist Osmet Files (ISO)
+ConditionPathExists=/run/ostree-live
+ConditionKernelCommandLine=coreos.liveiso
+RequiresMountsFor=/run/media/iso
+Before=initrd-switch-root.target
+# DefaultDependencies=true so this unit gets stopped on switchroot to
+# allow for /run/media/iso to get unmounted.
+DefaultDependencies=true
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/mkdir -p /run/coreos-installer/osmet
+# bsdtar reads cpio archives, and unlike cpio(1L), knows how to seek over
+# members it isn't reading
+ExecStart=/usr/bin/bsdtar -x -C /run/coreos-installer/osmet -f /run/media/iso/images/pxeboot/rootfs.img *.osmet

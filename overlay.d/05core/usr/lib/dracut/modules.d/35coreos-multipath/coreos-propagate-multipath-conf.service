@@ -1,0 +1,24 @@
+[Unit]
+Description=CoreOS Propagate Multipath Configuration
+Before=initrd.target
+
+# we write to the rootfs, so run after it's ready
+After=initrd-root-fs.target
+
+# we only propagate if multipath wasn't configured via Ignition
+After=ignition-files.service
+
+# That service starts initrd-cleanup.service which will race with us completing
+# before we get nuked. Need to get to the bottom of it, but for now we need
+# this (XXX: add link to systemd issue here).
+Before=initrd-parse-etc.service
+
+ConditionKernelCommandLine=rd.multipath=default
+
+OnFailure=emergency.target
+OnFailureJobMode=isolate
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/coreos-propagate-multipath-conf
+RemainAfterExit=yes

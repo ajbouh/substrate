@@ -1,0 +1,19 @@
+#!/bin/bash
+## kola:
+##   exclusive: false
+##   description: Verify default console log level is 4.
+
+# See https://github.com/coreos/fedora-coreos-tracker/issues/1244
+
+set -xeuo pipefail
+
+# shellcheck disable=SC1091
+. "$KOLA_EXT_DATA/commonlib.sh"
+
+printk=$(cat /proc/sys/kernel/printk)
+
+if ! [[ "$printk" =~ ^4 ]]; then
+    fatal "printk: expected console log level 4, found ${printk}"
+fi
+
+ok "Found expected printk value "

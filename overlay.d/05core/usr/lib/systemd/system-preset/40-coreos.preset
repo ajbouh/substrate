@@ -1,0 +1,34 @@
+# Presets here that eventually should live in the generic fedora presets
+
+# console-login-helper-messages - https://github.com/coreos/console-login-helper-messages
+enable console-login-helper-messages-gensnippet-os-release.service
+enable console-login-helper-messages-gensnippet-ssh-keys.service
+# CA certs (probably to add to base fedora eventually)
+enable coreos-update-ca-trust.service
+# Set kernel console log level
+enable coreos-printk-quiet.service
+# https://github.com/coreos/ignition/issues/1125
+enable coreos-ignition-firstboot-complete.service
+# Delete Ignition config from provider on platforms where it's possible
+# https://github.com/coreos/ignition/pull/1350
+enable ignition-delete-config.service
+# Delete Ignition config from provider when upgrading existing nodes
+enable coreos-ignition-delete-config.service
+# Boot checkin services for cloud providers.
+enable afterburn-checkin.service
+enable afterburn-firstboot-checkin.service
+# Target to write SSH key snippets from cloud providers.
+enable afterburn-sshkeys.target
+# Update agent
+enable zincati.service
+# Testing aid
+enable coreos-liveiso-success.service
+# See bootupd.yaml
+enable bootupd.socket
+# Enable rtas_errd for ppc64le to discover dynamically attached pci devices - https://bugzilla.redhat.com/show_bug.cgi?id=1811537
+# The event for the attached device comes as a diag event.
+# Ideally it should have been added as part of base Fedora - but since it was arch specific, it was not added: https://bugzilla.redhat.com/show_bug.cgi?id=1433859
+enable rtas_errd.service
+enable clevis-luks-askpass.path
+# Provide status information about the Ignition run
+enable coreos-ignition-write-issues.service

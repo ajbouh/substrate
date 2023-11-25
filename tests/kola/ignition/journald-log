@@ -1,0 +1,21 @@
+#!/bin/bash
+## kola:
+##   exclusive: false
+##   description: Verify that we send the journald log entry for a
+##     user-provided config.
+
+# See https://github.com/coreos/ignition/pull/958 for the MESSAGE_ID source.
+
+set -xeuo pipefail
+
+# shellcheck disable=SC1091
+. "$KOLA_EXT_DATA/commonlib.sh"
+
+ignitionJournalMsgId="57124006b5c94805b77ce473e92a8aeb"
+
+num=$(journalctl -o json-pretty MESSAGE_ID=$ignitionJournalMsgId | jq -s ".[] | select(.IGNITION_CONFIG_TYPE == \"user\")" | wc -l)
+
+if [ "$num" -eq 0 ]; then
+  fatal "Ignition didn't write $ignitionJournalMsgId"
+fi
+ok "ignition successfully wrote $ignitionJournalMsgId"
