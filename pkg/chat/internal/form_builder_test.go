@@ -1,8 +1,8 @@
 package internal //nolint:testpackage // testing private field
 
 import (
-	"github.com/ajbouh/bridge/pkg/chat/internal/test"
-	"github.com/ajbouh/bridge/pkg/chat/internal/test/checks"
+	"github.com/ajbouh/substrate/pkg/chat/internal/test"
+	"github.com/ajbouh/substrate/pkg/chat/internal/test/checks"
 
 	"bytes"
 	"errors"

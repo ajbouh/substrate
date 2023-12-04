@@ -6,9 +6,9 @@ import (
 	"errors"
 	"testing"
 
-	utils "github.com/ajbouh/bridge/pkg/chat/internal"
-	"github.com/ajbouh/bridge/pkg/chat/internal/test"
-	"github.com/ajbouh/bridge/pkg/chat/internal/test/checks"
+	utils "github.com/ajbouh/substrate/pkg/chat/internal"
+	"github.com/ajbouh/substrate/pkg/chat/internal/test"
+	"github.com/ajbouh/substrate/pkg/chat/internal/test/checks"
 )
 
 var errTestUnmarshalerFailed = errors.New("test unmarshaler failed")

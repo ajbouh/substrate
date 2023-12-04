@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/http"
 
-	utils "github.com/ajbouh/bridge/pkg/chat/internal"
+	utils "github.com/ajbouh/substrate/pkg/chat/internal"
 )
 
 var (

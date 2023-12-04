@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/ajbouh/bridge/pkg/chat/internal/test"
+	"github.com/ajbouh/substrate/pkg/chat/internal/test"
 )
 
 var errTestRequestBuilderFailed = errors.New("test request builder failed")

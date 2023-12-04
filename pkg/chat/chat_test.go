@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ajbouh/bridge/pkg/chat/internal/test/checks"
-	"github.com/ajbouh/bridge/pkg/chat/jsonschema"
+	"github.com/ajbouh/substrate/pkg/chat/internal/test/checks"
+	"github.com/ajbouh/substrate/pkg/chat/jsonschema"
 )
 
 func TestChatCompletionsWrongModel(t *testing.T) {

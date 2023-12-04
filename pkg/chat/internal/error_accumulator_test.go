@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	utils "github.com/ajbouh/bridge/pkg/chat/internal"
-	"github.com/ajbouh/bridge/pkg/chat/internal/test"
+	utils "github.com/ajbouh/substrate/pkg/chat/internal"
+	"github.com/ajbouh/substrate/pkg/chat/internal/test"
 )
 
 func TestErrorAccumulatorBytes(t *testing.T) {
