@@ -197,6 +197,20 @@ case "$1" in
     ./tools/cosa buildextend-metal
     ./tools/cosa buildextend-metal4k
     ./tools/cosa buildextend-live
+
+    cd os
+    cue_export yaml $CUE_MODULE:dev 'substrateos.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output .gen/substrate.ign
+    FCOS_INSTALLER_ISO=$(ls builds/latest/x86_64/*.iso)
+    fcos_installer \
+        iso customize \
+        '--dest-device=/dev/nvme0n1' \
+        '--dest-ignition=./.gen/substrate.ign' \
+        '--dest-console=ttyS0,115200n8' \
+        '--dest-console=tty0' \
+        '--force' \
+        -o .gen/$SUBSTRATEOS_ISO_BASENAME \
+        $FCOS_INSTALLER_ISO
+
     ;;
   # cosa-build-fast)
   #   shift
