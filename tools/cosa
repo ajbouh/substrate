@@ -2,24 +2,28 @@
 
 TOP=$(cd $(dirname $0)/..; pwd)
 
+if [ -z "$PODMAN" ]; then
+  PODMAN=$(PATH=/opt/podman/bin:$PATH which podman)
+fi
+
 # See also https://www.itix.fr/blog/build-your-own-distribution-on-fedora-coreos/
 cosa() {
    env | grep -E "^COREOS_ASSEMBLER|COSA" | sort
    local -r COREOS_ASSEMBLER_CONTAINER_LATEST="quay.io/coreos-assembler/coreos-assembler:latest"
-   if [[ -z ${COREOS_ASSEMBLER_CONTAINER} ]] && $(podman image exists ${COREOS_ASSEMBLER_CONTAINER_LATEST}); then
-       local -r cosa_build_date_str="$(podman inspect -f "{{.Created}}" ${COREOS_ASSEMBLER_CONTAINER_LATEST} | awk '{print $1}')"
+   if [[ -z ${COREOS_ASSEMBLER_CONTAINER} ]] && $($PODMAN image exists ${COREOS_ASSEMBLER_CONTAINER_LATEST}); then
+       local -r cosa_build_date_str="$($PODMAN inspect -f "{{.Created}}" ${COREOS_ASSEMBLER_CONTAINER_LATEST} | awk '{print $1}')"
        local -r cosa_build_date="$(date -d ${cosa_build_date_str} +%s)"
        if [[ $(date +%s) -ge $((cosa_build_date + 60*60*24*7)) ]] ; then
          echo -e "\e[0;33m----" >&2
          echo "The COSA container image is more that a week old and likely outdated." >&2
          echo "You should pull the latest version with:" >&2
-         echo "podman pull ${COREOS_ASSEMBLER_CONTAINER_LATEST}" >&2
+         echo "$PODMAN pull ${COREOS_ASSEMBLER_CONTAINER_LATEST}" >&2
          echo -e "----\e[0m" >&2
          sleep 10
        fi
    fi
    set -x
-   podman run --rm -ti --security-opt=label=disable --privileged                                    \
+   $PODMAN run --rm -ti --security-opt=label=disable --privileged                                    \
               --uidmap=1000:0:1 --uidmap=0:1:1000 --uidmap=1001:1001:64536                          \
               -w /srv \
               -v=${TOP}/os:/srv/ -v=${TOP}/.git:/srv/.git:ro -v=${TOP}/.git:/srv/src/config/.git:ro --device=/dev/kvm --device=/dev/fuse                                  \

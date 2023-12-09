@@ -107,10 +107,14 @@ write_os_containers_overlay() {
   # "Support opinionated flow for injecting containers into /usr/lib/containers" https://github.com/ostreedev/ostree-rs-ext/issues/246
   # "Add opinionated container binding with podman" https://github.com/containers/bootc/issues/128
 
+  if [ -z "$PODMAN" ]; then
+    PODMAN=$(PATH=/opt/podman/bin:$PATH which podman)
+  fi
+
   OVERLAY_BASEDIR=$1
   IMAGE_STORE_BASEDIR=usr/share/containers/storage
   OVERLAY_IMAGE_STORE_BASEDIR=$OVERLAY_BASEDIR/$IMAGE_STORE_BASEDIR
-  SYSTEMD_CONTAINERS_BASEDIR=usr/share/containers/systemd # immutable
+  SYSTEMD_CONTAINERS_BASEDIR=etc/containers/systemd
   OVERLAY_SYSTEMD_CONTAINERS_BASEDIR=$OVERLAY_BASEDIR/$SYSTEMD_CONTAINERS_BASEDIR
 
   mkdir -p os/$OVERLAY_IMAGE_STORE_BASEDIR os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR
@@ -118,11 +122,11 @@ write_os_containers_overlay() {
   # populate images
   IMAGES=$(cue_export text $CUE_MODULE:dev 'substrateos.docker_compose.#images')
   echo IMAGES=$IMAGES
-  PODMAN_LOCAL_REPO_OPTIONS=$(podman info --format='overlay.mount_program={{ index .Store.GraphOptions "overlay.mount_program" "Executable" }}' || true)
-  PODMAN_LOCAL_REPO=$(podman info --format="containers-storage:[{{ .Store.GraphDriverName }}@{{ .Store.GraphRoot }}+{{ .Store.RunRoot }}:$PODMAN_LOCAL_REPO_OPTIONS]")
+  PODMAN_LOCAL_REPO_OPTIONS=$($PODMAN info --format='overlay.mount_program={{ index .Store.GraphOptions "overlay.mount_program" "Executable" }}' || true)
+  PODMAN_LOCAL_REPO=$($PODMAN info --format="containers-storage:[{{ .Store.GraphDriverName }}@{{ .Store.GraphRoot }}+{{ .Store.RunRoot }}:$PODMAN_LOCAL_REPO_OPTIONS]")
   for image in $IMAGES; do
-    podman build --tag $image $(cue_export text $CUE_MODULE:dev "substrateos.docker_compose.#service_podman_build_options[\"$image\"]")
-    podman pull --root os/$OVERLAY_IMAGE_STORE_BASEDIR ${PODMAN_LOCAL_REPO}$image
+    $PODMAN build --tag $image $(cue_export text $CUE_MODULE:dev "substrateos.docker_compose.#service_podman_build_options[\"$image\"]")
+    $PODMAN pull --root os/$OVERLAY_IMAGE_STORE_BASEDIR ${PODMAN_LOCAL_REPO}$image
   done
 
   # populate associated systemd units
@@ -208,6 +212,11 @@ case "$1" in
   fcos-installer)
     shift
     fcos_installer "$@"
+    ;;
+  podman-machine-init-applehv)
+    shift
+    # If needed, download vfkit and put it in /opt/podman/qemu/bin/ https://github.com/crc-org/vfkit/releases/download/v0.5.0/vfkit
+    CONTAINERS_MACHINE_PROVIDER="applehv" /opt/podman/bin/podman machine init --cpus 4 --rootful --memory 4096 --now podman-machine-applehv
     ;;
   os-rebase-push)
     shift
