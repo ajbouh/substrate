@@ -45,9 +45,10 @@ func (p *P) Cleanup(
 
 		log.Printf("removing container %s", c.ID)
 		err := p.cli.ContainerRemove(ctx, c.ID, types.ContainerRemoveOptions{
-			RemoveVolumes: true,
-			RemoveLinks:   true,
-			Force:         true,
+			// If we remove volumes then our caches will go away when the last container using it is stopped...
+			// RemoveVolumes: true,
+			RemoveLinks: true,
+			Force:       true,
 		})
 		if err != nil {
 			errs = append(errs, err)

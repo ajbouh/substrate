@@ -203,7 +203,6 @@ case "$1" in
     FCOS_INSTALLER_ISO=$(ls builds/latest/x86_64/*.iso)
     fcos_installer \
         iso customize \
-        '--dest-device=/dev/nvme0n1' \
         '--dest-ignition=./.gen/substrate.ign' \
         '--dest-console=ttyS0,115200n8' \
         '--dest-console=tty0' \
