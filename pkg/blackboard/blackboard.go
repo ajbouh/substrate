@@ -10,7 +10,8 @@ import (
 )
 
 type Blackboard struct {
-	mu *sync.RWMutex
+	cueMu *sync.Mutex
+	modMu *sync.RWMutex
 
 	cueCtx *cue.Context
 
@@ -68,7 +69,9 @@ type Match struct {
 func New(cueCtx *cue.Context) *Blackboard {
 	b := &Blackboard{
 		cueCtx: cueCtx,
-		mu:     &sync.RWMutex{},
+		cueMu:  &sync.Mutex{},
+		modMu:  &sync.RWMutex{},
+
 		offers: map[uint64]*Offer{},
 	}
 	log.Printf("blackboard.New %#v\n", b)
@@ -76,19 +79,47 @@ func New(cueCtx *cue.Context) *Blackboard {
 	return b
 }
 
+func (b *Blackboard) unify(o1, o2 cue.Value) cue.Value {
+	b.cueMu.Lock()
+	defer b.cueMu.Unlock()
+
+	return o1.Unify(o2)
+}
+
+func (b *Blackboard) validate(o cue.Value, opts ...cue.Option) error {
+	b.cueMu.Lock()
+	defer b.cueMu.Unlock()
+
+	return o.Validate(opts...)
+}
+
+func (b *Blackboard) compileString(s string, opts ...cue.BuildOption) cue.Value {
+	b.cueMu.Lock()
+	defer b.cueMu.Unlock()
+
+	return b.cueCtx.CompileString(s, opts...)
+}
+
+func (b *Blackboard) encode(o any, opts ...cue.EncodeOption) cue.Value {
+	b.cueMu.Lock()
+	defer b.cueMu.Unlock()
+
+	return b.cueCtx.Encode(o, opts...)
+}
+
 func (b *Blackboard) Offer(ctx context.Context, selector Input, refinement Refinement) {
 	var selectorValue cue.Value
 	selectorStart := time.Now()
 	if selector.Source != "" {
-		selectorValue = b.cueCtx.CompileString(selector.Source)
+		selectorValue = b.compileString(selector.Source)
 	} else {
 		log.Printf("Offer b.cueCtx %#v %#v", b.cueCtx, selector)
-		selectorValue = b.cueCtx.Encode(selector.Value, cue.NilIsAny(false))
+		selectorValue = b.encode(selector.Value, cue.NilIsAny(false))
 	}
 	selectorEvent := newEvent("selector", selectorStart, time.Now())
 
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.modMu.Lock()
+	defer b.modMu.Unlock()
 
 	o := &Offer{
 		Ctx:            ctx,
@@ -104,16 +135,16 @@ func (b *Blackboard) Offer(ctx context.Context, selector Input, refinement Refin
 	go func() {
 		<-ctx.Done()
 
-		b.mu.Lock()
-		defer b.mu.Unlock()
+		b.modMu.Lock()
+		defer b.modMu.Unlock()
 
 		delete(b.offers, key)
 	}()
 }
 
 func (b *Blackboard) Len() int {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.modMu.RLock()
+	defer b.modMu.RUnlock()
 	return len(b.offers)
 }
 
@@ -122,19 +153,19 @@ func (b *Blackboard) Stream(ctx context.Context, input Input, cb func(*Match) bo
 	defer func() {
 		log.Printf("bb stream done")
 	}()
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.modMu.RLock()
+	defer b.modMu.RUnlock()
 
 	inputStart := time.Now()
 	var inputValue cue.Value
 	if input.Value == nil {
-		log.Printf("b.cueCtx.CompileString(input.Source)")
-		inputValue = b.cueCtx.CompileString(input.Source)
-		log.Printf("-> b.cueCtx.CompileString(input.Source)")
+		log.Printf("b.compileString(input.Source)")
+		inputValue = b.compileString(input.Source)
+		log.Printf("-> b.compileString(input.Source)")
 	} else {
-		log.Printf("b.cueCtx.Encode(input.Value, cue.NilIsAny(false))")
-		inputValue = b.cueCtx.Encode(input.Value, cue.NilIsAny(false))
-		log.Printf("-> b.cueCtx.Encode(input.Value, cue.NilIsAny(false))")
+		log.Printf("b.encode(input.Value, cue.NilIsAny(false))")
+		inputValue = b.encode(input.Value, cue.NilIsAny(false))
+		log.Printf("-> b.encode(input.Value, cue.NilIsAny(false))")
 	}
 	rawInputEvent := newEvent("rawinput", inputStart, time.Now())
 
@@ -157,12 +188,12 @@ func (b *Blackboard) Stream(ctx context.Context, input Input, cb func(*Match) bo
 			Events:         make([]Event, 6),
 		}
 		m.Events = append(m.Events, o.SelectorEvent, *rawInputEvent)
-		log.Printf("o.SelectorValue.Unify(inputValue)")
-		m.Match = o.SelectorValue.Unify(inputValue)
+		log.Printf("b.unify(o.SelectorValue, inputValue)")
+		m.Match = b.unify(o.SelectorValue, inputValue)
 
 		m.Events = append(m.Events, *newEvent("match", start, time.Now()))
-		log.Printf("m.Match.Validate()")
-		m.Error = m.Match.Validate()
+		log.Printf("b.validate(m.Match)")
+		m.Error = b.validate(m.Match)
 
 		start = time.Now()
 		if m.Error == nil {
@@ -185,9 +216,9 @@ func (b *Blackboard) Stream(ctx context.Context, input Input, cb func(*Match) bo
 
 		if m.Error == nil {
 			start = time.Now()
-			m.Result = m.Match.Unify(m.Output)
+			m.Result = b.unify(m.Match, m.Output)
 			m.Events = append(m.Events, *newEvent("result", start, time.Now()))
-			m.Error = m.Result.Validate()
+			m.Error = b.validate(m.Result)
 		}
 		log.Printf("events %#v", m.Events)
 		// ch <- m
