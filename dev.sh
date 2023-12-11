@@ -119,6 +119,8 @@ write_os_containers_overlay() {
 
   mkdir -p os/$OVERLAY_IMAGE_STORE_BASEDIR os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR
 
+  LENSES_EXPR=$(print_lens_expr)
+
   # populate images
   IMAGES=$(cue_export text $CUE_MODULE:dev 'substrateos.docker_compose.#images')
   echo IMAGES=$IMAGES
