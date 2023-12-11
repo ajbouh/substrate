@@ -95,7 +95,7 @@ import (
             // To make localhost forwarding work (e.g. qemu, publish on the same port)
             "\(#Environment.PORT):\(#Environment.PORT)",
           ]
-          Device: ["nvidia.com/gpu=all"]
+          AddDevice: ["nvidia.com/gpu=all"]
           Network: ["substrate.network"]
           EnvironmentFile: "substrate.env"
           #Environment: {

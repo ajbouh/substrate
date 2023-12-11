@@ -22,3 +22,4 @@ postprocess:
     #!/usr/bin/env bash
     set -euxo pipefail
     semodule --verbose --install /usr/share/selinux/packages/nvidia-container.pp
+    systemctl enable nvidia-ctk-cdi-generate
