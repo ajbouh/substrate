@@ -48,7 +48,8 @@ daemons: {
         // A hack to allow large environment variables that are improperly escaped by quadlet
         if unit_name =~ "\\.container$" && (unit.Container.#Environment != _|_) {
           "\(unit_name)": #environment_file_text: strings.Join([
-            for k, v in unit.Container.#Environment { "\(k)=\(v)" }
+            // Use json.Marshal to properly encode newlines
+            for k, v in unit.Container.#Environment { "\(k)=\(json.Marshal(v))" }
           ], "\n")
         }
       }
