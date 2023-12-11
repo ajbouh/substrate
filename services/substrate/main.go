@@ -90,6 +90,12 @@ func main() {
 	}
 	dp := dockerprovisioner.New(cli, mustGetenv("SUBSTRATE_NAMESPACE"), mustGetenv("SUBSTRATE_DOCKER_NETWORK"), mounts, deviceRequests)
 
+	lensesExprPath := mustGetenv("SUBSTRATE_LENSES_EXPR_PATH")
+	lensesExprB, err := os.ReadFile(lensesExprPath)
+	if err != nil {
+		log.Fatalf("error reading lenses expr: %s", err)
+	}
+
 	log.Printf("cleaning up...")
 	ctx := context.Background()
 	dp.Cleanup(ctx)
@@ -98,7 +104,7 @@ func main() {
 	sub, err := substrate.New(
 		mustGetenv("SUBSTRATE_DB"),
 		substratefsMountpoint,
-		mustGetenv("SUBSTRATE_LENSES_EXPR"),
+		string(lensesExprB),
 		dp,
 		os.Getenv("ORIGIN"),
 		cpuMemoryTotalMB,

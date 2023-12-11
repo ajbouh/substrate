@@ -113,13 +113,14 @@ write_os_containers_overlay() {
 
   OVERLAY_BASEDIR=$1
   IMAGE_STORE_BASEDIR=usr/share/containers/storage
-  OVERLAY_IMAGE_STORE_BASEDIR=$OVERLAY_BASEDIR/$IMAGE_STORE_BASEDIR
   SYSTEMD_CONTAINERS_BASEDIR=etc/containers/systemd
+  LENSES_EXPR_PATH=usr/share/substrate/lenses.cue
+  OVERLAY_IMAGE_STORE_BASEDIR=$OVERLAY_BASEDIR/$IMAGE_STORE_BASEDIR
   OVERLAY_SYSTEMD_CONTAINERS_BASEDIR=$OVERLAY_BASEDIR/$SYSTEMD_CONTAINERS_BASEDIR
-
+  OVERLAY_LENSES_EXPR_PATH=$OVERLAY_BASEDIR/$LENSES_EXPR_PATH
   mkdir -p os/$OVERLAY_IMAGE_STORE_BASEDIR os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR
 
-  LENSES_EXPR=$(print_lens_expr)
+  print_lens_expr > os/$OVERLAY_LENSES_EXPR_PATH
 
   # populate images
   IMAGES=$(cue_export text $CUE_MODULE:dev 'substrateos.docker_compose.#images')
@@ -135,9 +136,8 @@ write_os_containers_overlay() {
   UNITS=$(cue_export text $CUE_MODULE:dev 'substrateos.systemd.container_units')
   echo UNITS=$UNITS
   for unit in $UNITS; do
-    cue_export text $CUE_MODULE:dev "substrateos.systemd.containers[\"$unit\"].#text" -t "lenses_expr=$LENSES_EXPR" > os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR/$unit
+    cue_export text $CUE_MODULE:dev "substrateos.systemd.containers[\"$unit\"].#text" -t "lenses_expr_path=/$LENSES_EXPR_PATH" > os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR/$unit
   done
-  cue_export text $CUE_MODULE:dev 'substrateos.systemd.containers["substrate.container"].#environment_file_text' -t "lenses_expr=$LENSES_EXPR" > os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR/substrate.env
 
   # init ostree repo if needed
   tmprepo=tmp/repo
@@ -323,7 +323,6 @@ case "$1" in
     mkdir -p $HERE/os/fcos/.gen/etc/containers/systemd
     # cue_export text $CUE_MODULE:dev 'systemd.containers["substrate-pull.image"].#text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate-pull.image
     cue_export text $CUE_MODULE:dev 'substrateos.systemd.containers["substrate.container"].#text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate.container
-    cue_export text $CUE_MODULE:dev 'substrateos.systemd.containers["substrate.container"].#environment_file_text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate.env
     # build
     docker_compose_yml=$(make_docker_compose_yml os substrateos.docker_compose_build)
     docker_compose $docker_compose_yml build
@@ -348,20 +347,22 @@ case "$1" in
     print_lens_expr
     ;;
   docker-compose-dump)
-    LENSES_EXPR=$(print_lens_expr)
-    cue_export yaml $CUE_MODULE:dev substrate substrate.docker_compose -t "lenses_expr=$LENSES_EXPR"
+    LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
+    print_lens_expr > $LENSES_EXPR_PATH
+    cue_export yaml $CUE_MODULE:dev substrate substrate.docker_compose -t "lenses_expr_path=$LENSES_EXPR_PATH"
     ;;
   docker-compose-up)
     shift
     # LENSES_EXPR_FILE=.gen/cue/$NAMESPACE-lenses.cue
     # mkdir -p $(dirname $LENSES_EXPR_FILE)
-    LENSES_EXPR=$(print_lens_expr)
+    LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
+    print_lens_expr > $LENSES_EXPR_PATH
     ROOT_SOURCE_DIR=$HERE
     TAG_ARGS="-t root_source_directory=$ROOT_SOURCE_DIR"
     if ! nvidia-smi 2>&1 >/dev/null; then
       TAG_ARGS="$TAG_ARGS -t no_cuda=1"
     fi
-    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate substrate.docker_compose -t "lenses_expr=$LENSES_EXPR" $TAG_ARGS)
+    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate substrate.docker_compose -t "lenses_expr_path=$LENSES_EXPR_PATH" $TAG_ARGS)
     docker_compose $DOCKER_COMPOSE_FILE --profile daemons --profile lenses --profile tools build
     docker_compose $DOCKER_COMPOSE_FILE --profile daemons up \
         --always-recreate-deps \
@@ -377,13 +378,14 @@ case "$1" in
     shift
     # LENSES_EXPR_FILE=.gen/cue/$NAMESPACE-lenses.cue
     # mkdir -p $(dirname $LENSES_EXPR_FILE)
-    LENSES_EXPR=$(print_lens_expr)
+    LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
+    print_lens_expr > $LENSES_EXPR_PATH
     TAG_ARGS="-t root_source_directory=$ROOT_SOURCE_DIR"
     if ! ssh $REMOTE_DOCKER_HOSTNAME nvidia-smi 2>&1 >/dev/null; then
       TAG_ARGS="$TAG_ARGS -t no_cuda=1"
     fi
     
-    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate substrate.docker_compose -t "lenses_expr=$LENSES_EXPR" $TAG_ARGS)
+    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate substrate.docker_compose -t "lenses_expr_path=$LENSES_EXPR_PATH" $TAG_ARGS)
     DOCKER_HOST=$REMOTE_DOCKER_HOST docker_compose $DOCKER_COMPOSE_FILE --profile daemons --profile lenses --profile tools build
     DOCKER_HOST=$REMOTE_DOCKER_HOST docker_compose $DOCKER_COMPOSE_FILE --profile daemons up \
         --always-recreate-deps \

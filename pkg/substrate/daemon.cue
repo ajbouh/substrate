@@ -34,6 +34,7 @@ let #Daemon = {
     ...{
       source: string
       destination: string
+      mode: string | *"rw"
     }
   ] | *[]
 
@@ -49,7 +50,7 @@ let #Daemon = {
     }
     Volume: [
       for mount in mounts {
-        "\(mount.source):\(mount.destination):rw"
+        "\(mount.source):\(mount.destination):\(mount.mode)"
       }
     ]
   }
@@ -76,7 +77,7 @@ let #Daemon = {
   #docker_compose_service: docker_compose_service & {
     volumes: [
       for mount in mounts {
-        "\(mount.source):\(mount.destination):rw"
+        "\(mount.source):\(mount.destination):\(mount.mode)"
       }
     ]
 

@@ -10,7 +10,7 @@ import (
 #var: {
   namespace: string
   image_prefix: string
-  lenses_expr: string
+  lenses_expr_path: string
   
   host_docker_socket: string
 
@@ -39,8 +39,8 @@ import (
       DEBUG: "1"
       PORT: string | *"\(#var.substrate.internal_port)"
       SUBSTRATE_DB: "/var/lib/substrate/substrate.sqlite"
+      SUBSTRATE_LENSES_EXPR_PATH: "/var/lib/substrate/lenses.cue"
       ORIGIN: #var.substrate.origin
-      SUBSTRATE_LENSES_EXPR: #var.lenses_expr
       SUBSTRATE_NAMESPACE: #var.namespace
       SUBSTRATE_DOCKER_NETWORK: string | *#var.substrate.internal_network_name
 
@@ -69,6 +69,7 @@ import (
     mounts: [
       {source: "\(#var.namespace)-substrate_data", destination: "/var/lib/substrate"},
       {source: #var.host_docker_socket, destination: environment.#docker_socket},
+      {source: #var.lenses_expr_path, destination: environment.SUBSTRATE_LENSES_EXPR_PATH},
     ]
 
     #systemd_units: {
@@ -93,15 +94,12 @@ import (
           SecurityLabelDisable: true
           PublishPort: [
             // To make localhost forwarding work (e.g. qemu, publish on the same port)
-            "\(#Environment.PORT):\(#Environment.PORT)",
+            "\(Environment.PORT):\(Environment.PORT)",
           ]
           AddDevice: ["nvidia.com/gpu=all"]
           Network: ["substrate.network"]
-          EnvironmentFile: "substrate.env"
-          #Environment: {
-            SUBSTRATE_DB: "/var/lib/substrate/substrate.sqlite"
+          Environment: {
             SESSION_SECRET: "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
-
             environment
           }
         }

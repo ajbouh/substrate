@@ -2,6 +2,7 @@ packages:
   - nvidia-container-toolkit
   - kmod-nvidia-6.5.9-300.fc39.x86_64-545.29.06-1.fc39.x86_64
   - nvidia-driver-cuda-545.29.06-1.fc39.x86_64
+  - nvidia-driver-NVML-545.29.06-1.fc39.x86_64
   - nvidia-kmod-common-545.29.06-1.fc39.noarch
 
 recommends: false
@@ -10,9 +11,6 @@ repos:
   - nvidia-container-toolkit
   - fedora-nvidia
   - fedora
-
-ostree-layers:
-  - overlay/45nvidia-ctk
 
 add-files:
   - ["nvidia-container.pp", "/usr/share/selinux/packages/nvidia-container.pp"]

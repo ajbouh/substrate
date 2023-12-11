@@ -41,16 +41,7 @@ daemons: {
         if unit_name =~ "\\.(image|container|volume|network)$" {
           "\(unit_name)": unit & {
             #text: (systemd.#render & {#unit: unit}).#out
-            #environment_file_text ?: string
           }
-        }
-
-        // A hack to allow large environment variables that are improperly escaped by quadlet
-        if unit_name =~ "\\.container$" && (unit.Container.#Environment != _|_) {
-          "\(unit_name)": #environment_file_text: strings.Join([
-            // Use json.Marshal to properly encode newlines
-            for k, v in unit.Container.#Environment { "\(k)=\(json.Marshal(v))" }
-          ], "\n")
         }
       }
     }

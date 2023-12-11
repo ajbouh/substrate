@@ -6,7 +6,7 @@ import (
 )
 
 #namespace: string @tag(namespace)
-#lenses_expr: string | *"" @tag(lenses_expr)
+#lenses_expr_path: string | *"" @tag(lenses_expr_path)
 #root_source_directory: string | *"" @tag(root_source_directory)
 #no_cuda: string | *"" @tag(no_cuda)
 
@@ -16,13 +16,7 @@ import (
     "root_source_directory": #root_source_directory
     "image_prefix": "ghcr.io/ajbouh/substrate:substrate-"
     "no_cuda": #no_cuda != ""
-
-    if #lenses_expr != "" {
-      "lenses_expr": #lenses_expr
-    }
-    if #lenses_expr == "" {
-      "lenses_expr": "{}"
-    }
+    "lenses_expr_path": #lenses_expr_path
     "secrets": {
       "substrate": {
         "session_secret": "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"

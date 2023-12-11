@@ -18,7 +18,6 @@ import (
     Volumes ?: [...string]
     // command ?: [...string]
 
-    #Environment ?: [string]: string
     Environment ?: [string]: string
     EnvironmentFile ?: string
     Pull ?: string
