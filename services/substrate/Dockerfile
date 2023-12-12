@@ -27,11 +27,14 @@ RUN go build \
 
 FROM gcr.io/distroless/base-nossl-debian12 as dist
 
+ARG LENSES_EXPR_SOURCE
+ARG LENSES_EXPR_TARGET
 # USER root:root
 # ENV PORT 8080
 
 # WORKDIR /app
 COPY --from=build /app /app/app
+COPY $LENSES_EXPR_SOURCE $LENSES_EXPR_TARGET
 
 WORKDIR /data
 ENTRYPOINT ["/app/app"]

@@ -383,6 +383,7 @@ case "$1" in
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
     mkdir -p $(dirname $LENSES_EXPR_PATH)
     print_lens_expr > $LENSES_EXPR_PATH
+    ROOT_SOURCE_DIR=/tmp
     TAG_ARGS="-t root_source_directory=$ROOT_SOURCE_DIR"
     if ! ssh $REMOTE_DOCKER_HOSTNAME nvidia-smi 2>&1 >/dev/null; then
       TAG_ARGS="$TAG_ARGS -t no_cuda=1"

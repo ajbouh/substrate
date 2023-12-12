@@ -28,8 +28,6 @@ let #Daemon = {
 
   environment: [string]: string
 
-  secrets: [string]: string
-
   mounts: [
     ...{
       source: string
@@ -50,7 +48,7 @@ let #Daemon = {
     }
     Volume: [
       for mount in mounts {
-        "\(mount.source):\(mount.destination):\(mount.mode)"
+        "\(mount.source):\(mount.destination):\(mount.mode)",
       }
     ]
   }
@@ -77,7 +75,7 @@ let #Daemon = {
   #docker_compose_service: docker_compose_service & {
     volumes: [
       for mount in mounts {
-        "\(mount.source):\(mount.destination):\(mount.mode)"
+        "\(mount.source):\(mount.destination):\(mount.mode)",
       }
     ]
 
@@ -90,7 +88,6 @@ let #Daemon = {
 
     "environment": {
       environment
-      secrets
     }
   }
 

@@ -31,8 +31,11 @@ import (
   "substrate": {
     name: "substrate"
 
-    secrets: {
-      SESSION_SECRET: #var.secrets.substrate.session_secret
+    build: {
+      args: {
+        LENSES_EXPR_SOURCE: #var.lenses_expr_path
+        LENSES_EXPR_TARGET: environment.SUBSTRATE_LENSES_EXPR_PATH
+      }
     }
 
     environment: {
@@ -70,7 +73,6 @@ import (
     mounts: [
       {source: "\(#var.namespace)-substrate_data", destination: "/var/lib/substrate"},
       {source: #var.host_docker_socket, destination: environment.#docker_socket},
-      {source: #var.lenses_expr_path, destination: environment.SUBSTRATE_LENSES_EXPR_PATH},
     ]
 
     #systemd_units: {
