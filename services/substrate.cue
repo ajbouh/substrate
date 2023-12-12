@@ -42,7 +42,7 @@ import (
       DEBUG: "1"
       PORT: string | *"\(#var.substrate.internal_port)"
       SUBSTRATE_DB: "/var/lib/substrate/substrate.sqlite"
-      SUBSTRATE_LENSES_EXPR_PATH: "/var/lib/substrate/lenses.cue"
+      SUBSTRATE_LENSES_EXPR_PATH: "/app/lenses.cue"
       ORIGIN: #var.substrate.origin
       SUBSTRATE_NAMESPACE: #var.namespace
       SUBSTRATE_DOCKER_NETWORK: string | *#var.substrate.internal_network_name

@@ -354,17 +354,15 @@ case "$1" in
     ;;
   docker-compose-up)
     shift
-    # LENSES_EXPR_FILE=.gen/cue/$NAMESPACE-lenses.cue
-    # mkdir -p $(dirname $LENSES_EXPR_FILE)
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
     mkdir -p $(dirname $LENSES_EXPR_PATH)
     print_lens_expr > $LENSES_EXPR_PATH
     ROOT_SOURCE_DIR=$HERE
-    TAG_ARGS="-t root_source_directory=$ROOT_SOURCE_DIR"
+    TAG_ARGS="-t root_source_directory=$ROOT_SOURCE_DIR -t lenses_expr_path=$LENSES_EXPR_PATH"
     if ! nvidia-smi 2>&1 >/dev/null; then
       TAG_ARGS="$TAG_ARGS -t no_cuda=1"
     fi
-    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate substrate.docker_compose -t "lenses_expr_path=$LENSES_EXPR_PATH" $TAG_ARGS)
+    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate substrate.docker_compose $TAG_ARGS)
     docker_compose $DOCKER_COMPOSE_FILE --profile daemons --profile lenses --profile tools build
     docker_compose $DOCKER_COMPOSE_FILE --profile daemons up \
         --always-recreate-deps \
@@ -378,18 +376,15 @@ case "$1" in
     ;;
   remote-docker-compose-up)
     shift
-    # LENSES_EXPR_FILE=.gen/cue/$NAMESPACE-lenses.cue
-    # mkdir -p $(dirname $LENSES_EXPR_FILE)
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
     mkdir -p $(dirname $LENSES_EXPR_PATH)
     print_lens_expr > $LENSES_EXPR_PATH
     ROOT_SOURCE_DIR=/tmp
-    TAG_ARGS="-t root_source_directory=$ROOT_SOURCE_DIR"
+    TAG_ARGS="-t root_source_directory=$ROOT_SOURCE_DIR -t lenses_expr_path=$LENSES_EXPR_PATH"
     if ! ssh $REMOTE_DOCKER_HOSTNAME nvidia-smi 2>&1 >/dev/null; then
       TAG_ARGS="$TAG_ARGS -t no_cuda=1"
-    fi
-    
-    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate substrate.docker_compose -t "lenses_expr_path=$LENSES_EXPR_PATH" $TAG_ARGS)
+    fi    
+    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate substrate.docker_compose $TAG_ARGS)
     DOCKER_HOST=$REMOTE_DOCKER_HOST docker_compose $DOCKER_COMPOSE_FILE --profile daemons --profile lenses --profile tools build
     DOCKER_HOST=$REMOTE_DOCKER_HOST docker_compose $DOCKER_COMPOSE_FILE --profile daemons up \
         --always-recreate-deps \
