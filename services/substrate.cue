@@ -62,6 +62,7 @@ import (
     #docker_compose_service: {
       if !#var.no_cuda {
         deploy: resources: reservations: devices: [{driver: "nvidia", count: "all", capabilities: ["gpu"]}]
+        security_opt: ["label:disable"]
       }
       networks: [#var.substrate.internal_network_name]
     }

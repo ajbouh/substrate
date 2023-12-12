@@ -19,7 +19,6 @@ COPY services/substrate/. .
 # RUN --mount=type=cache,target=/go/pkg/mod \
 #   --mount=type=cache,target=/root/.cache/go-build \
 RUN go build \
-  -ldflags "-linkmode external -extldflags -static" \
   -v \
   -o /app .
 
