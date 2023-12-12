@@ -118,7 +118,7 @@ write_os_containers_overlay() {
   OVERLAY_IMAGE_STORE_BASEDIR=$OVERLAY_BASEDIR/$IMAGE_STORE_BASEDIR
   OVERLAY_SYSTEMD_CONTAINERS_BASEDIR=$OVERLAY_BASEDIR/$SYSTEMD_CONTAINERS_BASEDIR
   OVERLAY_LENSES_EXPR_PATH=$OVERLAY_BASEDIR/$LENSES_EXPR_PATH
-  mkdir -p os/$OVERLAY_IMAGE_STORE_BASEDIR os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR
+  mkdir -p os/$OVERLAY_IMAGE_STORE_BASEDIR os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR os/$OVERLAY_LENSES_EXPR_PATH
 
   print_lens_expr > os/$OVERLAY_LENSES_EXPR_PATH
 
@@ -152,7 +152,7 @@ write_os_containers_overlay() {
   # write our overlay to the ostree repo
   ./tools/cosa shell sudo ostree commit --repo="/srv/${tmprepo}" \
       --tree=dir="/srv/$OVERLAY_BASEDIR" -b "gen-overlay/containers" \
-      --owner-uid 0 --owner-gid 0 --no-xattrs --no-bindings --parent=none \
+      --no-xattrs --no-bindings --parent=none \
       --mode-ro-executables
       # --timestamp "${git_timestamp}"
       # --statoverride <(sed -e '/^#/d' "${TMPDIR}/overlay/statoverride") \
@@ -348,6 +348,7 @@ case "$1" in
     ;;
   docker-compose-dump)
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
+    mkdir -p $(dirname $LENSES_EXPR_PATH)
     print_lens_expr > $LENSES_EXPR_PATH
     cue_export yaml $CUE_MODULE:dev substrate substrate.docker_compose -t "lenses_expr_path=$LENSES_EXPR_PATH"
     ;;
@@ -356,6 +357,7 @@ case "$1" in
     # LENSES_EXPR_FILE=.gen/cue/$NAMESPACE-lenses.cue
     # mkdir -p $(dirname $LENSES_EXPR_FILE)
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
+    mkdir -p $(dirname $LENSES_EXPR_PATH)
     print_lens_expr > $LENSES_EXPR_PATH
     ROOT_SOURCE_DIR=$HERE
     TAG_ARGS="-t root_source_directory=$ROOT_SOURCE_DIR"
@@ -379,6 +381,7 @@ case "$1" in
     # LENSES_EXPR_FILE=.gen/cue/$NAMESPACE-lenses.cue
     # mkdir -p $(dirname $LENSES_EXPR_FILE)
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
+    mkdir -p $(dirname $LENSES_EXPR_PATH)
     print_lens_expr > $LENSES_EXPR_PATH
     TAG_ARGS="-t root_source_directory=$ROOT_SOURCE_DIR"
     if ! ssh $REMOTE_DOCKER_HOSTNAME nvidia-smi 2>&1 >/dev/null; then

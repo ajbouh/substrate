@@ -83,8 +83,8 @@ import (
 
       "substrate.container": {
         Unit: {
-          Requires: ["podman.socket"]
-          After: ["podman.socket"]
+          Requires: ["podman.socket", "nvidia-ctk-cdi-generate.service"]
+          After: ["podman.socket", "nvidia-ctk-cdi-generate.service"]
         }
         Install: {
           WantedBy: ["multi-user.target", "default.target"]

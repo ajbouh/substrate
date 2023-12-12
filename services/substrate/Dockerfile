@@ -26,7 +26,7 @@ RUN go build \
 # WORKDIR /data
 # ENTRYPOINT ["/app"]
 
-FROM gcr.io/distroless/static-debian11 as dist
+FROM gcr.io/distroless/base-nossl-debian12 as dist
 
 # USER root:root
 # ENV PORT 8080
