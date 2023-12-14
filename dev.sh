@@ -122,13 +122,16 @@ write_os_containers_overlay() {
 
   print_lens_expr > os/$OVERLAY_LENSES_EXPR_PATH
 
+  TAG_ARGS="-t lenses_expr_path=/$LENSES_EXPR_PATH"
+
   # populate images
   IMAGES=$(cue_export text $CUE_MODULE:dev 'substrateos.images')
   echo IMAGES=$IMAGES
   PODMAN_LOCAL_REPO_OPTIONS=$($PODMAN info --format='overlay.mount_program={{ index .Store.GraphOptions "overlay.mount_program" "Executable" }}' || true)
   PODMAN_LOCAL_REPO=$($PODMAN info --format="containers-storage:[{{ .Store.GraphDriverName }}@{{ .Store.GraphRoot }}+{{ .Store.RunRoot }}:$PODMAN_LOCAL_REPO_OPTIONS]")
   for image in $IMAGES; do
-    $PODMAN build --tag $image $(cue_export text $CUE_MODULE:dev "substrateos.image_podman_build_options[\"$image\"]")
+    PODMAN_BUILD_OPTIONS=$(cue_export text $CUE_MODULE:dev "substrateos.image_podman_build_options[\"$image\"]" $TAG_ARGS)
+    $PODMAN build --tag $image $PODMAN_BUILD_OPTIONS
     $PODMAN pull --root os/$OVERLAY_IMAGE_STORE_BASEDIR ${PODMAN_LOCAL_REPO}$image
   done
 
@@ -136,7 +139,7 @@ write_os_containers_overlay() {
   UNITS=$(cue_export text $CUE_MODULE:dev 'substrateos.systemd.container_units')
   echo UNITS=$UNITS
   for unit in $UNITS; do
-    cue_export text $CUE_MODULE:dev "substrateos.systemd.containers[\"$unit\"].#text" -t "lenses_expr_path=/$LENSES_EXPR_PATH" > os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR/$unit
+    cue_export text $CUE_MODULE:dev "substrateos.systemd.containers[\"$unit\"].#text" $TAG_ARGS > os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR/$unit
   done
 
   # init ostree repo if needed
