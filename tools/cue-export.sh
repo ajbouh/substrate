@@ -13,20 +13,21 @@ expr=$3
 shift 3
 
 case "$format" in
-  # cue)
-  #   exec $HERE/tools/cue.sh def \
-  #     $entry \
-  #     -t "namespace=$NAMESPACE" \
-  #     --simplify \
-  #     --inline-imports \
-  #     "$@" \
-  #     -e "$expr"
-  #   ;;
   cue)
-    exec $HERE/tools/cue.sh eval \
+    exec $HERE/tools/cue.sh def \
       $entry \
       -t "namespace=$NAMESPACE" \
       --simplify \
+      --inline-imports \
+      "$@" \
+      -e "$expr"
+    ;;
+  cue)
+    exec $HERE/tools/cue.sh export \
+      $entry \
+      -t "namespace=$NAMESPACE" \
+      --simplify \
+      --inline-imports \
       "$@" \
       -e "$expr"
     ;;

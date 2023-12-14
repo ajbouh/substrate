@@ -1,9 +1,25 @@
 package lens
 
-import (
-  containerspec "github.com/ajbouh/substrate/pkg/substrate:containerspec"
-  blackboard_http_call "github.com/ajbouh/substrate/pkg/blackboard:http_call"
-)
+#HTTPRequest: {
+	method !: string
+	url !: {
+		path: string | *"/"
+		query ?: [string]: [...string]
+	}
+	headers ?: [string]: [...string]
+	body ?: {...} | [...] | string | number | null
+}
+
+#HTTPResponse: {
+	status: int
+	headers: [string]: [...string]
+	body ?: {...} | [...] | string | number | null
+}
+
+#HTTPCall: {
+	request !: #HTTPRequest
+	response !: #HTTPResponse
+}
 
 #ServiceDefSpawnParameter: {
   type: "space" | "spaces" | "string" | "resource"
@@ -81,12 +97,8 @@ import (
   }
 }
 
-let cs = containerspec
 let #ServiceDef = close({
-  containerspec: cs
-  // no mounts allowed for lenses
-  containerspec: mounts: []
-
+  name: string
   spawn ?: {
     parameters: [string]: #ServiceDefSpawnParameter
     parameters: {
@@ -100,8 +112,8 @@ let #ServiceDef = close({
         resource: {unit: "MB", quantity: number}
       }
     }
-    "image": containerspec.image
-    "environment": containerspec.environment
+    image: string
+    environment: [string]: string
 
     // for name, parameter in parameters {
     //   if parameter.type == "space" {
@@ -112,9 +124,9 @@ let #ServiceDef = close({
     // }
   }
 
-  calls ?: [...blackboard_http_call.#Call]
+  calls: [...#HTTPCall]
 
-  activities ?: [string]: #ActivityDef
+  activities: [string]: #ActivityDef
 })
 
 #ServiceDef

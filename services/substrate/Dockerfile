@@ -8,6 +8,7 @@ RUN apt update \
     libassuan-dev \
     libgpg-error-dev \
     libpcre2-dev \
+    dash \
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
 	&& rm -rf /var/lib/apt/lists/*;
 
@@ -47,6 +48,7 @@ ARG LENSES_EXPR_TARGET
 
 # WORKDIR /app
 COPY --from=build /substrate /app/substrate
+COPY --from=build /bin/dash /bin/dash
 COPY --from=build \
   /lib/x86_64-linux-gnu/libgpgme.so.11 \
   /lib/x86_64-linux-gnu/libdevmapper.so.1.02.1 \
@@ -57,6 +59,6 @@ COPY --from=build \
   /lib/x86_64-linux-gnu/libpcre2-8.so.0 \
   /lib/x86_64-linux-gnu/
 COPY $LENSES_EXPR_SOURCE $LENSES_EXPR_TARGET
-ENV LD_LIBRARY_PATH=/lib/x86_64-linux-gnu/
+ENV LD_LIBRARY_PATH=/lib/x86_64-linux-gnu
 WORKDIR /data
 ENTRYPOINT ["/app/substrate"]

@@ -107,6 +107,8 @@ containerspecs: "substrate": {
   }
 }
 
+daemons: "substrate": {}
+
 "lenses": "substrate": {
   activities: {
     // attach: {

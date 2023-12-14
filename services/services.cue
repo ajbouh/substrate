@@ -17,26 +17,28 @@ import (
   substrate: internal_network_name: string
 }
 
-containerspecs: [name=string]: containerspec & {
-  "name": name
-  image: "\(#var.image_prefix)\(name)"
-  build: dockerfile: "services/\(name)/Dockerfile"
+containerspecs: [key=string]: containerspec & {
+  "name": key
+  image: "\(#var.image_prefix)\(key)"
+  build: dockerfile: "services/\(key)/Dockerfile"
 }
 
 lenses: {
-  [name=string]: lens & {
-    "name": name
-    spawn ?: _
-    if spawn != _|_ {
-      "containerspec": containerspecs[name]
-    }
+  [key=string]: lens & {
+    // no mounts allowed for lenses
+    // containerspec: mounts: []
+
+    "name": key
+
+    spawn ?: "image": containerspecs[key].image
+    spawn ?: "environment": containerspecs[key].environment
   }
 }
 
 daemons: {
-  [name=string]: daemon & {
-    "name": name
-    "containerspec": containerspecs[name]
+  [key=string]: daemon & {
+    "name": key
+    "containerspec": containerspecs[key]
   }
 }
 

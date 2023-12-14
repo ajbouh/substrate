@@ -50,7 +50,6 @@ let #ContainerSpec = {
     ], " ")
   }
 
-
   #systemd_units: "\(name).container" ?: Container: {
     Pull: string | *"never"
     Image: image

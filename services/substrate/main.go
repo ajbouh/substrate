@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/NVIDIA/go-nvml/pkg/dl"
 	"github.com/containers/podman/v4/pkg/bindings"
 	"github.com/containers/podman/v4/pkg/specgen"
 
@@ -30,6 +31,17 @@ func mustGetenv(name string) string {
 	return value
 }
 
+func testLoad() {
+	l := dl.New("libnvidia-ml.so.1", dl.RTLD_LAZY|dl.RTLD_GLOBAL)
+
+	err := l.Open()
+	if err == nil {
+		defer l.Close()
+	}
+
+	fmt.Printf("testLoad: %s\n", err)
+}
+
 func main() {
 	debug := os.Getenv("DEBUG")
 	if ok, _ := strconv.ParseBool(debug); ok {
@@ -39,6 +51,8 @@ func main() {
 	for _, env := range os.Environ() {
 		fmt.Println(env)
 	}
+
+	testLoad()
 
 	port := os.Getenv("PORT")
 	if port == "" {

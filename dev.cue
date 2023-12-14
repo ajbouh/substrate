@@ -116,14 +116,14 @@ import (
       //   }
       // }
 
-      "daemon-openvscode-server" ?: {
+      "openvscode-server" ?: {
         environment: PORT: string
         ports: [
           "127.0.0.1:\(#namespace_host_port_offset + #service_host_port_offset["openvscode-server"]):\(environment.PORT)",
         ]
       }
 
-      "daemon-substrate": {
+      "substrate": {
         ports: [
           "127.0.0.1:\(#namespace_host_port_offset + #service_host_port_offset["substrate"]):\(environment.PORT)",
         ]
