@@ -10,15 +10,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/docker/docker/client"
+	"github.com/containers/podman/v4/pkg/bindings"
+	"github.com/containers/podman/v4/pkg/specgen"
+
+	specs "github.com/opencontainers/runtime-spec/specs-go"
 
 	"github.com/sirupsen/logrus"
 
-	dockerprovisioner "github.com/ajbouh/substrate/pkg/provisioner/docker"
+	podmanprovisioner "github.com/ajbouh/substrate/pkg/provisioner/podman"
 	"github.com/ajbouh/substrate/pkg/substrate"
 	"github.com/ajbouh/substrate/pkg/substratehttp"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/mount"
 )
 
 func mustGetenv(name string) string {
@@ -48,20 +49,13 @@ func main() {
 
 	var substratefsMountpoint string
 
-	cli, err := client.NewEnvClient()
-	if err != nil {
-		log.Fatalf("error starting client: %s", err)
-	}
-
-	mounts := []mount.Mount{}
-	for _, m := range strings.Split(os.Getenv("SUBSTRATE_SERVICE_DOCKER_MOUNTS"), ",") {
+	volumes := []*specgen.NamedVolume{}
+	for _, m := range strings.Split(os.Getenv("SUBSTRATE_SERVICE_DOCKER_VOLUMES"), ",") {
 		source, target, ok := strings.Cut(m, ":")
 		if ok {
-			mounts = append(mounts, mount.Mount{
-				// Type:   mount.TypeBind,
-				Type:   mount.TypeVolume,
-				Source: source,
-				Target: target,
+			volumes = append(volumes, &specgen.NamedVolume{
+				Name: source,
+				Dest: target,
 			})
 		}
 	}
@@ -78,17 +72,29 @@ func main() {
 	}
 	fmt.Printf("cudaMemoryTotalMB %d\n", cudaMemoryTotalMB)
 
-	var deviceRequests []container.DeviceRequest
-	if os.Getenv("SUBSTRATE_NO_CUDA") == "" && cudaMemoryTotalMB > 0 {
-		deviceRequests = []container.DeviceRequest{
-			{
-				Driver:       "nvidia",
-				Count:        -1,
-				Capabilities: [][]string{{"gpu"}},
-			},
+	prep := func(s *specgen.SpecGenerator) {
+		s.Volumes = append([]*specgen.NamedVolume{}, volumes...)
+		s.SelinuxOpts = []string{
+			"label=disable",
+		}
+		// if os.Getenv("SUBSTRATE_NO_CUDA") == "" && cudaMemoryTotalMB > 0 {
+		if true {
+			s.Devices = []specs.LinuxDevice{
+				{
+					Path: "nvidia.com/gpu=all",
+				},
+			}
 		}
 	}
-	dp := dockerprovisioner.New(cli, mustGetenv("SUBSTRATE_NAMESPACE"), mustGetenv("SUBSTRATE_DOCKER_NETWORK"), mounts, deviceRequests)
+
+	dp := podmanprovisioner.New(
+		func(ctx context.Context) (context.Context, error) {
+			return bindings.NewConnection(ctx, os.Getenv("DOCKER_HOST"))
+		},
+		mustGetenv("SUBSTRATE_NAMESPACE"),
+		mustGetenv("SUBSTRATE_DOCKER_NETWORK"),
+		prep,
+	)
 
 	lensesExprPath := mustGetenv("SUBSTRATE_LENSES_EXPR_PATH")
 	lensesExprB, err := os.ReadFile(lensesExprPath)

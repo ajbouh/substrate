@@ -58,13 +58,15 @@ daemons: {
   #docker_compose_prefix: "\(#var.namespace)-substrate_"
 
   for name, def in daemons {
-    services: "daemon-\(name)": {
-      profiles: ["daemons"]
-      def.#docker_compose_service
-    }
-    volumes: {
-      if def.#docker_compose_volumes != _|_ {
-        def.#docker_compose_volumes
+    if (!def.disabled) {
+      services: "daemon-\(name)": {
+        profiles: ["daemons"]
+        def.#docker_compose_service
+      }
+      volumes: {
+        if def.#docker_compose_volumes != _|_ {
+          def.#docker_compose_volumes
+        }
       }
     }
   }

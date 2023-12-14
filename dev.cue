@@ -28,7 +28,7 @@ import (
       "origin": "http://localhost:\(internal_port)"
       "internal_network_name": "substrate"
 
-      "bind_mounts": [
+      "mount_volumes": [
         {source: "\(#namespace)-torch-cache", destination: "/cache/torch"},
         {source: "\(#namespace)-huggingface-cache", destination: "/cache/huggingface"},
       ]
@@ -114,7 +114,7 @@ import (
       //   }
       // }
 
-      "daemon-openvscode-server": {
+      "daemon-openvscode-server" ?: {
         environment: PORT: string
         ports: [
           "127.0.0.1:\(#namespace_host_port_offset + #service_host_port_offset["openvscode-server"]):\(environment.PORT)",

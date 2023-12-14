@@ -19,7 +19,7 @@ import (
   substrate: internal_network_name: string
   substrate: internal_port: int
   substrate: origin: string
-  substrate: bind_mounts: [...{
+  substrate: mount_volumes: [...{
     source: string
     destination: string
   }]
@@ -53,9 +53,9 @@ import (
 
       DOCKER_HOST: "unix://\(#docker_socket)"
 
-      if len(#var.substrate.bind_mounts) > 0 {
+      if len(#var.substrate.mount_volumes) > 0 {
         SUBSTRATE_SERVICE_DOCKER_MOUNTS: strings.Join([
-          for bind in #var.substrate.bind_mounts {
+          for bind in #var.substrate.mount_volumes {
             "\(bind.source):\(bind.destination)"
           }
         ], ",")
