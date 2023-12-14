@@ -15,6 +15,7 @@ let #Daemon = {
   }
 
   name: string
+  disabled: bool | *false
 
   command ?: [...string]
 
