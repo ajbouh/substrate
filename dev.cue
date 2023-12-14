@@ -44,7 +44,9 @@ import (
   "ignition": fcos_ignition
   "systemd": containers: s.#systemd_containers
   "systemd": container_units: s.#systemd_container_units
-  "docker_compose": s.#docker_compose
+  "containerspecs": s.containerspecs
+  "images": s.#images
+  "image_podman_build_options": s.#image_podman_build_options
 }
 
 // HACK so we can share hardware

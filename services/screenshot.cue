@@ -1,6 +1,10 @@
 package services
 
-"lenses": "screenshot": {
-  name: "screenshot"
+
+containerspecs: "screenshot": {
   disabled: true
+}
+
+"lenses": "screenshot": {
+  spawn: {}
 }

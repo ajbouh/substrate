@@ -5,6 +5,7 @@ import (
   "github.com/ajbouh/substrate/pkg/systemd"
 
   lens "github.com/ajbouh/substrate/pkg/substrate:lens"
+  containerspec "github.com/ajbouh/substrate/pkg/substrate:containerspec"
   daemon "github.com/ajbouh/substrate/pkg/substrate:daemon"
   docker_compose "github.com/ajbouh/substrate/pkg/docker/compose:compose"
   docker_compose_service "github.com/ajbouh/substrate/pkg/docker/compose:service"
@@ -16,21 +17,26 @@ import (
   substrate: internal_network_name: string
 }
 
+containerspecs: [name=string]: containerspec & {
+  "name": name
+  image: "\(#var.image_prefix)\(name)"
+  build: dockerfile: "services/\(name)/Dockerfile"
+}
+
 lenses: {
   [name=string]: lens & {
-    if name != "substrate" {
-      build: dockerfile: "services/\(name)/Dockerfile"
-      spawn: image: "\(#var.image_prefix)lens-\(name)"
+    "name": name
+    spawn ?: _
+    if spawn != _|_ {
+      "containerspec": containerspecs[name]
     }
   }
 }
 
 daemons: {
   [name=string]: daemon & {
-    build: {
-      dockerfile: "services/\(name)/Dockerfile"
-      image: "\(#var.image_prefix)daemon-\(name)"
-    }
+    "name": name
+    "containerspec": containerspecs[name]
   }
 }
 
@@ -54,31 +60,47 @@ daemons: {
   }
 ], "\n")
 
+#enabled_containerspecs: {
+  for name, def in containerspecs {
+    if (!def.disabled) {
+      "\(def.image)": def
+    }
+  }
+}
+
+#images: strings.Join([
+  for image, def in #enabled_containerspecs {
+    image
+  }
+], "\n")
+
+#image_podman_build_options: {
+  for image, def in #enabled_containerspecs {
+    "\(image)": def.#podman_build_options
+  }
+}
+
 #docker_compose: docker_compose & {
   #docker_compose_prefix: "\(#var.namespace)-substrate_"
 
-  for name, def in daemons {
+  services: [string]: docker_compose_service
+
+  for name, def in containerspecs {
     if (!def.disabled) {
-      services: "daemon-\(name)": {
-        profiles: ["daemons"]
+      services: "\(name)": {
+        profiles: [
+          if daemons[name] != _|_ {
+            "daemons",
+          }
+          if lenses[name] != _|_ {
+            "lenses",
+          }
+        ]
+
         def.#docker_compose_service
       }
-      volumes: {
-        if def.#docker_compose_volumes != _|_ {
-          def.#docker_compose_volumes
-        }
-      }
-    }
-  }
-
-  for name, def in lenses {
-    if (name != "substrate") && (!def.disabled) {
-      services: "lens-\(name)": {
-        profiles: ["lenses"]
-        build: dockerfile: def.build.dockerfile
-        if def.spawn != _|_ { image: def.spawn.image }
-        if def.build.context != _|_ { "build": context: def.build.context }
-        if def.build.args != _|_ { "build": args: def.build.args }
+      if def.#docker_compose_volumes != _|_ {
+        volumes: def.#docker_compose_volumes
       }
     }
   }
@@ -93,7 +115,7 @@ daemons: {
   //   }
   // }
 
-  services: "daemon-substrate": {
+  services: "substrate": {
     environment: {
       SUBSTRATE_DOCKER_NETWORK: "\(#docker_compose_prefix)\(#var.substrate.internal_network_name)"
     }
@@ -115,36 +137,6 @@ daemons: {
           subnet: "192.168.2.0/24"
         },
       ]
-    }
-  }
-
-  services: [string]: docker_compose_service
-
-  #images: strings.Join([
-    for name, def in services {
-      def.image
-    }
-  ], "\n")
-
-  #service_podman_build_options: {
-    for name, def in services {
-      "\(def.image)": strings.Join([
-        "--file", def.build.dockerfile,
-        if def.build.target != _|_ {
-          "--target=\(def.build.target)",
-        }
-        if def.build.args != _|_ {
-          for k, v in def.build.args {
-            "--build-arg=\(k)=\(v)",
-          }
-        }
-        if def.build.context != _|_ {
-          def.build.context,
-        }
-        if def.build.context == _|_ {
-          ".",
-        }
-      ], " ")
     }
   }
 }

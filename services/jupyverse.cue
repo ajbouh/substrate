@@ -4,9 +4,11 @@ import (
   "github.com/ajbouh/substrate/pkg:svg"
 )
 
-"lenses": "jupyverse": {
-  name: "jupyverse"
+containerspecs: "jupyverse": {
+  disabled: true
+}
 
+"lenses": "jupyverse": {
   spawn: schema: data: type: "space"
 
   space: {

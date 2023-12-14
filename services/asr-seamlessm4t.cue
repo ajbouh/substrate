@@ -4,10 +4,12 @@ import (
   asr "github.com/ajbouh/substrate/pkg/asr"
 )
 
-"lenses": "asr-seamlessm4t": {
-  name: "asr-seamlessm4t"
+containerspecs: "asr-seamlessm4t": {
   disabled: true
+}
 
+"lenses": "asr-seamlessm4t": {
+  spawn: {}
   spawn: environment: {
     MODEL_SIZE: "seamlessM4T_large"
     MODEL_DEVICE: "cuda"

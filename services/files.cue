@@ -4,10 +4,12 @@ import (
   "github.com/ajbouh/substrate/pkg:svg"
 )
 
-"lenses": "files": {
-  name: "files"
+containerspecs: "files": {
   disabled: true
+}
 
+"lenses": "files": {
+  spawn: {}
   spawn: schema: data: type: "space"
 
   activities: {

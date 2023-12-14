@@ -1,10 +1,11 @@
 package services
 
-"lenses": "visualizer": {
-  name: "visualizer"
-
+containerspecs: "visualizer": {
   disabled: true
+}
 
+"lenses": "visualizer": {
+  spawn: {}
   spawn: schema: data: type: "space"
 
   activities: {

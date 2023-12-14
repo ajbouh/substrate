@@ -1,16 +1,17 @@
 package service
 
-let #service = {
+let #service = close({
   volumes ?: [...string]
   command ?: [...string]
 
   image ?: string
 
-  build ?: {
+  build ?: close({
     target ?: string
+    args ?: [string]: string
     context ?: string
     dockerfile ?: string
-  }
+  })
 
   profiles ?: [...string]
 
@@ -25,6 +26,8 @@ let #service = {
   networks ?: [...string]
 
   network_mode ?: "host" | string
-}
+
+  security_opt ?: [...string]
+})
 
 #service

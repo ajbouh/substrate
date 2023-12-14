@@ -1,7 +1,7 @@
 package lens
 
 import (
-  docker_compose_service "github.com/ajbouh/substrate/pkg/docker/compose:service"
+  containerspec "github.com/ajbouh/substrate/pkg/substrate:containerspec"
   blackboard_http_call "github.com/ajbouh/substrate/pkg/blackboard:http_call"
 )
 
@@ -81,18 +81,13 @@ import (
   }
 }
 
+let cs = containerspec
 let #ServiceDef = close({
-  name !: string
+  containerspec: cs
+  // no mounts allowed for lenses
+  containerspec: mounts: []
 
-  disabled: bool | *false
-
-  build !: {
-    dockerfile !: string
-    context ?: string
-    args ?: {[string]: string}
-  }
-
-  spawn: {
+  spawn ?: {
     parameters: [string]: #ServiceDefSpawnParameter
     parameters: {
       cuda_memory_total: {
@@ -105,8 +100,8 @@ let #ServiceDef = close({
         resource: {unit: "MB", quantity: number}
       }
     }
-    image: string
-    environment: [string]: string
+    "image": containerspec.image
+    "environment": containerspec.environment
 
     // for name, parameter in parameters {
     //   if parameter.type == "space" {
@@ -120,10 +115,6 @@ let #ServiceDef = close({
   calls ?: [...blackboard_http_call.#Call]
 
   activities ?: [string]: #ActivityDef
-
-  #docker_compose_service: docker_compose_service & {
-    environment: spawn.environment
-  }
 })
 
 #ServiceDef

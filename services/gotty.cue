@@ -1,10 +1,11 @@
 package services
 
-"lenses": "gotty": {
-  name: "gotty"
-
+containerspecs: "gotty": {
   disabled: true
+}
 
+"lenses": "gotty": {
+  spawn: {}
   spawn: schema: {
     data: {
       type: "space"

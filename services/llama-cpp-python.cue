@@ -5,10 +5,12 @@ import (
   "github.com/ajbouh/substrate/pkg/chat:chat_completion"
 )
 
-"lenses": "llama-cpp-python": {
-  name: "llama-cpp-python"
+containerspecs: "llama-cpp-python": {
   disabled: true
+}
 
+"lenses": "llama-cpp-python": {
+  spawn: {}
   spawn: environment: {
     USE_MLOCK: "0"
     TORCH_HOME: "/cache/torch"

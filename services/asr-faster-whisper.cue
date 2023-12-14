@@ -5,9 +5,10 @@ import (
   asr "github.com/ajbouh/substrate/pkg/asr"
 )
 
-"lenses": "asr-faster-whisper": lens & {
-  name: "asr-faster-whisper"
+containerspecs: "asr-faster-whisper": {}
 
+"lenses": "asr-faster-whisper": lens & {
+  spawn: {}
   spawn: environment: {
     if spawn.parameters.cuda_memory_total.resource.quantity > 0 {
       MODEL_SIZE: "large-v2"

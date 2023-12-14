@@ -27,84 +27,80 @@ import (
   secrets: substrate: session_secret: string
 }
 
-"daemons": {
-  "substrate": {
-    name: "substrate"
+containerspecs: "substrate": {
+  build: {
+    args: {
+      LENSES_EXPR_SOURCE: #var.lenses_expr_path
+      LENSES_EXPR_TARGET: environment.SUBSTRATE_LENSES_EXPR_PATH
+    }
+  }
 
-    build: {
-      args: {
-        LENSES_EXPR_SOURCE: #var.lenses_expr_path
-        LENSES_EXPR_TARGET: environment.SUBSTRATE_LENSES_EXPR_PATH
+  environment: {
+    DEBUG: "1"
+    PORT: string | *"\(#var.substrate.internal_port)"
+    SUBSTRATE_DB: "/var/lib/substrate/substrate.sqlite"
+    SUBSTRATE_LENSES_EXPR_PATH: "/app/lenses.cue"
+    ORIGIN: #var.substrate.origin
+    SUBSTRATE_NAMESPACE: #var.namespace
+    SUBSTRATE_DOCKER_NETWORK: string | *#var.substrate.internal_network_name
+
+    EXTERNAL_UI_HANDLER ?: string
+
+    #docker_socket: "/var/run/docker.sock"
+
+    DOCKER_HOST: "unix://\(#docker_socket)"
+
+    if len(#var.substrate.mount_volumes) > 0 {
+      SUBSTRATE_SERVICE_DOCKER_VOLUMES: strings.Join([
+        for bind in #var.substrate.mount_volumes {
+          "\(bind.source):\(bind.destination)"
+        }
+      ], ",")
+    }
+  }
+
+  mounts: [
+    {source: "\(#var.namespace)-substrate_data", destination: "/var/lib/substrate"},
+    {source: #var.host_docker_socket, destination: environment.#docker_socket},
+  ]
+
+  #docker_compose_service: {
+    if !#var.no_cuda {
+      deploy: resources: reservations: devices: [{driver: "nvidia", count: "all", capabilities: ["gpu"]}]
+      // devices: ["nvidia.com/gpu=all"]
+      security_opt: ["label:disable"]
+    }
+    networks: [#var.substrate.internal_network_name]
+  }
+
+  #systemd_units: {
+    "substrate.network": quadlet.#Network & {
+      Network: {
+        Driver: "bridge"
+        NetworkName: #var.substrate.internal_network_name
+        IPAMDriver: "host-local"
       }
     }
 
-    environment: {
-      DEBUG: "1"
-      PORT: string | *"\(#var.substrate.internal_port)"
-      SUBSTRATE_DB: "/var/lib/substrate/substrate.sqlite"
-      SUBSTRATE_LENSES_EXPR_PATH: "/app/lenses.cue"
-      ORIGIN: #var.substrate.origin
-      SUBSTRATE_NAMESPACE: #var.namespace
-      SUBSTRATE_DOCKER_NETWORK: string | *#var.substrate.internal_network_name
-
-      EXTERNAL_UI_HANDLER ?: string
-
-      #docker_socket: "/var/run/docker.sock"
-
-      DOCKER_HOST: "unix://\(#docker_socket)"
-
-      if len(#var.substrate.mount_volumes) > 0 {
-        SUBSTRATE_SERVICE_DOCKER_MOUNTS: strings.Join([
-          for bind in #var.substrate.mount_volumes {
-            "\(bind.source):\(bind.destination)"
-          }
-        ], ",")
+    "substrate.container": {
+      Unit: {
+        Requires: ["podman.socket", "nvidia-ctk-cdi-generate.service"]
+        After: ["podman.socket", "nvidia-ctk-cdi-generate.service"]
       }
-    }
-
-    #docker_compose_service: {
-      if !#var.no_cuda {
-        deploy: resources: reservations: devices: [{driver: "nvidia", count: "all", capabilities: ["gpu"]}]
-        security_opt: ["label:disable"]
+      Install: {
+        WantedBy: ["multi-user.target", "default.target"]
       }
-      networks: [#var.substrate.internal_network_name]
-    }
-
-    mounts: [
-      {source: "\(#var.namespace)-substrate_data", destination: "/var/lib/substrate"},
-      {source: #var.host_docker_socket, destination: environment.#docker_socket},
-    ]
-
-    #systemd_units: {
-      "substrate.network": quadlet.#Network & {
-        Network: {
-          Driver: "bridge"
-          NetworkName: #var.substrate.internal_network_name
-          IPAMDriver: "host-local"
-        }
-      }
-
-      "substrate.container": {
-        Unit: {
-          Requires: ["podman.socket", "nvidia-ctk-cdi-generate.service"]
-          After: ["podman.socket", "nvidia-ctk-cdi-generate.service"]
-        }
-        Install: {
-          WantedBy: ["multi-user.target", "default.target"]
-        }
-        Container: {
-          ContainerName: "daemon-\(name)"
-          SecurityLabelDisable: true
-          PublishPort: [
-            // To make localhost forwarding work (e.g. qemu, publish on the same port)
-            "\(Environment.PORT):\(Environment.PORT)",
-          ]
-          AddDevice: ["nvidia.com/gpu=all"]
-          Network: ["substrate.network"]
-          Environment: {
-            SESSION_SECRET: "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
-            environment
-          }
+      Container: {
+        SecurityLabelDisable: true
+        PublishPort: [
+          // To make localhost forwarding work (e.g. qemu, publish on the same port)
+          "\(Environment.PORT):\(Environment.PORT)",
+        ]
+        AddDevice: ["nvidia.com/gpu=all"]
+        Network: ["substrate.network"]
+        Environment: {
+          SESSION_SECRET: "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
+          environment
         }
       }
     }
@@ -112,8 +108,6 @@ import (
 }
 
 "lenses": "substrate": {
-  name: "substrate"
-
   activities: {
     // attach: {
     //   request: {
