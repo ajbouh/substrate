@@ -6,6 +6,7 @@ containerspecs: "datasette": {
 }
 
 "lenses": "datasette": {
+  disabled: true
   spawn: {}
   spawn: schema: data: type: "space"
 }

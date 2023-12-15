@@ -5,6 +5,7 @@ containerspecs: "files": {
 }
 
 "lenses": "files": {
+  disabled: true
   spawn: {}
   spawn: schema: data: type: "space"
 

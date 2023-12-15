@@ -5,6 +5,7 @@ containerspecs: "visualizer": {
 }
 
 "lenses": "visualizer": {
+  disabled: true
   spawn: {}
   spawn: schema: data: type: "space"
 

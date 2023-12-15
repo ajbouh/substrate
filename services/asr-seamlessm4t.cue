@@ -9,6 +9,7 @@ containerspecs: "asr-seamlessm4t": {
 }
 
 "lenses": "asr-seamlessm4t": {
+  disabled: true
   spawn: {}
   spawn: environment: {
     MODEL_SIZE: "seamlessM4T_large"

@@ -10,6 +10,7 @@ containerspecs: "llama-cpp-python": {
 }
 
 "lenses": "llama-cpp-python": {
+  disabled: true
   spawn: {}
   spawn: environment: {
     USE_MLOCK: "0"

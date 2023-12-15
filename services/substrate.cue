@@ -35,22 +35,22 @@ containerspecs: "substrate": {
   }
 
   environment: {
-    DEBUG: "1"
-    PORT: string | *"\(#var.substrate.internal_port)"
-    SUBSTRATE_DB: "/var/lib/substrate/substrate.sqlite"
-    SUBSTRATE_LENSES_EXPR_PATH: "/app/lenses.cue"
-    ORIGIN: #var.substrate.origin
-    SUBSTRATE_NAMESPACE: #var.namespace
-    SUBSTRATE_DOCKER_NETWORK: string | *#var.substrate.internal_network_name
+    "DEBUG": "1"
+    "PORT": string | *"\(#var.substrate.internal_port)"
+    "SUBSTRATE_DB": "/var/lib/substrate/substrate.sqlite"
+    "SUBSTRATE_LENSES_EXPR_PATH": "/app/lenses.cue"
+    "ORIGIN": #var.substrate.origin
+    "SUBSTRATE_NAMESPACE": #var.namespace
+    "SUBSTRATE_DOCKER_NETWORK": string | *#var.substrate.internal_network_name
 
-    EXTERNAL_UI_HANDLER ?: string
+    "EXTERNAL_UI_HANDLER" ?: string
 
     #docker_socket: "/var/run/docker.sock"
 
-    DOCKER_HOST: "unix://\(#docker_socket)"
+    "DOCKER_HOST": "unix://\(#docker_socket)"
 
     if len(#var.substrate.mount_volumes) > 0 {
-      SUBSTRATE_SERVICE_DOCKER_VOLUMES: strings.Join([
+      "SUBSTRATE_SERVICE_DOCKER_VOLUMES": strings.Join([
         for bind in #var.substrate.mount_volumes {
           "\(bind.source):\(bind.destination)"
         }

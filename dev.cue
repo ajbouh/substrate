@@ -36,6 +36,8 @@ import (
   }
 }
 
+"lenses": #services.#enabled_lenses
+
 "substrateos": {
   let s = #services & {#var: {
     host_docker_socket: "/var/run/podman/podman.sock"

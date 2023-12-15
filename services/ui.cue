@@ -5,9 +5,10 @@ containerspecs: "ui": {
 }
 
 "lenses": "ui": {
+  disabled: true
   spawn: {}
-  spawn: env: {
-    PORT ?: string
+  spawn: environment: {
+    "PORT" ?: string
 
     PUBLIC_EXTERNAL_ORIGIN ?: string
     ORIGIN ?: string

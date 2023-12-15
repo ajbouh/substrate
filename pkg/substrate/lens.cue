@@ -99,6 +99,7 @@ package lens
 
 let #ServiceDef = close({
   name: string
+  disabled: bool | *false
   spawn ?: {
     parameters: [string]: #ServiceDefSpawnParameter
     parameters: {

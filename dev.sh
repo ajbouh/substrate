@@ -47,7 +47,7 @@ make_docker_compose_yml() {
   shift 2
   docker_compose_yml=$HERE/.gen/docker/$NAMESPACE-$suffix.yml
   mkdir -p $(dirname $docker_compose_yml)
-  cue_export yaml $CUE_MODULE:dev $expr "$@" > $docker_compose_yml
+  cue_export yaml $CUE_MODULE:dev -e $expr "$@" > $docker_compose_yml
   echo $docker_compose_yml
 }
 
@@ -75,7 +75,7 @@ ssh_qemu() {
 }
 
 print_lenses_expr() {
-  cue_export cue $CUE_MODULE:dev "#services.lenses"
+  cue_export ${cue_export_format:-cue} $CUE_MODULE:dev -e "lenses"
 }
 
 write_lenses_expr() {
@@ -84,13 +84,13 @@ write_lenses_expr() {
 }
 
 print_substrateos_images() {
-  cue_export text $CUE_MODULE:dev "substrateos.docker_compose.#images"
+  cue_export text $CUE_MODULE:dev -e "substrateos.docker_compose.#images"
 }
 
 os_make_install_iso() {
   cd $HERE/os/fcos/
   mkdir -p .gen .fetch
-  cue_export yaml $CUE_MODULE:dev 'substrateos.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output .gen/substrate.ign
+  cue_export yaml $CUE_MODULE:dev -e 'substrateos.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output .gen/substrate.ign
   FCOS_INSTALLER_ISO=$(fcos_installer download -s $FCOS_STREAM -p metal -f iso -C .fetch)
   fcos_installer \
       iso customize \
@@ -133,21 +133,21 @@ write_os_containers_overlay() {
   TAG_ARGS="-t lenses_expr_path=os/$OVERLAY_LENSES_EXPR_PATH"
 
   # populate images
-  IMAGES=$(cue_export text $CUE_MODULE:dev 'substrateos.images')
+  IMAGES=$(cue_export text $CUE_MODULE:dev -e 'substrateos.images')
   echo IMAGES=$IMAGES
   PODMAN_LOCAL_REPO_OPTIONS=$($PODMAN info --format='overlay.mount_program={{ index .Store.GraphOptions "overlay.mount_program" "Executable" }}' || true)
   PODMAN_LOCAL_REPO=$($PODMAN info --format="containers-storage:[{{ .Store.GraphDriverName }}@{{ .Store.GraphRoot }}+{{ .Store.RunRoot }}:$PODMAN_LOCAL_REPO_OPTIONS]")
   for image in $IMAGES; do
-    PODMAN_BUILD_OPTIONS=$(cue_export text $CUE_MODULE:dev "substrateos.image_podman_build_options[\"$image\"]" $TAG_ARGS)
+    PODMAN_BUILD_OPTIONS=$(cue_export text $CUE_MODULE:dev -e "substrateos.image_podman_build_options[\"$image\"]" $TAG_ARGS)
     $PODMAN build --layers --tag $image $PODMAN_BUILD_OPTIONS
     $PODMAN pull --root os/$OVERLAY_IMAGE_STORE_BASEDIR ${PODMAN_LOCAL_REPO}$image
   done
 
   # populate associated systemd units
-  UNITS=$(cue_export text $CUE_MODULE:dev 'substrateos.systemd.container_units')
+  UNITS=$(cue_export text $CUE_MODULE:dev -e 'substrateos.systemd.container_units')
   echo UNITS=$UNITS
   for unit in $UNITS; do
-    cue_export text $CUE_MODULE:dev "substrateos.systemd.containers[\"$unit\"].#text" $TAG_ARGS > os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR/$unit
+    cue_export text $CUE_MODULE:dev -e "substrateos.systemd.containers[\"$unit\"].#text" $TAG_ARGS > os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR/$unit
   done
 
   # init ostree repo if needed
@@ -174,7 +174,7 @@ write_os_containers_overlay() {
 cosa_run() {
   IGNITION_FILE=.gen/substrate.ign
   mkdir -p os/$(dirname $IGNITION_FILE)
-  cue_export yaml $CUE_MODULE:dev 'substrateos.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output os/$IGNITION_FILE
+  cue_export yaml $CUE_MODULE:dev -e 'substrateos.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output os/$IGNITION_FILE
   $HERE/tools/cosa run --ignition "$IGNITION_FILE" "$@"
 }
 
@@ -212,7 +212,7 @@ case "$1" in
     ./tools/cosa buildextend-live
 
     cd os
-    cue_export yaml $CUE_MODULE:dev 'substrateos.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output .gen/substrate.ign
+    cue_export yaml $CUE_MODULE:dev -e 'substrateos.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output .gen/substrate.ign
     FCOS_INSTALLER_ISO=$(ls builds/latest/x86_64/*.iso)
     fcos_installer \
         iso customize \
@@ -292,7 +292,7 @@ case "$1" in
     cd $HERE/os/fcos/
     mkdir -p .gen .fetch
     IGNITION_FILE=.gen/substrate.ign
-    cue_export yaml $CUE_MODULE:dev 'substrateos.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output $IGNITION_FILE
+    cue_export yaml $CUE_MODULE:dev -e 'substrateos.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output $IGNITION_FILE
     if [ ! -f .gen/$SUBSTRATEOS_QCOW2_FILE_BASENAME ]; then
       FCOS_QCOW2_XZ_FILE=$(fcos_installer download -s $FCOS_STREAM -p qemu -f qcow2.xz -C .fetch)
       FCOS_QCOW2_FILE_BASENAME=$(basename $FCOS_QCOW2_XZ_FILE .xz)
@@ -324,7 +324,7 @@ case "$1" in
     shift
     docker_compose_yml=$(make_docker_compose_yml os substrateos.docker_compose_build)
     docker_compose $docker_compose_yml build "os-rebase"
-    REBASE_IMAGE=$(cue_export text $CUE_MODULE:dev 'substrateos.#rebase_image')
+    REBASE_IMAGE=$(cue_export text $CUE_MODULE:dev -e 'substrateos.#rebase_image')
     docker image save $REBASE_IMAGE | ssh_qemu 'skopeo copy docker-archive:/dev/stdin ostree:$REBASE_IMAGE@/ostree/repo'
     ssh_qemu sudo rpm-ostree rebase --reboot --cache-only $REBASE_IMAGE
     ;;
@@ -332,15 +332,15 @@ case "$1" in
     shift
     # re-render /etc
     mkdir -p $HERE/os/fcos/.gen/etc/containers/systemd
-    # cue_export text $CUE_MODULE:dev 'systemd.containers["substrate-pull.image"].#text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate-pull.image
-    cue_export text $CUE_MODULE:dev 'substrateos.systemd.containers["substrate.container"].#text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate.container
+    # cue_export text $CUE_MODULE:dev -e 'systemd.containers["substrate-pull.image"].#text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate-pull.image
+    cue_export text $CUE_MODULE:dev -e 'substrateos.systemd.containers["substrate.container"].#text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate.container
     # build
     docker_compose_yml=$(make_docker_compose_yml os substrateos.docker_compose_build)
     docker_compose $docker_compose_yml build
     # replace /etc
     tar -cv -C $HERE/os/fcos/.gen/etc . | ssh_qemu sudo tar xv --no-same-owner -C /etc
     # update
-    IMAGES=$(cue_export text $CUE_MODULE:dev 'substrateos.docker_compose_build.#images')
+    IMAGES=$(cue_export text $CUE_MODULE:dev -e 'substrateos.docker_compose_build.#images')
     echo IMAGES=$IMAGES
     for image in $IMAGES; do
       docker image save $image | ssh_qemu sudo skopeo copy docker-archive:/dev/stdin containers-storage:$image
@@ -355,13 +355,14 @@ case "$1" in
     ;;
     
   lenses-expr-dump)
-    print_lenses_expr
+    shift
+    print_lenses_expr "$@"
     ;;
   docker-compose-dump)
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
     mkdir -p $(dirname $LENSES_EXPR_PATH)
     write_lenses_expr $LENSES_EXPR_PATH
-    cue_export yaml $CUE_MODULE:dev substrate substrate.docker_compose -t "lenses_expr_path=$LENSES_EXPR_PATH"
+    cue_export yaml $CUE_MODULE:dev substrate -e substrate.docker_compose -t "lenses_expr_path=$LENSES_EXPR_PATH"
     ;;
   docker-compose-up)
     shift
@@ -419,7 +420,7 @@ case "$1" in
     shift
     : ${REMOTE_SERVICE:=${1:-bridge}}
     : ${LOCAL_PORT:=${2:-8080}}
-    REMOTE_PORT=$(cue_export text $CUE_MODULE:dev "\"\(#namespace_host_port_offset + #service_host_port_offset[\"$REMOTE_SERVICE\"])\"")
+    REMOTE_PORT=$(cue_export text $CUE_MODULE:dev -e "\"\(#namespace_host_port_offset + #service_host_port_offset[\"$REMOTE_SERVICE\"])\"")
     ssh -L$LOCAL_PORT:127.0.0.1:$REMOTE_PORT $REMOTE_DOCKER_HOSTNAME
     ;;
   test-lens)

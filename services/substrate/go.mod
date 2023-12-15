@@ -7,12 +7,13 @@ toolchain go1.21.1
 require (
 	github.com/NVIDIA/go-nvml v0.12.0-1.0.20231031105836-a160364ba1cc
 	github.com/ajbouh/substrate/pkg v0.0.0-00010101000000-000000000000
-	github.com/docker/docker v24.0.7+incompatible
+	github.com/containers/podman/v4 v4.8.2
+	github.com/opencontainers/runtime-spec v1.1.1-0.20230922153023-c0e90434df2a
 	github.com/sirupsen/logrus v1.9.3
 )
 
 require (
-	cuelang.org/go v0.6.0 // indirect
+	cuelang.org/go v0.7.0 // indirect
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect
 	github.com/BurntSushi/toml v1.3.2 // indirect
@@ -25,7 +26,7 @@ require (
 	github.com/chzyer/readline v1.5.1 // indirect
 	github.com/cilium/ebpf v0.9.1 // indirect
 	github.com/cloudfoundry/gosigar v1.3.36 // indirect
-	github.com/cockroachdb/apd/v3 v3.2.0 // indirect
+	github.com/cockroachdb/apd/v3 v3.2.1 // indirect
 	github.com/containerd/cgroups/v3 v3.0.2 // indirect
 	github.com/containerd/containerd v1.7.9 // indirect
 	github.com/containerd/log v0.1.0 // indirect
@@ -35,7 +36,6 @@ require (
 	github.com/containers/image/v5 v5.29.0 // indirect
 	github.com/containers/libtrust v0.0.0-20230121012942-c1716e8a8d01 // indirect
 	github.com/containers/ocicrypt v1.1.9 // indirect
-	github.com/containers/podman/v4 v4.8.2 // indirect
 	github.com/containers/psgo v1.8.0 // indirect
 	github.com/containers/storage v1.51.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.1-0.20231103132048-7d375ecc2b09 // indirect
@@ -46,6 +46,7 @@ require (
 	github.com/disiqueira/gotree/v3 v3.0.2 // indirect
 	github.com/distribution/reference v0.5.0 // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
+	github.com/docker/docker v24.0.7+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.0 // indirect
 	github.com/docker/go-connections v0.4.1-0.20231031175723-0b8c1f4e07a0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
@@ -105,7 +106,6 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0-rc5 // indirect
 	github.com/opencontainers/runc v1.1.10 // indirect
-	github.com/opencontainers/runtime-spec v1.1.1-0.20230922153023-c0e90434df2a // indirect
 	github.com/opencontainers/runtime-tools v0.9.1-0.20230914150019-408c51e934dc // indirect
 	github.com/opencontainers/selinux v1.11.0 // indirect
 	github.com/ostreedev/ostree-go v0.0.0-20210805093236-719684c64e4f // indirect

@@ -5,7 +5,7 @@ go 1.21
 toolchain go1.21.1
 
 require (
-	cuelang.org/go v0.6.0
+	cuelang.org/go v0.7.0
 	github.com/NVIDIA/go-nvml v0.12.0-1.0.20231031105836-a160364ba1cc
 	github.com/cloudfoundry/gosigar v1.3.36
 	github.com/containers/common v0.57.1
@@ -43,7 +43,7 @@ require (
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/chzyer/readline v1.5.1 // indirect
 	github.com/cilium/ebpf v0.9.1 // indirect
-	github.com/cockroachdb/apd/v3 v3.2.0 // indirect
+	github.com/cockroachdb/apd/v3 v3.2.1 // indirect
 	github.com/containerd/cgroups/v3 v3.0.2 // indirect
 	github.com/containerd/containerd v1.7.9 // indirect
 	github.com/containerd/log v0.1.0 // indirect

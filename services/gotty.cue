@@ -5,6 +5,7 @@ containerspecs: "gotty": {
 }
 
 "lenses": "gotty": {
+  disabled: true
   spawn: {}
   spawn: schema: {
     data: {

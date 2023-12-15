@@ -6,5 +6,6 @@ containerspecs: "screenshot": {
 }
 
 "lenses": "screenshot": {
+  disabled: true
   spawn: {}
 }

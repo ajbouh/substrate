@@ -5,6 +5,7 @@ containerspecs: "jupyverse": {
 }
 
 "lenses": "jupyverse": {
+  disabled: true
   spawn: schema: data: type: "space"
 
   space: {

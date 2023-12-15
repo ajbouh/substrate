@@ -23,33 +23,49 @@ containerspecs: [key=string]: containerspec & {
   build: dockerfile: "services/\(key)/Dockerfile"
 }
 
-lenses: {
-  [key=string]: lens & {
-    // no mounts allowed for lenses
-    // containerspec: mounts: []
+lenses: [key=string]: lens & {
+  // no mounts allowed for lenses
+  // containerspec: mounts: []
 
-    "name": key
+  "name": key
 
-    spawn ?: "image": containerspecs[key].image
-    spawn ?: "environment": containerspecs[key].environment
+  spawn ?: "image": containerspecs[key].image
+  spawn ?: "environment": containerspecs[key].environment
+}
+
+daemons: [key=string]: daemon & {
+  "name": key
+  "containerspec": containerspecs[key]
+}
+
+#enabled_lenses: [string]: lens
+for name, def in lenses {
+  if (!def.disabled) {
+    #enabled_lenses: "\(name)": def
   }
 }
 
-daemons: {
-  [key=string]: daemon & {
-    "name": key
-    "containerspec": containerspecs[key]
+#enabled_daemons: [string]: daemon
+for name, def in daemons {
+  if (!def.containerspec.disabled) {
+    #enabled_daemons: "\(name)": def
   }
 }
 
-#systemd_containers: {
-  for name, def in daemons {
-    if def.containerspec.#systemd_units != _|_ {
-      for unit_name, unit in def.containerspec.#systemd_units {
-        if unit_name =~ "\\.(image|container|volume|network)$" {
-          "\(unit_name)": unit & {
-            #text: (systemd.#render & {#unit: unit}).#out
-          }
+#enabled_containerspecs: [string]: containerspec
+for name, def in containerspecs {
+  if (!def.disabled) {
+    #enabled_containerspecs: "\(name)": def
+  }
+}
+
+#systemd_containers: [string]: systemd.#Unit
+for name, def in #enabled_daemons {
+  if def.containerspec.#systemd_units != _|_ {
+    for unit_name, unit in def.containerspec.#systemd_units {
+      if unit_name =~ "\\.(image|container|volume|network)$" {
+        #systemd_containers: "\(unit_name)": unit & {
+          #text: (systemd.#render & {#unit: unit}).#out
         }
       }
     }
@@ -62,23 +78,15 @@ daemons: {
   }
 ], "\n")
 
-#enabled_containerspecs: {
-  for name, def in containerspecs {
-    if (!def.disabled) {
-      "\(def.image)": def
-    }
-  }
-}
-
 #images: strings.Join([
-  for image, def in #enabled_containerspecs {
-    image
+  for name, def in #enabled_containerspecs {
+    def.image
   }
 ], "\n")
 
 #image_podman_build_options: {
-  for image, def in #enabled_containerspecs {
-    "\(image)": def.#podman_build_options
+  for name, def in #enabled_containerspecs {
+    "\(def.image)": def.#podman_build_options
   }
 }
 
@@ -87,23 +95,22 @@ daemons: {
 
   services: [string]: docker_compose_service
 
-  for name, def in containerspecs {
-    if (!def.disabled) {
-      services: "\(name)": {
-        profiles: [
-          if daemons[name] != _|_ {
-            "daemons",
-          }
-          if lenses[name] != _|_ {
-            "lenses",
-          }
-        ]
+  for name, def in #enabled_containerspecs {
+    services: "\(name)": {
+      profiles: [
+        if daemons[name] != _|_ {
+          "daemons",
+        }
+        if lenses[name] != _|_ {
+          "lenses",
+        }
+      ]
 
-        def.#docker_compose_service
-      }
-      if def.#docker_compose_volumes != _|_ {
-        volumes: def.#docker_compose_volumes
-      }
+      def.#docker_compose_service
+    }
+
+    if def.#docker_compose_volumes != _|_ {
+      volumes: def.#docker_compose_volumes
     }
   }
 
