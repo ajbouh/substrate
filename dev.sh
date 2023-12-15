@@ -18,6 +18,10 @@ cue_export() {
   NAMESPACE=$NAMESPACE $HERE/tools/cue-export.sh "$@"
 }
 
+cue() {
+  $HERE/tools/cue.sh "$@"
+}
+
 CUE_MODULE=github.com/ajbouh/substrate
 
 docker_compose() {
@@ -70,8 +74,13 @@ ssh_qemu() {
   ssh -p 2222 -i ~/.ssh/id_substrateos substrate@localhost "$@"
 }
 
-print_lens_expr() {
+print_lenses_expr() {
   cue_export cue $CUE_MODULE:dev "#services.lenses"
+}
+
+write_lenses_expr() {
+  print_lenses_expr > $1
+  cue def --strict --trace --all-errors --verbose $1
 }
 
 print_substrateos_images() {
@@ -120,7 +129,7 @@ write_os_containers_overlay() {
   OVERLAY_LENSES_EXPR_PATH=$OVERLAY_BASEDIR/$LENSES_EXPR_PATH
   mkdir -p os/$OVERLAY_IMAGE_STORE_BASEDIR os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR os/$(dirname $OVERLAY_LENSES_EXPR_PATH)
 
-  print_lens_expr > os/$OVERLAY_LENSES_EXPR_PATH
+  write_lenses_expr os/$OVERLAY_LENSES_EXPR_PATH
   TAG_ARGS="-t lenses_expr_path=os/$OVERLAY_LENSES_EXPR_PATH"
 
   # populate images
@@ -346,19 +355,19 @@ case "$1" in
     ;;
     
   lenses-expr-dump)
-    print_lens_expr
+    print_lenses_expr
     ;;
   docker-compose-dump)
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
     mkdir -p $(dirname $LENSES_EXPR_PATH)
-    print_lens_expr > $LENSES_EXPR_PATH
+    write_lenses_expr $LENSES_EXPR_PATH
     cue_export yaml $CUE_MODULE:dev substrate substrate.docker_compose -t "lenses_expr_path=$LENSES_EXPR_PATH"
     ;;
   docker-compose-up)
     shift
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
     mkdir -p $(dirname $LENSES_EXPR_PATH)
-    print_lens_expr > $LENSES_EXPR_PATH
+    write_lenses_expr $LENSES_EXPR_PATH
     ROOT_SOURCE_DIR=$HERE
     TAG_ARGS="-t root_source_directory=$ROOT_SOURCE_DIR -t lenses_expr_path=$LENSES_EXPR_PATH"
     if ! nvidia-smi 2>&1 >/dev/null; then
@@ -380,7 +389,7 @@ case "$1" in
     shift
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
     mkdir -p $(dirname $LENSES_EXPR_PATH)
-    print_lens_expr > $LENSES_EXPR_PATH
+    write_lenses_expr $LENSES_EXPR_PATH
     ROOT_SOURCE_DIR=/tmp
     TAG_ARGS="-t root_source_directory=$ROOT_SOURCE_DIR -t lenses_expr_path=$LENSES_EXPR_PATH"
     if ! ssh $REMOTE_DOCKER_HOSTNAME nvidia-smi 2>&1 >/dev/null; then
