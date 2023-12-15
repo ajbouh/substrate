@@ -121,10 +121,6 @@ write_os_containers_overlay() {
   mkdir -p os/$OVERLAY_IMAGE_STORE_BASEDIR os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR os/$(dirname $OVERLAY_LENSES_EXPR_PATH)
 
   print_lens_expr > os/$OVERLAY_LENSES_EXPR_PATH
-
-  mkdir -p $(dirname $LENSES_EXPR_PATH)
-  print_lens_expr > $LENSES_EXPR_PATH
-
   TAG_ARGS="-t lenses_expr_path=os/$OVERLAY_LENSES_EXPR_PATH"
 
   # populate images

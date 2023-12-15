@@ -8,7 +8,7 @@ import (
   quadlet "github.com/ajbouh/substrate/pkg/podman:quadlet"
 )
 
-let #ContainerSpec = {
+{
   name !: string
   disabled: bool | *false
 
@@ -99,5 +99,3 @@ let #ContainerSpec = {
     }
   }
 }
-
-#ContainerSpec

@@ -22,15 +22,14 @@ case "$format" in
       "$@" \
       -e "$expr"
     ;;
-  cue)
-    exec $HERE/tools/cue.sh export \
-      $entry \
-      -t "namespace=$NAMESPACE" \
-      --simplify \
-      --inline-imports \
-      "$@" \
-      -e "$expr"
-    ;;
+  # cue)
+  #   exec $HERE/tools/cue.sh eval \
+  #     $entry \
+  #     -t "namespace=$NAMESPACE" \
+  #     --simplify \
+  #     "$@" \
+  #     -e "$expr"
+  #   ;;
   *)
     exec $HERE/tools/cue.sh export \
       --out $format \
