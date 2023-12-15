@@ -44,8 +44,8 @@ daemons: {
 
 #systemd_containers: {
   for name, def in daemons {
-    if def.#systemd_units != _|_ {
-      for unit_name, unit in def.#systemd_units {
+    if def.containerspec.#systemd_units != _|_ {
+      for unit_name, unit in def.containerspec.#systemd_units {
         if unit_name =~ "\\.(image|container|volume|network)$" {
           "\(unit_name)": unit & {
             #text: (systemd.#render & {#unit: unit}).#out

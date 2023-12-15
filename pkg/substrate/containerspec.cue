@@ -53,6 +53,7 @@ import (
   #systemd_units: "\(name).container" ?: Container: {
     Pull: string | *"never"
     Image: image
+    ContainerName: name
     // HACK this might create a shell escaping issue...
     if command != _|_ {
       Exec: strings.Join(command, " ")

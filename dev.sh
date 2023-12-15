@@ -130,7 +130,7 @@ write_os_containers_overlay() {
   PODMAN_LOCAL_REPO=$($PODMAN info --format="containers-storage:[{{ .Store.GraphDriverName }}@{{ .Store.GraphRoot }}+{{ .Store.RunRoot }}:$PODMAN_LOCAL_REPO_OPTIONS]")
   for image in $IMAGES; do
     PODMAN_BUILD_OPTIONS=$(cue_export text $CUE_MODULE:dev "substrateos.image_podman_build_options[\"$image\"]" $TAG_ARGS)
-    $PODMAN build --tag $image $PODMAN_BUILD_OPTIONS
+    $PODMAN build --layers --tag $image $PODMAN_BUILD_OPTIONS
     $PODMAN pull --root os/$OVERLAY_IMAGE_STORE_BASEDIR ${PODMAN_LOCAL_REPO}$image
   done
 
