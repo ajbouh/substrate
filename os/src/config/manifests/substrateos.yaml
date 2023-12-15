@@ -1,11 +1,6 @@
 # https://coreos.github.io/coreos-assembler/working/
 # https://coreos.github.io/rpm-ostree/treefile/
 
-extra-kargs:
-  # https://askubuntu.com/questions/1401726/pcieport-0000001d-0-aer-corrected-error-received-00000400-0
-  # https://www.reddit.com/r/linuxquestions/comments/g8pbku/any_undesirable_side_effects_of_pcinommconf/
-  - pcie_aspm=off
-
 include:
   - fedora-coreos.yaml
   - nvidia.yaml
