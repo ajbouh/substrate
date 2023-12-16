@@ -111,7 +111,9 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 
 	s := specgen.NewSpecGenerator(as.Image, false)
 	s.Remove = true
-	s.Env["PORT"] = portStr
+	s.Env = map[string]string{
+		"PORT": portStr,
+	}
 	s.Labels = labels
 	s.PortMappings = []nettypes.PortMapping{
 		{
@@ -123,7 +125,9 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	if p.prep != nil {
 		p.prep(s)
 	}
-	s.Networks[networkName] = nettypes.PerNetworkOptions{}
+	s.Networks = map[string]nettypes.PerNetworkOptions{
+		networkName: nettypes.PerNetworkOptions{},
+	}
 
 	includeView := func(viewName string, includeSpaceIDInTarget bool, view *substratefs.SpaceView) {
 		targetPrefix := "/spaces/" + viewName
