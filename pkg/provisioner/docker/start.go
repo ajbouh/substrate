@@ -29,12 +29,15 @@ type P struct {
 	waitForReadyTimeout time.Duration
 	waitForReadyTick    time.Duration
 
-	mounts []mount.Mount
+	prep func(h *container.HostConfig)
 
-	deviceRequests []container.DeviceRequest
+	// mounts []mount.Mount
+
+	// deviceMappings []container.DeviceMapping
+	// deviceRequests []container.DeviceRequest
 }
 
-func New(cli *client.Client, namespace, network string, mounts []mount.Mount, deviceRequests []container.DeviceRequest) *P {
+func New(cli *client.Client, namespace, network string, prep func(h *container.HostConfig)) *P {
 	return &P{
 		cli:                 cli,
 		namespace:           namespace,
@@ -42,8 +45,10 @@ func New(cli *client.Client, namespace, network string, mounts []mount.Mount, de
 		waitForReadyTimeout: 2 * time.Minute,
 		waitForReadyTick:    500 * time.Millisecond,
 		generation:          ulid.Make().String(),
-		mounts:              mounts,
-		deviceRequests:      deviceRequests,
+		prep:                prep,
+		// mounts:              mounts,
+		// deviceMappings:      deviceMappings,
+		// deviceRequests:      deviceRequests,
 	}
 }
 
@@ -117,10 +122,9 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	networkName := p.network
 	h := &container.HostConfig{
 		AutoRemove: true,
-		Mounts:     append([]mount.Mount{}, p.mounts...),
-		Resources: container.Resources{
-			DeviceRequests: p.deviceRequests,
-		},
+	}
+	if p.prep != nil {
+		p.prep(h)
 	}
 	n := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{

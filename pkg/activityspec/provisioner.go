@@ -80,4 +80,5 @@ type ProvisionDriver interface {
 	Spawn(ctx context.Context, req *ServiceSpawnResolution) (*ServiceSpawnResponse, error)
 	Status(ctx context.Context, name string) (ProvisionEvent, error)
 	StatusStream(ctx context.Context, name string) (<-chan ProvisionEvent, error)
+	Cleanup(ctx context.Context) error
 }

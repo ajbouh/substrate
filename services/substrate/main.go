@@ -13,11 +13,16 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/dl"
 	"github.com/containers/podman/v4/pkg/bindings"
 	"github.com/containers/podman/v4/pkg/specgen"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/mount"
+	"github.com/docker/docker/client"
 
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/ajbouh/substrate/pkg/activityspec"
+	dockerprovisioner "github.com/ajbouh/substrate/pkg/provisioner/docker"
 	podmanprovisioner "github.com/ajbouh/substrate/pkg/provisioner/podman"
 	"github.com/ajbouh/substrate/pkg/substrate"
 	"github.com/ajbouh/substrate/pkg/substratehttp"
@@ -42,6 +47,92 @@ func testLoad() {
 	fmt.Printf("testLoad: %s\n", err)
 }
 
+func newProvisioner(cudaAvailable bool) activityspec.ProvisionDriver {
+	switch os.Getenv("SUBSTRATE_PROVISIONER") {
+	case "docker":
+		return newDockerProvisioner(cudaAvailable)
+	case "podman", "":
+		return newPodmanProvisioner(cudaAvailable)
+	}
+
+	return nil
+}
+
+func newDockerProvisioner(cudaAvailable bool) *dockerprovisioner.P {
+	cli, err := client.NewEnvClient()
+	if err != nil {
+		log.Fatalf("error starting client: %s", err)
+	}
+
+	mounts := []mount.Mount{}
+	for _, m := range strings.Split(os.Getenv("SUBSTRATE_SERVICE_DOCKER_MOUNTS"), ",") {
+		source, target, ok := strings.Cut(m, ":")
+		if ok {
+			mounts = append(mounts, mount.Mount{
+				// Type:   mount.TypeBind,
+				Type:   mount.TypeVolume,
+				Source: source,
+				Target: target,
+			})
+		}
+	}
+
+	return dockerprovisioner.New(
+		cli,
+		mustGetenv("SUBSTRATE_NAMESPACE"),
+		mustGetenv("SUBSTRATE_DOCKER_NETWORK"),
+		func(h *container.HostConfig) {
+			h.Mounts = append(h.Mounts, mounts...)
+
+			if os.Getenv("SUBSTRATE_NO_CUDA") == "" && cudaAvailable {
+				h.DeviceRequests = append(h.DeviceRequests, container.DeviceRequest{
+					Driver:       "nvidia",
+					Count:        -1,
+					Capabilities: [][]string{{"gpu"}},
+				},
+				)
+			}
+		},
+	)
+}
+
+func newPodmanProvisioner(cudaAvailable bool) *podmanprovisioner.P {
+	volumes := []*specgen.NamedVolume{}
+	for _, m := range strings.Split(os.Getenv("SUBSTRATE_SERVICE_DOCKER_VOLUMES"), ",") {
+		source, target, ok := strings.Cut(m, ":")
+		if ok {
+			volumes = append(volumes, &specgen.NamedVolume{
+				Name: source,
+				Dest: target,
+			})
+		}
+	}
+
+	prep := func(s *specgen.SpecGenerator) {
+		s.Volumes = append([]*specgen.NamedVolume{}, volumes...)
+		s.SelinuxOpts = []string{
+			"label=disable",
+		}
+		// if os.Getenv("SUBSTRATE_NO_CUDA") == "" && cudaAvailable {
+		if true {
+			s.Devices = []specs.LinuxDevice{
+				{
+					Path: "nvidia.com/gpu=all",
+				},
+			}
+		}
+	}
+
+	return podmanprovisioner.New(
+		func(ctx context.Context) (context.Context, error) {
+			return bindings.NewConnection(ctx, os.Getenv("DOCKER_HOST"))
+		},
+		mustGetenv("SUBSTRATE_NAMESPACE"),
+		mustGetenv("SUBSTRATE_DOCKER_NETWORK"),
+		prep,
+	)
+}
+
 func main() {
 	debug := os.Getenv("DEBUG")
 	if ok, _ := strconv.ParseBool(debug); ok {
@@ -63,17 +154,6 @@ func main() {
 
 	var substratefsMountpoint string
 
-	volumes := []*specgen.NamedVolume{}
-	for _, m := range strings.Split(os.Getenv("SUBSTRATE_SERVICE_DOCKER_VOLUMES"), ",") {
-		source, target, ok := strings.Cut(m, ":")
-		if ok {
-			volumes = append(volumes, &specgen.NamedVolume{
-				Name: source,
-				Dest: target,
-			})
-		}
-	}
-
 	cpuMemoryTotalMB, err := substrate.MeasureCPUMemoryTotalMB()
 	if err != nil {
 		fmt.Printf("error measuring total cpu memory: %s\n", err)
@@ -86,29 +166,7 @@ func main() {
 	}
 	fmt.Printf("cudaMemoryTotalMB %d\n", cudaMemoryTotalMB)
 
-	prep := func(s *specgen.SpecGenerator) {
-		s.Volumes = append([]*specgen.NamedVolume{}, volumes...)
-		s.SelinuxOpts = []string{
-			"label=disable",
-		}
-		// if os.Getenv("SUBSTRATE_NO_CUDA") == "" && cudaMemoryTotalMB > 0 {
-		if true {
-			s.Devices = []specs.LinuxDevice{
-				{
-					Path: "nvidia.com/gpu=all",
-				},
-			}
-		}
-	}
-
-	dp := podmanprovisioner.New(
-		func(ctx context.Context) (context.Context, error) {
-			return bindings.NewConnection(ctx, os.Getenv("DOCKER_HOST"))
-		},
-		mustGetenv("SUBSTRATE_NAMESPACE"),
-		mustGetenv("SUBSTRATE_DOCKER_NETWORK"),
-		prep,
-	)
+	p := newProvisioner(cudaMemoryTotalMB > 0)
 
 	lensesExprPath := mustGetenv("SUBSTRATE_LENSES_EXPR_PATH")
 	lensesExprB, err := os.ReadFile(lensesExprPath)
@@ -118,14 +176,14 @@ func main() {
 
 	log.Printf("cleaning up...")
 	ctx := context.Background()
-	dp.Cleanup(ctx)
+	p.Cleanup(ctx)
 	log.Printf("clean up done")
 
 	sub, err := substrate.New(
 		mustGetenv("SUBSTRATE_DB"),
 		substratefsMountpoint,
 		string(lensesExprB),
-		dp,
+		p,
 		os.Getenv("ORIGIN"),
 		cpuMemoryTotalMB,
 		cudaMemoryTotalMB,

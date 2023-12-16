@@ -131,6 +131,7 @@ import (
         ]
 
         environment: {
+          "SUBSTRATE_PROVISIONER": "docker"
           // PORT: "\(#namespace_host_port_offset + #service_host_port_offset["substrate"] + 1)"
           PORT: "8080"
           ORIGIN: "http://localhost:\(PORT)"
