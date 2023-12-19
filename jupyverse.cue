@@ -1,11 +1,10 @@
 package sevices
 
-containerspecs: "jupyverse": {
-  disabled: true
-}
+enable: "jupyverse": false
+
+imagespecs: "jupyverse": {}
 
 "lenses": "jupyverse": {
-  disabled: true
   spawn: schema: data: type: "space"
 
   space: {

@@ -1,11 +1,10 @@
-package services
+package dev
 
-containerspecs: "files": {
-  disabled: true
-}
+enable: "files": false
+
+imagespecs: "files": {}
 
 "lenses": "files": {
-  disabled: true
   spawn: {}
   spawn: schema: data: type: "space"
 

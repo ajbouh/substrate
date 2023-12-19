@@ -1,15 +1,14 @@
-package services
+package dev
 
 import (
   asr "github.com/ajbouh/substrate/pkg/asr"
 )
 
-containerspecs: "asr-seamlessm4t": {
-  disabled: true
-}
+enable: "asr-seamlessm4t": false
+
+imagespecs: "asr-seamlessm4t": {}
 
 "lenses": "asr-seamlessm4t": {
-  disabled: true
   spawn: {}
   spawn: environment: {
     MODEL_SIZE: "seamlessM4T_large"

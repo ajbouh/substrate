@@ -1,7 +1,8 @@
-package services
+package dev
 
+enable: "bridge": true
 
-containerspecs: "bridge": {}
+imagespecs: "bridge": {}
 
 "lenses": "bridge": {
   spawn: {}

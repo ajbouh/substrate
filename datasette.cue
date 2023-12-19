@@ -1,12 +1,12 @@
-package services
+package dev
 
-containerspecs: "datasette": {
-  disabled: true
+enable: "datasette": false
+
+imagespecs: "datasette": {
   build: args: VERSION: "0.64.1"
 }
 
 "lenses": "datasette": {
-  disabled: true
   spawn: {}
   spawn: schema: data: type: "space"
 }

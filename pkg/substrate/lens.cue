@@ -63,11 +63,11 @@ package lens
 }
 
 #ActivityDefResponseSchema: {
-  [name=string]: {
+  [key=string]: {
     type: "space" | "collection" | "file"
     from: "header" | *"body"
     if from == "body" {
-      path: [...string] | *[name]
+      path: [...string] | *[key]
     }
     if from == "header" {
       path: [string]
@@ -97,20 +97,19 @@ package lens
   }
 }
 
-let #ServiceDef = close({
+{
   name: string
-  disabled: bool | *false
-  spawn ?: {
+  spawn: {
     parameters: [string]: #ServiceDefSpawnParameter
     parameters: {
       cuda_memory_total: {
         type: "resource"
-        resource: {unit: "MB", quantity: number}
+        resource: {unit: "MB", quantity: number | *0}
       }
 
       cpu_memory_total: {
         type: "resource"
-        resource: {unit: "MB", quantity: number}
+        resource: {unit: "MB", quantity: number | *0}
       }
     }
     image: string
@@ -123,11 +122,9 @@ let #ServiceDef = close({
     //     }
     //   }
     // }
-  }
+  } | *null
 
   calls: [...#HTTPCall]
 
   activities: [string]: #ActivityDef
-})
-
-#ServiceDef
+}

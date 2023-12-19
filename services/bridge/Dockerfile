@@ -36,13 +36,13 @@ COPY services/bridge/pkg pkg
 COPY services/bridge/cmd cmd
 RUN go build \
   -ldflags "-linkmode external -extldflags '-static -lopus -logg -lm'" \
-  -o /main ./cmd
+  -o /bridge ./cmd
 
 
 FROM gcr.io/distroless/static-debian12 as dist
 WORKDIR /app
-COPY --from=builder /main ./main
+COPY --from=builder /bridge ./bridge
 COPY ./services/bridge/cmd/config.toml ./config.toml
 COPY --from=uibuild /app/build ./ui/.
 EXPOSE 8088
-CMD ["/app/main"]
+CMD ["/app/bridge"]

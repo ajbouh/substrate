@@ -5,7 +5,8 @@ set +x
 
 HERE=$(cd $(dirname $0)/..; pwd)
 
-CUE_PREFIX=cue_v0.7.0-
+CUE_VERSION="0.6.0"
+CUE_PREFIX=cue_v$CUE_VERSION-
 NATIVE_SUFFIX=$(uname -s | tr "[:upper:]" "[:lower:]")-$(uname -m)
 NATIVE=$HERE/tools/cue/${CUE_PREFIX}${NATIVE_SUFFIX}
 ARTIFACT=$HERE/tools/cue/${CUE_PREFIX}${NATIVE_SUFFIX}.tar.gz
@@ -23,5 +24,5 @@ fi
 exec docker run -i --rm \
     -v "$HERE:/cue" \
     -w /cue \
-    cuelang/cue:0.7.0 \
+    cuelang/cue:$CUE_VERSION \
     "$@"

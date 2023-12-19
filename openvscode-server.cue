@@ -1,19 +1,21 @@
-package services
+package dev
 
 #var: {
   host_docker_socket: string
   root_source_directory: string
 }
 
-containerspecs: "openvscode-server": {
-  disabled: true
+enable: "openvscode": false
 
+imagespecs: "openvscode": {
   build: {
     args: {
       RELEASE_TAG: "openvscode-server-v1.84.2"
     }
   }
+}
 
+"daemons": "openvscode": {
   environment: {
     #workspace: string | *"/home/workspace"
     #docker_socket: "/var/run/docker.sock"
@@ -29,7 +31,7 @@ containerspecs: "openvscode-server": {
   ]
 
   #systemd_units: {
-    "openvscode-server.container": {
+    "openvscode.container": {
       Unit: {
         Requires: ["podman.socket"]
         After: ["podman.socket"]
@@ -48,5 +50,3 @@ containerspecs: "openvscode-server": {
     }
   }
 }
-
-"daemons": "openvscode-server": {}

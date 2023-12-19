@@ -4,99 +4,96 @@ import (
   "strings"
 
   docker_compose_service "github.com/ajbouh/substrate/pkg/docker/compose:service"
+  imagespec "github.com/ajbouh/substrate/pkg/substrate:imagespec"
   systemd "github.com/ajbouh/substrate/pkg/systemd"
   quadlet "github.com/ajbouh/substrate/pkg/podman:quadlet"
 )
 
-{
-  name !: string
-  disabled: bool | *false
-
+#ContainerSpec: {
   command ?: [...string]
 
   image: string
-  build: {
-    dockerfile !: string
-    args: {[string]: string} | *{}
-    context ?: string
-    target ?: string
-  }
 
   environment: [string]: string
 
-  mounts: [
+  mounts ?: [
     ...{
       source: string
       destination: string
       mode: string | *"rw"
     }
-  ] | *[]
+  ]
+}
 
-  if build != _|_ {
-    #podman_build_options: strings.Join([
-      "--file", build.dockerfile,
-      if build.target != _|_ {
-        "--target=\(build.target)",
-      }
-      for k, v in build.args {
-        "--build-arg=\(k)=\(v)",
-      }
-      if build.context != _|_ {
-        build.context,
-      }
-      if build.context == _|_ {
-        ".",
-      }
-    ], " ")
-  }
+#SystemdUnits: {
+  #containerspec: #ContainerSpec
+  #name: string
 
-  #systemd_units: "\(name).container" ?: Container: {
-    Pull: string | *"never"
-    Image: image
-    ContainerName: name
-    // HACK this might create a shell escaping issue...
-    if command != _|_ {
-      Exec: strings.Join(command, " ")
+  #out: {
+    if #containerspec.#systemd_units != _|_ {
+      #containerspec.#systemd_units
     }
-    Volume: [
-      for mount in mounts {
-        "\(mount.source):\(mount.destination):\(mount.mode)",
-      }
-    ]
-  }
 
-  #systemd_units: {
     [string]: systemd.#Unit
     [=~"\\.network$"]: quadlet.#Network
     [=~"\\.image$"]: quadlet.#Image
     [=~"\\.container$"]: quadlet.#Container
-  }
 
-  #docker_compose_service: docker_compose_service & {
-    volumes: [
-      for mount in mounts {
-        "\(mount.source):\(mount.destination):\(mount.mode)",
+    "\(#name).container" ?: Container: {
+      Pull: string | *"never"
+      Image: #containerspec.image
+      ContainerName: #name
+      // HACK this might create a shell escaping issue...
+      if #containerspec.command != _|_ {
+        Exec: strings.Join(#containerspec.command, " ")
       }
-    ]
-
-    "image": image
-    if command != _|_ { "command": command }
-    if build != _|_ { "build": build }
-
-    "environment": { environment }
+      Volume: [
+        for mount in #containerspec.mounts {
+          "\(mount.source):\(mount.destination):\(mount.mode)",
+        }
+      ]
+    }
   }
+}
 
-  #docker_compose_secrets: {
+#DockerCompose: {
+  #containerspec: #ContainerSpec
+  #imagespec: imagespec
+
+  #out: {
+    docker_compose_service
+
+    if #containerspec.command != _|_ { "command": #containerspec.command }
+    if #containerspec.image != _|_ { "image": #containerspec.image }
+    if #containerspec.environment != _|_ { "environment": #containerspec.environment }
+
+    if #containerspec.mounts != _|_ {
+      volumes: [
+        for mount in #containerspec.mounts {
+          "\(mount.source):\(mount.destination):\(mount.mode)"
+        }
+      ]
+    }
+
+    if #containerspec.#docker_compose_service != _|_ {
+      #containerspec.#docker_compose_service
+    }
+
+    if #imagespec.build != _|_ { "build": #imagespec.build }
+    if #imagespec.image != _|_ { "image": #imagespec.image }
+  }
+}
+
+#DockerComposeVolumes: {
+  #containerspec: #ContainerSpec
+
+  #out: {
     [string]: _
   }
 
-  #docker_compose_volumes: {
-    [string]: _
-
-    for mount in mounts {
-      if !strings.HasPrefix(mount.source, "/") && !strings.HasPrefix(mount.source, ".") {
-        "\(mount.source)": {}
-      }
+  for mount in #containerspec.mounts {
+    if !strings.HasPrefix(mount.source, "/") && !strings.HasPrefix(mount.source, ".") {
+      #out: "\(mount.source)": {}
     }
   }
 }

@@ -1,11 +1,10 @@
-package services
+package dev
 
-containerspecs: "gotty": {
-  disabled: true
-}
+enable: "gotty": false
+
+imagespecs: "gotty": {}
 
 "lenses": "gotty": {
-  disabled: true
   spawn: {}
   spawn: schema: {
     data: {

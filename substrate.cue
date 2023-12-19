@@ -1,4 +1,4 @@
-package services
+package dev
 
 import (
   "strings"
@@ -26,19 +26,24 @@ import (
   secrets: substrate: session_secret: string
 }
 
-containerspecs: "substrate": {
+enable: "substrate": true
+
+let substrate_lenses_expr_path = "/app/lenses.cue"
+imagespecs: "substrate": {
   build: {
     args: {
       LENSES_EXPR_SOURCE: #var.lenses_expr_path
-      LENSES_EXPR_TARGET: environment.SUBSTRATE_LENSES_EXPR_PATH
+      LENSES_EXPR_TARGET: substrate_lenses_expr_path
     }
   }
+}
 
+daemons: "substrate": {
   environment: {
     "DEBUG": "1"
     "PORT": string | *"\(#var.substrate.internal_port)"
     "SUBSTRATE_DB": "/var/lib/substrate/substrate.sqlite"
-    "SUBSTRATE_LENSES_EXPR_PATH": "/app/lenses.cue"
+    "SUBSTRATE_LENSES_EXPR_PATH": substrate_lenses_expr_path
     "ORIGIN": #var.substrate.origin
     "SUBSTRATE_NAMESPACE": #var.namespace
     "SUBSTRATE_DOCKER_NETWORK": string | *#var.substrate.internal_network_name
@@ -105,8 +110,6 @@ containerspecs: "substrate": {
     }
   }
 }
-
-daemons: "substrate": {}
 
 "lenses": "substrate": {
   activities: {

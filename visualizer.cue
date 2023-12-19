@@ -1,11 +1,10 @@
-package services
+package dev
 
-containerspecs: "visualizer": {
-  disabled: true
-}
+enable: "visualizer": false
+
+imagespecs: "visualizer": {}
 
 "lenses": "visualizer": {
-  disabled: true
   spawn: {}
   spawn: schema: data: type: "space"
 

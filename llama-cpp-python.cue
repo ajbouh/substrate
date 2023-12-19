@@ -1,16 +1,15 @@
-package services
+package dev
 
 import (
   "github.com/ajbouh/substrate/pkg/asr"
   "github.com/ajbouh/substrate/pkg/chat:chat_completion"
 )
 
-containerspecs: "llama-cpp-python": {
-  disabled: true
-}
+enable: "llama-cpp-python": false
+
+imagespecs: "llama-cpp-python": {}
 
 "lenses": "llama-cpp-python": {
-  disabled: true
   spawn: {}
   spawn: environment: {
     USE_MLOCK: "0"
