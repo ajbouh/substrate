@@ -47,16 +47,18 @@ import (
       if #containerspec.command != _|_ {
         Exec: strings.Join(#containerspec.command, " ")
       }
-      Volume: [
-        for mount in #containerspec.mounts {
-          "\(mount.source):\(mount.destination):\(mount.mode)",
-        }
-      ]
+      if #containerspec.mounts != _|_ {
+        Volume: [
+          for mount in #containerspec.mounts {
+            "\(mount.source):\(mount.destination):\(mount.mode)",
+          }
+        ]
+      }
     }
   }
 }
 
-#DockerCompose: {
+#DockerComposeService: {
   #containerspec: #ContainerSpec
   #imagespec: imagespec
 
@@ -91,9 +93,11 @@ import (
     [string]: _
   }
 
-  for mount in #containerspec.mounts {
-    if !strings.HasPrefix(mount.source, "/") && !strings.HasPrefix(mount.source, ".") {
-      #out: "\(mount.source)": {}
+  if #containerspec.mounts != _|_ {
+    for mount in #containerspec.mounts {
+      if !strings.HasPrefix(mount.source, "/") && !strings.HasPrefix(mount.source, ".") {
+        #out: "\(mount.source)": {}
+      }
     }
   }
 }

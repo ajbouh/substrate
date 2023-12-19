@@ -112,6 +112,7 @@ daemons: "substrate": {
 }
 
 "lenses": "substrate": {
+  spawn: null
   activities: {
     // attach: {
     //   request: {

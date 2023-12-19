@@ -99,7 +99,7 @@ package lens
 
 {
   name: string
-  spawn: {
+  spawn: null | {
     parameters: [string]: #ServiceDefSpawnParameter
     parameters: {
       cuda_memory_total: {
@@ -114,6 +114,10 @@ package lens
     }
     image: string
     environment: [string]: string
+    resourcedirs: [string]: {
+      id: string
+      sha256: string
+    }
 
     // for name, parameter in parameters {
     //   if parameter.type == "space" {
@@ -122,7 +126,7 @@ package lens
     //     }
     //   }
     // }
-  } | *null
+  }
 
   calls: [...#HTTPCall]
 

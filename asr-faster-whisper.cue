@@ -21,24 +21,17 @@ imagespecs: "asr-faster-whisper": {}
 // "Systran/faster-whisper-large-v2",
 // "Systran/faster-whisper-large-v3",
 
-// resourcesets: "asr-faster-whisper": [
-//   {
-//     imagespecs["huggingface-cli"]
-//     command: ["download", "--repo-type", "model", "--cache-dir", "/rs/hf/cache", "Systran/faster-whisper-tiny"]
-//     mounts: [{destination: "/rs"}]
-//   },
-//   {
-//     imagespecs["huggingface-cli"]
-//     command: ["download", "--repo-type", "model", "--cache-dir", "/rs/hf/cache", "Systran/faster-whisper-large-v3"]
-//     mounts: [{destination: "/rs"}]
-//   },
-// ]
+resourcedirs: "asr-faster-whisper": {
+  "huggingface:cache:model:Systran/faster-whisper-tiny:d90ca5fe260221311c53c58e660288d3deb8d356": {}
+  "huggingface:cache:model:Systran/faster-whisper-large-v2:f0fe81560cb8b68660e564f55dd99207059c092e": {}
+  // "huggingface:cache:model:Systran/faster-whisper-large-v3:edaa852ec7e145841d8ffdb056a99866b5f0a478": {}
+}
 
 lenses: "asr-faster-whisper": {
   spawn: {}
   spawn: {
     environment: {
-      HF_HOME: "/rs/hf/cache"
+      HF_HOME: "/res/huggingface/cache"
     }
 
     environment: {
@@ -46,10 +39,13 @@ lenses: "asr-faster-whisper": {
     }
 
     parameters: _
+
+    // HACK need this let in order for cue to properly resolve "parameters" field
     let p = parameters
     if p.cuda_memory_total.resource.quantity > 0 {
       environment: {
-        MODEL_REPO: "Systran/faster-whisper-large-v3"
+        MODEL_REPO: "Systran/faster-whisper-large-v2"
+        // MODEL_REPO: "Systran/faster-whisper-large-v3"
         MODEL_DEVICE: "cuda"
         MODEL_COMPUTE_TYPE: "float16"
         CUDA_DEVICE_ORDER: "PCI_BUS_ID"

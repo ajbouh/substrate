@@ -2,6 +2,8 @@ package dev
 
 import (
   "strings"
+  "encoding/hex"
+  cryptosha256 "crypto/sha256"
 
   systemd "github.com/ajbouh/substrate/pkg/systemd"
   fcos_ignition "github.com/ajbouh/substrate/os:ignition"
@@ -46,19 +48,9 @@ imagespecs: [key=string]: imagespec & {
   build: dockerfile: "services/\(key)/Dockerfile"
 }
 
-resourcesets: [string]: [...containerspec.#ContainerSpec]
+resourcesets: [string]: [string]: containerspec.#ContainerSpec
 
-lenses: [key=string]: lens & {
-  // no mounts allowed for lenses
-  // containerspec: mounts: []
-
-  "name": key
-  // spawn ?: "image": imagespecs[key].image
-  // if imagespecs[key] != _|_ {
-  //   spawn ?: "image": imagespecs[key].image
-  // }
-  // spawn ?: "environment": containerspecs[key].environment
-}
+lenses: [key=string]: lens & {"name": key}
 
 daemons: [key=string]: containerspec.#ContainerSpec
 
@@ -103,11 +95,49 @@ daemons: [key=string]: containerspec.#ContainerSpec
   }
 }
 
+#out: "resourcedirs": {
+  for key, def in resourcedirs {
+    if (enable[key]) {
+      for rdkey, rddef in def {
+        (rdkey): rddef
+      }
+    }
+  }
+}
+
+#out: "resourcedir_fetches": {
+  for key, def in #out.resourcedirs {
+    (key): {
+      sha256: hex.Encode(cryptosha256.Sum256(key))
+      #containerspec: def
+    }
+  }
+}
+
+#out: "resourcedir_keys": strings.Join([
+  for key, def in #out.resourcedirs {
+    key,
+  }
+], "\n")
+
 #out: #lenses: {
   for key, def in lenses {
     if (enable[key]) {
-      (key): def
-      (key): "spawn": "image": #out.imagespecs[key].image
+      (key): def & {
+        if def.spawn != null {
+          spawn: {
+            "image": #out.imagespecs[key].image
+            "resourcedirs": {
+              for rdkey, rddef in #out.resourcedirs {
+                (rdkey): {
+                  id: rdkey
+                  sha256: #out.resourcedir_fetches[rdkey].sha256
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -133,9 +163,7 @@ for basename, unit in #out.systemd_container_contents {
   }
 ], "\n")
 
-  // #resourcesets: 
-
- #out: "image_references": strings.Join([
+#out: "image_references": strings.Join([
     for key, def in #out.imagespecs {
       def.image
     }
@@ -153,38 +181,51 @@ for key, def in #out.imagespecs {
       if #out.daemons[key] != _|_ {
         "daemons",
       }
-      if #out.#lenses[key].spawn != null {
-        "lenses",
-      }
+      "default",
     ]
   }
 
+  for key, def in #out.resourcedir_fetches {
+    services: "resourcedir-\(def.sha256)": {
+      profiles: [
+        "resourcedirs",
+        "default",
+      ]
+      volumes: [
+        "./resourcedirs/\(def.sha256):/res",
+      ]
+
+      (containerspec.#DockerComposeService & {
+        #containerspec: def.#containerspec
+        #imagespec: def.#containerspec
+      }).#out
+    }
+
+    volumes: (containerspec.#DockerComposeVolumes & {
+      #containerspec: def.#containerspec
+    }).#out
+  }
+
+  for key, def in #out.imagespecs {
+    services: (key): (containerspec.#DockerComposeService & {
+      #imagespec: def
+    }).#out
+  }
+
   for key, def in #out.daemons {
-    services: (key): (containerspec.#DockerCompose & {
+    services: (key): (containerspec.#DockerComposeService & {
       #containerspec: def
-      #imagespec: #out.imagespecs[key]
     }).#out
     volumes: (containerspec.#DockerComposeVolumes & {#containerspec: def}).#out
   }
 
   for key, def in #out.#lenses {
     if def.spawn != null {
-      services: (key): (containerspec.#DockerCompose & {
+      services: (key): (containerspec.#DockerComposeService & {
         #containerspec: {"environment": def.spawn.environment}
-        #imagespec: #out.imagespecs[key]
       }).#out
     }
   }
-
-  // HACK disaable until we can figure out what this strange character device in the base image is
-  // services: "tool-cosa": {
-  //   profiles: ["tools"]
-  //   image: "\(#var.image_prefix)tool-cosa"
-  //   build: {
-  //     dockerfile: "Dockerfile.cosa" 
-  //     context: "tools"
-  //   }
-  // }
 
   services: {
     "openvscode" ?: {
