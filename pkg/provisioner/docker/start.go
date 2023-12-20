@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"os"
+	"path"
 	"time"
 
 	"github.com/ajbouh/substrate/pkg/activityspec"
@@ -26,29 +27,28 @@ type P struct {
 	generation string
 	network    string
 
+	hostResourceDirsRoot string
+	containerResourceDir string
+
 	waitForReadyTimeout time.Duration
 	waitForReadyTick    time.Duration
 
 	prep func(h *container.HostConfig)
-
-	// mounts []mount.Mount
-
-	// deviceMappings []container.DeviceMapping
-	// deviceRequests []container.DeviceRequest
 }
 
-func New(cli *client.Client, namespace, network string, prep func(h *container.HostConfig)) *P {
+var _ activityspec.ProvisionDriver = (*P)(nil)
+
+func New(cli *client.Client, namespace, network, hostResourceDirsRoot string, prep func(h *container.HostConfig)) *P {
 	return &P{
-		cli:                 cli,
-		namespace:           namespace,
-		network:             network,
-		waitForReadyTimeout: 2 * time.Minute,
-		waitForReadyTick:    500 * time.Millisecond,
-		generation:          ulid.Make().String(),
-		prep:                prep,
-		// mounts:              mounts,
-		// deviceMappings:      deviceMappings,
-		// deviceRequests:      deviceRequests,
+		cli:                  cli,
+		namespace:            namespace,
+		network:              network,
+		hostResourceDirsRoot: hostResourceDirsRoot,
+		containerResourceDir: "/res",
+		waitForReadyTimeout:  2 * time.Minute,
+		waitForReadyTick:     500 * time.Millisecond,
+		generation:           ulid.Make().String(),
+		prep:                 prep,
 	}
 }
 
@@ -75,6 +75,21 @@ func (p *P) dumpLogs(ctx context.Context, containerID string) error {
 
 	_, err = stdcopy.StdCopy(os.Stderr, os.Stderr, rd)
 	return err
+}
+
+func (p *P) prepareResourceDirsMounts(as *activityspec.ServiceSpawnResolution) ([]mount.Mount, error) {
+	mounts := make([]mount.Mount, 0, len(as.ResourceDirs))
+	for alias, rd := range as.ResourceDirs {
+		rdPath := path.Join(p.hostResourceDirsRoot, rd.SHA256)
+		mounts = append(mounts, mount.Mount{
+			Type:     mount.TypeBind,
+			Source:   rdPath,
+			Target:   path.Join(p.containerResourceDir, alias),
+			ReadOnly: true,
+		})
+	}
+
+	return mounts, nil
 }
 
 func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) (*activityspec.ServiceSpawnResponse, error) {
@@ -159,6 +174,13 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 			},
 		)
 	}
+
+	resourcedirMounts, err := p.prepareResourceDirsMounts(as)
+	if err != nil {
+		return nil, err
+	}
+
+	h.Mounts = append(h.Mounts, resourcedirMounts...)
 
 	// TODO need to check schema before we know how to interpret a given parameter...
 	// Maybe write a method for each interpretation? Can return an error if it's impossible...

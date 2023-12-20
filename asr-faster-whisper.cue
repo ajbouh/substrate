@@ -21,21 +21,23 @@ imagespecs: "asr-faster-whisper": {}
 // "Systran/faster-whisper-large-v2",
 // "Systran/faster-whisper-large-v3",
 
-resourcedirs: "asr-faster-whisper": {
-  "huggingface:cache:model:Systran/faster-whisper-tiny:d90ca5fe260221311c53c58e660288d3deb8d356": {}
-  "huggingface:cache:model:Systran/faster-whisper-large-v2:f0fe81560cb8b68660e564f55dd99207059c092e": {}
-  // "huggingface:cache:model:Systran/faster-whisper-large-v3:edaa852ec7e145841d8ffdb056a99866b5f0a478": {}
-}
-
 lenses: "asr-faster-whisper": {
   spawn: {}
   spawn: {
     environment: {
-      HF_HOME: "/res/huggingface/cache"
+      MODEL_REPO: string
     }
 
-    environment: {
-      MODEL_REPO: string
+    resourcedirs: {
+      tiny: {
+        id: "huggingface:model:Systran/faster-whisper-tiny:d90ca5fe260221311c53c58e660288d3deb8d356"
+      }
+      "large-v2": {
+        id: "huggingface:model:Systran/faster-whisper-large-v2:f0fe81560cb8b68660e564f55dd99207059c092e"
+      }
+      // "large-v3": {
+      //   id: "huggingface:model:Systran/faster-whisper-large-v3:edaa852ec7e145841d8ffdb056a99866b5f0a478"
+      // }
     }
 
     parameters: _
@@ -44,8 +46,7 @@ lenses: "asr-faster-whisper": {
     let p = parameters
     if p.cuda_memory_total.resource.quantity > 0 {
       environment: {
-        MODEL_REPO: "Systran/faster-whisper-large-v2"
-        // MODEL_REPO: "Systran/faster-whisper-large-v3"
+        MODEL_REPO: "/res/large-v2/huggingface/local"
         MODEL_DEVICE: "cuda"
         MODEL_COMPUTE_TYPE: "float16"
         CUDA_DEVICE_ORDER: "PCI_BUS_ID"
@@ -54,12 +55,11 @@ lenses: "asr-faster-whisper": {
     }
     if p.cuda_memory_total.resource.quantity == 0 {
       environment: {
-        MODEL_REPO: "Systran/faster-whisper-tiny"
+        MODEL_REPO: "/res/tiny/huggingface/local"
         MODEL_DEVICE: "cpu"
         MODEL_COMPUTE_TYPE: "int8"
       }
     }
-
   }
 
   calls: [

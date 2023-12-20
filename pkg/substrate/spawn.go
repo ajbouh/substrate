@@ -124,10 +124,11 @@ func (s *Substrate) newSpawnRequest(ctx context.Context, req *activityspec.Servi
 	}
 
 	return &activityspec.ServiceSpawnResolution{
-		ServiceName: req.ServiceName,
-		Parameters:  parameters,
-		Environment: serviceDef.Spawn.Environment,
-		Image:       serviceDef.Spawn.Image,
+		ServiceName:  req.ServiceName,
+		Parameters:   parameters,
+		Environment:  serviceDef.Spawn.Environment,
+		Image:        serviceDef.Spawn.Image,
+		ResourceDirs: serviceDef.Spawn.ResourceDirs,
 	}, nil
 }
 

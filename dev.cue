@@ -26,6 +26,7 @@ import (
       "session_secret": "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
     }
   }
+  "host_resourcedirs_root": string | *"/Users/adamb/hacking/substrate/resourcedirs"
   "host_docker_socket": string | *"/var/run/docker.sock" @tag(host_docker_socket)
   // host_docker_socket: "/var/run/podman/podman.sock"
   // host_docker_socket: "/run/user/1001/podman/podman.sock"
@@ -33,11 +34,7 @@ import (
     internal_port: 8080
     "origin": "http://localhost:\(internal_port)"
     "internal_network_name": "substrate"
-
-    "mount_volumes": [
-      {source: "\(#var.namespace)-torch-cache", destination: "/cache/torch"},
-      {source: "\(#var.namespace)-huggingface-cache", destination: "/cache/huggingface"},
-    ]
+    "resourcedirs_root": "/var/lib/substrate/resourcedirs"
   }
 }
 
@@ -48,7 +45,10 @@ imagespecs: [key=string]: imagespec & {
   build: dockerfile: "services/\(key)/Dockerfile"
 }
 
-resourcesets: [string]: [string]: containerspec.#ContainerSpec
+resourcedirs: [id=string]: {
+  #containerspec: containerspec.#ContainerSpec
+  #imagespec: imagespec
+}
 
 lenses: [key=string]: lens & {"name": key}
 
@@ -78,6 +78,13 @@ daemons: [key=string]: containerspec.#ContainerSpec
   image_podman_build_options: [string]: string
   "docker_compose": docker_compose
 
+  "resourcedir_fetches": [alias=string]: {
+    sha256: string
+    #containerspec: containerspec.#ContainerSpec
+    #imagespec: imagespec
+  }
+  "resourcedir_keys": string
+
   namespace_host_port_offset: #namespace_host_port_offsets[#var.namespace]
 
   service_host_port_offset: {[string]: int} & {
@@ -95,27 +102,21 @@ daemons: [key=string]: containerspec.#ContainerSpec
   }
 }
 
-#out: "resourcedirs": {
-  for key, def in resourcedirs {
-    if (enable[key]) {
-      for rdkey, rddef in def {
-        (rdkey): rddef
+for key, def in #out.#lenses {
+  if def.spawn != null {
+    for alias, rddef in def.spawn.resourcedirs {
+      resourcedirs: (rddef.id): _
+      #out: resourcedir_fetches: (rddef.id): {
+        sha256: rddef.sha256
+        #containerspec: resourcedirs[rddef.id].#containerspec
+        #imagespec: resourcedirs[rddef.id].#imagespec
       }
     }
   }
 }
 
-#out: "resourcedir_fetches": {
-  for key, def in #out.resourcedirs {
-    (key): {
-      sha256: hex.Encode(cryptosha256.Sum256(key))
-      #containerspec: def
-    }
-  }
-}
-
 #out: "resourcedir_keys": strings.Join([
-  for key, def in #out.resourcedirs {
+  for key, def in #out.resourcedir_fetches {
     key,
   }
 ], "\n")
@@ -127,13 +128,9 @@ daemons: [key=string]: containerspec.#ContainerSpec
         if def.spawn != null {
           spawn: {
             "image": #out.imagespecs[key].image
-            "resourcedirs": {
-              for rdkey, rddef in #out.resourcedirs {
-                (rdkey): {
-                  id: rdkey
-                  sha256: #out.resourcedir_fetches[rdkey].sha256
-                }
-              }
+            "resourcedirs": [alias=string]: {
+              id: string
+              sha256: hex.Encode(cryptosha256.Sum256(id))
             }
           }
         }
@@ -192,12 +189,12 @@ for key, def in #out.imagespecs {
         "default",
       ]
       volumes: [
-        "./resourcedirs/\(def.sha256):/res",
+        "\(#var.host_resourcedirs_root)/\(def.sha256):/res",
       ]
 
       (containerspec.#DockerComposeService & {
         #containerspec: def.#containerspec
-        #imagespec: def.#containerspec
+        #imagespec: def.#imagespec
       }).#out
     }
 
@@ -258,7 +255,7 @@ for key, def in #out.imagespecs {
   }
 
   networks: (#var.substrate.internal_network_name): {
-    // internal: true
+    internal: true
     attachable: true
     driver: "bridge"
     driver_opts: {

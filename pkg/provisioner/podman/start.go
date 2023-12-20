@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/url"
 	"os"
+	"path"
 	"strconv"
 	"time"
 
@@ -25,26 +26,28 @@ type P struct {
 	generation string
 	network    string
 
+	hostResourceDirsRoot string
+	containerResourceDir string
+
 	waitForReadyTimeout time.Duration
 	waitForReadyTick    time.Duration
 
 	prep func(h *specgen.SpecGenerator)
-
-	// mounts []mount.Mount
-
-	// deviceMappings []container.DeviceMapping
-	// deviceRequests []container.DeviceRequest
 }
 
-func New(connect func(ctx context.Context) (context.Context, error), namespace, network string, prep func(h *specgen.SpecGenerator)) *P {
+var _ activityspec.ProvisionDriver = (*P)(nil)
+
+func New(connect func(ctx context.Context) (context.Context, error), namespace, network, hostResourceDirsRoot string, prep func(h *specgen.SpecGenerator)) *P {
 	return &P{
-		connect:             connect,
-		namespace:           namespace,
-		network:             network,
-		waitForReadyTimeout: 2 * time.Minute,
-		waitForReadyTick:    500 * time.Millisecond,
-		generation:          ulid.Make().String(),
-		prep:                prep,
+		connect:              connect,
+		namespace:            namespace,
+		network:              network,
+		hostResourceDirsRoot: hostResourceDirsRoot,
+		containerResourceDir: "/res",
+		waitForReadyTimeout:  2 * time.Minute,
+		waitForReadyTick:     500 * time.Millisecond,
+		generation:           ulid.Make().String(),
+		prep:                 prep,
 	}
 }
 
@@ -74,6 +77,21 @@ func (p *P) dumpLogs(ctx context.Context, containerID string) error {
 		Follow: boolPtr(true),
 	}, ch, ch)
 	return err
+}
+
+func (p *P) prepareResourceDirsMounts(as *activityspec.ServiceSpawnResolution) ([]specs.Mount, error) {
+	mounts := make([]specs.Mount, 0, len(as.ResourceDirs))
+	for alias, rd := range as.ResourceDirs {
+		rdPath := path.Join(p.hostResourceDirsRoot, rd.SHA256)
+		mounts = append(mounts, specs.Mount{
+			Type:        "bind",
+			Source:      rdPath,
+			Destination: path.Join(p.containerResourceDir, alias),
+			Options:     []string{"ro"},
+		})
+	}
+
+	return mounts, nil
 }
 
 func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) (*activityspec.ServiceSpawnResponse, error) {
@@ -161,6 +179,13 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 			},
 		)
 	}
+
+	resourcedirMounts, err := p.prepareResourceDirsMounts(as)
+	if err != nil {
+		return nil, err
+	}
+
+	s.Mounts = append(s.Mounts, resourcedirMounts...)
 
 	// TODO need to check schema before we know how to interpret a given parameter...
 	// Maybe write a method for each interpretation? Can return an error if it's impossible...

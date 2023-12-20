@@ -19,7 +19,7 @@ model = WhisperModel(
     os.environ.get("MODEL_REPO", "tiny"),
     device=os.environ.get("MODEL_DEVICE", "cpu"),
     compute_type=os.environ.get("MODEL_COMPUTE_TYPE", "int8"),
-    # local_files_only=True,
+    local_files_only=True,
 )
 
 def transcribe(request: Request) -> Response:

@@ -1,8 +1,6 @@
 package dev
 
 import (
-  "strings"
-
   quadlet "github.com/ajbouh/substrate/pkg/podman:quadlet"
 )
 
@@ -12,16 +10,14 @@ import (
   lenses_expr_path: string
   
   host_docker_socket: string
+  host_resourcedirs_root: string
 
   no_cuda: bool | *false
 
   substrate: internal_network_name: string
+  substrate: resourcedirs_root: string
   substrate: internal_port: int
   substrate: origin: string
-  substrate: mount_volumes: [...{
-    source: string
-    destination: string
-  }]
 
   secrets: substrate: session_secret: string
 }
@@ -42,29 +38,22 @@ daemons: "substrate": {
   environment: {
     "DEBUG": "1"
     "PORT": string | *"\(#var.substrate.internal_port)"
-    "SUBSTRATE_DB": "/var/lib/substrate/substrate.sqlite"
+    "SUBSTRATE_DB": "/var/lib/substrate/data/substrate.sqlite"
     "SUBSTRATE_LENSES_EXPR_PATH": substrate_lenses_expr_path
     "ORIGIN": #var.substrate.origin
     "SUBSTRATE_NAMESPACE": #var.namespace
     "SUBSTRATE_DOCKER_NETWORK": string | *#var.substrate.internal_network_name
+    "SUBSTRATE_RESOURCEDIRS_ROOT": string | *#var.host_resourcedirs_root
 
     "EXTERNAL_UI_HANDLER" ?: string
 
     #docker_socket: "/var/run/docker.sock"
 
     "DOCKER_HOST": "unix://\(#docker_socket)"
-
-    if len(#var.substrate.mount_volumes) > 0 {
-      "SUBSTRATE_SERVICE_DOCKER_VOLUMES": strings.Join([
-        for bind in #var.substrate.mount_volumes {
-          "\(bind.source):\(bind.destination)"
-        }
-      ], ",")
-    }
   }
 
   mounts: [
-    {source: "\(#var.namespace)-substrate_data", destination: "/var/lib/substrate"},
+    {source: "\(#var.namespace)-substrate_data", destination: "/var/lib/substrate/data"},
     {source: #var.host_docker_socket, destination: environment.#docker_socket},
   ]
 
@@ -74,6 +63,7 @@ daemons: "substrate": {
       // devices: ["nvidia.com/gpu=all"]
       security_opt: ["label:disable"]
     }
+    cap_add: ["SYS_ADMIN"]
     networks: [#var.substrate.internal_network_name]
   }
 
@@ -82,6 +72,7 @@ daemons: "substrate": {
       Network: {
         Driver: "bridge"
         NetworkName: #var.substrate.internal_network_name
+        Internal: true
         IPAMDriver: "host-local"
       }
     }

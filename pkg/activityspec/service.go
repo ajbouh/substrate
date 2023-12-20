@@ -35,7 +35,8 @@ type ServiceSpawnResolution struct {
 	Parameters         ServiceSpawnParameters `json:"parameters"`
 	GracePeriodSeconds *int                   `json:"grace_period_seconds,omitempty"`
 
-	Environment map[string]string
+	Environment  map[string]string
+	ResourceDirs map[string]ResourceDirDef `json:"resourcedirs,omitempty"`
 }
 
 type ServiceSpawnResponse struct {
@@ -65,8 +66,16 @@ type ServiceSpawnParameterSchema struct {
 }
 
 type ServiceDefSpawn struct {
-	Image       string            `json:"image"`
-	Environment map[string]string `json:"environment,omitempty"`
+	Image        string                    `json:"image"`
+	Environment  map[string]string         `json:"environment,omitempty"`
+	ResourceDirs map[string]ResourceDirDef `json:"resourcedirs,omitempty"`
+}
+
+type ResourceDirDef struct {
+	ID     string `json:"id"`
+	SHA256 string `json:"sha256"`
+
+	// TODO enough information to fetch at runtime should be included as fields here...
 }
 
 type ServiceSpawnParameterRequest string

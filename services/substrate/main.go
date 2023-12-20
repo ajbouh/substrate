@@ -77,39 +77,29 @@ func newDockerProvisioner(cudaAvailable bool) *dockerprovisioner.P {
 		}
 	}
 
-	return dockerprovisioner.New(
-		cli,
-		mustGetenv("SUBSTRATE_NAMESPACE"),
-		mustGetenv("SUBSTRATE_DOCKER_NETWORK"),
-		func(h *container.HostConfig) {
-			h.Mounts = append(h.Mounts, mounts...)
+	prep := func(h *container.HostConfig) {
+		h.Mounts = append(h.Mounts, mounts...)
 
-			if os.Getenv("SUBSTRATE_NO_CUDA") == "" && cudaAvailable {
-				h.DeviceRequests = append(h.DeviceRequests, container.DeviceRequest{
-					Driver:       "nvidia",
-					Count:        -1,
-					Capabilities: [][]string{{"gpu"}},
-				},
-				)
-			}
-		},
-	)
-}
-
-func newPodmanProvisioner(cudaAvailable bool) *podmanprovisioner.P {
-	volumes := []*specgen.NamedVolume{}
-	for _, m := range strings.Split(os.Getenv("SUBSTRATE_SERVICE_DOCKER_VOLUMES"), ",") {
-		source, target, ok := strings.Cut(m, ":")
-		if ok {
-			volumes = append(volumes, &specgen.NamedVolume{
-				Name: source,
-				Dest: target,
+		if os.Getenv("SUBSTRATE_NO_CUDA") == "" && cudaAvailable {
+			h.DeviceRequests = append(h.DeviceRequests, container.DeviceRequest{
+				Driver:       "nvidia",
+				Count:        -1,
+				Capabilities: [][]string{{"gpu"}},
 			})
 		}
 	}
 
+	return dockerprovisioner.New(
+		cli,
+		mustGetenv("SUBSTRATE_NAMESPACE"),
+		mustGetenv("SUBSTRATE_DOCKER_NETWORK"),
+		mustGetenv("SUBSTRATE_RESOURCEDIRS_ROOT"),
+		prep,
+	)
+}
+
+func newPodmanProvisioner(cudaAvailable bool) *podmanprovisioner.P {
 	prep := func(s *specgen.SpecGenerator) {
-		s.Volumes = append([]*specgen.NamedVolume{}, volumes...)
 		s.SelinuxOpts = []string{
 			"label=disable",
 		}
@@ -129,6 +119,7 @@ func newPodmanProvisioner(cudaAvailable bool) *podmanprovisioner.P {
 		},
 		mustGetenv("SUBSTRATE_NAMESPACE"),
 		mustGetenv("SUBSTRATE_DOCKER_NETWORK"),
+		mustGetenv("SUBSTRATE_RESOURCEDIRS_ROOT"),
 		prep,
 	)
 }

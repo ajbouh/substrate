@@ -114,9 +114,11 @@ package lens
     }
     image: string
     environment: [string]: string
-    resourcedirs: [string]: {
+
+    resourcedirs: [alias=string]: {
       id: string
       sha256: string
+      // todo include containerspec so it can be fetched at runtime
     }
 
     // for name, parameter in parameters {

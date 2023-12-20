@@ -463,8 +463,9 @@ case "$1" in
     # ensure_dev_cue_expr
     write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
     DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
-    docker_compose $DOCKER_COMPOSE_FILE --profile daemons --profile default build
+    docker_compose $DOCKER_COMPOSE_FILE --profile resourcedirs build
     docker_compose $DOCKER_COMPOSE_FILE --profile resourcedirs up
+    docker_compose $DOCKER_COMPOSE_FILE --profile daemons build
     docker_compose $DOCKER_COMPOSE_FILE --profile daemons up \
         --always-recreate-deps \
         --remove-orphans \

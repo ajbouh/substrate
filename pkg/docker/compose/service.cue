@@ -21,6 +21,10 @@ let #service = close({
 
   depends_on ?: [...string]
 
+  cap_drop ?: [...string]
+
+  cap_add ?: [...string]
+
   deploy ?: resources ?: reservations ?: devices ?: [...{driver: string, count: string, capabilities: [...string]}]
 
   networks ?: [...string]
