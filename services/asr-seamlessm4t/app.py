@@ -8,7 +8,7 @@ MODEL_DEVICE = os.environ.get("MODEL_DEVICE", "cpu")
 MODEL_COMPUTE_TYPE = os.environ.get("MODEL_COMPUTE_TYPE", "float32")
 
 model = Translator(
-    os.environ.get("MODEL_SIZE", "seamlessM4T_large"),
+    os.environ.get("MODEL", "seamlessM4T_large"),
     vocoder_name_or_card="vocoder_36langs",
     device=torch.device(MODEL_DEVICE),
     dtype={

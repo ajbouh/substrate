@@ -4,18 +4,22 @@ import (
   asr "github.com/ajbouh/substrate/pkg/asr"
 )
 
-enable: "asr-seamlessm4t": false
+enable: "asr-seamlessm4t": true
 
 imagespecs: "asr-seamlessm4t": {}
 
 "lenses": "asr-seamlessm4t": {
   spawn: {}
   spawn: environment: {
-    MODEL_SIZE: "seamlessM4T_large"
+    MODEL: "/res/model/local"
     MODEL_DEVICE: "cuda"
     MODEL_COMPUTE_TYPE: "float32"
-    TORCH_HOME: "/cache/torch"
-    HF_HOME: "/cache/huggingface"
+  }
+
+  spawn: resourcedirs: {
+    model: {
+      id: "huggingface:model:facebook/hf-seamless-m4t-large:b8a4df80dce9b34bd3d9b4a82f4abe579f6160a0"
+    }
   }
 
   calls: [
