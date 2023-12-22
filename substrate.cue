@@ -44,6 +44,7 @@ daemons: "substrate": {
     "ORIGIN": #var.substrate.origin
     "SUBSTRATE_NAMESPACE": #var.namespace
     "SUBSTRATE_INTERNAL_NETWORK": string | *#var.substrate.internal_network_name
+    "SUBSTRATE_EXTERNAL_NETWORK": string | *#var.substrate.external_network_name
     "SUBSTRATE_RESOURCEDIRS_ROOT": string | *#var.host_resourcedirs_root
 
     "EXTERNAL_UI_HANDLER" ?: string
@@ -144,7 +145,10 @@ daemons: "substrate": {
           "\(Environment.PORT):\(Environment.PORT)",
         ]
         AddDevice: ["nvidia.com/gpu=all"]
-        Network: ["substrate.network"]
+        Network: [
+          "substrate-external.network",
+          "substrate-internal.network",
+        ]
         Environment: {
           SESSION_SECRET: "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
           environment

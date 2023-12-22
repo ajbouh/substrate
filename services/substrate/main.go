@@ -93,6 +93,7 @@ func newDockerProvisioner(cudaAvailable bool) *dockerprovisioner.P {
 		cli,
 		mustGetenv("SUBSTRATE_NAMESPACE"),
 		mustGetenv("SUBSTRATE_INTERNAL_NETWORK"),
+		mustGetenv("SUBSTRATE_EXTERNAL_NETWORK"),
 		mustGetenv("SUBSTRATE_RESOURCEDIRS_ROOT"),
 		prep,
 	)

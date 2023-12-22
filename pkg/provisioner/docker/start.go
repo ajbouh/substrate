@@ -25,7 +25,9 @@ type P struct {
 
 	namespace  string
 	generation string
-	network    string
+
+	internalNetworkName string
+	externalNetworkName string
 
 	hostResourceDirsRoot string
 	containerResourceDir string
@@ -38,11 +40,12 @@ type P struct {
 
 var _ activityspec.ProvisionDriver = (*P)(nil)
 
-func New(cli *client.Client, namespace, network, hostResourceDirsRoot string, prep func(h *container.HostConfig)) *P {
+func New(cli *client.Client, namespace, internalNetworkName, externalNetworkName, hostResourceDirsRoot string, prep func(h *container.HostConfig)) *P {
 	return &P{
 		cli:                  cli,
 		namespace:            namespace,
-		network:              network,
+		internalNetworkName:  internalNetworkName,
+		externalNetworkName:  externalNetworkName,
 		hostResourceDirsRoot: hostResourceDirsRoot,
 		containerResourceDir: "/res",
 		waitForReadyTimeout:  2 * time.Minute,
@@ -134,7 +137,6 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	// 	return nil, err
 	// }
 
-	networkName := p.network
 	h := &container.HostConfig{
 		AutoRemove: true,
 	}
@@ -143,7 +145,8 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	}
 	n := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
-			networkName: &network.EndpointSettings{},
+			p.internalNetworkName: &network.EndpointSettings{},
+			p.externalNetworkName: &network.EndpointSettings{},
 		},
 	}
 
