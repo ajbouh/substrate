@@ -77,7 +77,7 @@ daemons: "substrate": {
 
   #docker_compose_networks: {
     (#var.substrate.internal_network_name): {
-      internal: true
+      // internal: true
       attachable: true
       driver: "bridge"
       driver_opts: {
