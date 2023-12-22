@@ -104,20 +104,7 @@ daemons: "substrate": {
     }
     (#var.substrate.external_network_name): {
       attachable: true
-      driver: "bridge"
-      driver_opts: {
-        "com.docker.network.bridge.enable_icc": "true"
-        "com.docker.network.bridge.enable_ip_masquerade": "true"
-        "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0"
-      }
-      ipam: {
-        driver: "default"
-        config: [
-          {
-            subnet: "192.168.101.0/24"
-          },
-        ]
-      }
+      driver: "host"
     }
   }
 
