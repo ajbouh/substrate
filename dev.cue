@@ -267,7 +267,7 @@ for key, def in #out.imagespecs {
       driver: "default"
       config: [
         {
-          subnet: "192.168.2.0/24"
+          subnet: "192.168.100.0/24"
         },
       ]
     }
