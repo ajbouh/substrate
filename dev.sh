@@ -465,7 +465,7 @@ case "$1" in
     DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
     docker_compose $DOCKER_COMPOSE_FILE --profile resourcedirs build
     docker_compose $DOCKER_COMPOSE_FILE --profile resourcedirs up
-    docker_compose $DOCKER_COMPOSE_FILE --profile daemons build
+    docker_compose $DOCKER_COMPOSE_FILE --profile daemons --profile default build
     docker_compose $DOCKER_COMPOSE_FILE --profile daemons up \
         --always-recreate-deps \
         --remove-orphans \
