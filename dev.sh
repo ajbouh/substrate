@@ -68,7 +68,7 @@ debug_cue_dev_expr() {
   detect_dev_cue_tag_args
 
   mkdir -p $(dirname $CUE_DEV_EXPR_PATH)
-  [ ! -e $CUE_DEV_EXPR_PATH ] || mv $CUE_DEV_EXPR_PATH $CUE_DEV_EXPR_PATH.old
+  [ ! -e $CUE_DEV_EXPR_PATH ] || mv -f $CUE_DEV_EXPR_PATH $CUE_DEV_EXPR_PATH.old
   cue def \
     $CUE_MODULE:dev \
     --outfile $CUE_DEV_EXPR_PATH \
@@ -99,7 +99,7 @@ write_rendered_cue_dev_expr_as() {
   debug_cue_dev_expr
 
   mkdir -p $(dirname $dest)
-  [ ! -e $docker_compose_yml ] || mv $docker_compose_yml $docker_compose_yml.old
+  [ ! -e $docker_compose_yml ] || mv -f $docker_compose_yml $docker_compose_yml.old
   cue export --trace --all-errors --verbose \
     --out $format \
     --outfile $docker_compose_yml \
@@ -116,7 +116,7 @@ write_rendered_cue_dev_expr_as_cue() {
   debug_cue_dev_expr
 
   mkdir -p $(dirname $dest)
-  [ ! -e $dest ] || mv $dest $dest.old
+  [ ! -e $dest ] || mv -f $dest $dest.old
 
   # write cue
   cue def --strict --trace --all-errors --verbose --inline-imports --simplify \
