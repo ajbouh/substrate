@@ -33,7 +33,8 @@ import (
   "substrate": {
     internal_port: 8080
     "origin": "http://localhost:\(internal_port)"
-    "internal_network_name": "substrate"
+    "internal_network_name": "substrate-internal"
+    "external_network_name": "substrate-external"
     "resourcedirs_root": "/var/lib/substrate/resourcedirs"
   }
 }
@@ -210,10 +211,9 @@ for key, def in #out.imagespecs {
   }
 
   for key, def in #out.daemons {
-    services: (key): (containerspec.#DockerComposeService & {
-      #containerspec: def
-    }).#out
+    services: (key): (containerspec.#DockerComposeService & {#containerspec: def}).#out
     volumes: (containerspec.#DockerComposeVolumes & {#containerspec: def}).#out
+    networks: (containerspec.#DockerComposeNetworks & {#containerspec: def}).#out
   }
 
   for key, def in #out.#lenses {
@@ -248,28 +248,9 @@ for key, def in #out.imagespecs {
         //   EXTERNAL_UI_HANDLER: "http://ui:\(services.ui.environment.PORT)"
         // }
 
-        "SUBSTRATE_DOCKER_NETWORK": "\(#docker_compose_prefix)\(#var.substrate.internal_network_name)"
+        "SUBSTRATE_INTERNAL_NETWORK": "\(#docker_compose_prefix)\(#var.substrate.internal_network_name)"
         ...
       }
-    }
-  }
-
-  networks: (#var.substrate.internal_network_name): {
-    internal: true
-    attachable: true
-    driver: "bridge"
-    driver_opts: {
-      "com.docker.network.bridge.enable_icc": "true"
-      "com.docker.network.bridge.enable_ip_masquerade": "true"
-      "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0"
-    }
-    ipam: {
-      driver: "default"
-      config: [
-        {
-          subnet: "192.168.100.0/24"
-        },
-      ]
     }
   }
 }

@@ -92,7 +92,7 @@ func newDockerProvisioner(cudaAvailable bool) *dockerprovisioner.P {
 	return dockerprovisioner.New(
 		cli,
 		mustGetenv("SUBSTRATE_NAMESPACE"),
-		mustGetenv("SUBSTRATE_DOCKER_NETWORK"),
+		mustGetenv("SUBSTRATE_INTERNAL_NETWORK"),
 		mustGetenv("SUBSTRATE_RESOURCEDIRS_ROOT"),
 		prep,
 	)
@@ -118,7 +118,7 @@ func newPodmanProvisioner(cudaAvailable bool) *podmanprovisioner.P {
 			return bindings.NewConnection(ctx, os.Getenv("DOCKER_HOST"))
 		},
 		mustGetenv("SUBSTRATE_NAMESPACE"),
-		mustGetenv("SUBSTRATE_DOCKER_NETWORK"),
+		mustGetenv("SUBSTRATE_INTERNAL_NETWORK"),
 		mustGetenv("SUBSTRATE_RESOURCEDIRS_ROOT"),
 		prep,
 	)

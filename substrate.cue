@@ -15,6 +15,7 @@ import (
   no_cuda: bool | *false
 
   substrate: internal_network_name: string
+  substrate: external_network_name: string
   substrate: resourcedirs_root: string
   substrate: internal_port: int
   substrate: origin: string
@@ -42,7 +43,7 @@ daemons: "substrate": {
     "SUBSTRATE_LENSES_EXPR_PATH": substrate_lenses_expr_path
     "ORIGIN": #var.substrate.origin
     "SUBSTRATE_NAMESPACE": #var.namespace
-    "SUBSTRATE_DOCKER_NETWORK": string | *#var.substrate.internal_network_name
+    "SUBSTRATE_INTERNAL_NETWORK": string | *#var.substrate.internal_network_name
     "SUBSTRATE_RESOURCEDIRS_ROOT": string | *#var.host_resourcedirs_root
 
     "EXTERNAL_UI_HANDLER" ?: string
@@ -63,16 +64,67 @@ daemons: "substrate": {
       // devices: ["nvidia.com/gpu=all"]
       security_opt: ["label:disable"]
     }
-    cap_add: ["SYS_ADMIN"]
-    networks: [#var.substrate.internal_network_name]
+    // extra_hosts: [
+    //   "host.docker.internal:host-gateway",
+    // ]
+    // cap_add: ["SYS_ADMIN"]
+    networks: [
+      #var.substrate.internal_network_name,
+      #var.substrate.external_network_name,
+    ]
+  }
+
+  #docker_compose_networks: {
+    (#var.substrate.internal_network_name): {
+      internal: true
+      attachable: true
+      driver: "bridge"
+      driver_opts: {
+        "com.docker.network.bridge.enable_icc": "true"
+        "com.docker.network.bridge.enable_ip_masquerade": "true"
+        "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0"
+      }
+      ipam: {
+        driver: "default"
+        config: [
+          {
+            subnet: "192.168.100.0/24"
+          },
+        ]
+      }
+    }
+    (#var.substrate.external_network_name): {
+      attachable: true
+      driver: "bridge"
+      driver_opts: {
+        "com.docker.network.bridge.enable_icc": "true"
+        "com.docker.network.bridge.enable_ip_masquerade": "true"
+        "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0"
+      }
+      ipam: {
+        driver: "default"
+        config: [
+          {
+            subnet: "192.168.101.0/24"
+          },
+        ]
+      }
+    }
   }
 
   #systemd_units: {
-    "substrate.network": quadlet.#Network & {
+    "substrate-internal.network": quadlet.#Network & {
       Network: {
         Driver: "bridge"
         NetworkName: #var.substrate.internal_network_name
         Internal: true
+        IPAMDriver: "host-local"
+      }
+    }
+    "substrate-external.network": quadlet.#Network & {
+      Network: {
+        Driver: "bridge"
+        NetworkName: #var.substrate.external_network_name
         IPAMDriver: "host-local"
       }
     }

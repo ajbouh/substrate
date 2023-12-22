@@ -101,3 +101,15 @@ import (
     }
   }
 }
+
+#DockerComposeNetworks: {
+  #containerspec: #ContainerSpec
+
+  #out: {
+    [string]: _
+  }
+
+  if #containerspec.#docker_compose_networks != _|_ {
+    #out: #containerspec.#docker_compose_networks
+  }
+}
