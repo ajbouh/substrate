@@ -65,7 +65,7 @@ daemons: "substrate": {
       "SUBSTRATE_PROVISIONER": "docker"
 
       "SUBSTRATE_INTERNAL_NETWORK": "\(#var.substrate.docker_compose_prefix)\(#var.substrate.internal_network_name)"
-      "SUBSTRATE_EXTERNAL_NETWORK": "\(#var.substrate.docker_compose_prefix)\(#var.substrate.internal_network_name)"
+      "SUBSTRATE_EXTERNAL_NETWORK": "\(#var.substrate.docker_compose_prefix)\(#var.substrate.external_network_name)"
     }
 
     if !#var.no_cuda {
