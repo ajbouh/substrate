@@ -14,6 +14,7 @@ import (
 
   no_cuda: bool | *false
 
+  substrate: docker_compose_prefix: string | *""
   substrate: internal_network_name: string
   substrate: external_network_name: string
   substrate: resourcedirs_root: string
@@ -60,6 +61,13 @@ daemons: "substrate": {
   ]
 
   #docker_compose_service: {
+    environment: {
+      "SUBSTRATE_PROVISIONER": "docker"
+
+      "SUBSTRATE_INTERNAL_NETWORK": "\(#var.substrate.docker_compose_prefix)\(#var.substrate.internal_network_name)"
+      "SUBSTRATE_EXTERNAL_NETWORK": "\(#var.substrate.docker_compose_prefix)\(#var.substrate.internal_network_name)"
+    }
+
     if !#var.no_cuda {
       deploy: resources: reservations: devices: [{driver: "nvidia", count: "all", capabilities: ["gpu"]}]
       // devices: ["nvidia.com/gpu=all"]

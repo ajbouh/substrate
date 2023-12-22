@@ -32,6 +32,7 @@ import (
   // host_docker_socket: "/run/user/1001/podman/podman.sock"
   "substrate": {
     internal_port: 8080
+    "docker_compose_prefix": "\(#var.namespace)-substrate_"
     "origin": "http://localhost:\(internal_port)"
     "internal_network_name": "substrate-internal"
     "external_network_name": "substrate-external"
@@ -172,8 +173,6 @@ for key, def in #out.imagespecs {
 }
 
 #out: "docker_compose": {
-  #docker_compose_prefix: "\(#var.namespace)-substrate_"
-
   for key, def in #out.imagespecs {
     services: (key): profiles: [
       if #out.daemons[key] != _|_ {
@@ -240,15 +239,12 @@ for key, def in #out.imagespecs {
       ]
 
       environment: {
-        "SUBSTRATE_PROVISIONER": "docker"
         // PORT: "\(#namespace_host_port_offset + #service_host_port_offset["substrate"] + 1)"
         "PORT": "8080"
         "ORIGIN": "http://localhost:\(environment.PORT)"
         // if #lenses["ui"] != _|_ {
         //   EXTERNAL_UI_HANDLER: "http://ui:\(services.ui.environment.PORT)"
         // }
-
-        "SUBSTRATE_INTERNAL_NETWORK": "\(#docker_compose_prefix)\(#var.substrate.internal_network_name)"
         ...
       }
     }
