@@ -1,23 +1,11 @@
-import torch
-from seamless_communication.models.inference import Translator
+import torchaudio
+from transformers import AutoProcessor, SeamlessM4Tv2Model
 import os
 
 from substrate.asr import Request, Response, Segment, Word, new_v1_api_app
 
-MODEL_DEVICE = os.environ.get("MODEL_DEVICE", "cpu")
-MODEL_COMPUTE_TYPE = os.environ.get("MODEL_COMPUTE_TYPE", "float32")
-
-model = Translator(
-    os.environ.get("MODEL", "seamlessM4T_large"),
-    vocoder_name_or_card="vocoder_36langs",
-    device=torch.device(MODEL_DEVICE),
-    dtype={
-        'float32': torch.float32,
-        'float64': torch.float64,
-        'bfloat16': torch.bfloat16,
-        'int8': torch.int8,
-    }[MODEL_COMPUTE_TYPE],
-)
+processor = AutoProcessor.from_pretrained(os.environ.get("MODEL"))
+model = SeamlessM4Tv2Model.from_pretrained(os.environ.get("MODEL"))
 
 supported = {
     "afr": {"label": "Afrikaans",              "script": "Latn"}, #       | Sp, Tx | Tx     |
@@ -155,12 +143,20 @@ def transcribe(request: Request) -> Response:
         # sample_rate = request.audio.sample_rate
         # waveform = torch.cuda.FloatTensor([request.audio.waveform]).reshape(n_samples, 1)
         duration = n_samples / sample_rate
-        translated_text, *_ = model.predict(
-            waveform,
-            "S2TT",
-            request.target_language or "eng",
-            sample_rate=float(sample_rate),
-        )
+        # translated_text, *_ = model.predict(
+        #     waveform,
+        #     "S2TT",
+        #     request.target_language or "eng",
+        #     sample_rate=float(sample_rate),
+        # )
+
+        tgt_lang = request.target_language or "eng"
+
+        audio =  torchaudio.functional.resample(waveform, orig_freq=sample_rate, new_freq=16_000) # must be a 16 kHz waveform array
+        audio_inputs = processor(audios=audio, return_tensors="pt")
+        output_tokens = model.generate(**audio_inputs, tgt_lang=tgt_lang, text_num_beams=5, generate_speech=False)
+        translated_text = processor.decode(output_tokens[0].tolist()[0], skip_special_tokens=True)
+
     elif request.text:
         src_lang = request.source_language or None
         if src_lang not in supported:
@@ -170,12 +166,18 @@ def transcribe(request: Request) -> Response:
                 print("warning: unknown language %s" % src_lang)
 
         if src_lang:
-            translated_text, *_ = model.predict(
-                request.text,
-                "T2TT",
-                request.target_language or "eng",
-                src_lang=src_lang,
-            )
+            tgt_lang = request.target_language or "eng"
+
+            text_inputs = processor(text = request.text, src_lang=src_lang, return_tensors="pt")
+            output_tokens = model.generate(**text_inputs, tgt_lang=tgt_lang, text_num_beams=5, generate_speech=False)
+            translated_text = processor.decode(output_tokens[0].tolist()[0], skip_special_tokens=True)
+
+            # translated_text, *_ = model.predict(
+            #     request.text,
+            #     "T2TT",
+            #     request.target_language or "eng",
+            #     src_lang=src_lang,
+            # )
         else:
             translated_text = ""
         duration = None

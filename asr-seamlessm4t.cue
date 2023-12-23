@@ -11,14 +11,14 @@ imagespecs: "asr-seamlessm4t": {}
 "lenses": "asr-seamlessm4t": {
   spawn: {}
   spawn: environment: {
-    MODEL: "/res/model/local/pytorch_model.bin"
-    MODEL_DEVICE: "cuda"
-    MODEL_COMPUTE_TYPE: "float32"
+    MODEL: "/res/model/huggingface/local"
+    // MODEL_DEVICE: "cuda"
+    // MODEL_COMPUTE_TYPE: "float32"
   }
 
   spawn: resourcedirs: {
     model: {
-      id: "huggingface:model:facebook/hf-seamless-m4t-large:b8a4df80dce9b34bd3d9b4a82f4abe579f6160a0"
+      id: "huggingface:model:facebook/seamless-m4t-v2-large:f9c8e845d2655d96ed6377dc48efbcfdd97c410f"
     }
   }
 
