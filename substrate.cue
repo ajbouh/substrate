@@ -80,8 +80,8 @@ daemons: "substrate": {
     // cap_add: ["SYS_ADMIN"]
     networks: [
       #var.substrate.internal_network_name,
-      // #var.substrate.external_network_name,
-      "host",
+      #var.substrate.external_network_name,
+      // "host",
     ]
   }
 
