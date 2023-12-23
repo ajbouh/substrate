@@ -211,7 +211,7 @@ func (b *Blackboard) Stream(ctx context.Context, input Input, cb func(*Match) bo
 			log.Printf("refinement done")
 			m.Events = append(m.Events, *newEvent("output", start, time.Now()))
 			m.Output = output
-			log.Printf("refinement output is %#v", v)
+			log.Printf("refinement output is %#v", output)
 			m.Error = err
 		}
 
