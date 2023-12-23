@@ -114,11 +114,6 @@ supported = {
     "zul": {"label": "Zulu",                   "script": "Latn"}, #       | Sp, Tx | Tx     |
 }
 
-language_aliases = {
-    "en" : "eng",
-    "zh" : "cmn",
-}
-
 import base64
 import io
 import soundfile as sf
