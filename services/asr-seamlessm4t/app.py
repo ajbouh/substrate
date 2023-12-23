@@ -146,7 +146,7 @@ def transcribe(request: Request) -> Response:
     # translator = Translator("seamlessM4T_large", vocoder_name_or_card="vocoder_36langs", device=torch.device("cuda:0"))
 
     tgt_lang_in = request.target_language or "eng"
-    tgt_lang, tgt_lang_candidates = find_alpha_3(tgt_lang_in)
+    tgt_lang, tgt_lang_candidates = find_alpha_3(tgt_lang_in, supported)
     if tgt_lang:
         pass
     elif not tgt_lang and tgt_lang_candidates:
@@ -184,7 +184,7 @@ def transcribe(request: Request) -> Response:
 
     elif request.text:
         src_lang_in = request.source_language or None
-        src_lang, src_lang_candidates = find_alpha_3(src_lang_in)
+        src_lang, src_lang_candidates = find_alpha_3(src_lang_in, supported)
         if src_lang:
             pass
         elif not src_lang and src_lang_candidates:
