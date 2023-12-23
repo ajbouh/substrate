@@ -66,6 +66,7 @@ daemons: "substrate": {
 
       "SUBSTRATE_INTERNAL_NETWORK": "\(#var.substrate.docker_compose_prefix)\(#var.substrate.internal_network_name)"
       "SUBSTRATE_EXTERNAL_NETWORK": "\(#var.substrate.docker_compose_prefix)\(#var.substrate.external_network_name)"
+      // "SUBSTRATE_EXTERNAL_NETWORK": "host"
     }
 
     if !#var.no_cuda {
@@ -79,13 +80,14 @@ daemons: "substrate": {
     // cap_add: ["SYS_ADMIN"]
     networks: [
       #var.substrate.internal_network_name,
-      #var.substrate.external_network_name,
+      // #var.substrate.external_network_name,
+      "host",
     ]
   }
 
   #docker_compose_networks: {
     (#var.substrate.internal_network_name): {
-      // internal: true
+      internal: true
       attachable: true
       driver: "bridge"
       driver_opts: {
@@ -103,9 +105,28 @@ daemons: "substrate": {
       }
     }
     (#var.substrate.external_network_name): {
+      // internal: true
       attachable: true
-      driver: "host"
+      driver: "bridge"
+      driver_opts: {
+        "com.docker.network.bridge.enable_icc": "true"
+        "com.docker.network.bridge.enable_ip_masquerade": "true"
+        "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0"
+      }
+      ipam: {
+        driver: "default"
+        config: [
+          {
+            subnet: "192.168.101.0/24"
+          },
+        ]
+      }
     }
+    // "host": {
+    //   // attachable: true
+    //   // driver: "host"
+    //   external: true
+    // }
   }
 
   #systemd_units: {
