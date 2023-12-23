@@ -3,10 +3,12 @@ package blackboard
 import (
 	"context"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
 	"cuelang.org/go/cue"
+	cueerrors "cuelang.org/go/cue/errors"
 )
 
 type Blackboard struct {
@@ -246,7 +248,12 @@ func (b *Blackboard) Call(ctx context.Context, input Input, refinement Refinemen
 			match = m
 			return false
 		} else {
-			log.Printf("blackboard call error: %s", m.Error)
+			errs := cueerrors.Errors(m.Error)
+			messages := make([]string, 0, len(errs))
+			for _, err := range errs {
+				messages = append(messages, err.Error())
+			}
+			log.Printf("blackboard call error: %s", strings.Join(messages, "\n"))
 		}
 
 		return true

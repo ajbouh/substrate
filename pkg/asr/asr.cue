@@ -8,30 +8,30 @@ package asr
 }
 
 #Segment: {
-    id ?: int
-    seek ?: int
-    start ?: float
-    end ?: float
+    id ?: int | null
+    seek ?: int | null
+    start ?: float | null
+    end ?: float | null
 
-    // speaker ?: string
+    // speaker ?: string | null
 
-    text ?: string
+    text ?: string | null
     // tokens: [...int]
-    temperature ?: float
-    avg_logprob ?: float
-    compression_ratio ?: float
-    no_speech_prob ?: float
-    words ?: [...#Word]
+    temperature ?: float | null
+    avg_logprob ?: float | null
+    compression_ratio ?: float | null
+    no_speech_prob ?: float | null
+    words ?: [...#Word] | null
 
     // audio_data ?: #Audio
 }
 
 #Response: {
-    source_language ?: string
-    source_language_prob ?: float
-    target_language ?: string
-    duration ?: float
-    all_language_probs ?: [string]: float
+    source_language ?: string | null
+    source_language_prob ?: float | null
+    target_language ?: string | null
+    duration ?: float | null
+    all_language_probs ?: {[string]: float} | null
 
     segments ?: _ // [...#Segment]
 }
