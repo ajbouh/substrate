@@ -11,7 +11,7 @@ imagespecs: "asr-seamlessm4t": {}
 "lenses": "asr-seamlessm4t": {
   spawn: {}
   spawn: environment: {
-    MODEL: "/res/model/local"
+    MODEL: "/res/model/local/pytorch_model.bin"
     MODEL_DEVICE: "cuda"
     MODEL_COMPUTE_TYPE: "float32"
   }
