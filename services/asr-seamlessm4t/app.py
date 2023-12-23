@@ -1,6 +1,7 @@
 import torchaudio
 from transformers import AutoProcessor, SeamlessM4Tv2Model
 import os
+import pycountry
 
 from substrate.asr import Request, Response, Segment, Word, new_v1_api_app
 
@@ -122,6 +123,16 @@ import base64
 import io
 import soundfile as sf
 
+def find_alpha_3(id, allowed=None):
+  found = pycountry.languages.lookup(id)
+  if not found:
+    return None, None
+  if found.alpha_3 and (allowed is None or (found.alpha_3 in allowed)):
+    return found.alpha_3, None
+  candidates = [l.alpha_3 for l in pycountry.languages if l.alpha_3 in allowed and found.name in l.name]
+
+  return None, candidates
+
 def ogg2wav(ogg: bytes):
     ogg_buf = io.BytesIO(ogg)
     ogg_buf.name = 'file.opus'
@@ -134,7 +145,21 @@ def transcribe(request: Request) -> Response:
     # Initialize a Translator object with a multitask model, vocoder on the GPU.
     # translator = Translator("seamlessM4T_large", vocoder_name_or_card="vocoder_36langs", device=torch.device("cuda:0"))
 
+    tgt_lang_in = request.target_language or "eng"
+    tgt_lang, tgt_lang_candidates = find_alpha_3(tgt_lang_in)
+    if tgt_lang:
+        pass
+    elif not tgt_lang and tgt_lang_candidates:
+        tgt_lang = tgt_lang_candidates[0]
+        if len(tgt_lang_candidates) > 1:
+            print("warning: no exact language match for target language %s, using %s" % (tgt_lang_in, tgt_lang))
+        else:
+            print("warning: no exact language match for target language %s, using %s; other possibilities were %s" % (tgt_lang_in, tgt_lang, tgt_lang_candidates[:1]))
+    else:
+        print("warning: unknown target language %s" % tgt_lang_in)
+
     if request.audio_data:
+        print("base64 decoding audio_data len=", len(request.audio_data))
         data = base64.b64decode(request.audio_data)
         waveform, sample_rate = ogg2wav(data)
         n_samples = waveform.shape[0]
@@ -143,6 +168,8 @@ def transcribe(request: Request) -> Response:
         # sample_rate = request.audio.sample_rate
         # waveform = torch.cuda.FloatTensor([request.audio.waveform]).reshape(n_samples, 1)
         duration = n_samples / sample_rate
+        print("decoded audio_data sample_rate=", sample_rate, "n_samples=", n_samples, "duration=", duration)
+
         # translated_text, *_ = model.predict(
         #     waveform,
         #     "S2TT",
@@ -150,27 +177,30 @@ def transcribe(request: Request) -> Response:
         #     sample_rate=float(sample_rate),
         # )
 
-        tgt_lang = request.target_language or "eng"
-
         audio =  torchaudio.functional.resample(waveform, orig_freq=sample_rate, new_freq=16_000) # must be a 16 kHz waveform array
         audio_inputs = processor(audios=audio, return_tensors="pt")
         output_tokens = model.generate(**audio_inputs, tgt_lang=tgt_lang, text_num_beams=5, generate_speech=False)
         translated_text = processor.decode(output_tokens[0].tolist()[0], skip_special_tokens=True)
 
     elif request.text:
-        src_lang = request.source_language or None
-        if src_lang not in supported:
-            if src_lang in language_aliases:
-                src_lang = language_aliases[src_lang]
+        src_lang_in = request.source_language or None
+        src_lang, src_lang_candidates = find_alpha_3(src_lang_in)
+        if src_lang:
+            pass
+        elif not src_lang and src_lang_candidates:
+            src_lang = src_lang_candidates[0]
+            if len(src_lang_candidates) > 1:
+                print("warning: no exact language match for source language %s, using %s" % (src_lang_in, src_lang))
             else:
-                print("warning: unknown language %s" % src_lang)
+                print("warning: no exact language match for source language %s, using %s; other possibilities were %s" % (src_lang_in, src_lang, src_lang_candidates[:1]))
+        else:
+            print("warning: unknown source language %s" % src_lang_in)
 
         if src_lang:
-            tgt_lang = request.target_language or "eng"
-
-            text_inputs = processor(text = request.text, src_lang=src_lang, return_tensors="pt")
-            output_tokens = model.generate(**text_inputs, tgt_lang=tgt_lang, text_num_beams=5, generate_speech=False)
-            translated_text = processor.decode(output_tokens[0].tolist()[0], skip_special_tokens=True)
+            if tgt_lang:
+                text_inputs = processor(text = request.text, src_lang=src_lang, return_tensors="pt")
+                output_tokens = model.generate(**text_inputs, tgt_lang=tgt_lang, text_num_beams=5, generate_speech=False)
+                translated_text = processor.decode(output_tokens[0].tolist()[0], skip_special_tokens=True)
 
             # translated_text, *_ = model.predict(
             #     request.text,
