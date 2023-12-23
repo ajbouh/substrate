@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httptest"
 
@@ -67,6 +68,8 @@ func (s *Substrate) serviceDefRefinement(serviceName string, serviceDef cue.Valu
 				return match, err
 			}
 		}
+
+		log.Printf("bres %#v", bres)
 
 		match = match.FillPath(
 			responsePath,
