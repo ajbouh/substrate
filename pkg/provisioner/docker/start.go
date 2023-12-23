@@ -146,7 +146,6 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	n := &network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
 			p.internalNetworkName: &network.EndpointSettings{},
-			p.externalNetworkName: &network.EndpointSettings{},
 		},
 	}
 
@@ -203,6 +202,10 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 
 	cResp, err := cli.ContainerCreate(ctx, c, h, n, nil, "")
 	if err != nil {
+		return nil, err
+	}
+
+	if err := cli.NetworkConnect(ctx, p.externalNetworkName, cResp.ID, nil); err != nil {
 		return nil, err
 	}
 
