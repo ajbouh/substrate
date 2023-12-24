@@ -336,14 +336,14 @@ case "$1" in
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
     HOST_ROOT_SOURCE_DIR="/var/source"
     HOST_CUDA="1"
-    HOST_RESOURCEDIRS_ROOT="/usr/share/substrate/resourcedirs"
     HOST_DOCKER_SOCKET="/var/run/podman/podman.sock"
-    BUILD_RESOURCEDIRS_ROOT="$HERE/os/resourcedirs"
+    HOST_RESOURCEDIRS_ROOT="/usr/share/resourcedirs"
+    BUILD_RESOURCEDIRS_ROOT="$HERE/os/gen/overlay.d/resourcedirs$HOST_RESOURCEDIRS_ROOT"
 
     write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
 
-    write_os_resourcedirs_overlay .gen/overlay.d/resourcedirs$HOST_RESOURCEDIRS_ROOT
-    write_os_containers_overlay .gen/overlay.d/containers
+    write_os_resourcedirs_overlay gen/overlay.d/resourcedirs$HOST_RESOURCEDIRS_ROOT
+    write_os_containers_overlay gen/overlay.d/containers
 
     docker build tools/nvidia-kmods/ --output type=local,dest=os/overrides/rpm
 
@@ -396,8 +396,9 @@ case "$1" in
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
     HOST_ROOT_SOURCE_DIR=$HERE
     HOST_PROBE_PREFIX="sh -c"
-    HOST_RESOURCEDIRS_ROOT="$HERE/os/resourcedirs"
-    BUILD_RESOURCEDIRS_ROOT="$HERE/os/resourcedirs"
+
+    HOST_RESOURCEDIRS_ROOT="$HERE/os/gen/overlay.d/resourcedirs/usr/share/resourcedirs"
+    BUILD_RESOURCEDIRS_ROOT="$HOST_RESOURCEDIRS_ROOT"
     HOST_DOCKER_SOCKET="/var/run/docker.sock"
     write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
     DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
