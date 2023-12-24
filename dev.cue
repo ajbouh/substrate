@@ -26,7 +26,7 @@ import (
       "session_secret": "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
     }
   }
-  "host_resourcedirs_root": string | *"/Users/adamb/hacking/substrate/resourcedirs"
+  "host_resourcedirs_root": string | *"" @tag(host_resourcedirs_root)
   "host_docker_socket": string | *"/var/run/docker.sock" @tag(host_docker_socket)
   // host_docker_socket: "/var/run/podman/podman.sock"
   // host_docker_socket: "/run/user/1001/podman/podman.sock"
@@ -86,6 +86,8 @@ daemons: [key=string]: containerspec.#ContainerSpec
     #imagespec: imagespec
   }
   "resourcedir_keys": string
+  resourcedir_podman_build_options: [string]: string
+  resourcedir_podman_run_options: [string]: string
 
   namespace_host_port_offset: #namespace_host_port_offsets[#var.namespace]
 

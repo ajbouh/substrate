@@ -52,13 +52,25 @@ detect_dev_cue_tag_args() {
   fi
   CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t host_docker_socket=$HOST_DOCKER_SOCKET"
 
-  if [ -z "$NO_CUDA" ]; then
-    if [ -z "$PROBE_PREFIX" ]; then
-      echo >&2 "PROBE_PREFIX not set"
+  if [ -z "$HOST_RESOURCEDIRS_ROOT" ]; then
+    echo >&2 "HOST_RESOURCEDIRS_ROOT not set"
+    exit 2
+  fi
+  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t host_resourcedirs_root=$HOST_RESOURCEDIRS_ROOT"
+
+  if [ -n "$HOST_CUDA" ]; then
+    case "$HOST_CUDA" in
+      no)
+        CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t no_cuda=1"
+      ;;
+    esac
+  else
+    if [ -z "$HOST_PROBE_PREFIX" ]; then
+      echo >&2 "HOST_CUDA and HOST_PROBE_PREFIX both not set"
       exit 2
     fi
   
-    if ! $PROBE_PREFIX nvidia-smi 2>&1 >/dev/null; then
+    if ! $HOST_PROBE_PREFIX nvidia-smi 2>&1 >/dev/null; then
       CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t no_cuda=1"
     fi
   fi
@@ -201,12 +213,49 @@ os_make_install_iso() {
 #   #   # write_os_resources_overlay_service
 # }
 
-write_resourcesets_overlay() {
-  # for each resourceset,
-  # build and run each resourceset, mounting the appropriate folder
-  # we can do this as a docker compose run type thing ... mounting a lot of folders...
-  # give each resourceset a secondary id based on the hash of their inputs...
-  return
+ensure_init_ostree_repo() {
+  # init ostree repo if needed
+  tmprepo=$1
+  if [ ! -d "os/${tmprepo}" ]; then
+    mkdir -p os/${tmprepo}
+    ./tools/cosa shell ostree init --repo="/srv/${tmprepo}" --mode=archive
+    # This archive repo is transient, so lower the compression
+    # level to avoid burning excessive CPU.
+    ./tools/cosa shell ostree --repo="/srv/${tmprepo}" config set archive.zlib-level 2
+  fi
+}
+
+commit_ostree_layer() {
+  repo=$1
+  layer_name=$2
+  layer_basedir=$3
+
+  ensure_init_ostree_repo $repo
+
+  # write our overlay to the ostree repo
+  ./tools/cosa shell sudo ostree commit --repo="/srv/${repo}" \
+      --tree=dir="/srv/$layer_basedir" -b $layer_name \
+      --no-xattrs --no-bindings --parent=none \
+      --mode-ro-executables
+      # --timestamp "${git_timestamp}"
+      # --statoverride <(sed -e '/^#/d' "${TMPDIR}/overlay/statoverride") \
+      # --skip-list <(echo /statoverride)
+  ./tools/cosa shell sudo chown -R builder:builder "/srv/${repo}"
+}
+
+write_os_resourcedirs_overlay() {
+  OVERLAY_BASEDIR=$1
+
+  RESOURCEDIR_KEYS=$(print_rendered_cue_dev_expr_as text -e '#out.resourcedir_keys')
+  echo RESOURCEDIR_KEYS=$RESOURCEDIR_KEYS
+  for resourcedir_key in $RESOURCEDIR_KEYS; do
+    PODMAN_BUILD_OPTIONS=$(print_rendered_cue_dev_expr_as text -e "#out.resourcedir_fetch_podman_build_options[\"$resourcedir_key\"]" $TAG_ARGS)
+    PODMAN_RUN_OPTIONS=$(print_rendered_cue_dev_expr_as text -e "#out.resourcedir_fetch_podman_run_options[\"$resourcedir_key\"]" $TAG_ARGS)
+    $PODMAN build $PODMAN_BUILD_OPTIONS
+    $PODMAN run $PODMAN_RUN_OPTIONS
+  done
+
+  commit_ostree_layer "tmp/repo" "gen-overlay/resourcedirs" $OVERLAY_BASEDIR
 }
 
 write_os_containers_overlay() {
@@ -254,25 +303,7 @@ write_os_containers_overlay() {
     print_rendered_cue_dev_expr_as text -e "#out.systemd_containers[\"$unit\"]" $TAG_ARGS > os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR/$unit
   done
 
-  # init ostree repo if needed
-  tmprepo=tmp/repo
-  if [ ! -d "os/${tmprepo}" ]; then
-    mkdir -p os/${tmprepo}
-    ./tools/cosa shell ostree init --repo="/srv/${tmprepo}" --mode=archive
-    # This archive repo is transient, so lower the compression
-    # level to avoid burning excessive CPU.
-    ./tools/cosa shell ostree --repo="/srv/${tmprepo}" config set archive.zlib-level 2
-  fi
-
-  # write our overlay to the ostree repo
-  ./tools/cosa shell sudo ostree commit --repo="/srv/${tmprepo}" \
-      --tree=dir="/srv/$OVERLAY_BASEDIR" -b "gen-overlay/containers" \
-      --no-xattrs --no-bindings --parent=none \
-      --mode-ro-executables
-      # --timestamp "${git_timestamp}"
-      # --statoverride <(sed -e '/^#/d' "${TMPDIR}/overlay/statoverride") \
-      # --skip-list <(echo /statoverride)
-  ./tools/cosa shell sudo chown -R builder:builder "/srv/${tmprepo}"
+  commit_ostree_layer "tmp/repo" "gen-overlay/containers" $OVERLAY_BASEDIR
 }
 
 cosa_run() {
@@ -299,9 +330,18 @@ case "$1" in
     ;;
   os-make)
     shift
-    ensure_dev_cue_expr
+
+    LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
+    ROOT_SOURCE_DIR=""
+    HOST_CUDA="1"
+    HOST_RESOURCEDIRS_ROOT="/usr/share/substrate/resourcedirs"
+    HOST_DOCKER_SOCKET="/var/run/podman/podman.sock"
+
+    write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
 
     write_os_containers_overlay .gen/overlay.d/containers
+    write_os_resourcedirs_overlay .gen/overlay.d/resourcedirs$HOST_RESOURCEDIRS_ROOT
+
     docker build tools/nvidia-kmods/ --output type=local,dest=os/overrides/rpm
 
     # sudo chmod 0777 /dev/kvm
@@ -344,112 +384,6 @@ case "$1" in
     # If needed, download vfkit and put it in /opt/podman/qemu/bin/ https://github.com/crc-org/vfkit/releases/download/v0.5.0/vfkit
     CONTAINERS_MACHINE_PROVIDER="applehv" /opt/podman/bin/podman machine init --cpus 4 --rootful --memory 4096 --now podman-machine-applehv
     ;;
-  os-qemu-reset)
-    shift
-    cd $HERE/os/fcos/
-    rm .gen/$SUBSTRATEOS_QCOW2_FILE_BASENAME
-    ssh-keygen -R '[localhost]:2222'
-    ;;
-  os-qemu-run-iso)
-    shift
-    cd $HERE/os/fcos/
-    mkdir -p .gen
-
-    # if [ ! -f .gen/$SUBSTRATEOS_ISO_BASENAME ]; then
-      os_make_install_iso
-    # fi
-
-    if [ ! -f .gen/$SUBSTRATEOS_QCOW2_FILE_BASENAME ]; then
-      cd .gen
-      ssh-keygen -R '[localhost]:2222'
-      qemu-img create \
-          -f qcow2 \
-          $SUBSTRATEOS_QCOW2_FILE_BASENAME \
-          $QEMU_DISK
-      cd -
-    fi
-    # need qemu ≥ 7.1.0 for vmnet-bridge to work, but nixpkgs build still lacks it.
-    qemu-system-x86_64 \
-      -m $QEMU_RAM \
-      -nographic \
-      -cpu host \
-      -snapshot \
-      -M accel=hvf \
-      -cdrom .gen/$SUBSTRATEOS_ISO_BASENAME \
-      -drive if=none,file=.gen/$SUBSTRATEOS_QCOW2_FILE_BASENAME,id=nvm \
-      -device nvme,serial=deadbeef,drive=nvm \
-      -nic user,model=virtio,hostfwd=tcp::2222-:22,hostfwd=tcp::2280-:2280,hostfwd=tcp::2281-:2281,hostfwd=tcp::4222-:4222
-    ;;
-  os-qemu-run)
-    shift
-    ensure_dev_cue_expr
-    cd $HERE/os/fcos/
-    mkdir -p .gen .fetch
-    IGNITION_FILE=.gen/substrate.ign
-    print_rendered_cue_dev_expr_as yaml -e '#out.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output $IGNITION_FILE
-    if [ ! -f .gen/$SUBSTRATEOS_QCOW2_FILE_BASENAME ]; then
-      FCOS_QCOW2_XZ_FILE=$(fcos_installer download -s $FCOS_STREAM -p qemu -f qcow2.xz -C .fetch)
-      FCOS_QCOW2_FILE_BASENAME=$(basename $FCOS_QCOW2_XZ_FILE .xz)
-      FCOS_QCOW2_FILE=.gen/$FCOS_QCOW2_FILE_BASENAME
-      if [ ! -f $FCOS_QCOW2_FILE ]; then
-        unxz <$FCOS_QCOW2_XZ_FILE >$FCOS_QCOW2_FILE
-      fi
-      cd .gen
-      ssh-keygen -R '[localhost]:2222'
-      qemu-img create \
-          -f qcow2 \
-          -F qcow2 \
-          -b $FCOS_QCOW2_FILE_BASENAME \
-          $SUBSTRATEOS_QCOW2_FILE_BASENAME \
-          $QEMU_DISK
-      cd -
-    fi
-    # need qemu ≥ 7.1.0 for vmnet-bridge to work, but nixpkgs build still lacks it.
-    qemu-system-x86_64 \
-      -m $QEMU_RAM \
-      -nographic \
-      -cpu host \
-      -M accel=hvf \
-      -drive if=virtio,file=.gen/$SUBSTRATEOS_QCOW2_FILE_BASENAME \
-      -fw_cfg name=opt/com.coreos/config,file=$IGNITION_FILE \
-      -nic user,model=virtio,hostfwd=tcp::2222-:22,hostfwd=tcp::2280-:2280,hostfwd=tcp::2281-:2281,hostfwd=tcp::4222-:4222
-    ;;
-  # os-qemu-rebase)
-  #   shift
-  #   ensure_dev_cue_expr
-  #   docker_compose_yml=$(make_docker_compose_yml os substrateos.docker_compose_build)
-  #   docker_compose $docker_compose_yml build "os-rebase"
-  #   REBASE_IMAGE=$(print_rendered_cue_dev_expr_as text -e '#out.substrateos.#rebase_image')
-  #   docker image save $REBASE_IMAGE | ssh_qemu 'skopeo copy docker-archive:/dev/stdin ostree:$REBASE_IMAGE@/ostree/repo'
-  #   ssh_qemu sudo rpm-ostree rebase --reboot --cache-only $REBASE_IMAGE
-  #   ;;
-  # os-qemu-update-containers)
-  #   shift
-  #   ensure_dev_cue_expr
-  #   # re-render /etc
-  #   mkdir -p $HERE/os/fcos/.gen/etc/containers/systemd
-  #   # print_rendered_cue_dev_expr_as text -e '#out.systemd.containers["substrate-pull.image"].#text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate-pull.image
-  #   print_rendered_cue_dev_expr_as text -e '#out.substrateos.systemd.containers["substrate.container"].#text' > $HERE/os/fcos/.gen/etc/containers/systemd/substrate.container
-  #   # build
-  #   docker_compose_yml=$(make_docker_compose_yml os substrateos.docker_compose_build)
-  #   docker_compose $docker_compose_yml build
-  #   # replace /etc
-  #   tar -cv -C $HERE/os/fcos/.gen/etc . | ssh_qemu sudo tar xv --no-same-owner -C /etc
-  #   # update
-  #   IMAGES=$(print_rendered_cue_dev_expr_as text -e '#out.substrateos.docker_compose_build.#images')
-  #   echo IMAGES=$IMAGES
-  #   for image in $IMAGES; do
-  #     docker image save $image | ssh_qemu sudo skopeo copy docker-archive:/dev/stdin containers-storage:$image
-  #   done
-  #   ssh_qemu sudo systemctl daemon-reload
-  #   ssh_qemu sudo systemctl restart substrate
-  #   ssh_qemu sudo journalctl -xlfeu substrate.service
-  #   ;;
-  os-qemu-ssh)
-    shift
-    ssh_qemu "$@"
-    ;;
-    
   expr-dump)
     shift
     print_cue_dev_expr
@@ -458,9 +392,9 @@ case "$1" in
     shift
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
     ROOT_SOURCE_DIR=$HERE
-    PROBE_PREFIX="sh -c"
+    HOST_PROBE_PREFIX="sh -c"
+    HOST_RESOURCEDIRS_ROOT="$HERE/resourcedirs"
     HOST_DOCKER_SOCKET="/var/run/docker.sock"
-    # ensure_dev_cue_expr
     write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
     DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
     docker_compose $DOCKER_COMPOSE_FILE --profile resourcedirs build
