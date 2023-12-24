@@ -247,9 +247,13 @@ write_os_resourcedirs_overlay() {
   RESOURCEDIR_KEYS=$(print_rendered_cue_dev_expr_as text -e '#out.resourcedir_keys')
   echo RESOURCEDIR_KEYS=$RESOURCEDIR_KEYS
   for resourcedir_key in $RESOURCEDIR_KEYS; do
-    PODMAN_BUILD_OPTIONS=$(print_rendered_cue_dev_expr_as text -e "#out.resourcedir_fetch_podman_build_options[\"$resourcedir_key\"]" $TAG_ARGS)
-    PODMAN_RUN_OPTIONS=$(print_rendered_cue_dev_expr_as text -e "#out.resourcedir_fetch_podman_run_options[\"$resourcedir_key\"]" $TAG_ARGS)
+    PODMAN_BUILD_OPTIONS=$(print_rendered_cue_dev_expr_as text -e "#out.resourcedir_fetch_podman_build_options[\"$resourcedir_key\"]")
+    PODMAN_RUN_OPTIONS=$(print_rendered_cue_dev_expr_as text -e "#out.resourcedir_fetch_podman_run_options[\"$resourcedir_key\"]")
+    RESOURCEDIR_MKDIRS=$(print_rendered_cue_dev_expr_as text -e "#out.resourcedir_fetch_dirs[\"$resourcedir_key\"]")
     $PODMAN build $PODMAN_BUILD_OPTIONS
+
+    # podman won't automatically make these directories, so do it now.
+    mkdir -p $RESOURCEDIR_MKDIRS
     $PODMAN run $PODMAN_RUN_OPTIONS
   done
 
@@ -289,7 +293,7 @@ write_os_containers_overlay() {
   PODMAN_LOCAL_REPO_OPTIONS=$($PODMAN info --format='overlay.mount_program={{ index .Store.GraphOptions "overlay.mount_program" "Executable" }}' || true)
   PODMAN_LOCAL_REPO=$($PODMAN info --format="containers-storage:[{{ .Store.GraphDriverName }}@{{ .Store.GraphRoot }}+{{ .Store.RunRoot }}:$PODMAN_LOCAL_REPO_OPTIONS]")
   for image in $IMAGES; do
-    PODMAN_BUILD_OPTIONS=$(print_rendered_cue_dev_expr_as text -e "#out.image_podman_build_options[\"$image\"]" $TAG_ARGS)
+    PODMAN_BUILD_OPTIONS=$(print_rendered_cue_dev_expr_as text -e "#out.image_podman_build_options[\"$image\"]")
     $PODMAN build --layers --tag $image $PODMAN_BUILD_OPTIONS
     $PODMAN pull --root os/$OVERLAY_IMAGE_STORE_BASEDIR ${PODMAN_LOCAL_REPO}$image
   done
@@ -298,7 +302,7 @@ write_os_containers_overlay() {
   UNITS=$(print_rendered_cue_dev_expr_as text -e '#out.systemd_container_basenames')
   echo UNITS=$UNITS
   for unit in $UNITS; do
-    print_rendered_cue_dev_expr_as text -e "#out.systemd_containers[\"$unit\"]" $TAG_ARGS > os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR/$unit
+    print_rendered_cue_dev_expr_as text -e "#out.systemd_containers[\"$unit\"]" > os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR/$unit
   done
 
   commit_ostree_layer "tmp/repo" "gen-overlay/containers" $OVERLAY_BASEDIR
@@ -418,9 +422,9 @@ case "$1" in
     HOST_ROOT_SOURCE_DIR=/tmp
     TAG_ARGS="-t root_source_directory=$HOST_ROOT_SOURCE_DIR -t lenses_expr_path=$LENSES_EXPR_PATH"
     if ! ssh $REMOTE_DOCKER_HOSTNAME nvidia-smi 2>&1 >/dev/null; then
-      TAG_ARGS="$TAG_ARGS -t no_cuda=1"
+      TAG_ARGS= -t no_cuda=1"
     fi    
-    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose' $TAG_ARGS)
+    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
     DOCKER_HOST=$REMOTE_DOCKER_HOST docker_compose $DOCKER_COMPOSE_FILE --profile daemons --profile default build
     DOCKER_HOST=$REMOTE_DOCKER_HOST docker_compose $DOCKER_COMPOSE_FILE --profile daemons up \
         --always-recreate-deps \
