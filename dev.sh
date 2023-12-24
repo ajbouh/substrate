@@ -422,7 +422,7 @@ case "$1" in
     HOST_ROOT_SOURCE_DIR=/tmp
     TAG_ARGS="-t root_source_directory=$HOST_ROOT_SOURCE_DIR -t lenses_expr_path=$LENSES_EXPR_PATH"
     if ! ssh $REMOTE_DOCKER_HOSTNAME nvidia-smi 2>&1 >/dev/null; then
-      TAG_ARGS= -t no_cuda=1"
+      TAG_ARGS="$TAG_ARGS -t no_cuda=1"
     fi    
     DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
     DOCKER_HOST=$REMOTE_DOCKER_HOST docker_compose $DOCKER_COMPOSE_FILE --profile daemons --profile default build
