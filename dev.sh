@@ -34,11 +34,11 @@ detect_dev_cue_tag_args() {
   fi
   CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t namespace=$NAMESPACE"
 
-  if [ -z "$ROOT_SOURCE_DIR" ]; then
-    echo >&2 "ROOT_SOURCE_DIR not set"
+  if [ -z "$HOST_ROOT_SOURCE_DIR" ]; then
+    echo >&2 "HOST_ROOT_SOURCE_DIR not set"
     exit 2
   fi
-  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t root_source_directory=$ROOT_SOURCE_DIR"
+  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t root_source_directory=$HOST_ROOT_SOURCE_DIR"
 
   if [ -z "$LENSES_EXPR_PATH" ]; then
     echo >&2 "LENSES_EXPR_PATH not set"
@@ -201,18 +201,6 @@ os_make_install_iso() {
   cd -
 }
 
-# write_os_resources_overlay_service() {
-#   # bind resources volume
-#   # save resources
-#   # these should be ready at boot
-#   # include them in the table used by substrate at runtime and spawn.
-# }
-
-# write_os_resources_overlay() {
-#   # for each service, if there's anything to fetch, run them with fetch to apply
-#   #   # write_os_resources_overlay_service
-# }
-
 ensure_init_ostree_repo() {
   # init ostree repo if needed
   tmprepo=$1
@@ -332,15 +320,15 @@ case "$1" in
     shift
 
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
-    ROOT_SOURCE_DIR=""
+    HOST_ROOT_SOURCE_DIR="/var/source"
     HOST_CUDA="1"
     HOST_RESOURCEDIRS_ROOT="/usr/share/substrate/resourcedirs"
     HOST_DOCKER_SOCKET="/var/run/podman/podman.sock"
 
     write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
 
-    write_os_containers_overlay .gen/overlay.d/containers
     write_os_resourcedirs_overlay .gen/overlay.d/resourcedirs$HOST_RESOURCEDIRS_ROOT
+    write_os_containers_overlay .gen/overlay.d/containers
 
     docker build tools/nvidia-kmods/ --output type=local,dest=os/overrides/rpm
 
@@ -391,7 +379,7 @@ case "$1" in
   docker-compose-up)
     shift
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
-    ROOT_SOURCE_DIR=$HERE
+    HOST_ROOT_SOURCE_DIR=$HERE
     HOST_PROBE_PREFIX="sh -c"
     HOST_RESOURCEDIRS_ROOT="$HERE/resourcedirs"
     HOST_DOCKER_SOCKET="/var/run/docker.sock"
@@ -415,8 +403,8 @@ case "$1" in
     ensure_dev_cue_expr
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
     write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
-    ROOT_SOURCE_DIR=/tmp
-    TAG_ARGS="-t root_source_directory=$ROOT_SOURCE_DIR -t lenses_expr_path=$LENSES_EXPR_PATH"
+    HOST_ROOT_SOURCE_DIR=/tmp
+    TAG_ARGS="-t root_source_directory=$HOST_ROOT_SOURCE_DIR -t lenses_expr_path=$LENSES_EXPR_PATH"
     if ! ssh $REMOTE_DOCKER_HOSTNAME nvidia-smi 2>&1 >/dev/null; then
       TAG_ARGS="$TAG_ARGS -t no_cuda=1"
     fi    

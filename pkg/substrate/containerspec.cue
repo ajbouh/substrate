@@ -9,20 +9,20 @@ import (
   quadlet "github.com/ajbouh/substrate/pkg/podman:quadlet"
 )
 
+#Mount: {
+  source: string
+  destination: string
+  mode: string | *"rw"
+}
+
 #ContainerSpec: {
   command ?: [...string]
 
   image: string
 
-  environment: [string]: string
+  environment ?: [string]: string
 
-  mounts ?: [
-    ...{
-      source: string
-      destination: string
-      mode: string | *"rw"
-    }
-  ]
+  mounts ?: [...#Mount]
 }
 
 #SystemdUnits: {
@@ -56,6 +56,29 @@ import (
       }
     }
   }
+}
+
+#PodmanRunOptions: {
+  #containerspec: #ContainerSpec
+
+  #out: strings.Join([
+    if #containerspec.environment != _|_ {
+      for k, v in #containerspec.environment {
+        "--env=\(k)=\(v)",
+      }
+    }
+    if #containerspec.mounts != _|_ {
+      for mount in #containerspec.mounts {
+        "--volume=\(mount.source):\(mount.destination):\(mount.mode)"
+      }
+    }
+    #containerspec.image,
+    if #containerspec.command != _|_ {
+      for e in #containerspec.command {
+        e,
+      }
+    }
+  ], " ")
 }
 
 #DockerComposeService: {

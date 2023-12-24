@@ -14,6 +14,8 @@ build: {
 
 if build != _|_ {
   #podman_build_options: strings.Join([
+    "--layers",
+    "--tag", image,
     "--file", build.dockerfile,
     if build.target != _|_ {
       "--target=\(build.target)",

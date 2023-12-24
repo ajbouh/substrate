@@ -86,8 +86,8 @@ daemons: [key=string]: containerspec.#ContainerSpec
     #imagespec: imagespec
   }
   "resourcedir_keys": string
-  resourcedir_podman_build_options: [string]: string
-  resourcedir_podman_run_options: [string]: string
+  resourcedir_fetch_podman_build_options: [string]: string
+  resourcedir_fetch_podman_run_options: [string]: string
 
   namespace_host_port_offset: #namespace_host_port_offsets[#var.namespace]
 
@@ -112,7 +112,10 @@ for key, def in #out.#lenses {
       resourcedirs: (rddef.id): _
       #out: resourcedir_fetches: (rddef.id): {
         sha256: rddef.sha256
-        #containerspec: resourcedirs[rddef.id].#containerspec
+        #containerspec: (resourcedirs[rddef.id].#containerspec & {
+          image: resourcedirs[rddef.id].#imagespec.image
+          mounts: [{source: "\(#var.host_resourcedirs_root)/\(rddef.sha256)", "destination": "/res"}]
+        })
         #imagespec: resourcedirs[rddef.id].#imagespec
       }
     }
@@ -159,19 +162,22 @@ for basename, unit in #out.systemd_container_contents {
 }
 
 #out: "systemd_container_basenames": strings.Join([
-  for key, def in #out.systemd_containers {
-    key,
-  }
+  for key, def in #out.systemd_containers { key }
 ], "\n")
 
 #out: "image_references": strings.Join([
-    for key, def in #out.imagespecs {
-      def.image
-    }
+    for key, def in #out.imagespecs { def.image }
   ], "\n")
 
 for key, def in #out.imagespecs {
   #out: "image_podman_build_options": (def.image): def.#podman_build_options
+}
+
+for key, def in #out.resourcedir_fetches {
+  #out: "resourcedir_fetch_podman_build_options": (key): def.#imagespec.#podman_build_options
+  #out: "resourcedir_fetch_podman_run_options": (key): (containerspec.#PodmanRunOptions & {
+    #containerspec: def.#containerspec
+  }).#out
 }
 
 #out: "docker_compose": {
@@ -189,9 +195,6 @@ for key, def in #out.imagespecs {
       profiles: [
         "resourcedirs",
         "default",
-      ]
-      volumes: [
-        "\(#var.host_resourcedirs_root)/\(def.sha256):/res",
       ]
 
       (containerspec.#DockerComposeService & {
