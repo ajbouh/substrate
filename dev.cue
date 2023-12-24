@@ -176,7 +176,7 @@ for key, def in #out.imagespecs {
 
 for key, def in #out.resourcedir_fetches {
   #out: "resourcedir_fetch_podman_build_options": (key): def.#imagespec.#podman_build_options
-  #out: "resourcedir_fetch_dirs": (key): [def.#containerspec.mounts[0].source]
+  #out: "resourcedir_fetch_dirs": (key): strings.Join([def.#containerspec.mounts[0].source], " ")
   #out: "resourcedir_fetch_podman_run_options": (key): (containerspec.#PodmanRunOptions & {
     #containerspec: def.#containerspec
   }).#out
