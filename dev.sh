@@ -58,6 +58,12 @@ detect_dev_cue_tag_args() {
   fi
   CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t host_resourcedirs_root=$HOST_RESOURCEDIRS_ROOT"
 
+  if [ -z "$BUILD_RESOURCEDIRS_ROOT" ]; then
+    echo >&2 "BUILD_RESOURCEDIRS_ROOT not set"
+    exit 2
+  fi
+  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t build_resourcedirs_root=$BUILD_RESOURCEDIRS_ROOT"
+
   if [ -n "$HOST_CUDA" ]; then
     case "$HOST_CUDA" in
       no)
@@ -232,6 +238,10 @@ commit_ostree_layer() {
 }
 
 write_os_resourcedirs_overlay() {
+  if [ -z "$PODMAN" ]; then
+    PODMAN=$(PATH=/opt/podman/bin:$PATH which podman)
+  fi
+
   OVERLAY_BASEDIR=$1
 
   RESOURCEDIR_KEYS=$(print_rendered_cue_dev_expr_as text -e '#out.resourcedir_keys')
@@ -324,6 +334,7 @@ case "$1" in
     HOST_CUDA="1"
     HOST_RESOURCEDIRS_ROOT="/usr/share/substrate/resourcedirs"
     HOST_DOCKER_SOCKET="/var/run/podman/podman.sock"
+    BUILD_RESOURCEDIRS_ROOT="$HERE/resourcedirs"
 
     write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
 
@@ -382,6 +393,7 @@ case "$1" in
     HOST_ROOT_SOURCE_DIR=$HERE
     HOST_PROBE_PREFIX="sh -c"
     HOST_RESOURCEDIRS_ROOT="$HERE/resourcedirs"
+    BUILD_RESOURCEDIRS_ROOT="$HERE/resourcedirs"
     HOST_DOCKER_SOCKET="/var/run/docker.sock"
     write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
     DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')

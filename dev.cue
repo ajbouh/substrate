@@ -27,6 +27,7 @@ import (
     }
   }
   "host_resourcedirs_root": string | *"" @tag(host_resourcedirs_root)
+  "build_resourcedirs_root": string | *"" @tag(build_resourcedirs_root)
   "host_docker_socket": string | *"/var/run/docker.sock" @tag(host_docker_socket)
   // host_docker_socket: "/var/run/podman/podman.sock"
   // host_docker_socket: "/run/user/1001/podman/podman.sock"
@@ -114,7 +115,7 @@ for key, def in #out.#lenses {
         sha256: rddef.sha256
         #containerspec: (resourcedirs[rddef.id].#containerspec & {
           image: resourcedirs[rddef.id].#imagespec.image
-          mounts: [{source: "\(#var.host_resourcedirs_root)/\(rddef.sha256)", "destination": "/res"}]
+          mounts: [{source: "\(#var.build_resourcedirs_root)/\(rddef.sha256)", "destination": "/res"}]
         })
         #imagespec: resourcedirs[rddef.id].#imagespec
       }

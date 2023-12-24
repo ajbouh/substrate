@@ -73,10 +73,8 @@ import (
       }
     }
     #containerspec.image,
-    if #containerspec.command != _|_ {
-      for e in #containerspec.command {
-        e,
-      }
+    for e in #containerspec.command {
+      e,
     }
   ], " ")
 }
