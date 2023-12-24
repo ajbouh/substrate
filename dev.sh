@@ -338,7 +338,7 @@ case "$1" in
     HOST_CUDA="1"
     HOST_RESOURCEDIRS_ROOT="/usr/share/substrate/resourcedirs"
     HOST_DOCKER_SOCKET="/var/run/podman/podman.sock"
-    BUILD_RESOURCEDIRS_ROOT="$HERE/resourcedirs"
+    BUILD_RESOURCEDIRS_ROOT="$HERE/os/resourcedirs"
 
     write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
 
@@ -396,8 +396,8 @@ case "$1" in
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
     HOST_ROOT_SOURCE_DIR=$HERE
     HOST_PROBE_PREFIX="sh -c"
-    HOST_RESOURCEDIRS_ROOT="$HERE/resourcedirs"
-    BUILD_RESOURCEDIRS_ROOT="$HERE/resourcedirs"
+    HOST_RESOURCEDIRS_ROOT="$HERE/os/resourcedirs"
+    BUILD_RESOURCEDIRS_ROOT="$HERE/os/resourcedirs"
     HOST_DOCKER_SOCKET="/var/run/docker.sock"
     write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
     DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
