@@ -28,7 +28,7 @@ cosa() {
               -w /srv \
               -v=${TOP}/os:/srv/ -v=${TOP}/.git:/srv/.git:ro -v=${TOP}/.git:/srv/src/config/.git:ro --device=/dev/kvm --device=/dev/fuse                                  \
               --tmpfs=/tmp -v=/var/tmp:/var/tmp --name=cosa                                         \
-              -e COSA_NO_KVM -e COSA_DIR=. \
+              -e COSA_NO_KVM -e COSA_DIR=. -e LIBGUESTFS_DEBUG=1 -e LIBGUESTFS_TRACE=1 \
               ${COREOS_ASSEMBLER_CONFIG_GIT:+-v=$COREOS_ASSEMBLER_CONFIG_GIT:/srv/src/config/:ro}   \
               ${COREOS_ASSEMBLER_GIT:+-v=$COREOS_ASSEMBLER_GIT/src/:/usr/lib/coreos-assembler/:ro}  \
               ${COREOS_ASSEMBLER_ADD_CERTS:+-v=/etc/pki/ca-trust:/etc/pki/ca-trust:ro}              \
