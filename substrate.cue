@@ -47,6 +47,7 @@ daemons: "substrate": {
     "SUBSTRATE_INTERNAL_NETWORK": string | *#var.substrate.internal_network_name
     "SUBSTRATE_EXTERNAL_NETWORK": string | *#var.substrate.external_network_name
     "SUBSTRATE_RESOURCEDIRS_ROOT": string | *#var.host_resourcedirs_root
+    "SUBSTRATE_RESOURCEDIRS_PATH": string | *strings.Join(#var.host_resourcedirs_path, ":")
 
     "EXTERNAL_UI_HANDLER" ?: string
 

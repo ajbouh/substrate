@@ -30,6 +30,7 @@ type P struct {
 	externalNetworkName string
 
 	hostResourceDirsRoot string
+	hostResourceDirsPath []string
 	containerResourceDir string
 
 	waitForReadyTimeout time.Duration
@@ -40,13 +41,14 @@ type P struct {
 
 var _ activityspec.ProvisionDriver = (*P)(nil)
 
-func New(cli *client.Client, namespace, internalNetworkName, externalNetworkName, hostResourceDirsRoot string, prep func(h *container.HostConfig)) *P {
+func New(cli *client.Client, namespace, internalNetworkName, externalNetworkName, hostResourceDirsRoot string, hostResourceDirsPath []string, prep func(h *container.HostConfig)) *P {
 	return &P{
 		cli:                  cli,
 		namespace:            namespace,
 		internalNetworkName:  internalNetworkName,
 		externalNetworkName:  externalNetworkName,
 		hostResourceDirsRoot: hostResourceDirsRoot,
+		hostResourceDirsPath: hostResourceDirsPath,
 		containerResourceDir: "/res",
 		waitForReadyTimeout:  2 * time.Minute,
 		waitForReadyTick:     500 * time.Millisecond,
@@ -80,10 +82,31 @@ func (p *P) dumpLogs(ctx context.Context, containerID string) error {
 	return err
 }
 
+func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error)  {
+	rdMainRoot := path.Join(p.hostResourceDirsRoot, rd.SHA256)
+	if _, err := os.Stat(rdMainRoot); err == nil {
+		return rdMainRoot, nil
+	} else if err != io.EOF {
+		return rdMainRoot, err
+	}
+
+	// Use existing from path, otherwise fallback to main
+	for _, rdRoot := range p.hostResourceDirsPath {
+		rdPath := path.Join(rdRoot, rd.SHA256)
+		if _, err := os.Stat(rdRoot); err == nil {
+			return rdRoot, nil
+		} else if err != io.EOF {
+			return rdRoot, err
+		}
+	}
+
+	return rdMainRoot, nil
+}
+
 func (p *P) prepareResourceDirsMounts(as *activityspec.ServiceSpawnResolution) ([]mount.Mount, error) {
 	mounts := make([]mount.Mount, 0, len(as.ResourceDirs))
 	for alias, rd := range as.ResourceDirs {
-		rdPath := path.Join(p.hostResourceDirsRoot, rd.SHA256)
+		rdPath, err := p.findResourceDir(rd)
 		mounts = append(mounts, mount.Mount{
 			Type:     mount.TypeBind,
 			Source:   rdPath,

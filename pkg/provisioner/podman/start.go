@@ -27,6 +27,7 @@ type P struct {
 	network    string
 
 	hostResourceDirsRoot string
+	hostResourceDirsPath []string
 	containerResourceDir string
 
 	waitForReadyTimeout time.Duration
@@ -37,12 +38,13 @@ type P struct {
 
 var _ activityspec.ProvisionDriver = (*P)(nil)
 
-func New(connect func(ctx context.Context) (context.Context, error), namespace, network, hostResourceDirsRoot string, prep func(h *specgen.SpecGenerator)) *P {
+func New(connect func(ctx context.Context) (context.Context, error), namespace, network, hostResourceDirsRoot string, hostResourceDirsPath []string, prep func(h *specgen.SpecGenerator)) *P {
 	return &P{
 		connect:              connect,
 		namespace:            namespace,
 		network:              network,
 		hostResourceDirsRoot: hostResourceDirsRoot,
+		hostResourceDirsPath: hostResourceDirsPath,
 		containerResourceDir: "/res",
 		waitForReadyTimeout:  2 * time.Minute,
 		waitForReadyTick:     500 * time.Millisecond,
@@ -79,10 +81,34 @@ func (p *P) dumpLogs(ctx context.Context, containerID string) error {
 	return err
 }
 
+func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error)  {
+	rdMainRoot := path.Join(p.hostResourceDirsRoot, rd.SHA256)
+	if _, err := os.Stat(rdMainRoot); err == nil {
+		return rdMainRoot, nil
+	} else if err != io.EOF {
+		return rdMainRoot, err
+	}
+
+	// Use existing from path, otherwise fallback to main
+	for _, rdRoot := range p.hostResourceDirsPath {
+		rdPath := path.Join(rdRoot, rd.SHA256)
+		if _, err := os.Stat(rdRoot); err == nil {
+			return rdRoot, nil
+		} else if err != io.EOF {
+			return rdRoot, err
+		}
+	}
+
+	return rdMainRoot, nil
+}
+
 func (p *P) prepareResourceDirsMounts(as *activityspec.ServiceSpawnResolution) ([]specs.Mount, error) {
 	mounts := make([]specs.Mount, 0, len(as.ResourceDirs))
 	for alias, rd := range as.ResourceDirs {
-		rdPath := path.Join(p.hostResourceDirsRoot, rd.SHA256)
+		rdPath, err := p.findResourceDir(rd)
+		if err != nil {
+			return nil, err
+		}
 		mounts = append(mounts, specs.Mount{
 			Type:        "bind",
 			Source:      rdPath,

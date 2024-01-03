@@ -6,6 +6,8 @@ if [ -z "$PODMAN" ]; then
   PODMAN=$(PATH=/opt/podman/bin:$PATH which podman)
 fi
 
+COREOS_ASSEMBLER_GIT=$TOP/tools/coreos-assembler
+
 # See also https://www.itix.fr/blog/build-your-own-distribution-on-fedora-coreos/
 cosa() {
    env | grep -E "^COREOS_ASSEMBLER|COSA" | sort

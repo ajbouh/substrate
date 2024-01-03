@@ -58,6 +58,10 @@ detect_dev_cue_tag_args() {
   fi
   CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t host_resourcedirs_root=$HOST_RESOURCEDIRS_ROOT"
 
+  if [ -n "$HOST_RESOURCEDIRS_PATH" ]; then
+    CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t host_resourcedirs_path=$HOST_RESOURCEDIRS_PATH"
+  fi
+
   if [ -z "$BUILD_RESOURCEDIRS_ROOT" ]; then
     echo >&2 "BUILD_RESOURCEDIRS_ROOT not set"
     exit 2
@@ -242,8 +246,6 @@ write_os_resourcedirs_overlay() {
     PODMAN=$(PATH=/opt/podman/bin:$PATH which podman)
   fi
 
-  OVERLAY_BASEDIR=$1
-
   RESOURCEDIR_KEYS=$(print_rendered_cue_dev_expr_as text -e '#out.resourcedir_keys')
   echo RESOURCEDIR_KEYS=$RESOURCEDIR_KEYS
   for resourcedir_key in $RESOURCEDIR_KEYS; do
@@ -256,8 +258,6 @@ write_os_resourcedirs_overlay() {
     mkdir -p $RESOURCEDIR_MKDIRS
     $PODMAN run $PODMAN_RUN_OPTIONS
   done
-
-  commit_ostree_layer "tmp/repo" "gen-overlay/resourcedirs" $OVERLAY_BASEDIR
 }
 
 write_os_containers_overlay() {
@@ -304,8 +304,6 @@ write_os_containers_overlay() {
   for unit in $UNITS; do
     print_rendered_cue_dev_expr_as text -e "#out.systemd_containers[\"$unit\"]" > os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR/$unit
   done
-
-  commit_ostree_layer "tmp/repo" "gen-overlay/containers" $OVERLAY_BASEDIR
 }
 
 cosa_run() {
@@ -330,24 +328,33 @@ case "$1" in
     shift
     cosa_run "$@"
     ;;
-  os-make)
+  containers-make)
     shift
+
+    # TODO add udev automount for oob drive (in OS)
 
     LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
     HOST_ROOT_SOURCE_DIR="/var/source"
     HOST_CUDA="1"
     HOST_DOCKER_SOCKET="/var/run/podman/podman.sock"
     HOST_RESOURCEDIRS_ROOT="/usr/share/resourcedirs"
-    BUILD_RESOURCEDIRS_ROOT="$HERE/os/gen/overlay.d/resourcedirs$HOST_RESOURCEDIRS_ROOT"
+    HOST_RESOURCEDIRS_PATH="/var/oob/resourcedirs:/var/mnt/oob/resourcedirs:/run/media/iso/oob/resourcedirs"
+    REL_BUILD_RESOURCEDIRS_ROOT=gen/overlay.d/resourcedirs$HOST_RESOURCEDIRS_ROOT
+    BUILD_RESOURCEDIRS_ROOT="$HERE/os/$REL_BUILD_RESOURCEDIRS_ROOT"
 
     write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
 
-    write_os_resourcedirs_overlay gen/overlay.d/resourcedirs$HOST_RESOURCEDIRS_ROOT
-    write_os_containers_overlay gen/overlay.d/containers
+    write_os_resourcedirs_overlay
+    # commit_ostree_layer "tmp/repo" "gen-overlay/resourcedirs" $REL_BUILD_RESOURCEDIRS_ROOT
 
-    docker build tools/nvidia-kmods/ --output type=local,dest=os/overrides/rpm
+    write_os_containers_overlay gen/overlay.d/containers
+    # commit_ostree_layer "tmp/repo" "gen-overlay/containers" gen/overlay.d/containers
+    ;;
+  os-make)
+    shift
 
     # sudo chmod 0777 /dev/kvm
+    docker build tools/nvidia-kmods/ --output type=local,dest=os/overrides/rpm
 
     ./tools/cosa fetch --with-cosa-overrides
     ./tools/cosa build
@@ -397,6 +404,7 @@ case "$1" in
     HOST_ROOT_SOURCE_DIR=$HERE
     HOST_PROBE_PREFIX="sh -c"
 
+    HOST_RESOURCEDIRS_PATH=""
     HOST_RESOURCEDIRS_ROOT="$HERE/os/gen/overlay.d/resourcedirs/usr/share/resourcedirs"
     BUILD_RESOURCEDIRS_ROOT="$HOST_RESOURCEDIRS_ROOT"
     HOST_DOCKER_SOCKET="/var/run/docker.sock"
