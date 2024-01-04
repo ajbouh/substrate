@@ -313,6 +313,17 @@ cosa_run() {
   $HERE/tools/cosa run --ignition "$IGNITION_FILE" "$@"
 }
 
+set_os_vars() {
+  LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
+  HOST_ROOT_SOURCE_DIR="/var/source"
+  HOST_CUDA="1"
+  HOST_DOCKER_SOCKET="/var/run/podman/podman.sock"
+  HOST_RESOURCEDIRS_ROOT="/usr/share/resourcedirs"
+  HOST_RESOURCEDIRS_PATH="/var/oob/resourcedirs:/var/mnt/oob/resourcedirs:/run/media/iso/oob/resourcedirs"
+  REL_BUILD_RESOURCEDIRS_ROOT=gen/overlay.d/resourcedirs$HOST_RESOURCEDIRS_ROOT
+  BUILD_RESOURCEDIRS_ROOT="$HERE/os/$REL_BUILD_RESOURCEDIRS_ROOT"
+}
+
 FCOS_STREAM=stable
 QEMU_RAM=2048
 QEMU_DISK=32G
@@ -333,14 +344,7 @@ case "$1" in
 
     # TODO add udev automount for oob drive (in OS)
 
-    LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
-    HOST_ROOT_SOURCE_DIR="/var/source"
-    HOST_CUDA="1"
-    HOST_DOCKER_SOCKET="/var/run/podman/podman.sock"
-    HOST_RESOURCEDIRS_ROOT="/usr/share/resourcedirs"
-    HOST_RESOURCEDIRS_PATH="/var/oob/resourcedirs:/var/mnt/oob/resourcedirs:/run/media/iso/oob/resourcedirs"
-    REL_BUILD_RESOURCEDIRS_ROOT=gen/overlay.d/resourcedirs$HOST_RESOURCEDIRS_ROOT
-    BUILD_RESOURCEDIRS_ROOT="$HERE/os/$REL_BUILD_RESOURCEDIRS_ROOT"
+    set_os_vars
 
     write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
 
@@ -353,6 +357,12 @@ case "$1" in
   os-make)
     shift
 
+    set_os_vars
+
+    cd os
+    print_rendered_cue_dev_expr_as yaml -e '#out.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output .gen/substrate.ign
+    cd -
+
     # sudo chmod 0777 /dev/kvm
     docker build tools/nvidia-kmods/ --output type=local,dest=os/overrides/rpm
 
@@ -364,7 +374,6 @@ case "$1" in
     ./tools/cosa buildextend-live
 
     cd os
-    print_rendered_cue_dev_expr_as yaml -e '#out.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output .gen/substrate.ign
     FCOS_INSTALLER_ISO=$(ls builds/latest/x86_64/*.iso)
     fcos_installer \
         iso customize \
