@@ -159,7 +159,7 @@ for key, def in #out.daemons {
   #out: "systemd_containers": (containerspec.#SystemdUnits & {#name: key, #containerspec: def}).#out
 }
 
-for basename, unit in #out.systemd_container_contents {
+for basename, unit in #out.systemd_containers {
   #out: "systemd_container_contents": (basename): (systemd.#render & {#unit: unit}).#out
 }
 
