@@ -2,6 +2,7 @@ package dockerprovisioner
 
 import (
 	"context"
+	"io"
 	"net/url"
 	"os"
 	"path"
@@ -83,30 +84,33 @@ func (p *P) dumpLogs(ctx context.Context, containerID string) error {
 }
 
 func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error)  {
-	rdMainRoot := path.Join(p.hostResourceDirsRoot, rd.SHA256)
-	if _, err := os.Stat(rdMainRoot); err == nil {
-		return rdMainRoot, nil
+	rdMainPath := path.Join(p.hostResourceDirsRoot, rd.SHA256)
+	if _, err := os.Stat(rdMainPath); err == nil {
+		return rdMainPath, nil
 	} else if err != io.EOF {
-		return rdMainRoot, err
+		return rdMainPath, err
 	}
 
 	// Use existing from path, otherwise fallback to main
 	for _, rdRoot := range p.hostResourceDirsPath {
 		rdPath := path.Join(rdRoot, rd.SHA256)
-		if _, err := os.Stat(rdRoot); err == nil {
-			return rdRoot, nil
+		if _, err := os.Stat(rdPath); err == nil {
+			return rdPath, nil
 		} else if err != io.EOF {
-			return rdRoot, err
+			return rdPath, err
 		}
 	}
 
-	return rdMainRoot, nil
+	return rdMainPath, nil
 }
 
 func (p *P) prepareResourceDirsMounts(as *activityspec.ServiceSpawnResolution) ([]mount.Mount, error) {
 	mounts := make([]mount.Mount, 0, len(as.ResourceDirs))
 	for alias, rd := range as.ResourceDirs {
 		rdPath, err := p.findResourceDir(rd)
+		if err != nil {
+			return nil, err
+		}
 		mounts = append(mounts, mount.Mount{
 			Type:     mount.TypeBind,
 			Source:   rdPath,
