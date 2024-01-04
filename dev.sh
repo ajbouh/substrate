@@ -302,7 +302,7 @@ write_os_containers_overlay() {
   UNITS=$(print_rendered_cue_dev_expr_as text -e '#out.systemd_container_basenames')
   echo UNITS=$UNITS
   for unit in $UNITS; do
-    print_rendered_cue_dev_expr_as text -e "#out.systemd_containers[\"$unit\"]" > os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR/$unit
+    print_rendered_cue_dev_expr_as text -e "#out.systemd_container_contents[\"$unit\"]" > os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR/$unit
   done
 }
 
