@@ -27,6 +27,7 @@ import (
     }
   }
   "host_resourcedirs_root": string | *"" @tag(host_resourcedirs_root)
+  "host_resourcedirs_path": string | *"" @tag(host_resourcedirs_path)
   "build_resourcedirs_root": string | *"" @tag(build_resourcedirs_root)
   "host_docker_socket": string | *"/var/run/docker.sock" @tag(host_docker_socket)
   // host_docker_socket: "/var/run/podman/podman.sock"
