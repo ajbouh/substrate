@@ -339,6 +339,18 @@ case "$1" in
     shift
     cosa_run "$@"
     ;;
+
+  resourcedirs-make)
+    shift
+
+    set_os_vars
+
+    write_os_resourcedirs_overlay
+    # commit_ostree_layer "tmp/repo" "gen-overlay/resourcedirs" $REL_BUILD_RESOURCEDIRS_ROOT
+
+    mkdir -p os/gen/oob
+    mksquashfs $BUILD_RESOURCEDIRS_ROOT os/gen/oob/resourcedirs.squashfs -noappend -wildcards -no-recovery -comp zstd
+    ;;
   containers-make)
     shift
 
@@ -348,11 +360,13 @@ case "$1" in
 
     write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
 
-    write_os_resourcedirs_overlay
-    # commit_ostree_layer "tmp/repo" "gen-overlay/resourcedirs" $REL_BUILD_RESOURCEDIRS_ROOT
-
     write_os_containers_overlay gen/overlay.d/containers
     # commit_ostree_layer "tmp/repo" "gen-overlay/containers" gen/overlay.d/containers
+    
+    mkdir -p os/gen/oob
+    mksquashfs os/gen/overlay.d/containers os/gen/oob/containers.squashfs -noappend -wildcards -no-recovery -comp zstd
+
+    # TODO add iso 
     ;;
   os-make)
     shift
