@@ -256,7 +256,7 @@ write_os_resourcedirs_overlay() {
 
     # podman won't automatically make these directories, so do it now.
     mkdir -p $RESOURCEDIR_MKDIRS
-    $PODMAN run $PODMAN_RUN_OPTIONS
+    $PODMAN run --rm $PODMAN_RUN_OPTIONS
   done
 }
 
@@ -290,9 +290,7 @@ write_os_image_storage_overlay() {
   fi
 
   OVERLAY_BASEDIR=$1
-  IMAGE_STORE_BASEDIR=usr/share/containers/storage
-  OVERLAY_IMAGE_STORE_BASEDIR=$OVERLAY_BASEDIR/$IMAGE_STORE_BASEDIR
-  mkdir -p os/$OVERLAY_IMAGE_STORE_BASEDIR
+  mkdir -p os/$OVERLAY_BASEDIR
 
   # populate images
   IMAGES=$(print_rendered_cue_dev_expr_as text -e '#out.image_references')
@@ -302,7 +300,7 @@ write_os_image_storage_overlay() {
   for image in $IMAGES; do
     PODMAN_BUILD_OPTIONS=$(print_rendered_cue_dev_expr_as text -e "#out.image_podman_build_options[\"$image\"]")
     $PODMAN build --layers --tag $image $PODMAN_BUILD_OPTIONS
-    $PODMAN pull --root os/$OVERLAY_IMAGE_STORE_BASEDIR ${PODMAN_LOCAL_REPO}$image
+    $PODMAN pull --root os/$OVERLAY_BASEDIR ${PODMAN_LOCAL_REPO}$image
   done
 }
 
@@ -319,8 +317,8 @@ set_os_vars() {
   HOST_CUDA="1"
   HOST_DOCKER_SOCKET="/var/run/podman/podman.sock"
   HOST_RESOURCEDIRS_ROOT="/usr/share/resourcedirs"
-  HOST_RESOURCEDIRS_PATH="/var/oob/resourcedirs:/var/mnt/oob/resourcedirs:/run/media/iso/oob/resourcedirs"
-  REL_BUILD_RESOURCEDIRS_ROOT="gen/overlay.d/resourcedirs$HOST_RESOURCEDIRS_ROOT"
+  HOST_RESOURCEDIRS_PATH="/var/mnt/oob/resourcedirs:/run/media/iso/oob/resourcedirs"
+  REL_BUILD_RESOURCEDIRS_ROOT="gen/oob/resourcedirs$HOST_RESOURCEDIRS_ROOT"
   BUILD_RESOURCEDIRS_ROOT="$HERE/os/$REL_BUILD_RESOURCEDIRS_ROOT"
 }
 
@@ -337,37 +335,27 @@ case "$1" in
     ;;
   cosa-run)
     shift
+
+    set_os_vars
+
     cosa_run "$@"
     ;;
 
-  resourcedirs-make)
+  oob-make)
     shift
 
     set_os_vars
 
     write_os_resourcedirs_overlay
-    # commit_ostree_layer "tmp/repo" "gen-overlay/resourcedirs" $REL_BUILD_RESOURCEDIRS_ROOT
-
-    mkdir -p os/src/config/live/oob
-    ./tools/cosa shell sudo mksquashfs $REL_BUILD_RESOURCEDIRS_ROOT src/config/live/oob/resourcedirs.squashfs -noappend -wildcards -no-recovery -comp zstd
-
-    ;;
-  images-make)
-    shift
-
-    # TODO add udev automount for oob drive (in OS)
 
     set_os_vars
 
     write_rendered_cue_dev_expr_as_cue $BUILD_LENSES_EXPR_PATH -e "#out.#lenses"
 
-    write_os_image_storage_overlay gen/overlay.d/images
-    # commit_ostree_layer "tmp/repo" "gen-overlay/images" gen/overlay.d/images
+    write_os_image_storage_overlay gen/oob/imagestore
     
     mkdir -p os/src/config/live/oob
-    ./tools/cosa shell sudo mksquashfs gen/overlay.d/images src/config/live/oob/images.squashfs -noappend -wildcards -no-recovery -comp zstd
-
-    # TODO add iso 
+    ./tools/cosa shell sudo mksquashfs gen/oob src/config/live/oob/oob.squashfs -noappend -wildcards -no-recovery -comp zstd
     ;;
   os-make)
     shift

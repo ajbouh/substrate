@@ -17,6 +17,26 @@ WantedBy=multi-user.target default.target
 EOF
 
 chmod 644 /usr/lib/systemd/system/nvidia-ctk-cdi-generate.service
-
-# Enable the corresponding unit
 systemctl enable nvidia-ctk-cdi-generate.service
+
+
+# Mount OOB data from ISO if it's present
+
+mkdir -p /run/oob
+cat > /usr/lib/systemd/system/run-oob-from-iso.mount <<'EOF'
+[Unit]
+ConditionPathExists=/run/media/iso/oob/oob.squashfs
+RequiresMountsFor=/run/media/iso
+
+[Mount]
+What=/run/media/iso/oob/oob.squashfs
+Where=/run/oob
+Type=squashfs
+Options=nofail
+
+[Install]
+WantedBy=substrate.service
+EOF
+
+chmod 644 /usr/lib/systemd/system/run-oob-from-iso.mount
+systemctl enable run-oob-from-iso.mount
