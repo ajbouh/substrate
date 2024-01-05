@@ -359,7 +359,7 @@ case "$1" in
 
     set_os_vars
 
-    write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
+    write_rendered_cue_dev_expr_as_cue $BUILD_LENSES_EXPR_PATH -e "#out.#lenses"
 
     write_os_image_storage_overlay gen/overlay.d/images
     # commit_ostree_layer "tmp/repo" "gen-overlay/images" gen/overlay.d/images
@@ -430,7 +430,7 @@ case "$1" in
     ;;
   docker-compose-up)
     shift
-    LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
+    BUILD_LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
     HOST_ROOT_SOURCE_DIR=$HERE
     HOST_PROBE_PREFIX="sh -c"
 
@@ -438,7 +438,7 @@ case "$1" in
     HOST_RESOURCEDIRS_ROOT="$HERE/os/gen/overlay.d/resourcedirs/usr/share/resourcedirs"
     BUILD_RESOURCEDIRS_ROOT="$HOST_RESOURCEDIRS_ROOT"
     HOST_DOCKER_SOCKET="/var/run/docker.sock"
-    write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
+    write_rendered_cue_dev_expr_as_cue $BUILD_LENSES_EXPR_PATH -e "#out.#lenses"
     DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
     docker_compose $DOCKER_COMPOSE_FILE --profile resourcedirs build
     docker_compose $DOCKER_COMPOSE_FILE --profile resourcedirs up
@@ -456,10 +456,10 @@ case "$1" in
   remote-docker-compose-up)
     shift
     ensure_dev_cue_expr
-    LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
-    write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
+    BUILD_LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
+    write_rendered_cue_dev_expr_as_cue $BUILD_LENSES_EXPR_PATH -e "#out.#lenses"
     HOST_ROOT_SOURCE_DIR=/tmp
-    TAG_ARGS="-t root_source_directory=$HOST_ROOT_SOURCE_DIR -t lenses_expr_path=$LENSES_EXPR_PATH"
+    TAG_ARGS="-t root_source_directory=$HOST_ROOT_SOURCE_DIR -t build_lenses_expr_path=$BUILD_LENSES_EXPR_PATH"
     if ! ssh $REMOTE_DOCKER_HOSTNAME nvidia-smi 2>&1 >/dev/null; then
       TAG_ARGS="$TAG_ARGS -t no_cuda=1"
     fi    
