@@ -40,11 +40,11 @@ detect_dev_cue_tag_args() {
   fi
   CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t root_source_directory=$HOST_ROOT_SOURCE_DIR"
 
-  if [ -z "$LENSES_EXPR_PATH" ]; then
-    echo >&2 "LENSES_EXPR_PATH not set"
+  if [ -z "$BUILD_LENSES_EXPR_PATH" ]; then
+    echo >&2 "BUILD_LENSES_EXPR_PATH not set"
     exit 2
   fi
-  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t lenses_expr_path=$LENSES_EXPR_PATH"
+  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t build_lenses_expr_path=$BUILD_LENSES_EXPR_PATH"
 
   if [ -z "$HOST_DOCKER_SOCKET" ]; then
     echo >&2 "HOST_DOCKER_SOCKET not set"
@@ -260,7 +260,21 @@ write_os_resourcedirs_overlay() {
   done
 }
 
-write_os_containers_overlay() {
+write_os_container_units_overlay() {
+  OVERLAY_BASEDIR=$1
+  SYSTEMD_CONTAINERS_BASEDIR=etc/containers/systemd
+  OVERLAY_SYSTEMD_CONTAINERS_BASEDIR=$OVERLAY_BASEDIR/$SYSTEMD_CONTAINERS_BASEDIR
+  mkdir -p os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR
+
+  # populate associated systemd units
+  UNITS=$(print_rendered_cue_dev_expr_as text -e '#out.systemd_container_basenames')
+  echo UNITS=$UNITS
+  for unit in $UNITS; do
+    print_rendered_cue_dev_expr_as text -e "#out.systemd_container_contents[\"$unit\"]" > os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR/$unit
+  done
+}
+
+write_os_image_storage_overlay() {
   # https://man.archlinux.org/man/containers-transports.5.en
   # https://www.redhat.com/sysadmin/image-stores-podman
   # https://github.com/rancher/os/issues/1449
@@ -277,15 +291,8 @@ write_os_containers_overlay() {
 
   OVERLAY_BASEDIR=$1
   IMAGE_STORE_BASEDIR=usr/share/containers/storage
-  SYSTEMD_CONTAINERS_BASEDIR=etc/containers/systemd
-  LENSES_EXPR_PATH=usr/share/substrate/lenses.cue
   OVERLAY_IMAGE_STORE_BASEDIR=$OVERLAY_BASEDIR/$IMAGE_STORE_BASEDIR
-  OVERLAY_SYSTEMD_CONTAINERS_BASEDIR=$OVERLAY_BASEDIR/$SYSTEMD_CONTAINERS_BASEDIR
-  OVERLAY_LENSES_EXPR_PATH=$OVERLAY_BASEDIR/$LENSES_EXPR_PATH
-  mkdir -p os/$OVERLAY_IMAGE_STORE_BASEDIR os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR os/$(dirname $OVERLAY_LENSES_EXPR_PATH)
-
-  # write_cue_dev_expr $CUE_DEV_EXPR_PATH
-  write_rendered_cue_dev_expr_as_cue os/$OVERLAY_LENSES_EXPR_PATH -e "#out.#lenses"
+  mkdir -p os/$OVERLAY_IMAGE_STORE_BASEDIR
 
   # populate images
   IMAGES=$(print_rendered_cue_dev_expr_as text -e '#out.image_references')
@@ -297,13 +304,6 @@ write_os_containers_overlay() {
     $PODMAN build --layers --tag $image $PODMAN_BUILD_OPTIONS
     $PODMAN pull --root os/$OVERLAY_IMAGE_STORE_BASEDIR ${PODMAN_LOCAL_REPO}$image
   done
-
-  # populate associated systemd units
-  UNITS=$(print_rendered_cue_dev_expr_as text -e '#out.systemd_container_basenames')
-  echo UNITS=$UNITS
-  for unit in $UNITS; do
-    print_rendered_cue_dev_expr_as text -e "#out.systemd_container_contents[\"$unit\"]" > os/$OVERLAY_SYSTEMD_CONTAINERS_BASEDIR/$unit
-  done
 }
 
 cosa_run() {
@@ -314,7 +314,7 @@ cosa_run() {
 }
 
 set_os_vars() {
-  LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
+  BUILD_LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
   HOST_ROOT_SOURCE_DIR="/var/source"
   HOST_CUDA="1"
   HOST_DOCKER_SOCKET="/var/run/podman/podman.sock"
@@ -348,10 +348,11 @@ case "$1" in
     write_os_resourcedirs_overlay
     # commit_ostree_layer "tmp/repo" "gen-overlay/resourcedirs" $REL_BUILD_RESOURCEDIRS_ROOT
 
-    mkdir -p os/gen/oob
-    mksquashfs $BUILD_RESOURCEDIRS_ROOT os/gen/oob/resourcedirs.squashfs -noappend -wildcards -no-recovery -comp zstd
+    mkdir -p os/src/config/live/oob
+    ./tools/cosa shell sudo mksquashfs $BUILD_RESOURCEDIRS_ROOT os/src/config/live/oob/resourcedirs.squashfs -noappend -wildcards -no-recovery -comp zstd
+
     ;;
-  containers-make)
+  images-make)
     shift
 
     # TODO add udev automount for oob drive (in OS)
@@ -360,11 +361,11 @@ case "$1" in
 
     write_rendered_cue_dev_expr_as_cue $LENSES_EXPR_PATH -e "#out.#lenses"
 
-    write_os_containers_overlay gen/overlay.d/containers
-    # commit_ostree_layer "tmp/repo" "gen-overlay/containers" gen/overlay.d/containers
+    write_os_image_storage_overlay gen/overlay.d/images
+    # commit_ostree_layer "tmp/repo" "gen-overlay/images" gen/overlay.d/images
     
-    mkdir -p os/gen/oob
-    mksquashfs os/gen/overlay.d/containers os/gen/oob/containers.squashfs -noappend -wildcards -no-recovery -comp zstd
+    mkdir -p os/src/config/live/oob
+    ./tools/cosa shell sudo mksquashfs os/gen/overlay.d/images os/src/config/live/oob/images.squashfs -noappend -wildcards -no-recovery -comp zstd
 
     # TODO add iso 
     ;;
@@ -376,6 +377,9 @@ case "$1" in
     cd os
     print_rendered_cue_dev_expr_as yaml -e '#out.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output .gen/substrate.ign
     cd -
+
+    write_os_container_units_overlay gen/overlay.d/containers
+    commit_ostree_layer "tmp/repo" "gen-overlay/containers" gen/overlay.d/containers
 
     # sudo chmod 0777 /dev/kvm
     docker build tools/nvidia-kmods/ --output type=local,dest=os/overrides/rpm

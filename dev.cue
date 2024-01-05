@@ -20,7 +20,7 @@ import (
   "root_source_directory": string | *"" @tag(root_source_directory)
   "image_prefix": "ghcr.io/ajbouh/substrate:substrate-"
   "no_cuda": #no_cuda != ""
-  "lenses_expr_path": string | *"" @tag(lenses_expr_path)
+  "build_lenses_expr_path": string | *"" @tag(build_lenses_expr_path)
   "secrets": {
     "substrate": {
       "session_secret": "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
