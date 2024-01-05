@@ -348,14 +348,21 @@ case "$1" in
 
     write_os_resourcedirs_overlay
 
-    set_os_vars
-
     write_rendered_cue_dev_expr_as_cue $BUILD_LENSES_EXPR_PATH -e "#out.#lenses"
 
     write_os_image_storage_overlay gen/oob/imagestore
     
     mkdir -p os/src/config/live/oob
     ./tools/cosa shell sudo mksquashfs gen/oob src/config/live/oob/oob.squashfs -noappend -wildcards -no-recovery -comp zstd
+    ;;
+  os-fetch)
+    shift
+
+    set_os_vars
+
+    docker build tools/nvidia-kmods/ --output type=local,dest=os/overrides/rpm
+
+    ./tools/cosa fetch --with-cosa-overrides
     ;;
   os-make)
     shift
@@ -373,9 +380,6 @@ case "$1" in
     commit_ostree_layer "tmp/repo" "gen-overlay/containers" gen/overlay.d/containers
 
     # sudo chmod 0777 /dev/kvm
-    docker build tools/nvidia-kmods/ --output type=local,dest=os/overrides/rpm
-
-    ./tools/cosa fetch --with-cosa-overrides
     ./tools/cosa build
 
     ./tools/cosa buildextend-metal
