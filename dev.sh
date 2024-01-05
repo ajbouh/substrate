@@ -320,7 +320,7 @@ set_os_vars() {
   HOST_DOCKER_SOCKET="/var/run/podman/podman.sock"
   HOST_RESOURCEDIRS_ROOT="/usr/share/resourcedirs"
   HOST_RESOURCEDIRS_PATH="/var/oob/resourcedirs:/var/mnt/oob/resourcedirs:/run/media/iso/oob/resourcedirs"
-  REL_BUILD_RESOURCEDIRS_ROOT=gen/overlay.d/resourcedirs$HOST_RESOURCEDIRS_ROOT
+  REL_BUILD_RESOURCEDIRS_ROOT="gen/overlay.d/resourcedirs$HOST_RESOURCEDIRS_ROOT"
   BUILD_RESOURCEDIRS_ROOT="$HERE/os/$REL_BUILD_RESOURCEDIRS_ROOT"
 }
 
@@ -349,7 +349,7 @@ case "$1" in
     # commit_ostree_layer "tmp/repo" "gen-overlay/resourcedirs" $REL_BUILD_RESOURCEDIRS_ROOT
 
     mkdir -p os/src/config/live/oob
-    ./tools/cosa shell sudo mksquashfs $BUILD_RESOURCEDIRS_ROOT os/src/config/live/oob/resourcedirs.squashfs -noappend -wildcards -no-recovery -comp zstd
+    ./tools/cosa shell sudo mksquashfs $REL_BUILD_RESOURCEDIRS_ROOT src/config/live/oob/resourcedirs.squashfs -noappend -wildcards -no-recovery -comp zstd
 
     ;;
   images-make)
@@ -365,7 +365,7 @@ case "$1" in
     # commit_ostree_layer "tmp/repo" "gen-overlay/images" gen/overlay.d/images
     
     mkdir -p os/src/config/live/oob
-    ./tools/cosa shell sudo mksquashfs os/gen/overlay.d/images os/src/config/live/oob/images.squashfs -noappend -wildcards -no-recovery -comp zstd
+    ./tools/cosa shell sudo mksquashfs gen/overlay.d/images src/config/live/oob/images.squashfs -noappend -wildcards -no-recovery -comp zstd
 
     # TODO add iso 
     ;;
@@ -373,6 +373,9 @@ case "$1" in
     shift
 
     set_os_vars
+
+    # rm os/.gen/substrateos.iso
+    # rm .gen/cue/substrate-nobody-dev.cue
 
     cd os
     print_rendered_cue_dev_expr_as yaml -e '#out.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output .gen/substrate.ign
