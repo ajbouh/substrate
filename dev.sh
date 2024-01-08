@@ -317,7 +317,7 @@ set_os_vars() {
   HOST_CUDA="1"
   HOST_DOCKER_SOCKET="/var/run/podman/podman.sock"
   HOST_RESOURCEDIRS_ROOT="/usr/share/resourcedirs"
-  HOST_RESOURCEDIRS_PATH="/var/mnt/oob/resourcedirs:/run/media/iso/oob/resourcedirs"
+  HOST_RESOURCEDIRS_PATH="/run/media/oob/resourcedirs:/run/media/iso/oob/resourcedirs"
   REL_BUILD_RESOURCEDIRS_ROOT="gen/oob/resourcedirs$HOST_RESOURCEDIRS_ROOT"
   BUILD_RESOURCEDIRS_ROOT="$HERE/os/$REL_BUILD_RESOURCEDIRS_ROOT"
 }
