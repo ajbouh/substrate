@@ -106,7 +106,7 @@ StopWhenUnneeded=true
 What=/${isosrc}
 Where=/run/media/iso
 Options=ro
-Type=iso9660
+Type=udf
 EOF
 
     # Determine what to mount in sysroot.mount based on if we were asked to run
