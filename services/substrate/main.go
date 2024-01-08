@@ -103,7 +103,7 @@ func newDockerProvisioner(cudaAvailable bool) *dockerprovisioner.P {
 func newPodmanProvisioner(cudaAvailable bool) *podmanprovisioner.P {
 	prep := func(s *specgen.SpecGenerator) {
 		s.SelinuxOpts = []string{
-			"label=disable",
+			"disable",
 		}
 		// if os.Getenv("SUBSTRATE_NO_CUDA") == "" && cudaAvailable {
 		if true {
