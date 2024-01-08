@@ -23,7 +23,7 @@ systemctl enable nvidia-ctk-cdi-generate.service
 # Mount OOB data from ISO if it's present
 
 mkdir -p /run/oob
-cat > /usr/lib/systemd/system/run-oob-from-iso.mount <<'EOF'
+cat > /usr/lib/systemd/system/run-oob-iso-oob-oob.squashfs.mount <<'EOF'
 [Unit]
 ConditionPathExists=/run/media/iso/oob/oob.squashfs
 RequiresMountsFor=/run/media/iso
@@ -38,5 +38,5 @@ Options=nofail
 WantedBy=substrate.service
 EOF
 
-chmod 644 /usr/lib/systemd/system/run-oob-from-iso.mount
-systemctl enable run-oob-from-iso.mount
+chmod 644 /usr/lib/systemd/system/run-oob-iso-oob-oob.squashfs.mount
+systemctl enable run-oob-iso-oob-oob.squashfs.mount
