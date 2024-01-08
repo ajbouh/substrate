@@ -5,9 +5,8 @@ include:
   - fedora-coreos.yaml
   - nvidia.yaml
 
-# ostree-layers:
-#   - gen-overlay/containers
-#   - gen-overlay/resourcedirs
+ostree-layers:
+  - gen-overlay/containers
 
 ostree-override-layers:
   - overlay/50containers-storage-conf
