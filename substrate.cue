@@ -150,8 +150,8 @@ daemons: "substrate": {
 
     "substrate.container": {
       Unit: {
-        Requires: ["podman.socket", "nvidia-ctk-cdi-generate.service"]
-        After: ["podman.socket", "nvidia-ctk-cdi-generate.service"]
+        Requires: ["podman.socket", "nvidia-ctk-cdi-generate.service", "substrate-external.network", "substrate-internal.network"]
+        After: ["podman.socket", "nvidia-ctk-cdi-generate.service", "substrate-external.network", "substrate-internal.network"]
       }
       Install: {
         WantedBy: ["multi-user.target", "default.target"]
@@ -169,6 +169,7 @@ daemons: "substrate": {
         ]
         Environment: {
           SESSION_SECRET: "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
+          LD_LIBRARY_PATH: "/lib/x86_64-linux-gnu:/lib64"
           environment
         }
       }
