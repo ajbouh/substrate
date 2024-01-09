@@ -398,6 +398,7 @@ case "$1" in
     fcos_installer \
         iso customize \
         '--live-ignition=./.gen/substrate.ign' \
+        '--live-karg-append' 'enforcing=0'\
         '--force' \
         -o .gen/$SUBSTRATEOS_ISO_BASENAME \
         $FCOS_INSTALLER_ISO
