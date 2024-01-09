@@ -42,6 +42,3 @@ postprocess:
     systemctl preset-all
     rm -rf /etc/systemd/user/*
     systemctl --user --global preset-all
-
-# Since we reset systemd units above, provide a place to enable what we actually want.
-postprocess-script: "postprocess.sh"

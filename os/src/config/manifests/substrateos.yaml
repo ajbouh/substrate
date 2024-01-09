@@ -9,4 +9,4 @@ ostree-layers:
   - gen-overlay/containers
 
 ostree-override-layers:
-  - overlay/50containers-storage-conf
+  - overlay/50substrateos
