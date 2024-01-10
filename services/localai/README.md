@@ -1,0 +1,175 @@
+<h1 align="center">
+  <br>
+  <img height="300" src="https://github.com/go-skynet/LocalAI/assets/2420543/0966aa2a-166e-4f99-a3e5-6c915fc997dd"> <br>
+    LocalAI
+<br>
+</h1>
+
+<p align="center">
+<a href="https://github.com/go-skynet/LocalAI/fork" target="blank">
+<img src="https://img.shields.io/github/forks/go-skynet/LocalAI?style=for-the-badge" alt="LocalAI forks"/>
+</a>
+<a href="https://github.com/go-skynet/LocalAI/stargazers" target="blank">
+<img src="https://img.shields.io/github/stars/go-skynet/LocalAI?style=for-the-badge" alt="LocalAI stars"/>
+</a>
+<a href="https://github.com/go-skynet/LocalAI/pulls" target="blank">
+<img src="https://img.shields.io/github/issues-pr/go-skynet/LocalAI?style=for-the-badge" alt="LocalAI pull-requests"/>
+</a>
+<a href='https://github.com/go-skynet/LocalAI/releases'>
+<img src='https://img.shields.io/github/release/go-skynet/LocalAI?&label=Latest&style=for-the-badge'>
+</a>
+</p>
+
+[<img src="https://img.shields.io/badge/dockerhub-images-important.svg?logo=Docker">](https://hub.docker.com/r/localai/localai)
+[<img src="https://img.shields.io/badge/quay.io-images-important.svg?">](https://quay.io/repository/go-skynet/local-ai?tab=tags&tag=latest)
+
+> :bulb: Get help - [❓FAQ](https://localai.io/faq/) [💭Discussions](https://github.com/go-skynet/LocalAI/discussions) [:speech_balloon: Discord](https://discord.gg/uJAeKSAGDy) [:book: Documentation website](https://localai.io/)
+>
+> [💻 Quickstart](https://localai.io/basics/getting_started/) [📣 News](https://localai.io/basics/news/) [ 🛫 Examples ](https://github.com/go-skynet/LocalAI/tree/master/examples/) [ 🖼️ Models ](https://localai.io/models/) [ 🚀 Roadmap ](https://github.com/mudler/LocalAI/issues?q=is%3Aissue+is%3Aopen+label%3Aroadmap)
+
+[![tests](https://github.com/go-skynet/LocalAI/actions/workflows/test.yml/badge.svg)](https://github.com/go-skynet/LocalAI/actions/workflows/test.yml)[![Build and Release](https://github.com/go-skynet/LocalAI/actions/workflows/release.yaml/badge.svg)](https://github.com/go-skynet/LocalAI/actions/workflows/release.yaml)[![build container images](https://github.com/go-skynet/LocalAI/actions/workflows/image.yml/badge.svg)](https://github.com/go-skynet/LocalAI/actions/workflows/image.yml)[![Bump dependencies](https://github.com/go-skynet/LocalAI/actions/workflows/bump_deps.yaml/badge.svg)](https://github.com/go-skynet/LocalAI/actions/workflows/bump_deps.yaml)[![Artifact Hub](https://img.shields.io/endpoint?url=https://artifacthub.io/badge/repository/localai)](https://artifacthub.io/packages/search?repo=localai)
+
+<p align="center">
+<a href="https://twitter.com/LocalAI_API" target="blank">
+<img src="https://img.shields.io/twitter/follow/LocalAI_API?label=Follow: LocalAI_API&style=social" alt="Follow LocalAI_API"/>
+</a>
+<a href="https://discord.gg/uJAeKSAGDy" target="blank">
+<img src="https://dcbadge.vercel.app/api/server/uJAeKSAGDy?style=flat-square&theme=default-inverted" alt="Join LocalAI Discord Community"/>
+</a>
+
+**LocalAI** is the free, Open Source OpenAI alternative. LocalAI act as a drop-in replacement REST API that’s compatible with OpenAI API specifications for local inferencing. It allows you to run LLMs, generate images, audio (and not only) locally or on-prem with consumer grade hardware, supporting multiple model families. Does not require GPU.
+
+## 🔥🔥 Hot topics / Roadmap
+
+[Roadmap](https://github.com/mudler/LocalAI/issues?q=is%3Aissue+is%3Aopen+label%3Aroadmap)
+
+- Start and share models with config file: https://github.com/mudler/LocalAI/pull/1522
+- 🐸 Coqui: https://github.com/mudler/LocalAI/pull/1489
+- Inline templates: https://github.com/mudler/LocalAI/pull/1452
+- Mixtral: https://github.com/mudler/LocalAI/pull/1449
+- Img2vid https://github.com/mudler/LocalAI/pull/1442
+- Musicgen https://github.com/mudler/LocalAI/pull/1387
+
+Hot topics (looking for contributors):
+- Backends v2: https://github.com/mudler/LocalAI/issues/1126
+- Improving UX v2: https://github.com/mudler/LocalAI/issues/1373
+
+If you want to help and contribute, issues up for grabs: https://github.com/mudler/LocalAI/issues?q=is%3Aissue+is%3Aopen+label%3A%22up+for+grabs%22
+
+## 💻 [Getting started](https://localai.io/basics/getting_started/index.html)
+
+## 🚀 [Features](https://localai.io/features/)
+
+- 📖 [Text generation with GPTs](https://localai.io/features/text-generation/) (`llama.cpp`, `gpt4all.cpp`, ... [:book: and more](https://localai.io/model-compatibility/index.html#model-compatibility-table))
+- 🗣 [Text to Audio](https://localai.io/features/text-to-audio/)
+- 🔈 [Audio to Text](https://localai.io/features/audio-to-text/) (Audio transcription with `whisper.cpp`)
+- 🎨 [Image generation with stable diffusion](https://localai.io/features/image-generation)
+- 🔥 [OpenAI functions](https://localai.io/features/openai-functions/) 🆕
+- 🧠 [Embeddings generation for vector databases](https://localai.io/features/embeddings/)
+- ✍️ [Constrained grammars](https://localai.io/features/constrained_grammars/)
+- 🖼️ [Download Models directly from Huggingface ](https://localai.io/models/)
+- 🆕 [Vision API](https://localai.io/features/gpt-vision/)
+
+## 💻 Usage
+
+Check out the [Getting started](https://localai.io/basics/getting_started/index.html) section in our documentation.
+
+### 🔗 Community and integrations
+
+Build and deploy custom containers:
+- https://github.com/sozercan/aikit
+
+WebUIs:
+- https://github.com/Jirubizu/localai-admin
+- https://github.com/go-skynet/LocalAI-frontend
+
+Model galleries
+- https://github.com/go-skynet/model-gallery
+
+Other:
+- Helm chart https://github.com/go-skynet/helm-charts
+- VSCode extension https://github.com/badgooooor/localai-vscode-plugin
+- Local Smart assistant https://github.com/mudler/LocalAGI
+- Home Assistant https://github.com/sammcj/homeassistant-localai / https://github.com/drndos/hass-openai-custom-conversation
+- Discord bot https://github.com/mudler/LocalAGI/tree/main/examples/discord
+- Slack bot https://github.com/mudler/LocalAGI/tree/main/examples/slack
+- Telegram bot https://github.com/mudler/LocalAI/tree/master/examples/telegram-bot
+- Examples: https://github.com/mudler/LocalAI/tree/master/examples/
+
+### 🔗 Resources
+
+- 🆕 New! [LLM finetuning guide](https://localai.io/advanced/fine-tuning/)
+- [How to build locally](https://localai.io/basics/build/index.html)
+- [How to install in Kubernetes](https://localai.io/basics/getting_started/index.html#run-localai-in-kubernetes)
+- [Projects integrating LocalAI](https://localai.io/integrations/)
+- [How tos section](https://localai.io/howtos/) (curated by our community)
+
+## :book: 🎥 [Media, Blogs, Social](https://localai.io/basics/news/#media-blogs-social)
+
+- [Create a slackbot for teams and OSS projects that answer to documentation](https://mudler.pm/posts/smart-slackbot-for-teams/)
+- [LocalAI meets k8sgpt](https://www.youtube.com/watch?v=PKrDNuJ_dfE)
+- [Question Answering on Documents locally with LangChain, LocalAI, Chroma, and GPT4All](https://mudler.pm/posts/localai-question-answering/)
+- [Tutorial to use k8sgpt with LocalAI](https://medium.com/@tyler_97636/k8sgpt-localai-unlock-kubernetes-superpowers-for-free-584790de9b65)
+
+## Citation
+
+If you utilize this repository, data in a downstream project, please consider citing it with:
+
+```
+@misc{localai,
+  author = {Ettore Di Giacinto},
+  title = {LocalAI: The free, Open source OpenAI alternative},
+  year = {2023},
+  publisher = {GitHub},
+  journal = {GitHub repository},
+  howpublished = {\url{https://github.com/go-skynet/LocalAI}},
+```
+
+## ❤️ Sponsors
+
+> Do you find LocalAI useful?
+
+Support the project by becoming [a backer or sponsor](https://github.com/sponsors/mudler). Your logo will show up here with a link to your website.
+
+A huge thank you to our generous sponsors who support this project:
+
+| ![Spectro Cloud logo_600x600px_transparent bg](https://github.com/go-skynet/LocalAI/assets/2420543/68a6f3cb-8a65-4a4d-99b5-6417a8905512) |
+|:-----------------------------------------------:|
+|  [Spectro Cloud](https://www.spectrocloud.com/)  |
+|  Spectro Cloud kindly supports LocalAI by providing GPU and computing resources to run tests on lamdalabs!  |
+
+And a huge shout-out to individuals sponsoring the project by donating hardware or backing the project.
+
+- [Sponsor list](https://github.com/sponsors/mudler)
+- JDAM00 (donating HW for the CI)
+
+## 🌟 Star history
+
+[![LocalAI Star history Chart](https://api.star-history.com/svg?repos=go-skynet/LocalAI&type=Date)](https://star-history.com/#go-skynet/LocalAI&Date)
+
+## 📖 License
+
+LocalAI is a community-driven project created by [Ettore Di Giacinto](https://github.com/mudler/).
+
+MIT - Author Ettore Di Giacinto
+
+## 🙇 Acknowledgements
+
+LocalAI couldn't have been built without the help of great software already available from the community. Thank you!
+
+- [llama.cpp](https://github.com/ggerganov/llama.cpp)
+- https://github.com/tatsu-lab/stanford_alpaca
+- https://github.com/cornelk/llama-go for the initial ideas
+- https://github.com/antimatter15/alpaca.cpp
+- https://github.com/EdVince/Stable-Diffusion-NCNN
+- https://github.com/ggerganov/whisper.cpp
+- https://github.com/saharNooby/rwkv.cpp
+- https://github.com/rhasspy/piper
+- https://github.com/cmp-nct/ggllm.cpp
+
+## 🤗 Contributors
+
+This is a community project, a special thanks to our contributors! 🤗
+<a href="https://github.com/go-skynet/LocalAI/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=go-skynet/LocalAI" />
+</a>
