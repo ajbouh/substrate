@@ -46,7 +46,7 @@ enable: [string]: bool
 
 imagespecs: [key=string]: imagespec & {
   image: "\(#var.image_prefix)\(key)"
-  build: dockerfile: "services/\(key)/Dockerfile"
+  build: dockerfile: string | *"services/\(key)/Dockerfile"
 }
 
 resourcedirs: [id=string]: {

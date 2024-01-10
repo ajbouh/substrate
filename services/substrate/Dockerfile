@@ -59,6 +59,6 @@ COPY --from=build \
   /lib/x86_64-linux-gnu/libpcre2-8.so.0 \
   /lib/x86_64-linux-gnu/
 COPY $LENSES_EXPR_SOURCE $LENSES_EXPR_TARGET
-ENV LD_LIBRARY_PATH=/lib/x86_64-linux-gnu:/lib64
+ENV LD_LIBRARY_PATH=/lib/x86_64-linux-gnu:/usr/lib64
 WORKDIR /data
 ENTRYPOINT ["/app/substrate"]
