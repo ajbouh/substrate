@@ -1,4 +1,4 @@
-FROM docker.io/library/golang:1.21 as build
+FROM docker.io/library/golang:1.21-bookworm as build
 
 RUN apt update \
   && apt install -y --no-install-recommends \
@@ -49,6 +49,8 @@ ARG LENSES_EXPR_TARGET
 # WORKDIR /app
 COPY --from=build /substrate /app/substrate
 COPY --from=build /bin/dash /bin/dash
+# HACK this is needed because nvidia-container-toolkit relies on it
+COPY --from=build /sbin/ldconfig /sbin/ldconfig
 COPY --from=build \
   /lib/x86_64-linux-gnu/libgpgme.so.11 \
   /lib/x86_64-linux-gnu/libdevmapper.so.1.02.1 \
