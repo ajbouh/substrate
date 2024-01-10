@@ -1,3 +1,5 @@
 .docker
 .fly
 .gen
+.DS_Store
+/local
