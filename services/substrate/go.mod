@@ -5,9 +5,10 @@ go 1.21
 toolchain go1.21.1
 
 require (
-	github.com/NVIDIA/go-nvml v0.12.0-1.0.20231031105836-a160364ba1cc
+	github.com/NVIDIA/go-nvml v0.12.0-2
 	github.com/ajbouh/substrate/pkg v0.0.0-00010101000000-000000000000
 	github.com/containers/podman/v4 v4.8.2
+	github.com/docker/docker v24.0.7+incompatible
 	github.com/opencontainers/runtime-spec v1.1.1-0.20230922153023-c0e90434df2a
 	github.com/sirupsen/logrus v1.9.3
 )
@@ -46,7 +47,6 @@ require (
 	github.com/disiqueira/gotree/v3 v3.0.2 // indirect
 	github.com/distribution/reference v0.5.0 // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
-	github.com/docker/docker v24.0.7+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.0 // indirect
 	github.com/docker/go-connections v0.4.1-0.20231031175723-0b8c1f4e07a0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect

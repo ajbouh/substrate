@@ -169,7 +169,6 @@ daemons: "substrate": {
         ]
         Environment: {
           SESSION_SECRET: "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
-          LD_LIBRARY_PATH: "/lib/x86_64-linux-gnu:/lib64"
           environment
         }
       }

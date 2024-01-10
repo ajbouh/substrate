@@ -6,7 +6,7 @@ toolchain go1.21.1
 
 require (
 	cuelang.org/go v0.7.0
-	github.com/NVIDIA/go-nvml v0.12.0-1.0.20231031105836-a160364ba1cc
+	github.com/NVIDIA/go-nvml v0.12.0-2
 	github.com/cloudfoundry/gosigar v1.3.36
 	github.com/containers/common v0.57.1
 	github.com/containers/podman/v4 v4.8.2
