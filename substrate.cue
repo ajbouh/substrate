@@ -1,6 +1,8 @@
 package dev
 
 import (
+  "strings"
+
   quadlet "github.com/ajbouh/substrate/pkg/podman:quadlet"
 )
 
@@ -60,6 +62,12 @@ daemons: "substrate": {
   mounts: [
     {source: "\(#var.namespace)-substrate_data", destination: "/var/lib/substrate/data"},
     {source: #var.host_docker_socket, destination: environment.#docker_socket},
+    {source: #var.host_resourcedirs_root, destination: #var.host_resourcedirs_root},
+    if #var.host_resourcedirs_path != "" {
+      for rddir in strings.Split(#var.host_resourcedirs_path, ":") {
+        {source: rddir, destination: rddir},
+      }
+    }
   ]
 
   #docker_compose_service: {

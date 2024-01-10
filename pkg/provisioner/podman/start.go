@@ -2,7 +2,8 @@ package podmanprovisioner
 
 import (
 	"context"
-	"io"
+	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"path"
@@ -86,7 +87,7 @@ func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error)  {
 	rdMainPath := path.Join(p.hostResourceDirsRoot, rd.SHA256)
 	if _, err := os.Stat(rdMainPath); err == nil {
 		return rdMainPath, nil
-	} else if err != io.EOF {
+	} else if errors.Is(err, os.ErrNotExist) {
 		return rdMainPath, err
 	}
 
@@ -95,7 +96,7 @@ func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error)  {
 		rdPath := path.Join(rdRoot, rd.SHA256)
 		if _, err := os.Stat(rdPath); err == nil {
 			return rdPath, nil
-		} else if err != io.EOF {
+		} else if errors.Is(err, os.ErrNotExist) {
 			return rdPath, err
 		}
 	}
