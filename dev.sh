@@ -323,9 +323,9 @@ set_os_vars() {
   HOST_ROOT_SOURCE_DIR="/var/source"
   HOST_CUDA="1"
   HOST_DOCKER_SOCKET="/var/run/podman/podman.sock"
-  HOST_RESOURCEDIRS_ROOT="/usr/share/resourcedirs"
+  HOST_RESOURCEDIRS_ROOT="/var/lib/resourcedirs"
   HOST_RESOURCEDIRS_PATH="/run/media/oob/resourcedirs"
-  REL_BUILD_RESOURCEDIRS_ROOT="gen/oob/resourcedirs$HOST_RESOURCEDIRS_ROOT"
+  REL_BUILD_RESOURCEDIRS_ROOT="gen/oob/resourcedirs"
   BUILD_RESOURCEDIRS_ROOT="$HERE/os/$REL_BUILD_RESOURCEDIRS_ROOT"
 }
 
@@ -435,7 +435,7 @@ case "$1" in
     HOST_PROBE_PREFIX="sh -c"
 
     HOST_RESOURCEDIRS_PATH=""
-    HOST_RESOURCEDIRS_ROOT="$HERE/os/gen/overlay.d/resourcedirs/usr/share/resourcedirs"
+    HOST_RESOURCEDIRS_ROOT="$HERE/os/gen/oob/resourcedirs"
     BUILD_RESOURCEDIRS_ROOT="$HOST_RESOURCEDIRS_ROOT"
     HOST_DOCKER_SOCKET="/var/run/docker.sock"
     write_rendered_cue_dev_expr_as_cue $BUILD_LENSES_EXPR_PATH -e "#out.#lenses"
