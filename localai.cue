@@ -12,7 +12,9 @@ imagespecs: "localai": {
 "lenses": "localai": {
   spawn: {}
   spawn: environment: {
-    MODELS_PATH: "/res/model/huggingface/local"
+    MODELS_PATH: "/res/model/huggingface/cache/models--TheBloke--Airoboros-L2-13B-2.1-GGML/blobs"
+    ADDRESS: ":8000"
+    DEBUG: "1"
   }
 
   spawn: resourcedirs: {
