@@ -168,8 +168,8 @@ for basename, unit in #out.systemd_containers {
 ], "\n")
 
 #out: "image_references": strings.Join([
-    for key, def in #out.imagespecs { def.image }
-  ], "\n")
+  for key, def in #out.imagespecs { def.image }
+], "\n")
 
 for key, def in #out.imagespecs {
   #out: "image_podman_build_options": (def.image): def.#podman_build_options

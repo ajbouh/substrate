@@ -68,15 +68,12 @@
     const noPub = params.get("noPub") || false;
 
     console.log(noPub);
-    let useDockerWs = false
 
     let u = new URL('ws', window.location.href)
-    u.protocol = 'ws:'
-    let url = u.toString()
-
-    if (useDockerWs) {
-      url = "ws://host.docker.internal:8088/ws";
+    if (window.location.protocol == "https:") {
+      u.protocol = 'wss:'
     }
+    let url = u.toString()
 
     if (!noPub) {
       getMedia(mediaDevices).then(stream => {

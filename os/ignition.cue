@@ -17,7 +17,7 @@ passwd: users: [
       "docker",
     ]
     ssh_authorized_keys: [
-     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIArj12YbnMq867S+Uq4Yi8flqDjuD/2eHM3fmot5aIWm adamb@adam-mbp.attlocal.net",
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIArj12YbnMq867S+Uq4Yi8flqDjuD/2eHM3fmot5aIWm adamb@adam-mbp.attlocal.net",
     //  "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHiEazGh01bmnZ3AeEUbRXmWV+jLkrdnv74u4Sa14mi+ ohshima@Asshimar.local",
     //  "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICnEzVxW4/YE0p3hTQZa+ZL+IqFRkRnlRb0TSWXdMQnr progrium@Jeffs-MBP-4",
     ]
@@ -49,23 +49,6 @@ passwd: users: [
 //       format: "btrfs"
 //       with_mount_unit: true
 //     }
-//   ]
-//   files: [
-//     // {
-//     //   path: "/etc/ostree/auth.json"
-//     //   mode: 0o600
-//     //   contents: {
-//     //     inline: """
-//     //        {
-//     //            "auths": {
-//     //                  "quay.io": {
-//     //                      "auth": "..."
-//     //                  }
-//     //            }
-//     //        }
-//     //        """
-//     //   }
-//     // }
 //   ]
 // }
 // systemd: {

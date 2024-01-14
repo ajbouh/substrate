@@ -1,0 +1,13 @@
+{
+  debug
+  log
+  local_certs
+  skip_install_trust
+  admin off
+}
+
+{$HOSTNAME} {
+  redir /debug/shell /debug/shell/
+  reverse_proxy /debug/shell/* http://127.0.0.1:8181
+  reverse_proxy http://127.0.0.1:8080
+}

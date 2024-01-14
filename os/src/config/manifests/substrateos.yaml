@@ -5,8 +5,16 @@ include:
   - fedora-coreos.yaml
   - nvidia.yaml
 
+packages:
+  # so we can inspect things with lspci
+  - pciutils
+
 ostree-layers:
-  - gen-overlay/containers
+  - gen-overlay/substrateos
 
 ostree-override-layers:
   - overlay/50substrateos
+
+postprocess:
+  - |
+    setcap cap_net_bind_service=+ep /usr/bin/caddy

@@ -89,6 +89,9 @@ detect_dev_cue_tag_args() {
 }
 
 debug_cue_dev_expr() {
+  # disable for now
+  return
+
   detect_dev_cue_tag_args
 
   mkdir -p $(dirname $CUE_DEV_EXPR_PATH)
@@ -366,6 +369,8 @@ case "$1" in
   containers-push)
     shift
 
+    containers=$@
+
     set_os_vars
 
     write_rendered_cue_dev_expr_as_cue $BUILD_LENSES_EXPR_PATH -e "#out.#lenses"
@@ -375,11 +380,16 @@ case "$1" in
     # build_os_images
 
     # HACK we just build substrate for now
-    docker_compose $DOCKER_COMPOSE_FILE build substrate
+    docker_compose $DOCKER_COMPOSE_FILE build $containers
 
-    # HACK we just push substrate for now
-    image=ghcr.io/ajbouh/substrate:substrate-substrate
-    docker image save $image | /opt/podman/bin/podman --log-level=debug --identity ~/.ssh/id_substrateos --url ssh://substrate@192.168.1.186/var/run/podman/podman.sock image load
+    for container in $containers; do
+      image=$(print_rendered_cue_dev_expr_as text -e "#out.docker_compose.services[\"$container\"].image")
+      docker image save $image | /opt/podman/bin/podman --log-level=debug --identity ~/.ssh/id_substrateos --url ssh://root@substrate.home.arpa/var/run/podman/podman.sock image load
+    done
+
+    # HACK only restart substrate for now
+    ssh root@substrate.home.arpa systemctl restart substrate
+    ssh root@substrate.home.arpa journalctl -xfeu substrate.service
     ;;
   oob-make)
     shift
@@ -417,10 +427,14 @@ case "$1" in
     print_rendered_cue_dev_expr_as yaml -e '#out.ignition' | butane --pretty --strict --files-dir=./ /dev/stdin --output .gen/substrate.ign
     cd -
 
-    write_os_container_units_overlay gen/overlay.d/containers
-    commit_ostree_layer "tmp/repo" "gen-overlay/containers" gen/overlay.d/containers
+    write_os_container_units_overlay gen/overlay.d/substrateos
 
-    # sudo chmod 0777 /dev/kvm
+    # These are static binaries that we want to embed directly in the OS
+    docker build images/gotty/ --target=gotty --output type=local,dest=os/gen/overlay.d/substrateos/usr/bin/
+    docker build images/caddy/ --target=caddy --output type=local,dest=os/gen/overlay.d/substrateos/usr/bin/
+    commit_ostree_layer "tmp/repo" "gen-overlay/substrateos" gen/overlay.d/substrateos
+
+    # sudo chmod 0666 /dev/kvm
     ./tools/cosa build
 
     ./tools/cosa buildextend-metal
@@ -434,7 +448,7 @@ case "$1" in
         '--live-ignition=./.gen/substrate.ign' \
         '--live-karg-append' 'enforcing=0'\
         '--force' \
-        -o .gen/$SUBSTRATEOS_ISO_BASENAME \
+        -o builds/latest/x86_64/$SUBSTRATEOS_ISO_BASENAME \
         $FCOS_INSTALLER_ISO
 
     ;;

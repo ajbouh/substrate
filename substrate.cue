@@ -155,11 +155,18 @@ daemons: "substrate": {
         IPAMDriver: "host-local"
       }
     }
-
+    "substrate-ensure-resourcedirs-root.service": {
+      Unit: {
+        "ConditionPathExists": "!\(#var.host_resourcedirs_root)"
+      }
+      Service: {
+        ExecStart: "mkdir -m 0755 -p \(#var.host_resourcedirs_root)"
+      }
+    }
     "substrate.container": {
       Unit: {
         Requires: ["podman.socket", "nvidia-ctk-cdi-generate.service", "substrate-external.network", "substrate-internal.network"]
-        After: ["podman.socket", "nvidia-ctk-cdi-generate.service", "substrate-external.network", "substrate-internal.network"]
+        After: ["podman.socket", "nvidia-ctk-cdi-generate.service", "substrate-external.network", "substrate-internal.network", "substrate-ensure-resourcedirs-root.service"]
       }
       Install: {
         WantedBy: ["multi-user.target", "default.target"]
