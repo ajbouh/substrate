@@ -11,7 +11,10 @@ COPY --from=js-build /gotty/js/node_modules /gotty/js/node_modules
 COPY --from=js-build /gotty/bindata/static/js /gotty/bindata/static/js
 RUN CGO_ENABLED=0 make
 
-FROM alpine:latest
+FROM scratch as gotty
+COPY --from=go-build /gotty/gotty /
+
+FROM alpine:latest as dist
 RUN apk update && \
     apk upgrade && \
     apk --no-cache add ca-certificates bash
