@@ -6,6 +6,9 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
   -v \
   github.com/sorenisanerd/gotty@latest
 
+FROM scratch as gotty
+COPY --from=build /go/bin/gotty /
+
 FROM ubuntu:22.04 AS dist
 RUN apt update && \
   apt install -y -V --no-install-recommends \
