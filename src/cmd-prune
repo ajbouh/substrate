@@ -1,0 +1,186 @@
+#!/usr/bin/python3 -u
+
+'''
+    This script removes previous builds. DO NOT USE on production pipelines
+'''
+
+import argparse
+import os
+import sys
+import subprocess
+import json
+import string
+
+from shutil import rmtree
+from cosalib import cmdlib
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cosalib.builds import Builds, get_local_builds
+
+# Let's just hardcode this here for now
+DEFAULT_KEEP_LAST_N = 3
+
+
+parser = argparse.ArgumentParser(prog="coreos-assembler prune")
+parser.add_argument("--workdir", default='.', help="Path to workdir")
+parser.add_argument("--dry-run", help="Don't actually delete anything",
+                    action='store_true')
+parser.add_argument("--pkgcache", help="Prune refs packages from the pkgcache",
+                    action='store_true')
+strategy = parser.add_mutually_exclusive_group()
+strategy.add_argument("--keep-last-n", type=int, metavar="N",
+                      default=DEFAULT_KEEP_LAST_N,
+                      help="Number of untagged builds to keep (0 for all)")
+strategy.add_argument("--build", metavar="BUILDID", action='append',
+                      default=[], help="Explicitly prune BUILDID")
+args = parser.parse_args()
+
+
+def rpmostree_quote(s):
+    r = ""
+    for c in s:
+        if c in ('.') or c in string.ascii_letters or c in string.digits:
+            r += c
+        elif c == '_':
+            r += "__"
+        else:
+            r += "{0:02X}".format(ord(c))
+    return r
+
+
+# refer to rpmostree_nevra_to_cache_branch() in rpm-ostree: https://github.com/coreos/rpm-ostree/blob/1c9ea5dab3528477112c04314e5615c371d02118/src/libpriv/rpmostree-rpm-util.c#L1295
+def nevra_to_cache_branch(pkg):
+    name = pkg[0]
+
+    epoch = "" if pkg[1] == "0" else pkg[1] + "_3A"
+    version = pkg[2]
+    release = pkg[3]
+    evr = epoch + version + "-" + release
+
+    arch = rpmostree_quote(pkg[4])
+
+    cache_branch = "rpmostree/pkg/" + name + "/" + evr + "." + arch
+
+    return cache_branch
+
+
+if args.pkgcache:
+    arch = cmdlib.get_basearch()
+    builds = []
+    if os.path.isfile('builds/builds.json'):
+        with open('builds/builds.json') as f:
+            builds = json.load(f)['builds']
+    build_pkg = []
+    if len(builds) > 0:
+        latest_build = builds[0]
+        metapath = f"builds/latest/{arch}/commitmeta.json"
+        with open(metapath) as f:
+            meta = json.load(f)
+        build_pkg_nevra = meta['rpmostree.rpmdb.pkglist']
+        for pkg in build_pkg_nevra:
+            cache_branch = nevra_to_cache_branch(pkg)
+            build_pkg.append(cache_branch)
+
+    # In order to improve efficiency, only prune those refs packages modified over 30 days
+    ref_pkg = subprocess.check_output("find cache/pkgcache-repo/refs/heads/rpmostree/pkg/ -mtime +30 -type f", shell=True).decode('utf-8').split("\n")
+    del ref_pkg[-1]
+    for pkg in ref_pkg:
+        # pkg starts with "cache/pkgcache-repo/refs/heads/"
+        n = len("cache/pkgcache-repo/refs/heads/")
+        if pkg[n:] not in build_pkg:
+            print(f"Deleted {pkg[n:]}")
+            subprocess.call(f"sudo ostree refs --repo=cache/pkgcache-repo --delete {pkg[n:]}", shell=True)
+
+    sys.exit(0)
+
+
+skip_pruning = (args.keep_last_n == 0)
+
+builds = Builds(args.workdir)
+
+# dict of id -> [tags]
+tagged_builds = {}
+for tag in builds.get_tags():
+    tagged_builds[tag['target']] = tagged_builds.get(tag['target'], [])
+    tagged_builds[tag['target']].append(tag['name'])
+
+builds_dir = os.path.join(args.workdir, "builds")
+scanned_builds = get_local_builds(builds_dir)
+
+# sort by timestamp, newest first
+scanned_builds = sorted(scanned_builds,
+                        key=lambda x: x.timestamp,
+                        reverse=True)
+scanned_builds_map = {}
+for build in scanned_builds:
+    scanned_builds_map[build.id] = build
+
+new_builds = []
+builds_to_delete = []
+
+# Don't prune known builds
+if skip_pruning:
+    new_builds = scanned_builds
+elif len(args.build) > 0:
+    builds_to_delete_map = {}
+    for bid in args.build:
+        build = scanned_builds_map.get(bid)
+        if build is None:
+            raise Exception(f"Failed to find build ID: {bid}")
+        if build.id in tagged_builds:
+            tags = ', '.join(tagged_builds[build.id])
+            raise Exception(f"Build {build.id} is tagged ({tags})")
+        builds_to_delete_map[build.id] = build
+    for build in scanned_builds:
+        if build.id not in builds_to_delete_map:
+            new_builds.append(build)
+        else:
+            builds_to_delete.append(build)
+else:
+    n = args.keep_last_n
+    assert n > 0
+
+    for build in scanned_builds:
+        if build.id in tagged_builds:
+            tags = ', '.join(tagged_builds[build.id])
+            print(f"Skipping tagged build {build.id} ({tags})")
+            new_builds.append(build)
+        elif n > 0:
+            new_builds.append(build)
+            n = n - 1
+        else:
+            builds_to_delete.append(build)
+
+if args.dry_run:
+    for build in builds_to_delete:
+        print(f"Would prune build {build.id}")
+    sys.exit(0)
+
+# create a new builds list
+builds.raw()['builds'] = []
+for build in sorted(new_builds,
+                    key=lambda x: x.timestamp):
+    for arch in build.basearches:
+        builds.insert_build(build.id, arch)
+
+builds.bump_timestamp()
+
+if len(builds.get_builds()) > 0:
+    latest = builds.get_latest()
+    subprocess.check_call(["ln", "-Tsf", latest, "builds/latest"])
+elif os.path.islink("builds/latest"):
+    os.unlink("builds/latest")
+
+# now delete other build dirs not in the manifest
+error_during_pruning = False
+for build in builds_to_delete:
+    print(f"Pruning build {build.id}")
+    try:
+        subprocess.check_call(['ostree', '--repo=tmp/repo', 'refs', '--delete', build.id])
+        rmtree(os.path.join(builds_dir, build.id))
+    except Exception as e:
+        error_during_pruning = True
+        print(f"{e}")
+
+if error_during_pruning:
+    sys.exit(1)

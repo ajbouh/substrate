@@ -1,0 +1,75 @@
+#!/bin/bash
+set -euo pipefail
+
+# This script runs the coreos-installer found in the compose itself inside a
+# chroot inside a supermin VM. The first argument is the path to the metal
+# image. It will be available as /dev/disk/by-id/virtio-coreos. The second
+# argument is an optional path to an output file. It will be available as
+# /var/tmp/coreos-installer-output. All following arguments are passed as is to
+# coreos-installer.
+
+if [ ! -f /etc/cosa-supermin ]; then
+    dn=$(dirname "$0")
+    # shellcheck source=src/cmdlib.sh
+    . "${dn}"/cmdlib.sh
+
+    img_src=$1; shift
+    output_path=$1; shift
+
+    if [[ $img_src == *.gz || $img_src == *.xz ]]; then
+        img="$(basename "$img_src")"
+        fatal "Cannot pack osmet from $img; not an uncompressed image"
+    fi
+
+    workdir=$(pwd)
+
+    device_opts=
+    if [[ "${img_src}" == *metal4k* ]]; then
+        device_opts=",physical_block_size=4096,logical_block_size=4096"
+    fi
+
+    virtioserial_args=()
+    if [ -n "${output_path}" ]; then
+        virtioserial_args+=(-chardev "file,id=coreosout,path=${output_path}" \
+                            -device "virtserialport,chardev=coreosout,name=coreosout")
+    fi
+
+    runvm -drive "if=none,id=coreos,format=raw,readonly=on,file=${img_src}" \
+        -device "virtio-blk,serial=coreos,drive=coreos${device_opts}" \
+        "${virtioserial_args[@]}" -- \
+        /usr/lib/coreos-assembler/runvm-coreos-installer "$@"
+
+    exit 0
+fi
+
+# This runs inside supermin
+
+mkdir -p /sysroot
+rootfs=/dev/disk/by-id/virtio-coreos-part4
+mount -o ro "${rootfs}" /sysroot
+osname=$(ls /sysroot/ostree/deploy)
+deploydir=$(find "/sysroot/ostree/deploy/$osname/deploy" -mindepth 1 -maxdepth 1 -type d)
+
+# we want to use the coreos-installer from the target system but we need to
+# chroot into it to avoid linking issues
+for mnt in dev proc sys run var tmp; do
+    mount --rbind /$mnt "${deploydir}/$mnt"
+done
+
+# some dirs which we expect to exist already
+mkdir -p "${deploydir}/var/"{home,mnt,opt,roothome,srv}
+
+# and pass through the workdir itself
+workdir=$(pwd)
+mkdir -p "${deploydir}/${workdir}/"
+mount --bind "${workdir}" "${deploydir}/${workdir}"
+
+# echo back the invocation
+set -x
+
+RUST_BACKTRACE=full chroot "${deploydir}" env -C "${workdir}" coreos-installer "$@"
+
+# and now transfer out the output file if provided (see header)
+if [ -f /var/tmp/coreos-installer-output ]; then
+    cp /var/tmp/coreos-installer-output /dev/virtio-ports/coreosout
+fi

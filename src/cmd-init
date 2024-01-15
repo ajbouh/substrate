@@ -1,0 +1,219 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dn=$(dirname "$0")
+# shellcheck source=src/cmdlib.sh
+. "${dn}"/cmdlib.sh
+
+# Initialize FORCE to 0 and BRANCH/COMMIT to an empty string
+FORCE=0
+BRANCH=""
+COMMIT=""
+TRANSIENT=0
+YUMREPOS=""
+YUMREPOS_BRANCH=""
+VARIANT=""
+
+print_help() {
+    cat 1>&2 <<'EOF'
+Usage: coreos-assembler init --help
+       coreos-assembler init [--force] [--transient] [--branch BRANCH] 
+                             [--commit COMMIT] [-V/--variant VARIANT]
+                             [--yumrepos GITREPO] [--yumrepos-branch BRANCH]
+                             GITCONFIG
+
+  For example, you can use https://github.com/coreos/fedora-coreos-config
+  as GITCONFIG, or fork it.  Another option useful for local development
+  (if you're running a shell inside this container) is to pass a file path
+  starting with `/` - a symlink to it will be created and then used directly.
+  You can specify a branch of a git repo with the `--branch` flag.
+
+  Use `--yumrepos` for builds that need .repo files and a content_sets.yaml which
+  are not in GITCONFIG. For example: files need to be hidden behind a firewall
+  in GITREPO. Using this option will clone GITREPO alongside GITCONFIG, thus you
+  may need to configure certificates. Use `--yumrepos-branch` to choose a non-default
+  branch when cloning. Local paths are also supported. 
+
+  Use `--transient` for builds that will throw away all cached data on success/failure,
+  and should hence not invoke `fsync()` for example.
+
+  Each config repo must include a default set of manifests for COSA to be able
+  to build an ostree commit and disk images (respectively with 'manifest.yaml'
+  and 'image.yaml'). You can also optionally provide another manifest to build
+  extensions (via extensions.yaml).
+
+  Config repos may also include additional variants and you can select which one
+  to use with the '--variant' flag. The manifests for those variants should
+  follow the following naming convention: 'manifest-$VARIANT.yaml'
+  'image-$VARIANT.yaml' 'extensions-$VARIANT.yaml'.
+
+  The selected variant will be stored in 'src/variant.json'. Make sure to clean
+  all caches with 'cosa clean --all' if you manually switch the variant after
+  'cosa init'.
+EOF
+}
+
+# Call getopt to validate the provided input.
+rc=0
+options=$(getopt --options hfb:c:V: --longoptions help,force,transient,branch:,commit:,yumrepos:,yumrepos-branch:,variant: -- "$@") || rc=$?
+[ $rc -eq 0 ] || {
+    print_help
+    exit 1
+}
+eval set -- "$options"
+while true; do
+    case "$1" in
+    -h | --help)
+        print_help
+        exit 0
+        ;;
+    -f | --force)
+        FORCE=1
+        ;;
+    --transient)
+        TRANSIENT=1
+        ;;
+    -b | --branch)
+        case "$2" in
+            "")
+                shift ;;
+            *)
+                BRANCH="$2"
+                shift ;;
+        esac
+        ;;
+    -c | --commit)
+        case "$2" in
+            "")
+                shift ;;
+            *)
+                COMMIT="$2"
+                shift ;;
+        esac
+        ;;
+    --yumrepos)
+        case "$2" in
+            "")
+                shift ;;
+            *)
+                YUMREPOS="$2"
+                shift ;;
+        esac
+        ;;
+    --yumrepos-branch)
+        case "$2" in
+            "")
+                shift ;;
+            *)
+                YUMREPOS_BRANCH="$2"
+                shift ;;
+        esac
+        ;;
+    -V | --variant)
+        case "$2" in
+            "")
+                shift ;;
+            *)
+                VARIANT="$2"
+                shift ;;
+        esac
+        ;;
+    --)
+        shift
+        break
+        ;;
+    *)
+        print_help
+        fatal "init: unrecognized option: $1"
+        ;;
+    esac
+    shift
+done
+
+# If user did not provide a repo then error out
+if [ $# -ne 1 ]; then
+    print_help
+    fatal "ERROR: Missing GITCONFIG"
+fi
+
+# If the current working dir is not empty then error out
+# unless force provided
+if [ "$FORCE" != "1" ] && [ -n "$(ls ./)" ]; then
+   fatal "init: current directory is not empty, override with --force"
+fi
+
+source=$1; shift
+
+preflight
+
+if has_privileges; then
+    sudo chown "$USER:" .
+elif [ ! -w . ]; then
+    fatal "init: running unprivileged, and current directory not writable"
+fi
+
+set -x
+# Initialize sources (git)
+mkdir -p src
+(cd src
+ if ! test -e config; then
+     case "${source}" in
+         /*) ln -s "${source}" config;;
+         *) git clone ${BRANCH:+--branch=${BRANCH}} --depth=1 --shallow-submodules --recurse-submodules "${source}" config
+            # If a commit was specified then we'll fetch and reset
+            # the specified branch to that commit. This is useful when
+            # doing pipeline builds and targetting a specific commit
+            # (i.e.) subordinate multi-arch build pipelines running
+            # cosa init later in time than the x86_64 pipeline; new
+            # commits could have come in.
+            if [ -n "${COMMIT}" ]; then
+                git -C ./config fetch origin "$COMMIT"
+                git -C ./config reset --hard "$COMMIT"
+                git -C ./config submodule update --init --recursive
+            fi
+            (set +x; cd config && echo -n "Config commit: " && git describe --tags --always --abbrev=42)
+            ;;
+     esac
+ fi)
+
+# Default paths for manifest.yaml & image.yaml
+manifest="src/config/manifest.yaml"
+image="src/config/image.yaml"
+if [[ ! -f "${manifest}" ]] || [[ ! -f "${image}" ]]; then
+    echo 1>&2 "Could not find default manifests (${manifest} & ${image})"
+    fatal "If you are using a custom configuration, be sure it has a manifest.yaml & image.yaml."
+fi
+
+# Select the variant if requested
+if [[ -n "${VARIANT}" ]] && [[ "${VARIANT}" != "default" ]]; then
+    manifest="src/config/manifest-${VARIANT}.yaml"
+    image="src/config/image-${VARIANT}.yaml"
+    if [[ ! -f "${manifest}" ]] || [[ ! -f "${image}" ]]; then
+        fatal "Could not find the manifests (${manifest} & ${image}) for the '${VARIANT}' variant"
+    fi
+    echo "Using variant: '${VARIANT}'"
+    cat > "src/config.json" <<EOF
+{
+  "coreos-assembler.config-variant": "${VARIANT}"
+}
+EOF
+fi
+
+mkdir -p cache
+mkdir -p builds
+mkdir -p tmp
+mkdir -p overrides/rpm
+mkdir -p overrides/rootfs
+
+if test "${TRANSIENT}" = 1; then
+    touch tmp/cosa-transient
+fi
+
+case "${YUMREPOS}" in
+    "");;
+    /*) ln -s "${YUMREPOS}" src/yumrepos;;
+    *) git clone ${YUMREPOS_BRANCH:+--branch=${YUMREPOS_BRANCH}} --depth=1 "${YUMREPOS}" src/yumrepos;;
+esac
+
+set +x
+echo "Initialized $PWD as coreos-assembler working directory."

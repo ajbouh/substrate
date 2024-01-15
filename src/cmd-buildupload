@@ -1,0 +1,242 @@
+#!/usr/bin/python3
+
+# The inverse of cmd-buildfetch (i.e. we upload a build which later can be
+# partially re-downloaded with cmd-buildfetch).
+
+import argparse
+import json
+import os
+import sys
+import tempfile
+import subprocess
+import boto3
+from botocore.exceptions import ClientError, NoCredentialsError
+from tenacity import retry
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# set image artifact caching at 1y; it'll probably get evicted before that...
+# see also: https://stackoverflow.com/questions/2970938
+CACHE_MAX_AGE_ARTIFACT = 60 * 60 * 24 * 365
+
+# set metadata caching to 5m
+CACHE_MAX_AGE_METADATA = 60 * 5
+from cosalib.builds import Builds, BUILDFILES
+from cosalib.cmdlib import load_json, retry_stop, retry_boto_exception, retry_callback  # noqa: E402
+
+
+def main():
+    args = parse_args()
+    args.func(args)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--build", help="Build ID", default='latest')
+    parser.add_argument("--dry-run", help="Just print and exit",
+                        action='store_true')
+    parser.add_argument('--force', action='store_true',
+                        help='Force upload even for pre-existing images')
+    parser.add_argument("--artifact", default=[], action='append',
+                        help="Only upload given image artifact(s)", metavar="ARTIFACT")
+    parser.add_argument("--arch", default=[], action='append',
+                        help="Only upload for arch", metavar="ARCH")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--skip-builds-json", help="Don't push builds.json",
+                       action='store_true')
+
+    subparsers = parser.add_subparsers(dest='cmd', title='subcommands')
+    subparsers.required = True
+
+    s3 = subparsers.add_parser('s3', help='upload an image')
+    s3.add_argument("url", metavar='<BUCKET>[/PREFIX]',
+                    help="Bucket and path prefix in which to upload")
+    s3.add_argument("--acl", help="ACL for objects",
+                    action='store', default='private')
+    s3.add_argument("--enable-gz-peel", help="Auto-peel .gz extensions "
+                    "and set Content-Disposition names", action='store_true')
+    s3.add_argument("--endpoint-url", help="URL of S3-compatible server",
+                    action="store", metavar="URL")
+    s3.add_argument("--aws-config-file", metavar='CONFIG', default="",
+                    help="Path to AWS config file")
+    s3.set_defaults(func=cmd_upload_s3)
+
+    return parser.parse_args()
+
+
+def cmd_upload_s3(args):
+    bucket, prefix = args.url.split('/', 1)
+    builds = Builds()
+    if args.aws_config_file:
+        os.environ["AWS_CONFIG_FILE"] = args.aws_config_file
+    s3_client = boto3.client('s3', endpoint_url=args.endpoint_url)
+    # This can't be an error for backcompat reasons, but let's print something
+    if not os.path.isfile(BUILDFILES['sourceurl']):
+        print(f"NOTICE: No {BUILDFILES['sourceurl']} file; uploading without buildfetch?")
+    if args.build == 'latest':
+        args.build = builds.get_latest()
+    print(f"Targeting build: {args.build}")
+    for arch in builds.get_build_arches(args.build):
+        if len(args.arch) > 0 and arch not in args.arch:
+            print(f"Skipping upload of arch {arch} upon user request")
+            continue
+        s3_upload_build(s3_client, args, builds.get_build_dir(args.build, arch),
+                        bucket, f'{prefix}/{args.build}/{arch}')
+    # if there's anything else in the build dir, just upload it too,
+    # e.g. release metadata is stored at this level
+    for f in os.listdir(f'builds/{args.build}'):
+        # arches already uploaded higher up
+        if f in builds.get_build_arches(args.build):
+            continue
+        # assume it's metadata
+        s3_copy(s3_client, f'builds/{args.build}/{f}', bucket,
+                f'{prefix}/{args.build}/{f}', CACHE_MAX_AGE_METADATA, args.acl)
+    if not args.skip_builds_json:
+        s3_copy(s3_client, BUILDFILES['list'], bucket, f'{prefix}/builds.json',
+                CACHE_MAX_AGE_METADATA, args.acl, extra_args={},
+                dry_run=args.dry_run)
+        # And now update our cached copy to note we've successfully sync'd.
+        with open(BUILDFILES['sourceurl'], 'w') as f:
+            f.write(f"s3://{bucket}/{prefix}\n")
+        subprocess.check_call(['cp-reflink', BUILDFILES['list'], BUILDFILES['sourcedata']])
+
+
+def s3_upload_build(s3_client, args, builddir, bucket, prefix):
+    # In the case where we are doing builds for different architectures
+    # it's likely not all builds for this arch are local. If the meta.json
+    # doesn't exist then return early.
+    if not os.path.exists(f'{builddir}/meta.json'):
+        print(f"No meta.json exists for {builddir}.. Skipping")
+        return
+    build = load_json(f'{builddir}/meta.json')
+
+    # Upload images with special handling for gzipped data.
+    uploaded = set()
+    scrub = set()
+    for imgname in build['images']:
+        img = build['images'][imgname]
+        bn = img['path']
+        path = os.path.join(builddir, bn)
+        s3_path = f'{prefix}/{bn}'
+        set_content_disposition = False
+
+        # Don't use the Content-Disposition trick with bare-metal images since
+        # the installer expects them gzipped. (This is a trick used to allow
+        # recommending `curl -J --compressed` so that images are stored
+        # compressed, but uncompressed on-the-fly at download time.)
+        if (bn.endswith('.gz') and not bn.endswith('.raw.gz') and
+                args.enable_gz_peel):
+            nogz = bn[:-3]
+            img['path'] = nogz
+            s3_path = f'{prefix}/{nogz}'
+            set_content_disposition = True
+
+        s3_target_exists = s3_check_exists(s3_client, bucket, s3_path, args.dry_run)
+
+        # Mark artifacts that we don't want to upload as already uploaded
+        # so they'll get ignored later. If they're not in S3, delete them
+        # so that meta.json doesn't reference non-existent objects.
+        if len(args.artifact) > 0 and imgname not in args.artifact:
+            print(f"Skipping upload of artifact {bn} upon user request")
+            uploaded.add(bn)
+            if not s3_target_exists:
+                scrub.add(imgname)
+            continue
+
+        if not os.path.exists(path) and not s3_target_exists:
+            raise Exception(f"{path} not found locally or in the s3 destination!")
+
+        if s3_target_exists:
+            if args.force:
+                print(f"Forcing upload of existing artifact {bn}")
+            else:
+                print(f"Target exists in s3 and no --force. Skipping upload of {bn}")
+                uploaded.add(bn)
+                continue
+
+        extra_args = {}
+        if set_content_disposition:
+            extra_args = {
+                'ContentEncoding': 'gzip',
+                'ContentDisposition': f'inline; filename={img["path"]}'
+            }
+        s3_copy(s3_client, path, bucket, s3_path,
+            CACHE_MAX_AGE_ARTIFACT, args.acl,
+            extra_args=extra_args,
+            dry_run=args.dry_run)
+        uploaded.add(bn)
+
+    for f in os.listdir(builddir):
+        # we do meta.json right after
+        if f in uploaded or f == 'meta.json':
+            continue
+        path = os.path.join(builddir, f)
+        s3_copy(s3_client, path, bucket, f'{prefix}/{f}',
+            CACHE_MAX_AGE_ARTIFACT, args.acl,
+            dry_run=args.dry_run)
+
+    # Now upload a modified version of the meta.json which has the fixed
+    # filenames without the .gz suffixes and the scrubbed artifacts. We don't
+    # want to modify the local build dir.
+    for imgname in scrub:
+        del build['images'][imgname]
+    with tempfile.NamedTemporaryFile('w') as f:
+        json.dump(build, f, indent=4)
+        f.flush()
+        s3_copy(s3_client, f.name, bucket, f'{prefix}/meta.json',
+            CACHE_MAX_AGE_METADATA, args.acl,
+            dry_run=args.dry_run)
+
+
+@retry(stop=retry_stop, retry=retry_boto_exception, before_sleep=retry_callback)
+def s3_check_exists(s3_client, bucket, key, dry_run=False):
+    print(f"Checking if bucket '{bucket}' has key '{key}'")
+    try:
+        s3_client.head_object(Bucket=bucket, Key=key)
+    except ClientError as e:
+        if e.response['Error']['Code'] == '404':
+            return False
+        raise e
+    except NoCredentialsError as e:
+        # It's reasonable to run without creds if doing a dry-run
+        if dry_run:
+            return False
+        raise e
+    return True
+
+
+@retry(stop=retry_stop, retry=retry_boto_exception, retry_error_callback=retry_callback)
+def s3_copy(s3_client, src, bucket, key, max_age, acl, extra_args={}, dry_run=False):
+    extra_args = dict(extra_args)
+    if 'ContentType' not in extra_args:
+        if key.endswith('.json'):
+            extra_args['ContentType'] = 'application/json'
+        elif key.endswith('.tar'):
+            extra_args['ContentType'] = 'application/x-tar'
+        elif key.endswith('.xz'):
+            extra_args['ContentType'] = 'application/x-xz'
+        elif key.endswith('.gz'):
+            extra_args['ContentType'] = 'application/gzip'
+        elif key.endswith('.iso'):
+            extra_args['ContentType'] = 'application/x-iso9660-image'
+        else:
+            # use a standard MIME type for "binary blob" instead of the default
+            # 'binary/octet-stream' AWS slaps on
+            extra_args['ContentType'] = 'application/octet-stream'
+    upload_args = {
+        'CacheControl': f'max-age={max_age}',
+        'ACL': acl
+    }
+    upload_args.update(extra_args)
+
+    print((f"{'Would upload' if dry_run else 'Uploading'} {src} to "
+           f"s3://{bucket}/{key} {extra_args if len(extra_args) else ''}"))
+
+    if dry_run:
+        return
+
+    s3_client.upload_file(Filename=src, Bucket=bucket, Key=key, ExtraArgs=upload_args)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
