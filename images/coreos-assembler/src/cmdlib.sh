@@ -937,7 +937,7 @@ prepare_git_artifacts() {
 EOC
 
     if [ -n "$tarball" ]; then
-        tar -C "${gitd}" -czf "${tarball}" --exclude-vcs .
+        tar -C "${gitd}" --use-compress-program=pigz -cf "${tarball}" --exclude-vcs .
         chmod 0444 "${tarball}"
 
         local checksum name size
