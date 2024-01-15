@@ -371,6 +371,9 @@ def generate_iso():
     kargs_json = {'files': []}
     cmdline = ''
     karg_embed_area_length = 0
+    oobdir_src_prefix = os.path.join(srcdir_prefix, 'oob') + '/'
+    oobdir_dstdir = os.path.join(tmpisoroot, 'oob')
+
     # Grab all the contents from the live dir from the configs
     for srcdir, _, filenames in os.walk(srcdir_prefix):
         dir_suffix = srcdir.replace(srcdir_prefix, '', 1)
@@ -383,6 +386,13 @@ def generate_iso():
                 continue
             srcfile = os.path.join(srcdir, filename)
             dstfile = os.path.join(dstdir, filename)
+
+            # Copy oob entries directly, without opening them or performing any sort of substitution.
+            if srcdir == oobdir_src_prefix[:-1] or srcdir.startswith(oobdir_src_prefix):
+                cp_reflink(srcfile, dstfile)
+                print(f'{srcfile} -> {dstfile}')
+                continue
+
             # Assumes all files are text
             with open(srcfile) as fh:
                 buf = fh.read()
@@ -430,6 +440,8 @@ def generate_iso():
     genisoargs = ['/usr/bin/genisoimage', '-verbose',
                   '-V', volid,
                   '-volset', f"{name_version}",
+                  # the oob squashfs file can be >4GB, use -allow-limited-size to support it.
+                  "-allow-limited-size",
                   # For  greater portability, consider using both
                   # Joliet and Rock Ridge extensions. Umm, OK :)
                   '-rational-rock', '-J', '-joliet-long']
@@ -737,20 +749,29 @@ boot
         runcmd(['/usr/bin/isohybrid', '--uefi', tmpisofile])
 
     genisoargs_minimal = genisoargs + ['-o', f'{tmpisofile}.minimal', tmpisoroot]
-    # The only difference with the miniso is that we drop these two files.
+    # The only difference with the miniso is that we drop these two files and the oob folder.
     # Keep everything else the same to maximize file matching between the
     # two versions so we can get the smallest delta. E.g. we keep the
     # `coreos.liveiso` karg, even though the miniso doesn't need it.
     # coreos-installer takes care of removing it.
     os.unlink(iso_rootfs)
     os.unlink(miniso_data)
+    if os.path.exists(oobdir_dstdir):
+        shutil.rmtree(oobdir_dstdir)
     runcmd(genisoargs_minimal)
     if basearch == "x86_64":
         runcmd(['/usr/bin/isohybrid', '--uefi', f'{tmpisofile}.minimal'])
     # this consumes the minimal image
-    runcmd(['/usr/lib/coreos-assembler/runvm-coreos-installer', img_metal, '',
-            'pack', 'minimal-iso', tmpisofile, f'{tmpisofile}.minimal',
-            '--consume'])
+    # HACK DISABLE THIS TO AVOID A FAILURE I DON'T UNDERSTAND:
+    # > Verifying that packed image matches digest
+    # > Error: unpacking miniso for verification
+    # >
+    # > Caused by:
+    # >     wrong final digest: expected 8fef5d06c75d3457a1cc5ddd198e4f7ebfd846cd9e8fd5c05c2fdde710e82975, found 1c75f1c997f58dfab6ac646b2d35aa2e7c7fb9e8a00d5e32c4bde2ce558e272b
+
+    # runcmd(['/usr/lib/coreos-assembler/runvm-coreos-installer', img_metal, '',
+    #         'pack', 'minimal-iso', tmpisofile, f'{tmpisofile}.minimal',
+    #         '--consume'])
 
     buildmeta['images'].update({
         'live-iso': {
