@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+dn=$(dirname "$0")
+# shellcheck source=src/cmdlib.sh
+. "${dn}"/cmdlib.sh
+# shellcheck source=src/libguestfish.sh
+. "${dn}"/libguestfish.sh
+
+# Usage: gf-mksquashfs <input image> <output image> [compression]
+# Example: gf-mksquashfs fedora-coreos.qcow2 fedora-coreos.squashfs xz
+#
+# This will generate a squashfs from the contents of the root partition.
+
+src="$1"
+dest="$2"
+compression="${3:-zstd}"
+
+if [[ $src == *.gz || $src == *.xz ]]; then
+    img="$(basename "$src")"
+    fatal "Cannot generate squashfs from $img; not an uncompressed image"
+fi
+
+set -x
+# Work in a tmpdir on the destination so that we don't inherit some MCS labeling
+# from the /tmp dir in the container. This also ensures that the final move is a
+# pure `rename()`.
+# See also:
+# https://github.com/coreos/coreos-assembler/issues/292
+# https://github.com/coreos/coreos-assembler/pull/394
+tmpd=$(mktemp -tdp "$(dirname "${dest}")" gf-mksquashfs.XXXXXX)
+tmp_dest=${tmpd}/image.squashfs
+coreos_gf_run_mount "${src}" --ro
+
+# Remove the sysroot=readonly flag, see https://github.com/coreos/fedora-coreos-tracker/issues/589
+coreos_gf download /ostree/repo/config "${tmpd}/config"
+grep -v readonly=true "${tmpd}/config" > "${tmpd}/config.new"
+coreos_gf upload "${tmpd}/config.new" /ostree/repo/config
+
+# And ensure that the kernel binary and hmac file is in the place that dracut
+# expects it to be; xref https://issues.redhat.com/browse/OCPBUGS-15843
+kernel_binary=$(coreos_gf glob-expand /boot/ostree/*/vmlinuz*)
+kernel_hmac=$(coreos_gf glob-expand /boot/ostree/*/.*.hmac)
+coreos_gf ln "${kernel_hmac}" "/boot/$(basename "${kernel_hmac}")"
+coreos_gf ln "${kernel_binary}" "/boot/$(basename "${kernel_binary}")"
+
+coreos_gf mksquashfs / "${tmp_dest}" "compress:${compression}"
+coreos_gf_shutdown
+
+mv "${tmp_dest}" "${dest}"
+rm "${tmpd}" -rf

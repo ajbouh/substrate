@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd $(dirname $0)
+
+source ./env
+
+if [[ $# -eq 0 ]]; then
+    set -- cmd/* schema
+fi
+
+declare -A BASEARCH_TO_GOARCH=([s390x]=s390x [x86_64]=amd64 [aarch64]=arm64 [ppc64le]=ppc64le)
+KOLET_ARCHES="${KOLET_ARCHES:-s390x x86_64 aarch64 ppc64le}"
+
+race=
+if [ -n "${ENABLE_GO_RACE_DETECTOR:-}" ] && [[ ! "$(uname -m)" =~ "s390" ]]; then
+    race="-race"
+fi
+
+version=$(git describe --tags --always --dirty)
+version="${version#v}"
+version="${version/-/+}"
+ldflags="-X ${REPO_PATH}/version.Version=${version}"
+
+host_build() {
+    local cmd=$1; shift
+    echo "Building $cmd"
+    go build \
+        -ldflags "${ldflags}" \
+        -mod vendor \
+        -o "../bin/$cmd" \
+        ${race} \
+        "$@" "${REPO_PATH}/cmd/$cmd"
+}
+
+cross_static_build() {
+    local cmd=$1; shift
+    local a
+	for a in ${KOLET_ARCHES}; do \
+        mkdir -p "../bin/$a"
+        echo "Building $a/$cmd (static)"
+        CGO_ENABLED=0 GOARCH=${BASEARCH_TO_GOARCH[$a]} \
+        go build \
+            -ldflags "${ldflags} -extldflags=-static" \
+            -mod vendor \
+            -o "../bin/$a/$cmd" \
+            -tags osusergo,netgo \
+            "${REPO_PATH}/cmd/$cmd"
+    done
+}
+
+for arg in "$@"; do
+    cmd=$(basename "${arg}")
+    if [ "${cmd}" = "kolet" ]; then
+        cross_static_build kolet
+    else
+        host_build "${cmd}"
+    fi
+done

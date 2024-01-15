@@ -1,0 +1,189 @@
+#!/usr/bin/python3
+
+# Push a container manifest (i.e. multi-arch) to a container registry based on
+# arguments provided by the user.
+
+import argparse
+import json
+import os
+import sys
+from cosalib.container_manifest import create_and_push_container_manifest
+from cosalib.builds import Builds
+from cosalib.meta import GenericBuildMeta
+from cosalib.cmdlib import runcmd
+from cosalib.cmdlib import sha256sum_file
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+
+def main():
+    args = parse_args()
+    map_arch = {}
+    map_arch['arm64'] = 'aarch64'
+    map_arch['amd64'] = 'x86_64'
+    allow_missing_arches = False
+
+    if args.authfile:
+        os.environ["REGISTRY_AUTH_FILE"] = args.authfile
+    if args.images:
+        # User provided images directly
+        create_and_push_container_manifest(
+            args.repo, args.tags, args.images, args.v2s2)
+    else:
+        # Picking up images from artifacts in meta.json
+        builds = Builds()
+        if args.build == 'latest':
+            args.build = builds.get_latest()
+        print(f"Targeting build: {args.build}")
+        build_arches = builds.get_build_arches(args.build)
+        if not args.arches:
+            # If the user didn't specify which arches to push then we'll default
+            # to all available and we won't error if some are missing. This can
+            # happen if there is an artifact that is only built for a subset of
+            # arches (i.e. kubevirt).
+            args.arches = build_arches
+            allow_missing_arches = True
+
+        # Iterate over the requested architectures and:
+        #   - Make sure the container images exist and are on disk
+        #   - Store the buildmeta for the build/arch in the buildmetas dict
+        #   - Store the path to the container image in the container_images list
+        images = []
+        buildmetas = dict()
+        registry_digests = {}
+        upload = False
+        # Collect registry_digests of current manifest list in remote registry
+        inspect = skopeo_inspect(f'{args.repo}:{args.tags[0]}', args.authfile)
+        if inspect.returncode == 0:
+            manifests = json.loads(inspect.stdout)
+            for manifest in manifests['manifests']:
+                arch = manifest['platform']['architecture']
+                if arch in map_arch:
+                    arch = map_arch[arch]
+                registry_digests[arch] = manifest['digest']
+
+        for arch in args.arches:
+            if arch not in build_arches:
+                print(f"Requested architecture {arch} is not in {args.build}")
+                raise Exception
+            builddir = builds.get_build_dir(build_id=args.build, basearch=arch)
+            buildmeta = GenericBuildMeta(build=args.build, basearch=arch,
+                                         workdir=os.path.abspath(os.getcwd()))
+            if not buildmeta['images'].get(args.artifact):
+                print(f"No artifact {args.artifact} in {args.build}/{arch}")
+                if allow_missing_arches:
+                    continue
+                else:
+                    raise Exception
+            buildmetas[arch] = buildmeta
+
+            # Checks if the meta digest matches each arch digest in the remote.
+            # If it doesn't match (or doesn't exist), we need to upload.
+            if buildmetas[arch].get(args.metajsonname):
+                meta_digest = buildmetas[arch][args.metajsonname]['digest']
+                if meta_digest != registry_digests.get(arch):
+                    upload = True
+            else:
+                # If there is no entry in the meta.json yet then we know
+                # we need to upload.
+                upload = True
+
+            ociarchive = os.path.join(builddir, buildmeta['images'][args.artifact]['path'])
+            ocisha256sum = buildmeta['images'][args.artifact]['sha256']
+            if not os.path.exists(ociarchive):
+                print(f"The file does not exist on disk: {ociarchive}")
+                raise Exception
+            if sha256sum_file(ociarchive) != ocisha256sum:
+                print(f"The file on disk {ociarchive} has an incorrect checksum")
+                raise Exception
+            images.append(f"oci-archive:{ociarchive}")
+
+        if not upload and not args.force:
+            print("Remote already matches desired state; skipping push. Use --force to override.")
+            return
+
+        # Create/Upload the manifest list to the container registry
+        manifest_info = create_and_push_container_manifest(
+            args.repo, args.tags, images, args.v2s2)
+        # if we pushed in v2s2 mode, we need to reload from the repo the actual
+        # final digests: https://github.com/containers/podman/issues/16603
+        if args.v2s2:
+            inspect = skopeo_inspect(f'{args.repo}:{args.tags[0]}', args.authfile)
+            if inspect.returncode != 0:
+                print(f"Can't inspect {args.repo}:{args.tags[0]} even though we just pushed it?")
+                raise Exception
+            manifest_info = json.loads(inspect.stdout)
+
+        # Update the `meta.json` files. Note the digest included is the
+        # arch-specific one for each individual arch, and not the manifest list
+        # digest. See: https://github.com/coreos/coreos-assembler/issues/3122.
+        assert len(manifest_info['manifests']) == len(buildmetas)
+        for manifest in manifest_info['manifests']:
+            arch = manifest['platform']['architecture']
+            if arch in map_arch:
+                arch = map_arch[arch]
+            buildmetas[arch][args.metajsonname] = {
+                'image': args.repo,
+                'digest': manifest['digest'],
+                'tags': args.tags
+            }
+            buildmetas[arch].write(artifact_name=args.metajsonname)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        prog="CoreOS Assembler Push Container Manifest",
+        description="Create and push a container manifest to a registry",
+        usage="""
+Examples:
+    export REGISTRY_AUTH_FILE=/path/to/auth.json
+    cosa push-container-manifest \\
+        --repo quay.io/dustymabe/coreos-assembler --tag latest \\
+        --image docker://quay.io/dustymabe/coreos-assembler:x86_64-6864566 \\
+        --image docker://quay.io/dustymabe/coreos-assembler:s390x-6864566 \\
+        --image docker://quay.io/dustymabe/coreos-assembler:aarch64-6864566
+
+    cosa push-container-manifest \\
+        --repo quay.io/dustymabe/fedora-coreos --tag stable \\
+        --image oci-archive://builds/36.20220716.3.1/x86_64/fedora-coreos-37.20220725.91.0-ostree.x86_64.ociarchive \\
+        --image oci-archive://builds/36.20220716.3.1/aarch64/fedora-coreos-37.20220725.91.0-ostree.aarch64.ociarchive \\
+        --image oci-archive://builds/36.20220716.3.1/s390x/fedora-coreos-37.20220725.91.0-ostree.s390x.ociarchive
+
+    cosa push-container-manifest \\
+        --repo quay.io/dustymabe/fedora-coreos --tag stable --artifact=ostree \\
+        --metajsonname=base-oscontainer --build=latest --arch=x86_64 --arch=aarch64""")
+    parser.add_argument("--repo", required=True, help="The registry repo to target for the manifest")
+    parser.add_argument("--tag", required=True, dest='tags', action='append',
+                        help="The tag of the manifest to use")
+    parser.add_argument("--authfile", help="A file to use for registry auth")
+    parser.add_argument('--v2s2', action='store_true',
+                        help='Use old image manifest version 2 schema 2 format')
+    parser.add_argument("--force", help="Force manifest overwriting", action='store_true')
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--image", dest='images', action='append', default=[],
+                       help="""The images to add to the manifest. Can be specified multiple times like
+                       --image docker://quay.io/dustymabe/coreos-assembler:s390x-686456
+                       --image oci-archive://path/to/cosa-aarch64-686456.ociarchive""")
+    group.add_argument("--artifact", help="""The artifact""")
+
+    # A few more arguments that are used for `--artifact`
+    parser.add_argument("--build", default="latest", help="Build ID")
+    parser.add_argument("--arch", dest='arches', action='append', default=[],
+                        help="""Limit the architectures to upload to the specificed set
+                        (otherwise it defaults to all available for that build). Can be
+                        specified multiple times like: --arch x86_64 --arch aarch64""")
+    parser.add_argument("--metajsonname",
+                        help="The name under which to store the container information in meta.json")
+    return parser.parse_args()
+
+
+def skopeo_inspect(fqin, authfile):
+    args = ['skopeo', 'inspect', '--raw']
+    if authfile:
+        args += ['--authfile', authfile]
+    return runcmd((args + [f'docker://{fqin}']), capture_output=True, check=False)
+
+
+if __name__ == '__main__':
+    sys.exit(main())

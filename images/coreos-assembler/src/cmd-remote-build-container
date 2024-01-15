@@ -1,0 +1,251 @@
+#!/usr/bin/python3 -u
+
+import argparse
+import logging
+import os
+import subprocess
+import sys
+import tempfile
+import tenacity
+
+from cosalib.cmdlib import runcmd
+
+# Set up logging
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s %(levelname)s - %(message)s")
+
+
+def build_container_image(labels, buildDir, fromimage, cacheTTL, repo, tag):
+    '''
+    Build the image  using podman remote and push to the registry
+    @param labels list labels to add to image
+    @param buildDir str the location of the directory to build from
+    @param fromimage str value to pass to `podman build --from=`
+    @param cacheTTL str value to pass to `podman build --cache-ttl=`
+    @param repo str registry repository
+    @param tag  str image tag
+    '''
+    cmd = ["podman", "build", f"--cache-ttl={cacheTTL}", f"--tag={repo}:{tag}", buildDir]
+    for label in labels:
+        cmd.extend([f"--label={label}"])
+    if fromimage:
+        cmd.extend([f"--from={fromimage}"])
+    # Long running command. Send output to stdout for logging
+    runcmd(cmd)
+
+
+def push_container_image(repo, tag):
+    '''
+    Push image to registry
+    @param repo str registry repository
+    @param tag str image tag
+    '''
+    cmd = ["podman", "push", f"{repo}:{tag}"]
+    # Long running command. Send output to stdout for logging
+    runcmd(cmd)
+    # Quay seems to take some time to publish images in some occasions.
+    # After the push let's wait for it to show up in the registry
+    # before moving on.
+    retryer = tenacity.Retrying(
+        stop=tenacity.stop_after_delay(600),
+        wait=tenacity.wait_fixed(15),
+        retry=tenacity.retry_if_result(lambda x: x is False),
+        before_sleep=tenacity.before_sleep_log(logging, logging.INFO))
+    try:
+        in_repo = retryer(is_tag_in_registry, repo, tag)
+    except tenacity.RetryError:
+        in_repo = False
+    if in_repo:
+        print(f"Build and Push done successfully via tag: {tag}")
+    else:
+        raise Exception(f"Image pushed but not viewable in registry: tag: {tag}")
+
+
+def pull_oci_archive_from_remote(repo, tag, file):
+    '''
+    Retrieve the oci archive of the image and write it to a file
+    @param repo str registry repository (used to deduce image name)
+    @param tag  str image tag (used to deduce image name)
+    @param file str The name of the file to write the image to
+    '''
+    cmd = ["podman", "image", "save",
+           "--format=oci-archive", f"--output={file}", f"{repo}:{tag}"]
+    # Long running command. Send output to stdout for logging
+    runcmd(cmd)
+
+
+def is_tag_in_podman_storage(repo, tag):
+    '''
+    Search for a tag in the local podman storage
+    @param repo str registry repository
+    @param tag  str image tag
+    '''
+    cmd = ["podman", "image", "exists", f"{repo}:{tag}"]
+    return runcmd(cmd, check=False, capture_output=True).returncode == 0
+
+
+def is_tag_in_registry(repo, tag):
+    '''
+    Search for a tag in the registry
+    @param repo str registry repository
+    @param tag  str image tag
+    '''
+    # Podman remote doesn't allow push using digestfile. That's why the tag check is done
+    # We're not using runcmd here because it's unnecessarily noisy since we
+    # expect failure in some cases.
+    cmd = ["skopeo", "inspect", "--raw", f"docker://{repo}:{tag}"]
+    try:
+        subprocess.check_output(cmd, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        # yuck; check if it's because the tag doesn't exist. This
+        # handles two different kinds of failure:
+        # $ skopeo    inspect    --raw # docker://quay.io/coreos-assembler/staging:aarch64-706fa53
+        # FATA[0000] Error parsing image name "docker://quay.io/coreos-assembler/staging:aarch64-706fa53": reading manifest aarch64-706fa53 in quay.io/coreos-assembler/staging: manifest unknown
+        # $ skopeo    inspect    --raw docker://quay.io/coreos-assembler/staging:aarch64-706fa52
+        # FATA[0000] Error parsing image name "docker://quay.io/coreos-assembler/staging:aarch64-706fa52": reading manifest aarch64-706fa52 in quay.io/coreos-assembler/staging: unknown: Tag aarch64-706fa52 was deleted or has expired. To pull, revive via time machine
+        if b'manifest' in e.stderr and b'unknown' in e.stderr:
+            return False
+        # any other error is unexpected; fail
+        logging.error(f" STDOUT: {e.stdout.decode()}")
+        logging.error(f" STDERR: {e.stderr.decode()}")
+        raise e
+    return True
+
+
+def main():
+    # Arguments
+    args = parse_args()
+    # Set the REGISTRY_AUTH_FILE env var if user passed --authfile
+    if args.authfile:
+        os.environ["REGISTRY_AUTH_FILE"] = args.authfile
+    # Check for requisite env vars
+    if os.environ.get('CONTAINER_HOST') is None or os.environ.get('CONTAINER_SSHKEY') is None:
+        sys.exit('You must have CONTAINER_HOST and CONTAINER_SSHKEY environment variables setup')
+
+    # Podman supports building from a specific commit
+    # (https://github.com/containers/buildah/issues/4148), but the way
+    # we've set this up we don't know if the argument the user is
+    # passing to --git-ref is a commit or a ref. If we knew it was a
+    # ref then we could use `git ls-remote` to remotely determine
+    # the commit we wanted to build, but we don't. Just fetch the code
+    # into a tmpdir for now and use that as the git repo to build from.
+    with tempfile.TemporaryDirectory() as gitdir:
+        # fetch the git repo contents for the build and determine commit/shortcommit
+        cmd = ["git", "-C", gitdir, "init", "."]
+        runcmd(cmd, quiet=True, capture_output=True)
+        cmd = ["git", "-C", gitdir, "remote", "add", "origin", args.git_url]
+        runcmd(cmd, quiet=True, capture_output=True)
+        cmd = ["git", "-C", gitdir, "fetch", "--depth=1", "origin", args.git_ref]
+        runcmd(cmd, quiet=True, capture_output=True)
+        cmd = ["git", "-C", gitdir, "checkout", "FETCH_HEAD"]
+        runcmd(cmd, quiet=True, capture_output=True)
+        cmd = ["git", "-C", gitdir, "rev-parse", "FETCH_HEAD"]
+        commit = runcmd(cmd, quiet=True, capture_output=True).stdout.strip().decode()
+        shortcommit = commit[0:7]
+        logging.info(f"Translated {args.git_url}#{args.git_ref} into {shortcommit}")
+        # Add some information about the commit to labels for the container
+        args.labels.append(f"org.opencontainers.image.revision={commit}")
+        args.labels.append(f"org.opencontainers.image.source={args.git_url}")
+        # If a tag wasn't passed then use the arch + shortcommit
+        if not args.tag:
+            args.tag = f"{args.arch}-{shortcommit}"
+        logging.info(f"Targetting a container image for {args.repo}:{args.tag}")
+        # Sanity check the registry if asked to push to a registry
+        if args.push_to_registry and is_tag_in_registry(args.repo, args.tag):
+            logging.info(f"Container image at {args.repo}:{args.tag} exists.")
+            if args.force:
+                logging.info(f"--force was passed. Will overwrite container at {args.repo}:{args.tag}")
+            else:
+                logging.info("No work to do. You can force with --force. Skipping build/push.")
+                return
+        # Check first if the build already exists in local storage on the builder
+        if is_tag_in_podman_storage(args.repo, args.tag):
+            if args.force:
+                logging.info(f"--force was passed. Will overwrite built container with tag {args.repo}:{args.tag}")
+                needbuild = True
+            else:
+                logging.info(f"Re-using existing built container with tag {args.repo}:{args.tag}")
+                needbuild = False
+        else:
+            needbuild = True
+        # Build the container if needed.
+        if needbuild:
+            logging.info("Building container via podman")
+            builddir = os.path.join(gitdir, args.git_sub_dir)
+            build_container_image(args.labels, builddir, args.fromimage,
+                                  args.cache_ttl, args.repo, args.tag)
+
+    # Push to the registry if needed, else save the image to a file
+    if args.push_to_registry:
+        logging.info("Pushing to remote registry")
+        push_container_image(args.repo, args.tag)
+    else:
+        logging.info("Archiving build container image from remote")
+        pull_oci_archive_from_remote(args.repo, args.tag, args.write_to_file)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        prog="CoreOS Assembler Remote Build",
+        description="Build coreos-assembler remotely",
+        usage="""
+Run multi-arch builds using podman remote.
+In order to get cmd-remote-build-container working the CONTAINER_SSHKEY and CONTAINER_HOST environment variables
+must be defined
+
+Examples:
+    $ cosa remote-build-container \
+        --arch aarch64 \
+        --label quay.expires-after=4d \
+        --git-ref main \
+        --git-url https://github.com/coreos/coreos-assembler.git \
+        --repo quay.io/coreos/coreos-assembler-staging \
+        --push-to-registry """)
+
+    parser.add_argument(
+        '--arch', required=True,
+        help='Build Architecture')
+    parser.add_argument(
+        '--authfile', required=False,
+        help='A file to use for registry auth')
+    parser.add_argument(
+        '--cache-ttl', default="0.1s", required=False,
+        help="""Pass along --cache-ttl=<value> to `podman build`.
+                Defaults to 0.1s, which is effectively `--no-cache`""")
+    parser.add_argument(
+        '--label', dest="labels", default=[], action='append',
+        required=False, help='Add image label(s)')
+    parser.add_argument(
+        '--force', required=False, action='store_true',
+        help='Force image overwrite')
+    parser.add_argument(
+        '--from', dest="fromimage", required=False,
+        help='Pass along --from=<value> to `podman build`.')
+    parser.add_argument(
+        '--git-ref', required=True,
+        help='Git branch or tag or commit')
+    parser.add_argument(
+        '--git-url', required=True,
+        help='Git URL')
+    parser.add_argument(
+        '--git-sub-dir', default='', required=False,
+        help='Git sub directory to use for container build')
+    parser.add_argument(
+        '--repo', default='localhost', required=False,
+        help='Registry repository')
+    parser.add_argument(
+        '--tag', required=False,
+        help='Force image tag. The default is arch-commit')
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        '--push-to-registry', required=False, action='store_true',
+        help='Push image to registry. You must be logged in before pushing images')
+    group.add_argument(
+        '--write-to-file', required=False,
+        help='Write container oci archive to named file')
+
+    return parser.parse_args()
+
+
+if __name__ == '__main__':
+    sys.exit(main())
