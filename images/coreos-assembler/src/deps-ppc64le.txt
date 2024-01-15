@@ -1,0 +1,3 @@
+# To support pseries in anacondaless installs
+grub2 grub2-tools-extra powerpc-utils xorriso
+

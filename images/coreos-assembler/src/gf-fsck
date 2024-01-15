@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Consistency check filesystems in a disk image
+set -euo pipefail
+
+dn=$(dirname "$0")
+# shellcheck source=src/cmdlib.sh
+. "${dn}"/cmdlib.sh
+# shellcheck source=src/libguestfish.sh
+. "${dn}"/libguestfish.sh
+
+img="$1"
+
+set -x
+
+coreos_gf_run "${img}" --ro
+# fsck the boot partition
+boot=$(coreos_gf findfs-label boot)
+# Amazingly, the libguestfs e2fsck API doesn't appear to let us do this
+coreos_gf debug sh "fsck.ext4 -f -n ${boot}"
+
+# ESP, if it exists
+partitions="$(coreos_gf list-partitions)"
+for pt in $partitions; do
+    label="$(coreos_gf vfs-label "${pt}")"
+    if [ "$label" == "EFI-SYSTEM" ]; then
+        coreos_gf debug sh "fsck.vfat -f -n ${pt}"
+    fi
+done
+
+# And fsck the main rootfs
+root=$(coreos_gf findfs-label root)
+coreos_gf debug sh "fsck.xfs -f -n ${root}"
+
+coreos_gf_shutdown

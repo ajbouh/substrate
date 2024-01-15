@@ -1,0 +1,9 @@
+#!/bin/bash -e
+
+REPO_PATH="github.com/coreos/coreos-assembler/mantle"
+
+export GOBIN=${PWD}/bin
+export GO15VENDOREXPERIMENT=1
+export GO111MODULE=on
+
+eval $(go env)

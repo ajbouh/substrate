@@ -1,0 +1,282 @@
+#!/usr/bin/python3
+
+'''
+    Implements signing with RoboSignatory via fedora-messaging from
+    the cosalib/fedora_messaging_request library.
+'''
+
+import argparse
+import gi
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+
+import boto3
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from cosalib.meta import GenericBuildMeta as Meta
+from cosalib.builds import Builds
+from cosalib.cmdlib import (
+    get_basearch,
+    sha256sum_file,
+    import_ostree_commit)
+from cosalib.fedora_messaging_request import send_request_and_wait_for_response
+
+gi.require_version('OSTree', '1.0')
+from gi.repository import GLib, Gio, OSTree
+
+# this is really the worst case scenario, it's usually pretty fast otherwise
+ROBOSIGNATORY_REQUEST_TIMEOUT_SEC = 60 * 60
+
+# https://pagure.io/fedora-infrastructure/issue/10899#comment-854645
+ROBOSIGNATORY_MESSAGE_PRIORITY = 4
+
+fedenv = 'prod'
+
+
+def main():
+    args = parse_args()
+    if args.stg:
+        global fedenv
+        fedenv = 'stg'
+    args.func(args)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--build", help="Build ID", required=True)
+    parser.add_argument("--arch", default=get_basearch(),
+                        help="the target architecture")
+    subparsers = parser.add_subparsers(dest='cmd', title='subcommands')
+    subparsers.required = True
+
+    robosig = subparsers.add_parser('robosignatory', help='sign with '
+                                    'RoboSignatory via fedora-messaging')
+    robosig.add_argument("--s3", metavar='<BUCKET>[/PREFIX]', required=True,
+                         help="bucket and prefix to S3 builds/ dir")
+    robosig.add_argument("--aws-config-file", metavar='CONFIG', default="",
+                         help="Path to AWS config file")
+    group = robosig.add_mutually_exclusive_group(required=True)
+    group.add_argument("--ostree", help="sign commit", action='store_true')
+    group.add_argument("--images", help="sign images", action='store_true')
+    robosig.add_argument("--extra-fedmsg-keys", action='append',
+                         metavar='KEY=VAL', default=[],
+                         help="extra keys to inject into messages")
+    robosig.add_argument("--fedmsg-conf", metavar='CONFIG.TOML',
+                         help="fedora-messaging config file for publishing")
+    robosig.add_argument("--stg", action='store_true',
+                         help="target the stg infra rather than prod")
+    robosig.add_argument("--gpgkeypath", help="path to directory containing "
+                         "public keys to use for signature verification",
+                         default="/etc/pki/rpm-gpg")
+    robosig.set_defaults(func=cmd_robosignatory)
+
+    return parser.parse_args()
+
+
+def cmd_robosignatory(args):
+    if args.aws_config_file:
+        os.environ["AWS_CONFIG_FILE"] = args.aws_config_file
+    s3 = boto3.client('s3')
+    args.bucket, args.prefix = get_bucket_and_prefix(args.s3)
+
+    args.extra_keys = {}
+    for keyval in args.extra_fedmsg_keys:
+        key, val = keyval.split('=', 1)  # will throw exception if there's no =
+        args.extra_keys[key] = val
+
+    build = Meta(build=args.build, basearch=args.arch)
+    version = build['ostree-version']
+
+    # 32.20200615.2.0 -> 32
+    major = int(version.split('.')[0])
+    gpgkey = f"{args.gpgkeypath}/RPM-GPG-KEY-fedora-{major}-primary"
+    if not os.path.isfile(gpgkey):
+        raise Exception(f"Expected GPG key {gpgkey} to exist")
+
+    # these two are different enough that they deserve separate handlers
+    if args.ostree:
+        robosign_ostree(args, s3, build, gpgkey)
+    else:
+        assert args.images
+        robosign_images(args, s3, build, gpgkey)
+
+
+def robosign_ostree(args, s3, build, gpgkey):
+    builds = Builds()
+    builddir = builds.get_build_dir(args.build, args.arch)
+    checksum = build['ostree-commit']
+
+    # Copy commit object to a temporary location. A preferred approach here is
+    # to require the pipeline to do a preliminary buildupload and then just
+    # point at the final object location instead. Though we'd want
+    # https://github.com/coreos/coreos-assembler/issues/668 before doing this
+    # so we at least GC on failure. For now, just use a stable path so we
+    # clobber previous runs.
+    build_dir_commit_obj = os.path.join(builddir, 'ostree-commit-object')
+    commit_key = f'{args.prefix}/tmp-{args.arch}/ostree-commit-object'
+    commitmeta_key = f'{args.prefix}/tmp-{args.arch}/ostree-commitmeta-object'
+    print(f"Uploading s3://{args.bucket}/{commit_key}")
+    s3.upload_file(build_dir_commit_obj, args.bucket, commit_key)
+    s3.delete_object(Bucket=args.bucket, Key=commitmeta_key)
+
+    response = send_request_and_wait_for_response(
+        request_type='ostree-sign',
+        config=args.fedmsg_conf,
+        request_timeout=ROBOSIGNATORY_REQUEST_TIMEOUT_SEC,
+        priority=ROBOSIGNATORY_MESSAGE_PRIORITY,
+        environment=fedenv,
+        body={
+            'build_id': args.build,
+            'basearch': args.arch,
+            'commit_object': f's3://{args.bucket}/{commit_key}',
+            'checksum': f'sha256:{checksum}',
+            **args.extra_keys
+        }
+    )
+
+    validate_response(response)
+
+    # Ensure we have an unpacked repo with the ostree content
+    if not os.path.exists('tmp/repo'):
+        subprocess.check_call(['ostree', '--repo=tmp/repo', 'init', '--mode=archive'])
+    import_ostree_commit(os.getcwd(), builddir, build)
+    repo = OSTree.Repo.new(Gio.File.new_for_path('tmp/repo'))
+    repo.open(None)
+
+    print("Verifying OSTree signature")
+    with tempfile.TemporaryDirectory(prefix="cosa-sign", dir="tmp") as d:
+        metapath = os.path.join(d, "commitmeta")
+        # Emplace the new commit metadata
+        s3.download_file(args.bucket, commitmeta_key, metapath)
+        with open(metapath, "rb") as f:
+            metadata = GLib.Bytes.new(f.read())
+            commitmeta_data = GLib.Variant.new_from_bytes(GLib.VariantType.new('a{sv}'), metadata, False)
+            repo.write_commit_detached_metadata(checksum, commitmeta_data, None)
+
+        # this is a bit awkward though the remote API is the only way to point
+        # libostree at armored GPG keys
+        config = repo.copy_config()
+        config.set_string('remote "tmpremote"', 'url', 'https://example.com')
+        config.set_string('remote "tmpremote"', 'gpgkeypath', gpgkey)
+        config.set_boolean('remote "tmpremote"', 'gpg-verify', True)
+        repo.write_config(config)
+        # XXX: work around ostree_repo_write_config not reloading remotes too
+        repo.reload_config()
+
+        result = repo.verify_commit_for_remote(checksum, 'tmpremote')
+        assert result.count_all() == 1
+        t = result.get(0, [OSTree.GpgSignatureAttr.FINGERPRINT,
+                           OSTree.GpgSignatureAttr.USER_NAME,
+                           OSTree.GpgSignatureAttr.USER_EMAIL,
+                           OSTree.GpgSignatureAttr.VALID])
+        fp = t.get_child_value(0).get_string()
+        name = t.get_child_value(1).get_string()
+        email = t.get_child_value(2).get_string()
+        valid = t.get_child_value(3).get_boolean()
+        msg = (("Valid " if valid else "Invalid ")
+               + f"signature from {name} <{email}> ({fp})")
+        # allow unknown signatures in stg
+        if not valid and fedenv != 'stg':
+            raise Exception(msg)
+        print(msg)
+
+        # We've validated the commit, now re-export the repo
+        ostree_image = build['images']['ostree']
+        exported_ostree_path = os.path.join(builddir, ostree_image['path'])
+        exported_ostree_ref = f'oci-archive:{exported_ostree_path}:latest'
+        # Detect and use the replace-detached-metadata API only if available
+        verb = "replace-detached-metadata"
+        tmp_image = os.path.join(d, 'tmp.ociarchive')
+        tmp_ref = f"oci-archive:{tmp_image}:latest"
+        if subprocess.check_output(['ostree', 'container', 'image', '--help'], encoding='UTF-8').find(verb) >= 0:
+            subprocess.check_call(['ostree', 'container', 'image', verb, f'--src={exported_ostree_ref}', f'--dest={tmp_ref}', metapath])
+        else:
+            subprocess.check_call(['ostree', 'container', 'export', '--repo=tmp/repo', checksum, tmp_ref])
+        os.rename(tmp_image, exported_ostree_path)
+        # Finalize the export by making it not writable.
+        os.chmod(exported_ostree_path, 0o400)
+        ostree_image['size'] = os.path.getsize(exported_ostree_path)
+        ostree_image['sha256'] = sha256sum_file(exported_ostree_path)
+        build.write()
+
+
+def robosign_images(args, s3, build, gpgkey):
+    builds = Builds()
+    builddir = builds.get_build_dir(args.build, args.arch)
+
+    full_prefix = f'{args.prefix}/{args.build}/{args.arch}'
+
+    # collect all the image paths to sign
+    artifacts = [{
+        'file': f's3://{args.bucket}/{full_prefix}/{img["path"]}',
+        'checksum': f'sha256:{img["sha256"]}'
+    } for img in build['images'].values()]
+
+    response = send_request_and_wait_for_response(
+        request_type='artifacts-sign',
+        config=args.fedmsg_conf,
+        request_timeout=ROBOSIGNATORY_REQUEST_TIMEOUT_SEC,
+        priority=ROBOSIGNATORY_MESSAGE_PRIORITY,
+        environment=fedenv,
+        body={
+            'build_id': args.build,
+            'basearch': args.arch,
+            'artifacts': artifacts,
+            **args.extra_keys
+        }
+    )
+
+    validate_response(response)
+
+    # download sigs and verify (use /tmp to avoid gpg hitting ENAMETOOLONG)
+    with tempfile.TemporaryDirectory(prefix="cosa-sign-") as d:
+        def gpg(*args):
+            subprocess.check_call(['gpg', '--homedir', d, *args])
+
+        gpg('--quiet', '--import', gpgkey)
+
+        for img in build['images'].values():
+            sig_s3_key = f'{full_prefix}/{img["path"]}.sig'
+
+            tmp_sig_path = f'tmp/{img["path"]}.sig'
+            s3.download_file(args.bucket, sig_s3_key, tmp_sig_path)
+
+            local_artifact = f'{builddir}/{img["path"]}'
+
+            print(f"Verifying signature for {local_artifact}")
+            try:
+                gpg('--verify', tmp_sig_path, local_artifact)
+            except subprocess.CalledProcessError as e:
+                # allow unknown signatures in stg
+                if fedenv != 'stg':
+                    raise e
+
+            # move into final location
+            shutil.move(tmp_sig_path, f'{local_artifact}.sig')
+
+            # and make S3 object public (XXX: fix robosignatory for this?)
+            s3.put_object_acl(Bucket=args.bucket, Key=sig_s3_key,
+                              ACL='public-read')
+
+
+def get_bucket_and_prefix(path):
+    split = path.split("/", 1)
+    if len(split) == 1:
+        return (split[0], "")
+    return split
+
+
+def validate_response(response):
+    if response['status'].lower() == 'failure':
+        # https://pagure.io/robosignatory/pull-request/38
+        if 'failure-message' not in response:
+            raise Exception("Signing failed")
+        raise Exception(f"Signing failed: {response['failure-message']}")
+    assert response['status'].lower() == 'success', str(response)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
