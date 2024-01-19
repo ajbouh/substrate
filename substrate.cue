@@ -155,21 +155,17 @@ daemons: "substrate": {
         IPAMDriver: "host-local"
       }
     }
-    "substrate-ensure-resourcedirs-root.service": {
-      Unit: {
-        "ConditionPathExists": "!\(#var.host_resourcedirs_root)"
-      }
-      Service: {
-        ExecStart: "mkdir -m 0755 -p \(#var.host_resourcedirs_root)"
-      }
-    }
     "substrate.container": {
       Unit: {
-        Requires: ["podman.socket", "nvidia-ctk-cdi-generate.service", "substrate-external.network", "substrate-internal.network"]
-        After: ["podman.socket", "nvidia-ctk-cdi-generate.service", "substrate-external.network", "substrate-internal.network", "substrate-ensure-resourcedirs-root.service"]
+        Requires: ["podman.socket", "nvidia-ctk-cdi-generate.service", "ensure-resourcedirs-root.service", "ensure-resourcedirs-path.service", "ensure-oob-imagestore.service"]
+        After: ["podman.socket", "nvidia-ctk-cdi-generate.service", "ensure-resourcedirs-root.service", "ensure-resourcedirs-path.service", "ensure-oob-imagestore.service"]
       }
       Install: {
         WantedBy: ["multi-user.target", "default.target"]
+      }
+      Service: {
+        // https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html#runfile-verifications
+        ExecStartPre: ["-/usr/bin/nvidia-smi"]
       }
       Container: {
         SecurityLabelDisable: true

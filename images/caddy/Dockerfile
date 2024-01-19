@@ -1,4 +1,4 @@
-FROM golang:1.21 as go-build
+FROM docker.io/library/golang:1.21 as go-build
 WORKDIR /caddy
 COPY . .
 RUN go build

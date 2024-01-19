@@ -12,6 +12,8 @@ extra-kargs:
     # https://askubuntu.com/questions/1401726/pcieport-0000001d-0-aer-corrected-error-received-00000400-0
     # https://www.reddit.com/r/linuxquestions/comments/g8pbku/any_undesirable_side_effects_of_pcinommconf/
     - pcie_aspm=off
+    # HACK Adding oob.squash seems to cause a problem for us. Disable enforcement now.
+    # - enforcing=0
 
 # Disable networking by default on firstboot. We can drop this once cosa stops
 # defaulting to `ip=auto rd.neednet=1` when it doesn't see this key.

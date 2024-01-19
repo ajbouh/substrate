@@ -6,7 +6,6 @@ import (
   cryptosha256 "crypto/sha256"
 
   systemd "github.com/ajbouh/substrate/pkg/systemd"
-  fcos_ignition "github.com/ajbouh/substrate/os:ignition"
   lens "github.com/ajbouh/substrate/pkg/substrate:lens"
   imagespec "github.com/ajbouh/substrate/pkg/substrate:imagespec"
   containerspec "github.com/ajbouh/substrate/pkg/substrate:containerspec"
@@ -68,8 +67,6 @@ daemons: [key=string]: containerspec.#ContainerSpec
 }
 
 #out: {
-  ignition: fcos_ignition
-
   // HACK so `cue def` works with less rewriting...
   #lenses: [string]: lens
 
@@ -116,7 +113,7 @@ for key, def in #out.#lenses {
         sha256: rddef.sha256
         #containerspec: (resourcedirs[rddef.id].#containerspec & {
           image: resourcedirs[rddef.id].#imagespec.image
-          mounts: [{source: "\(#var.build_resourcedirs_root)/\(rddef.sha256)", "destination": "/res"}]
+          mounts: [{source: "\(#var.build_resourcedirs_root)/\(rddef.sha256)", "destination": "/res", "mode": "Z"}]
         })
         #imagespec: resourcedirs[rddef.id].#imagespec
       }

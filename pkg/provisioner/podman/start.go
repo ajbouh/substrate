@@ -26,7 +26,9 @@ type P struct {
 
 	namespace  string
 	generation string
-	network    string
+
+	internalNetwork string
+	externalNetwork string
 
 	hostResourceDirsRoot string
 	hostResourceDirsPath []string
@@ -40,11 +42,12 @@ type P struct {
 
 var _ activityspec.ProvisionDriver = (*P)(nil)
 
-func New(connect func(ctx context.Context) (context.Context, error), namespace, network, hostResourceDirsRoot string, hostResourceDirsPath []string, prep func(h *specgen.SpecGenerator)) *P {
+func New(connect func(ctx context.Context) (context.Context, error), namespace, internalNetwork, externalNetwork, hostResourceDirsRoot string, hostResourceDirsPath []string, prep func(h *specgen.SpecGenerator)) *P {
 	return &P{
 		connect:              connect,
 		namespace:            namespace,
-		network:              network,
+		internalNetwork:      internalNetwork,
+		externalNetwork:      externalNetwork,
 		hostResourceDirsRoot: hostResourceDirsRoot,
 		hostResourceDirsPath: hostResourceDirsPath,
 		containerResourceDir: "/res",
@@ -150,8 +153,6 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	// 	return nil, err
 	// }
 
-	networkName := p.network
-
 	s := specgen.NewSpecGenerator(as.Image, false)
 	s.Remove = true
 	s.Env = map[string]string{}
@@ -161,7 +162,8 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		p.prep(s)
 	}
 	s.Networks = map[string]nettypes.PerNetworkOptions{
-		networkName: nettypes.PerNetworkOptions{},
+		p.internalNetwork: nettypes.PerNetworkOptions{},
+		p.externalNetwork: nettypes.PerNetworkOptions{},
 	}
 
 	includeView := func(viewName string, includeSpaceIDInTarget bool, view *substratefs.SpaceView) {
@@ -213,16 +215,16 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	// Pull PORT out of env, so it can be used for port forwarding.
 	// TODO consider using configured portmappings instead of this weird approach.
 	portStr := s.Env["PORT"]
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
-		return nil, fmt.Errorf("bad PORT value: %w", err)
-	}
-
-	s.PortMappings = []nettypes.PortMapping{
-		{
-			ContainerPort: uint16(port),
-			Protocol:      "tcp",
-		},
+	if portStr != "" {
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			return nil, fmt.Errorf("bad PORT value: %w", err)
+		}
+		s.PortMappings = append(s.PortMappings, nettypes.PortMapping{
+				ContainerPort: uint16(port),
+				Protocol:      "tcp",
+			},
+		)
 	}
 
 	for parameterName, parameterValue := range as.Parameters {

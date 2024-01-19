@@ -1,76 +1,103 @@
 # Substrate
 
-Substrate has a small number of "always available" servers running at well known addresses. These are:
-- launcher
-- gateway 
+## Getting started with SubstrateOS
 
-All other services are assigned ephemeral hostnames that expire when the service completes its work or becomes idle.
+There are a lot of rough edges here, but hopefully this is much better base for folks to start with.
 
-Under the hood, substrate runs ephemeral backends via plane.
+1. Download the most recent ISO
 
-The primary user-visible abstractions in substrate are the "service" and the "workspace".
+2. Burn it to a USB drive
 
-A "service" is a docker image that's been registered with substrate and can be started and retired as needed.
+3. It should boot directly to a terminal. If not, you can open the UEFI shell and boot using that.
 
-A "workspace" is a directory on a global filesystem (currently backed by S3 via the juicefs project)
+    #### If you have the Intel NUC 13 Extreme, here's a workaround for USB not detected at BIOS.
+    - Press F2 to enter BIOS
+    - Boot > Boot Priority > enable "Internal UEFI Shell"
+    - Disable secure boot.
+    - Save & reboot
+    - Press F10 to enter boot menu
+    - Check the list of devices for the USB drive. Enter the drive letter, then start the boot efi:
+      ```
+      Shell> fs0:
+      fs0:> .\EFI\BOOT\bootx64.efi
+      ```
 
-## What are Maxwell's equations of collaborative media?
+4. Run the installer
 
-### Actions
-- creating (start a new document, new repository, new post)
-- forking (copy an existing document, fork an existing repository, remix someone's post)
-- collections (includes favoriting, reactions)
-- contributing (includes merging, commenting, reactions)
-- embedding (includes importing, citing, )
+    ```shell
+    # THIS WILL REFORMAT THE COMPUTER WITHOUT CONFIRMATION
+    sudo coreos-installer install /dev/nvme0n1 
+    ```
 
-### Experiences
-- something i'm doing is visible to others
-- something others are doing is visible to me
-- someone interacted with a thing i made or did
-- external evidence that something happened within the system
+5. Then you can reboot (and remove the USB drive).
+    ```shell
+    sudo reboot
+    ```
+
+6. Back on your development machine you should add the NUC's IP address to your `/etc/hosts` file and `~/.ssh/config`.
+    ```
+    # /etc/hosts
+    192.168.1.193 substrate.home.arpa
+    ```
+
+    ```
+    # ~/.ssh/config
+    Host substrate.home.arpa
+        User core
+        IdentityFile ~/.ssh/id_substrate
+    ```
+
+7. Then visit the root debug shell at: https://substrate:substrate@substrate.home.arpa/debug/shell.
+
+    Set a password for the core user (we are no longer using the substrate user), and set your authorized_key with something like:
+
+    ```shell
+    passwd core
+    # enter a new password
+    su core
+    mkdir -p ~/.ssh/authorized_keys.d
+    cat > ~/.ssh/authorized_keys.d/dev <<EOF
+    ssh-ed25519 ...
+    EOF
+    ```
+
+8. Now on your development machine you can check out the future branch
+
+    ```shell
+    git checkout future
+    ```
+
+9. Build the container images, resourcedirs, and systemd units on the remote machine:
+
+    ```
+    # HACK this is a workaround because we aren't properly mounting the oob files
+    ./remote ssh sudo mkdir -p /run/media/oob/imagestore
+    # HACK we can't yet populate resourcedirs at "runtime". populate them as a side effect of building the oob (out-of-band) squashfs
+    ./remote ./dev.sh oob-make
+    ./remote ./dev.sh reload
+    ```
+
+    <details>
+
+    Under the hood, `./remote ...` will:
+
+    1) Sync your current checkout directly into the `substrate.home.arpa` device. This includes any staged or unstaged changes in tracked files, but *not* ignored or untracked files.
+    2) Run the rest of the command (in this case `./dev.sh reload`) on the NUC itself 
+
+    Under the hood, `./dev.sh reload` will:
+
+    1) Override any substrateos-specific systemd units to match your current checkout (but not all of them)
+    2) Rebuild containers
+    3) Run `systemd daemon-reload`
+    4) Restart the substrate service
+
+    </details>
 
 
-# Definitions
-- space: (noun) a checkpointable, forkable directory on substratefs
-- lens: (noun) a container that provides web UI or API based on access to zero or more spaces
-- view: (noun) a composition of {0, 1} lens(es) and 0+ spaces. it may be concrete or abstract.
-  - concrete view: (noun): 1 lens and 0+ spaces. it can be launched and will not create any new spaces.
-  - abstract view: (noun): {0, 1} lens(es) and 0+ spaces. it may be incomplete and require additional information to be launched.
-- viewspec: (noun) a string that describes concrete or abstract view
-  - abstract viewspec: (noun) a string that describes an abstract view
-  - contract viewspec: (noun) a string that describes a concrete view
+10. On your laptop, visit https://substrate.home.arpa/gw/bridge/. Select your microphone, click "Unmute", and try speaking.
 
-  examples:
-  ```
-  somelens[foo=sp-12sdfasc] means: lens is "somelens", view named foo bound to space "sp-12sdfasc"
-  somelens[foo=~sp-12sdfasc] means: lens is "somelens", view named foo bound to a fork of space "sp-12sdfasc"
-  [foo=~sp-12sdfasc] means: lens is unknown, view named foo bound to a fork of space "sp-12sdfasc"
-  ```
+11. After the initial reload, you can limit your build to a specific image. For example:
 
-GET    /api/v1/backend/jamsocket/:backend/status/stream
-GET    /api/v1/events
-GET    /api/v1/lenses
-GET    /api/v1/lenses/:lens
-GET    /api/v1/spaces
-DELETE /api/v1/spaces/:space
-PATCH  /api/v1/spaces/:space
-GET    /api/v1/spaces/:space
-GET    /api/v1/activities
-POST   /api/v1/activities
-GET    /api/v1/activities/:viewspec
-GET    /api/v1/collections/:owner
-GET    /api/v1/collections/:owner/:name
-POST   /api/v1/collections/:owner/:name/spaces
-GET    /api/v1/collections/:owner/:name/spaces
-DELETE /api/v1/collections/:owner/:name/spaces/:space
-POST   /api/v1/collections/:owner/:name/lenses
-DELETE /api/v1/collections/:owner/:name/lenses/:lensspec
-GET    /api/v1/collections/:owner/:name/lensspecs
-
-collections:
-
-system/preview
-  :space + :lensspec
-
-system/preview
-set *if not yet set* lensspec
+    ```
+    ./remote ./dev.sh reload bridge
+    ```

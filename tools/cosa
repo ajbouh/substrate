@@ -7,6 +7,7 @@ if [ -z "$PODMAN" ]; then
 fi
 
 COREOS_ASSEMBLER_GIT=$TOP/images/coreos-assembler
+COREOS_ASSEMBLER_CONTAINER="quay.io/coreos-assembler/coreos-assembler@sha256:91c3bf7db0db496f9c007e6189edd21ecc0ecfe9dec7bfcde497a2c4c4a13442"
 
 # See also https://www.itix.fr/blog/build-your-own-distribution-on-fedora-coreos/
 cosa() {
@@ -29,7 +30,7 @@ cosa() {
               --uidmap=1000:0:1 --uidmap=0:1:1000 --uidmap=1001:1001:64536                          \
               -w /srv \
               -v=${TOP}/os:/srv/ -v=${TOP}/.git:/srv/.git:ro -v=${TOP}/.git:/srv/src/config/.git:ro --device=/dev/kvm --device=/dev/fuse                                  \
-              --tmpfs=/tmp -v=/var/tmp:/var/tmp --name=cosa                                         \
+              --tmpfs=/tmp -v=/var/tmp:/var/tmp                                         \
               -e COSA_NO_KVM -e COSA_DIR=. -e LIBGUESTFS_DEBUG=1 -e LIBGUESTFS_TRACE=1 \
               ${COREOS_ASSEMBLER_CONFIG_GIT:+-v=$COREOS_ASSEMBLER_CONFIG_GIT:/srv/src/config/:ro}   \
               ${COREOS_ASSEMBLER_GIT:+-v=$COREOS_ASSEMBLER_GIT/src/:/usr/lib/coreos-assembler/:ro}  \

@@ -120,6 +120,7 @@ func newPodmanProvisioner(cudaAllowed bool) *podmanprovisioner.P {
 		},
 		mustGetenv("SUBSTRATE_NAMESPACE"),
 		mustGetenv("SUBSTRATE_INTERNAL_NETWORK"),
+		mustGetenv("SUBSTRATE_EXTERNAL_NETWORK"),
 		mustGetenv("SUBSTRATE_RESOURCEDIRS_ROOT"),
 		strings.Split(os.Getenv("SUBSTRATE_RESOURCEDIRS_PATH"), ":"),
 		prep,
