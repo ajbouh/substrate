@@ -260,29 +260,29 @@ write_os_container_units_overlay() {
   done
 }
 
-build_os_image() {
+build_image() {
   image=$1
   PODMAN_BUILD_OPTIONS=$(print_rendered_cue_dev_expr_as text -e "#out.image_podman_build_options[\"$image\"]")
   $PODMAN build --layers --tag $image $PODMAN_BUILD_OPTIONS
 }
 
-build_os_images() {
+build_images() {
   if [ $# -eq 0 ]; then
     # populate images
     IMAGES=$(print_rendered_cue_dev_expr_as text -e '#out.image_references')
     echo IMAGES=$IMAGES
     for image in $IMAGES; do
-      build_os_image $image
+      build_image $image
     done
   else
-    for container in $@; do
-      image=$(print_rendered_cue_dev_expr_as text -e "#out.imagespecs[\"$container\"].image")
-      build_os_image $image
+    for image_name in $@; do
+      image=$(print_rendered_cue_dev_expr_as text -e "#out.imagespecs[\"$image_name\"].image")
+      build_image $image
     done
   fi
 }
 
-write_os_image_storage_overlay() {
+write_images_to_imagestore() {
   # https://man.archlinux.org/man/containers-transports.5.en
   # https://www.redhat.com/sysadmin/image-stores-podman
   # https://github.com/rancher/os/issues/1449
@@ -293,17 +293,17 @@ write_os_image_storage_overlay() {
   # "Support opinionated flow for injecting containers into /usr/lib/containers" https://github.com/ostreedev/ostree-rs-ext/issues/246
   # "Add opinionated container binding with podman" https://github.com/containers/bootc/issues/128
 
-  OVERLAY_BASEDIR=$1
-  mkdir -p $OVERLAY_BASEDIR
+  IMAGESTORE=$1
+  shift
 
-  # populate images
-  IMAGES=$(print_rendered_cue_dev_expr_as text -e '#out.image_references')
-  echo IMAGES=$IMAGES
+  IMAGES=$@
+  : ${IMAGESTORE_PODMAN=:$PODMAN}
+
   PODMAN_LOCAL_REPO_OPTIONS=$($PODMAN info --format='overlay.mount_program={{ index .Store.GraphOptions "overlay.mount_program" "Executable" }}' || true)
   PODMAN_LOCAL_REPO=$($PODMAN info --format="containers-storage:[{{ .Store.GraphDriverName }}@{{ .Store.GraphRoot }}+{{ .Store.RunRoot }}:$PODMAN_LOCAL_REPO_OPTIONS]")
 
   for image in $IMAGES; do
-    $PODMAN pull --root $OVERLAY_BASEDIR ${PODMAN_LOCAL_REPO}$image
+    $IMAGESTORE_PODMAN pull --root $IMAGESTORE ${PODMAN_LOCAL_REPO}$image
   done
 }
 
@@ -334,7 +334,11 @@ case "$1" in
     DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
 
     # TODO only build $containers
-    PODMAN="sudo $PODMAN" build_os_images $containers
+    build_images $containers
+
+    # HACK should actually only be pulling the images we built...
+    IMAGES=$(print_rendered_cue_dev_expr_as text -e '#out.image_references')
+    IMAGESTORE_PODMAN="sudo $PODMAN" write_images_to_imagestore /var/lib/containers/storage $IMAGES
 
     # show overrides before we replace anything (as a sort of poor man's backup)
     systemd-delta
@@ -376,12 +380,14 @@ case "$1" in
 
     set_os_vars
 
-    PODMAN="sudo $PODMAN" write_os_resourcedirs_overlay
-
+    write_os_resourcedirs_overlay
     write_rendered_cue_dev_expr_as_cue $BUILD_LENSES_EXPR_PATH -e "#out.#lenses"
 
-    PODMAN="sudo $PODMAN" build_os_images
-    write_os_image_storage_overlay os/gen/oob/imagestore
+    build_images
+    IMAGES=$(print_rendered_cue_dev_expr_as text -e '#out.image_references')
+
+    mkdir -p os/gen/oob/imagestore
+    write_images_to_imagestore os/gen/oob/imagestore $IMAGES
     
     mkdir -p os/src/config/live/oob
     ./tools/cosa shell sudo mksquashfs gen/oob src/config/live/oob/oob.squashfs -noappend -wildcards -no-recovery -comp zstd
