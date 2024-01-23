@@ -5,10 +5,11 @@ package dev
   root_source_directory: string
 }
 
-enable: "openvscode": false
+enable: "openvscode": true
 
 imagespecs: "openvscode": {
   build: {
+    dockerfile: "images/openvscode/Dockerfile"
     args: {
       RELEASE_TAG: "openvscode-server-v1.84.2"
     }
@@ -23,7 +24,11 @@ imagespecs: "openvscode": {
     DOCKER_HOST: "unix://\(#docker_socket)"
   }
 
-  command: ["--default-folder=\(environment.#workspace)", "--default-workspace=\(environment.#workspace)"]
+  command: [
+    "--default-folder=\(environment.#workspace)",
+    "--default-workspace=\(environment.#workspace)",
+    "--disable-telemetry",
+  ]
 
   mounts: [
     {source: #var.root_source_directory, destination: environment.#workspace},
