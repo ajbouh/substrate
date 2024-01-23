@@ -309,7 +309,7 @@ write_os_image_storage_overlay() {
 
 set_os_vars() {
   BUILD_LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
-  HOST_ROOT_SOURCE_DIR="/var/source"
+  HOST_ROOT_SOURCE_DIR="/var/home/core/source"
   HOST_CUDA="1"
   HOST_DOCKER_SOCKET="/var/run/podman/podman.sock"
   HOST_RESOURCEDIRS_ROOT="/var/lib/resourcedirs"

@@ -9,5 +9,7 @@
 {$HOSTNAME} {
   redir /debug/shell /debug/shell/
   reverse_proxy /debug/shell/* http://127.0.0.1:8181
+  redir /debug/vscode /debug/vscode/
+  reverse_proxy /debug/vscode/* http://127.0.0.1:3000
   reverse_proxy http://127.0.0.1:8080
 }
