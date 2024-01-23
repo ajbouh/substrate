@@ -297,7 +297,7 @@ write_images_to_imagestore() {
   shift
 
   IMAGES=$@
-  : ${IMAGESTORE_PODMAN=:$PODMAN}
+  : ${IMAGESTORE_PODMAN:=$PODMAN}
 
   PODMAN_LOCAL_REPO_OPTIONS=$($PODMAN info --format='overlay.mount_program={{ index .Store.GraphOptions "overlay.mount_program" "Executable" }}' || true)
   PODMAN_LOCAL_REPO=$($PODMAN info --format="containers-storage:[{{ .Store.GraphDriverName }}@{{ .Store.GraphRoot }}+{{ .Store.RunRoot }}:$PODMAN_LOCAL_REPO_OPTIONS]")
