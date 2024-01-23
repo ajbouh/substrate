@@ -20,13 +20,13 @@ COPY --from=quarto /opt/quarto /opt/quarto
 ENV PATH /opt/conda/bin:/opt/quarto/bin:$PATH
 
 WORKDIR /content
-COPY services/jupyverse/requirements.txt .
+COPY images/jupyverse/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY services/jupyverse/run.sh .
-COPY services/jupyverse/jupyterconfig /content/jupyterconfig
+COPY images/jupyverse/run.sh .
+COPY images/jupyverse/jupyterconfig /content/jupyterconfig
 
 WORKDIR /content/data
-COPY services/jupyverse/data .
+COPY images/jupyverse/data .
 
 CMD ["/opt/conda/bin/conda", "run", "-n", "base", "/content/run.sh"]

@@ -4,11 +4,11 @@ import (
   asr "github.com/ajbouh/substrate/pkg/asr"
 )
 
-enable: "asr-seamlessm4t": true
+enable: "seamlessm4t": true
 
-imagespecs: "asr-seamlessm4t": {}
+imagespecs: "seamlessm4t": {}
 
-"lenses": "asr-seamlessm4t": {
+"lenses": "seamlessm4t": {
   spawn: {}
   spawn: environment: {
     MODEL: "/res/model/huggingface/local"

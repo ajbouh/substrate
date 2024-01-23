@@ -1,14 +1,14 @@
 FROM docker.io/node:18.19.0-alpine3.18 as uideps
 WORKDIR /app
-# COPY services/bridge/ui/patches ./patches
-COPY services/bridge/ui/package.json services/bridge/ui/package-lock.json ./
+# COPY images/bridge/ui/patches ./patches
+COPY images/bridge/ui/package.json images/bridge/ui/package-lock.json ./
 RUN npm i
 
 
 FROM uideps as uibuild
-COPY services/bridge/ui/src ./src
-COPY services/bridge/ui/static ./static
-COPY services/bridge/ui/*.sh services/bridge/ui/*.js services/bridge/ui/*.json services/bridge/ui/*.cjs services/bridge/ui/.npmrc ./
+COPY images/bridge/ui/src ./src
+COPY images/bridge/ui/static ./static
+COPY images/bridge/ui/*.sh images/bridge/ui/*.js images/bridge/ui/*.json images/bridge/ui/*.cjs images/bridge/ui/.npmrc ./
 RUN npm run build
 
 FROM docker.io/library/golang:1.21 as builder
@@ -23,17 +23,17 @@ WORKDIR /go/src/github.com/ajbouh/substrate/pkg
 ADD pkg/go.mod pkg/go.sum ./
 RUN go mod download
 
-WORKDIR /go/src/github.com/ajbouh/substrate/services/bridge
-COPY services/bridge/go.mod services/bridge/go.sum .
-COPY services/bridge/thirdparty thirdparty
+WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge
+COPY images/bridge/go.mod images/bridge/go.sum .
+COPY images/bridge/thirdparty thirdparty
 RUN go mod download
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg
 COPY pkg/. .
 
-WORKDIR /go/src/github.com/ajbouh/substrate/services/bridge
-COPY services/bridge/pkg pkg
-COPY services/bridge/cmd cmd
+WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge
+COPY images/bridge/pkg pkg
+COPY images/bridge/cmd cmd
 RUN go build \
   -ldflags "-linkmode external -extldflags '-static -lopus -logg -lm'" \
   -o /bridge ./cmd
@@ -42,7 +42,7 @@ RUN go build \
 FROM gcr.io/distroless/static-debian12 as dist
 WORKDIR /app
 COPY --from=builder /bridge ./bridge
-COPY ./services/bridge/cmd/config.toml ./config.toml
+COPY ./images/bridge/cmd/config.toml ./config.toml
 COPY --from=uibuild /app/build ./ui/.
 EXPOSE 8088
 CMD ["/app/bridge"]

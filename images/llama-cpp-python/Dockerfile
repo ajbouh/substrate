@@ -14,9 +14,9 @@ RUN apt-get update && apt-get upgrade -y \
 # Install depencencies
 RUN python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools fastapi uvicorn sse-starlette pydantic-settings starlette-context huggingface_hub pyyaml
 
-COPY services/llama-cpp-python/README.md services/llama-cpp-python/pyproject.toml services/llama-cpp-python/CMakeLists.txt .
-COPY services/llama-cpp-python/vendor/llama.cpp vendor/llama.cpp
-COPY services/llama-cpp-python/llama_cpp llama_cpp
+COPY images/llama-cpp-python/README.md images/llama-cpp-python/pyproject.toml images/llama-cpp-python/CMakeLists.txt .
+COPY images/llama-cpp-python/vendor/llama.cpp vendor/llama.cpp
+COPY images/llama-cpp-python/llama_cpp llama_cpp
 
 # setting build related env vars
 ENV CUDA_DOCKER_ARCH=all

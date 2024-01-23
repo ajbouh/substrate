@@ -4,9 +4,9 @@ import (
   asr "github.com/ajbouh/substrate/pkg/asr"
 )
 
-enable: "asr-faster-whisper": true
+enable: "faster-whisper": true
 
-imagespecs: "asr-faster-whisper": {}
+imagespecs: "faster-whisper": {}
 
 // default model choices are
 // "Systran/faster-whisper-tiny",
@@ -21,7 +21,7 @@ imagespecs: "asr-faster-whisper": {}
 // "Systran/faster-whisper-large-v2",
 // "Systran/faster-whisper-large-v3",
 
-lenses: "asr-faster-whisper": {
+lenses: "faster-whisper": {
   spawn: {}
   spawn: {
     environment: {

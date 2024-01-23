@@ -14,10 +14,26 @@ RUN CGO_ENABLED=0 make
 FROM scratch as gotty
 COPY --from=go-build /gotty/gotty /
 
-FROM alpine:latest as dist
+FROM alpine:latest as dist-alpine
 RUN apk update && \
     apk upgrade && \
     apk --no-cache add ca-certificates bash
 WORKDIR /root
 COPY --from=go-build /gotty/gotty /usr/bin/
 CMD ["gotty",  "-w", "bash"]
+
+FROM ubuntu:22.04 AS dist-ubuntu
+RUN apt update && \
+  apt install -y -V --no-install-recommends \
+  git \
+  emacs-nox micro nano vim \
+  screen tmux \
+  openssh-client \
+  bash zsh \
+  wget curl \
+  ca-certificates && \
+  apt clean && \
+  rm -rf /var/lib/apt/lists/*
+ENV PORT 8080
+COPY --from=build --chown=nonroot:nonroot /go/bin/gotty /bin/
+ENTRYPOINT ["/bin/gotty", "-w", "/bin/bash"]

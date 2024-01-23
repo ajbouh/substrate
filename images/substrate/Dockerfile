@@ -16,15 +16,15 @@ WORKDIR /go/src/github.com/ajbouh/substrate/pkg
 ADD pkg/go.mod pkg/go.sum ./
 RUN go mod download
 
-WORKDIR /go/src/github.com/ajbouh/substrate/services/substrate
-ADD services/substrate/go.mod services/substrate/go.sum ./
+WORKDIR /go/src/github.com/ajbouh/substrate/images/substrate
+ADD images/substrate/go.mod images/substrate/go.sum ./
 RUN go mod download
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg
 COPY pkg/. .
 
-WORKDIR /go/src/github.com/ajbouh/substrate/services/substrate
-COPY services/substrate/*.go .
+WORKDIR /go/src/github.com/ajbouh/substrate/images/substrate
+COPY images/substrate/*.go .
 
 # With the trick below, Go's build cache is kept between builds.
 # https://github.com/golang/go/issues/27719#issuecomment-514747274
@@ -69,5 +69,5 @@ WORKDIR /data
 # HACK this is needed because both this script and nvidia-container-toolkit rely on it
 COPY --from=build /sbin/ldconfig /sbin/ldconfig
 COPY --from=build /bin/dash /bin/sh
-COPY services/substrate/run-with-ldcache-hack.sh /app
+COPY images/substrate/run-with-ldcache-hack.sh /app
 ENTRYPOINT ["/app/run-with-ldcache-hack.sh", "/app/substrate"]

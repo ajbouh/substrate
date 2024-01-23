@@ -1,4 +1,4 @@
-module github.com/ajbouh/substrate/services/screenshot
+module github.com/ajbouh/substrate/images/screenshot
 
 go 1.21
 

@@ -15,6 +15,6 @@ RUN pip install https://github.com/simonw/datasette/archive/refs/tags/${VERSION}
     rm -rf /root/.cache/pip
 
 WORKDIR /app
-COPY services/datasette/run.sh .
+COPY images/datasette/run.sh .
 
 CMD ["/app/run.sh"]

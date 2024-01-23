@@ -2,8 +2,8 @@ go 1.21.1
 
 use (
 	./pkg
-	./services/bridge
-	./services/files
-	./services/screenshot
-	./services/substrate
+	./images/bridge
+	./images/files
+	./images/screenshot
+	./images/substrate
 )

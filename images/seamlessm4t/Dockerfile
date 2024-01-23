@@ -12,13 +12,13 @@ RUN apt-get update \
 WORKDIR /app
 
 # Copy the requirements file to the container
-COPY services/asr-seamlessm4t/requirements.txt .
+COPY images/seamlessm4t/requirements.txt .
 
 # Install the dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the source code to the container
-COPY services/asr-seamlessm4t/. .
+COPY images/seamlessm4t/. .
 COPY pkg/asr substrate/asr
 
 # Expose the port on which the application will run (default is 8080)

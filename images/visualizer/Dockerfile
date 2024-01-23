@@ -72,30 +72,18 @@ RUN addgroup -g 1000 node \
 FROM node as deps
 
 WORKDIR /app
-COPY services/ui/patches ./patches
-COPY services/ui/package.json services/ui/package-lock.json ./
+COPY images/visualizer/package.json ./
 RUN npm i
 
 FROM deps as build
-COPY services/ui/src ./src
-COPY services/ui/static ./static
-COPY services/ui/*.sh services/ui/*.js services/ui/*.json services/ui/*.cjs services/ui/.npmrc ./
+COPY images/visualizer/src ./src
+COPY images/visualizer/*.json ./
 RUN npm run build
 
-FROM node as dev
-WORKDIR /app
-RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
-COPY --from=deps /app/ ./
-COPY services/ui/*.sh services/ui/*.js services/ui/*.json services/ui/*.cjs services/ui/.npmrc ./
-
-ENTRYPOINT ["npm", "run", "dev", "--", "--host=0.0.0.0"]
-
 FROM node as dist
-WORKDIR /app
+WORKDIR /
 RUN apk update && apk add --no-cache ca-certificates && rm -rf /var/cache/apk/*
-COPY --from=build /app/package.json ./
-RUN npm i --omit=dev
-COPY --from=build /app/build ./
-COPY services/ui/run.sh ./
+COPY --from=build /app/package.json /app/
+COPY --from=build /app/index.js /app/
 
-ENTRYPOINT ["/app/run.sh"]
+ENTRYPOINT ["node", "/app/index.js"]

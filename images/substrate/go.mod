@@ -1,4 +1,4 @@
-module github.com/ajbouh/substrate/services/substrate
+module github.com/ajbouh/substrate/images/substrate
 
 go 1.21
 

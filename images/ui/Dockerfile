@@ -72,18 +72,30 @@ RUN addgroup -g 1000 node \
 FROM node as deps
 
 WORKDIR /app
-COPY services/visualizer/package.json ./
+COPY images/ui/patches ./patches
+COPY images/ui/package.json images/ui/package-lock.json ./
 RUN npm i
 
 FROM deps as build
-COPY services/visualizer/src ./src
-COPY services/visualizer/*.json ./
+COPY images/ui/src ./src
+COPY images/ui/static ./static
+COPY images/ui/*.sh images/ui/*.js images/ui/*.json images/ui/*.cjs images/ui/.npmrc ./
 RUN npm run build
 
-FROM node as dist
-WORKDIR /
-RUN apk update && apk add --no-cache ca-certificates && rm -rf /var/cache/apk/*
-COPY --from=build /app/package.json /app/
-COPY --from=build /app/index.js /app/
+FROM node as dev
+WORKDIR /app
+RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
+COPY --from=deps /app/ ./
+COPY images/ui/*.sh images/ui/*.js images/ui/*.json images/ui/*.cjs images/ui/.npmrc ./
 
-ENTRYPOINT ["node", "/app/index.js"]
+ENTRYPOINT ["npm", "run", "dev", "--", "--host=0.0.0.0"]
+
+FROM node as dist
+WORKDIR /app
+RUN apk update && apk add --no-cache ca-certificates && rm -rf /var/cache/apk/*
+COPY --from=build /app/package.json ./
+RUN npm i --omit=dev
+COPY --from=build /app/build ./
+COPY images/ui/run.sh ./
+
+ENTRYPOINT ["/app/run.sh"]

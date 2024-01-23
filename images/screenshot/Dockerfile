@@ -5,10 +5,10 @@ ADD pkg/go.mod pkg/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY pkg/. .
 
-WORKDIR /go/src/github.com/ajbouh/substrate/services/screenshot
-ADD services/screenshot/go.mod services/screenshot/go.sum ./
+WORKDIR /go/src/github.com/ajbouh/substrate/images/screenshot
+ADD images/screenshot/go.mod images/screenshot/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
-COPY services/screenshot/. .
+COPY images/screenshot/. .
 
 RUN CGO_ENABLED=0 GOOS=linux go build \
   -v \
