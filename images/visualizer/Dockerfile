@@ -72,12 +72,12 @@ RUN addgroup -g 1000 node \
 FROM node as deps
 
 WORKDIR /app
-COPY services/visualizer/package.json ./
+COPY images/visualizer/package.json ./
 RUN npm i
 
 FROM deps as build
-COPY services/visualizer/src ./src
-COPY services/visualizer/*.json ./
+COPY images/visualizer/src ./src
+COPY images/visualizer/*.json ./
 RUN npm run build
 
 FROM node as dist
