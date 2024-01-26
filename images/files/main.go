@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/ajbouh/substrate/services/files/assets"
+	"github.com/ajbouh/substrate/images/files/assets"
 )
 
 const (
