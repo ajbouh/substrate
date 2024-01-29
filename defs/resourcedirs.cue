@@ -1,4 +1,4 @@
-package dev
+package defs
 
 import (
   "regexp"

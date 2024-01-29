@@ -1,15 +1,15 @@
-package dev
+package defs
 
 import (
   "strings"
   "encoding/hex"
   cryptosha256 "crypto/sha256"
 
-  systemd "github.com/ajbouh/substrate/pkg/systemd"
-  lens "github.com/ajbouh/substrate/pkg/substrate:lens"
-  imagespec "github.com/ajbouh/substrate/pkg/substrate:imagespec"
-  containerspec "github.com/ajbouh/substrate/pkg/substrate:containerspec"
-  docker_compose "github.com/ajbouh/substrate/pkg/docker/compose:compose"
+  systemd "github.com/ajbouh/substrate/defs/systemd"
+  lens "github.com/ajbouh/substrate/defs/substrate:lens"
+  imagespec "github.com/ajbouh/substrate/defs/substrate:imagespec"
+  containerspec "github.com/ajbouh/substrate/defs/substrate:containerspec"
+  docker_compose "github.com/ajbouh/substrate/defs/docker/compose:compose"
 )
 
 #no_cuda: string | *"" @tag(no_cuda)

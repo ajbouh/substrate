@@ -1,8 +1,8 @@
-package dev
+package defs
 
 import (
-  // "github.com/ajbouh/substrate/pkg/asr"
-  "github.com/ajbouh/substrate/pkg/chat:chat_completion"
+  // "github.com/ajbouh/substrate/defs/asr"
+  "github.com/ajbouh/substrate/defs/chat:chat_completion"
 )
 
 enable: "llama-cpp-python": true

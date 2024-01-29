@@ -1,9 +1,9 @@
-package dev
+package defs
 
 import (
   "strings"
 
-  quadlet "github.com/ajbouh/substrate/pkg/podman:quadlet"
+  quadlet "github.com/ajbouh/substrate/defs/podman:quadlet"
 )
 
 #var: {

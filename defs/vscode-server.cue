@@ -1,4 +1,4 @@
-package dev
+package defs
 
 #var: {
   host_docker_socket: string

@@ -1,7 +1,7 @@
-package dev
+package defs
 
 import (
-  asr "github.com/ajbouh/substrate/pkg/asr"
+  asr "github.com/ajbouh/substrate/defs/asr"
 )
 
 enable: "faster-whisper": true

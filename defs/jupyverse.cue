@@ -1,4 +1,4 @@
-package sevices
+package defs
 
 enable: "jupyverse": false
 
