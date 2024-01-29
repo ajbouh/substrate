@@ -4,7 +4,7 @@ package quadlet
 // see rendered unit with /usr/libexec/podman/quadlet -dryrun
 
 import (
-  systemd "github.com/ajbouh/substrate/pkg/systemd"
+  systemd "github.com/ajbouh/substrate/defs/systemd"
 )
 
 // https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html#container-units-container

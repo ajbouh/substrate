@@ -3,10 +3,10 @@ package containerspec
 import (
   "strings"
 
-  docker_compose_service "github.com/ajbouh/substrate/pkg/docker/compose:service"
-  imagespec "github.com/ajbouh/substrate/pkg/substrate:imagespec"
-  systemd "github.com/ajbouh/substrate/pkg/systemd"
-  quadlet "github.com/ajbouh/substrate/pkg/podman:quadlet"
+  docker_compose_service "github.com/ajbouh/substrate/defs/docker/compose:service"
+  imagespec "github.com/ajbouh/substrate/defs/substrate:imagespec"
+  systemd "github.com/ajbouh/substrate/defs/systemd"
+  quadlet "github.com/ajbouh/substrate/defs/podman:quadlet"
 )
 
 #Mount: {
