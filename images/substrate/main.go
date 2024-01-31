@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -163,21 +164,41 @@ func main() {
 	cudaAllowed := os.Getenv("SUBSTRATE_NO_CUDA") == "" && cudaMemoryTotalMB > 0
 	p := newProvisioner(cudaAllowed)
 
-	lensesExprPath := mustGetenv("SUBSTRATE_LENSES_EXPR_PATH")
-	lensesExprB, err := os.ReadFile(lensesExprPath)
-	if err != nil {
-		log.Fatalf("error reading lenses expr: %s", err)
+	cueDefsDir := mustGetenv("SUBSTRATE_CUE_DEFS")
+	
+	cueDefsLiveDir := os.Getenv("SUBSTRATE_CUE_DEFS_LIVE")
+	if cueDefsLiveDir != "" {
+		entries, err := os.ReadDir(cueDefsLiveDir)
+		if err == nil {
+			if len(entries) == 0 {
+				fmt.Printf("SUBSTRATE_CUE_DEFS_LIVE (%s) is empty; loading from SUBSTRATE_CUE_DEFS (%s) instead\n", cueDefsLiveDir, cueDefsDir)
+			} else {
+				fmt.Printf("SUBSTRATE_CUE_DEFS_LIVE (%s) is nonempty; loading from it instead of SUBSTRATE_CUE_DEFS (%s)\n", cueDefsLiveDir, cueDefsDir)
+				cueDefsDir = cueDefsLiveDir
+			}
+		} else {
+			if errors.Is(err, os.ErrNotExist) {
+				fmt.Printf("SUBSTRATE_CUE_DEFS_LIVE (%s) does not exist; loading from SUBSTRATE_CUE_DEFS (%s) instead\n", cueDefsLiveDir, cueDefsDir)
+			} else {
+				fmt.Printf("error while listing SUBSTRATE_CUE_DEFS_LIVE (%s): %s; loading from SUBSTRATE_CUE_DEFS (%s) instead\n", cueDefsLiveDir, err, cueDefsDir)
+			}
+		}
+	} else {
+		fmt.Printf("SUBSTRATE_CUE_DEFS_LIVE not set; loading from SUBSTRATE_CUE_DEFS (%s) instead\n", cueDefsDir)
 	}
 
-	log.Printf("cleaning up...")
 	ctx := context.Background()
-	p.Cleanup(ctx)
-	log.Printf("clean up done")
+	go func() {
+		log.Printf("cleaning up...")
+		p.Cleanup(ctx)
+		log.Printf("clean up done")
+	}()
 
 	sub, err := substrate.New(
+		ctx,
 		mustGetenv("SUBSTRATE_DB"),
 		substratefsMountpoint,
-		string(lensesExprB),
+		cueDefsDir,
 		p,
 		os.Getenv("ORIGIN"),
 		cpuMemoryTotalMB,

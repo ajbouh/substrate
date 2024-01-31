@@ -30,7 +30,7 @@ func newUIHandler(sub *substrate.Substrate) ([]string, func(rw http.ResponseWrit
 	} else {
 
 		upstream = http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			sub.ProvisionReverseProxy(&activityspec.ServiceSpawnRequest{ServiceName: "ui"}).ServeHTTP(rw, req)
+			sub.ProvisionerCache.ProvisionReverseProxy(&activityspec.ServiceSpawnRequest{ServiceName: "ui"}).ServeHTTP(rw, req)
 		})
 		allowOriginFunc = func(origin string) bool {
 			// panic("CORS origin check for UI backends not yet implemented")

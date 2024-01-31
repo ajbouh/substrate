@@ -3,6 +3,7 @@ package blackboard_test
 import (
 	"context"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -81,7 +82,7 @@ func TestBlackboard(t *testing.T) {
 	}
 
 	for _, tc := range tcs {
-		s := blackboard.New(cuecontext.New())
+		s := blackboard.New(cuecontext.New(), &sync.Mutex{})
 
 		baseCtx := context.Background()
 		cancels := []func(){}

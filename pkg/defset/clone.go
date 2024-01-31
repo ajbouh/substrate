@@ -1,4 +1,4 @@
-package substrate
+package defset
 
 import "encoding/json"
 

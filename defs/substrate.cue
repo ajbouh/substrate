@@ -9,7 +9,8 @@ import (
 #var: {
   namespace: string
   image_prefix: string
-  build_lenses_expr_path: string
+  cue_defs: string
+  root_source_directory: string
   
   host_docker_socket: string
   host_resourcedirs_root: string
@@ -17,6 +18,7 @@ import (
 
   no_cuda: bool | *false
 
+  substrate: live_defs: bool | *false
   substrate: docker_compose_prefix: string | *""
   substrate: internal_network_name: string
   substrate: external_network_name: string
@@ -31,22 +33,28 @@ import (
 
 enable: "substrate": true
 
-let substrate_lenses_expr_path = "/app/lenses.cue"
+let substrate_cue_defs = "/app/defs"
 imagespecs: "substrate": {
   build: {
     args: {
-      LENSES_EXPR_SOURCE: #var.build_lenses_expr_path
-      LENSES_EXPR_TARGET: substrate_lenses_expr_path
+      CUE_DEFS_SOURCE: #var.cue_defs
+      CUE_DEFS_TARGET: substrate_cue_defs
     }
   }
 }
+
+let substrate_cue_defs_live = "/live/defs"
 
 daemons: "substrate": {
   environment: {
     "DEBUG": "1"
     "PORT": string | *"\(#var.substrate.internal_port)"
     "SUBSTRATE_DB": "/var/lib/substrate/data/substrate.sqlite"
-    "SUBSTRATE_LENSES_EXPR_PATH": substrate_lenses_expr_path
+    "SUBSTRATE_CUE_DEFS": string | *substrate_cue_defs
+    if #var.substrate.live_defs {
+      "SUBSTRATE_CUE_DEFS_LIVE": substrate_cue_defs_live
+    }
+
     "ORIGIN": #var.substrate.external_origin
     // TODO pass in internal_host
     // TODO pass in internal_protocol
@@ -67,6 +75,9 @@ daemons: "substrate": {
     {source: "\(#var.namespace)-substrate_data", destination: "/var/lib/substrate/data"},
     {source: #var.host_docker_socket, destination: environment.#docker_socket},
     {source: #var.host_resourcedirs_root, destination: #var.host_resourcedirs_root},
+    if #var.substrate.live_defs {
+      { source: "\(#var.root_source_directory)/\(#var.cue_defs)", destination: substrate_cue_defs_live },
+    }
     if #var.host_resourcedirs_path != "" {
       for rddir in strings.Split(#var.host_resourcedirs_path, ":") {
         {source: rddir, destination: rddir},
@@ -184,7 +195,6 @@ daemons: "substrate": {
 }
 
 "lenses": "substrate": {
-  spawn: null
   activities: {
     // attach: {
     //   request: {
