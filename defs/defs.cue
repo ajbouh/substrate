@@ -39,6 +39,7 @@ import (
     // - the installer properly copies source code
     // - we have a valid "dummy" location that exists when source code is not present.
     // live_defs: true
+    host_port: 8080
     "docker_compose_prefix": "\(#var.namespace)-substrate_"
     "external_origin": "https://substrate.home.arpa"
     "internal_host": "substrate:\(internal_port)"
@@ -257,18 +258,17 @@ for key, def in #out.resourcedir_fetches {
   services: {
     "substrate": {
       ports: [
-        "127.0.0.1:\(environment.PORT):\(environment.PORT)",
+        "127.0.0.1:8080:\(environment.PORT)",
       ]
 
-      environment: {
-        // PORT: "\(#namespace_host_port_offset + #service_host_port_offset["substrate"] + 1)"
-        "PORT": "8080"
+      environment: PORT: string
+        // "PORT": "8080"
         // "ORIGIN": "http://localhost:\(environment.PORT)"
         // if #lenses["ui"] != _|_ {
         //   EXTERNAL_UI_HANDLER: "http://ui:\(services.ui.environment.PORT)"
         // }
-        ...
-      }
+        // ...
+      // }
     }
   }
 }
