@@ -115,7 +115,7 @@ package lens
     image: string
     environment: [string]: string
     environment: PORT: string | *"8080"
-    command: [...string]
+    command ?: [...string]
 
     resourcedirs: [alias=string]: {
       id: string

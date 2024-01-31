@@ -1,4 +1,4 @@
-FROM docker.io/library/golang:1.21-bookworm as build
+FROM docker.io/library/golang:1.21-bookworm as source
 
 RUN apt update \
   && apt install -y --no-install-recommends \
@@ -24,10 +24,16 @@ COPY images/substrate/*.go .
 # https://github.com/golang/go/issues/27719#issuecomment-514747274
 # RUN --mount=type=cache,target=/go/pkg/mod \
 #   --mount=type=cache,target=/root/.cache/go-build \
+FROM source as build
 RUN go build \
   -tags "remote exclude_graphdriver_btrfs btrfs_noversion exclude_graphdriver_devicemapper containers_image_openpgp"\
   -v \
   -o /substrate .
+
+FROM source as test
+RUN go test \
+  -tags "remote exclude_graphdriver_btrfs btrfs_noversion exclude_graphdriver_devicemapper containers_image_openpgp"\
+  github.com/ajbouh/substrate/pkg/... github.com/ajbouh/substrate/images/substrate/...
 
 # Used when we want to debug
 FROM docker.io/tianon/toybox:latest as toybox
