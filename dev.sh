@@ -83,7 +83,9 @@ cue() {
 }
 
 detect_dev_cue_tag_args() {
+  set +x
   if [ -n "$CUE_DEV_TAG_ARGS" ]; then
+    set -x
     return
   fi
 
@@ -142,11 +144,13 @@ detect_dev_cue_tag_args() {
     # fi
   
     if [ -n "$HOST_PROBE_PREFIX" ]; then
-      if ! $HOST_PROBE_PREFIX nvidia-smi 2>&1 >/dev/null; then
+      if ! $HOST_PROBE_PREFIX nvidia-smi >/dev/null 2>&1; then
         CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t no_cuda=1"
       fi
     fi
   fi
+
+  set -x
 }
 
 debug_cue_dev_expr() {
@@ -359,6 +363,20 @@ set_os_vars() {
   BUILD_RESOURCEDIRS_ROOT="$HERE/os/$REL_BUILD_RESOURCEDIRS_ROOT"
 }
 
+set_docker_vars() {
+  BUILD_LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
+  HOST_ROOT_SOURCE_DIR=$HERE
+  HOST_PROBE_PREFIX="sh -c"
+
+  HOST_RESOURCEDIRS_PATH=""
+  HOST_RESOURCEDIRS_ROOT="$HERE/os/gen/oob/resourcedirs"
+  BUILD_RESOURCEDIRS_ROOT="$HOST_RESOURCEDIRS_ROOT"
+  HOST_DOCKER_SOCKET="/var/run/docker.sock"
+
+  # Keep things simple and force amd64, even on Apple Silicon
+  export DOCKER_DEFAULT_PLATFORM=linux/amd64
+}
+
 systemd_reload() {
   containers=$@
 
@@ -501,28 +519,27 @@ case "$1" in
     set_os_vars
     os_make
     ;;
-  docker-compose-up)
+  docker-compose-build)
     shift
-    BUILD_LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
-    HOST_ROOT_SOURCE_DIR=$HERE
-    HOST_PROBE_PREFIX="sh -c"
-
-    HOST_RESOURCEDIRS_PATH=""
-    HOST_RESOURCEDIRS_ROOT="$HERE/os/gen/oob/resourcedirs"
-    BUILD_RESOURCEDIRS_ROOT="$HOST_RESOURCEDIRS_ROOT"
-    HOST_DOCKER_SOCKET="/var/run/docker.sock"
+    set_docker_vars
     write_rendered_cue_dev_expr_as_cue $BUILD_LENSES_EXPR_PATH -e "#out.#lenses"
     DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
-    # Keep things simple and force amd64, even on Apple Silicon
-    export DOCKER_DEFAULT_PLATFORM=linux/amd64
+    docker_compose $DOCKER_COMPOSE_FILE build "$@"
+    ;;
+  docker-compose-up)
+    shift
+    set_docker_vars
+    write_rendered_cue_dev_expr_as_cue $BUILD_LENSES_EXPR_PATH -e "#out.#lenses"
+    DOCKER_SERVICES=$@
+    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
+    docker_compose $DOCKER_COMPOSE_FILE --profile daemons --profile default build
     docker_compose $DOCKER_COMPOSE_FILE --profile resourcedirs build
     docker_compose $DOCKER_COMPOSE_FILE --profile resourcedirs up
-    docker_compose $DOCKER_COMPOSE_FILE --profile daemons --profile default build
     docker_compose $DOCKER_COMPOSE_FILE --profile daemons up \
         --always-recreate-deps \
         --remove-orphans \
         --force-recreate \
-        "$@"
+        $DOCKER_SERVICES
     ;;
 esac
 

@@ -97,13 +97,19 @@ func TestBlackboard(t *testing.T) {
 		for _, e := range tc.Expect {
 			// test call for each
 			stream := []string{}
-			for m := range s.Stream(baseCtx, blackboard.Input{Source: e.In}, nil) {
-				if m.Error == nil {
-					resultJSON, err := m.Result.MarshalJSON()
-					assert.NoError(t, err)
-					stream = append(stream, string(resultJSON))
-				}
-			}
+			s.Stream(
+				baseCtx,
+				blackboard.Input{Source: e.In},
+				func(m *blackboard.Match) bool {
+					if m.Error == nil {
+						resultJSON, err := m.Result.MarshalJSON()
+						assert.NoError(t, err)
+						stream = append(stream, string(resultJSON))
+					}
+					return true
+				},
+				nil,
+			)
 			assert.Equal(t, e.Stream, stream)
 
 			m, ok := s.Call(baseCtx, blackboard.Input{Source: e.In}, nil)

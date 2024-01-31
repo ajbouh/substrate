@@ -177,10 +177,10 @@ func TestClientReturnsRequestBuilderErrors(t *testing.T) {
 
 	testCases := []TestCase{
 		{"CreateChatCompletion", func() (any, error) {
-			return client.CreateChatCompletion(ctx, ChatCompletionRequest{Model: GPT3Dot5Turbo})
+			return client.CreateChatCompletion(ctx, ChatCompletionRequest{Model: "GPT3Dot5Turbo"})
 		}},
 		{"CreateChatCompletionStream", func() (any, error) {
-			return client.CreateChatCompletionStream(ctx, ChatCompletionRequest{Model: GPT3Dot5Turbo})
+			return client.CreateChatCompletionStream(ctx, ChatCompletionRequest{Model: "GPT3Dot5Turbo"})
 		}},
 	}
 

@@ -175,16 +175,6 @@ for key, def in #out.resourcedir_fetches {
     ]
   }
 
-  // need to profiles for lenses too, as not all lenses have their own imagespec.
-  for key, def in #out.#lenses {
-    services: (key): profiles: [
-      if #out.daemons[key] != _|_ {
-        "daemons",
-      }
-      "default",
-    ]
-  }
-
   for key, def in #out.resourcedir_fetches {
     services: "resourcedir-\(def.sha256)": {
       profiles: [
@@ -209,6 +199,20 @@ for key, def in #out.resourcedir_fetches {
     }).#out
   }
 
+  for key, def in #out.imagespecs {
+    services: "\(key)-test": {
+      profiles: [
+        "test",
+      ]
+      build: {
+        if def.build.context != _|_ { context: def.build.context }
+        if def.build.args != _|_ { args: def.build.args }
+        if def.build.dockerfile != _|_ { dockerfile: def.build.dockerfile }
+        target: "test"
+      }
+    }
+  }
+
   for key, def in #out.daemons {
     services: (key): (containerspec.#DockerComposeService & {#containerspec: def}).#out
     volumes: (containerspec.#DockerComposeVolumes & {#containerspec: def}).#out
@@ -216,18 +220,30 @@ for key, def in #out.resourcedir_fetches {
   }
 
   for key, def in #out.#lenses {
+    // need to profiles for lenses too, as not all lenses have their own imagespec.
+    services: (key): profiles: [
+      if #out.daemons[key] != _|_ {
+        "daemons",
+      }
+      "default",
+    ]
+
     if def.spawn != null {
       services: (key): {
+        environment: PORT: string
+        ports: [
+          "127.0.0.1:8081:\(environment.PORT)",
+        ]
         (containerspec.#DockerComposeService & {
           #containerspec: {
             "environment": def.spawn.environment
             "command": def.spawn.command
+            "image": def.spawn.image
+            for alias, rddef in def.spawn.resourcedirs {
+              mounts: [{source: "\(#var.build_resourcedirs_root)/\(rddef.sha256)", "destination": "/res/\(alias)", "mode": "Z"}]
+            }
           }
         }).#out
-        if def.spawn.image != _|_  {
-          image: def.spawn.image
-          command: def.spawn.command
-        }
       }
     }
   }

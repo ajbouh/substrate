@@ -21,7 +21,7 @@ func newUIHandler(sub *substrate.Substrate) ([]string, func(rw http.ResponseWrit
 	if externalUIHandler != "" {
 		externalUIHandlerTarget, err := url.Parse(externalUIHandler)
 		if err != nil {
-			log.Fatalf("invalid EXTERNAL_UI_HANDLER %q: %w", externalUIHandler, err)
+			log.Fatalf("invalid EXTERNAL_UI_HANDLER %q: %s", externalUIHandler, err)
 		}
 		upstream = httputil.NewSingleHostReverseProxy(externalUIHandlerTarget)
 		allowOriginFunc = func(origin string) bool {

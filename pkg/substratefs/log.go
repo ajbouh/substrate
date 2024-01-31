@@ -7,8 +7,9 @@ import (
 )
 
 func logError(format string, args ...interface{}) error {
-	logrus.Errorf(format, args...)
-	return fmt.Errorf(format, args...)
+	err := fmt.Errorf(format, args...)
+	logrus.Error(err)
+	return err
 }
 
 func logDebug(value ...interface{}) {
