@@ -2,12 +2,6 @@ FROM docker.io/library/golang:1.21-bookworm as build
 
 RUN apt update \
   && apt install -y --no-install-recommends \
-    libbtrfs-dev \
-    libgpgme-dev \
-    libdevmapper-dev \
-    libassuan-dev \
-    libgpg-error-dev \
-    libpcre2-dev \
     dash \
   && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
 	&& rm -rf /var/lib/apt/lists/*;
@@ -31,6 +25,7 @@ COPY images/substrate/*.go .
 # RUN --mount=type=cache,target=/go/pkg/mod \
 #   --mount=type=cache,target=/root/.cache/go-build \
 RUN go build \
+  -tags "remote exclude_graphdriver_btrfs btrfs_noversion exclude_graphdriver_devicemapper containers_image_openpgp"\
   -v \
   -o /substrate .
 
@@ -47,15 +42,6 @@ ARG LENSES_EXPR_TARGET
 COPY --from=build /substrate /app/substrate
 # Enable when we want to debug
 # COPY --from=toybox /usr/bin/. /usr/bin/
-COPY --from=build \
-  /lib/x86_64-linux-gnu/libgpgme.so.11 \
-  /lib/x86_64-linux-gnu/libdevmapper.so.1.02.1 \
-  /lib/x86_64-linux-gnu/libassuan.so.0 \
-  /lib/x86_64-linux-gnu/libgpg-error.so.0 \
-  /lib/x86_64-linux-gnu/libselinux.so.1 \
-  /lib/x86_64-linux-gnu/libudev.so.1 \
-  /lib/x86_64-linux-gnu/libpcre2-8.so.0 \
-  /lib/x86_64-linux-gnu/
 COPY $LENSES_EXPR_SOURCE $LENSES_EXPR_TARGET
 WORKDIR /data
 
