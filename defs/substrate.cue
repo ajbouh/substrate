@@ -9,7 +9,7 @@ import (
 #var: {
   namespace: string
   image_prefix: string
-  build_lenses_expr_path: string
+  cue_defs: string
   
   host_docker_socket: string
   host_resourcedirs_root: string
@@ -31,12 +31,12 @@ import (
 
 enable: "substrate": true
 
-let substrate_lenses_expr_path = "/app/lenses.cue"
+let substrate_cue_defs = "/app/defs"
 imagespecs: "substrate": {
   build: {
     args: {
-      LENSES_EXPR_SOURCE: #var.build_lenses_expr_path
-      LENSES_EXPR_TARGET: substrate_lenses_expr_path
+      CUE_DEFS_SOURCE: #var.cue_defs
+      CUE_DEFS_TARGET: substrate_cue_defs
     }
   }
 }
@@ -46,7 +46,7 @@ daemons: "substrate": {
     "DEBUG": "1"
     "PORT": string | *"\(#var.substrate.internal_port)"
     "SUBSTRATE_DB": "/var/lib/substrate/data/substrate.sqlite"
-    "SUBSTRATE_LENSES_EXPR_PATH": substrate_lenses_expr_path
+    "SUBSTRATE_CUE_DEFS": substrate_cue_defs
     "ORIGIN": #var.substrate.external_origin
     // TODO pass in internal_host
     // TODO pass in internal_protocol
@@ -184,7 +184,6 @@ daemons: "substrate": {
 }
 
 "lenses": "substrate": {
-  spawn: null
   activities: {
     // attach: {
     //   request: {

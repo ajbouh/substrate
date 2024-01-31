@@ -19,7 +19,7 @@ import (
   "root_source_directory": string | *"" @tag(root_source_directory)
   "image_prefix": "ghcr.io/ajbouh/substrate:substrate-"
   "no_cuda": #no_cuda != ""
-  "build_lenses_expr_path": string | *"" @tag(build_lenses_expr_path)
+  "cue_defs": string | *"" @tag(cue_defs)
   "secrets": {
     "substrate": {
       "session_secret": "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
@@ -91,7 +91,7 @@ daemons: [key=string]: containerspec.#ContainerSpec
 }
 
 for key, def in #out.#lenses {
-  if def.spawn != null {
+  if def.spawn != _|_ {
     for alias, rddef in def.spawn.resourcedirs {
       resourcedirs: (rddef.id): _
       #out: resourcedir_fetches: (rddef.id): {
@@ -116,7 +116,7 @@ for key, def in #out.#lenses {
   for key, def in lenses {
     if (enable[key]) {
       (key): def & {
-        if def.spawn != null {
+        if def.spawn != _|_ {
           spawn: {
             "image": string | *#out.imagespecs[key].image
             "resourcedirs": [alias=string]: {
@@ -228,7 +228,7 @@ for key, def in #out.resourcedir_fetches {
       "default",
     ]
 
-    if def.spawn != null {
+    if def.spawn != _|_ {
       services: (key): {
         environment: PORT: string
         ports: [

@@ -163,21 +163,20 @@ func main() {
 	cudaAllowed := os.Getenv("SUBSTRATE_NO_CUDA") == "" && cudaMemoryTotalMB > 0
 	p := newProvisioner(cudaAllowed)
 
-	lensesExprPath := mustGetenv("SUBSTRATE_LENSES_EXPR_PATH")
-	lensesExprB, err := os.ReadFile(lensesExprPath)
-	if err != nil {
-		log.Fatalf("error reading lenses expr: %s", err)
-	}
+	cueDefsDir := mustGetenv("SUBSTRATE_CUE_DEFS")
 
-	log.Printf("cleaning up...")
 	ctx := context.Background()
-	p.Cleanup(ctx)
-	log.Printf("clean up done")
+	go func() {
+		log.Printf("cleaning up...")
+		p.Cleanup(ctx)
+		log.Printf("clean up done")
+	}()
 
 	sub, err := substrate.New(
+		ctx,
 		mustGetenv("SUBSTRATE_DB"),
 		substratefsMountpoint,
-		string(lensesExprB),
+		cueDefsDir,
 		p,
 		os.Getenv("ORIGIN"),
 		cpuMemoryTotalMB,

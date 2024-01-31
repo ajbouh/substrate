@@ -1,11 +1,5 @@
 FROM docker.io/library/golang:1.21-bookworm as source
 
-RUN apt update \
-  && apt install -y --no-install-recommends \
-    dash \
-  && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
-	&& rm -rf /var/lib/apt/lists/*;
-
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg
 ADD pkg/go.mod pkg/go.sum ./
 RUN go mod download
@@ -20,12 +14,18 @@ COPY pkg/. .
 WORKDIR /go/src/github.com/ajbouh/substrate/images/substrate
 COPY images/substrate/*.go .
 
+FROM source as build
+RUN apt update \
+  && apt install -y --no-install-recommends \
+    dash \
+  && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
+	&& rm -rf /var/lib/apt/lists/*;
+
 # With the trick below, Go's build cache is kept between builds.
 # https://github.com/golang/go/issues/27719#issuecomment-514747274
-# RUN --mount=type=cache,target=/go/pkg/mod \
-#   --mount=type=cache,target=/root/.cache/go-build \
-FROM source as build
-RUN go build \
+RUN --mount=type=cache,target=/go/pkg/mod \
+  --mount=type=cache,target=/root/.cache/go-build \
+  go build \
   -tags "remote exclude_graphdriver_btrfs btrfs_noversion exclude_graphdriver_devicemapper containers_image_openpgp"\
   -v \
   -o /substrate .
@@ -40,15 +40,13 @@ FROM docker.io/tianon/toybox:latest as toybox
 
 FROM gcr.io/distroless/base-nossl-debian12 as dist
 
-ARG LENSES_EXPR_SOURCE
-ARG LENSES_EXPR_TARGET
-# USER root:root
-# ENV PORT 8080
+ARG CUE_DEFS_SOURCE
+ARG CUE_DEFS_TARGET
 
 COPY --from=build /substrate /app/substrate
 # Enable when we want to debug
 # COPY --from=toybox /usr/bin/. /usr/bin/
-COPY $LENSES_EXPR_SOURCE $LENSES_EXPR_TARGET
+COPY $CUE_DEFS_SOURCE $CUE_DEFS_TARGET
 WORKDIR /data
 
 # HACK use run-with-ldcache-hack.sh to run ldconfig before substrate starts. delete this when

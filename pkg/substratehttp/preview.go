@@ -17,7 +17,7 @@ import (
 
 func newPreviewHandler(s *substrate.Substrate) func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
 	consider := func(ctx context.Context, preview *activityspec.ResolvedActivity, previewActivityName string) (*activityspec.ResolvedActivity, bool, error) {
-		resolved, err := s.ResolveActivity(ctx, previewActivityName)
+		resolved, err := s.DefSet().ResolveActivity(ctx, previewActivityName)
 		if err != nil {
 			return nil, false, err
 		}
@@ -66,14 +66,14 @@ func newPreviewHandler(s *substrate.Substrate) func(rw http.ResponseWriter, req 
 		as.ServiceSpawnRequest.User = user.GithubUsername
 		as.ServiceSpawnRequest.Ephemeral = true
 
-		s.ProvisionRedirector(&as.ServiceSpawnRequest, func(targetFunc activityspec.AuthenticatedURLJoinerFunc) (int, string, error) {
+		s.ProvisionerCache.ProvisionRedirector(&as.ServiceSpawnRequest, func(targetFunc activityspec.AuthenticatedURLJoinerFunc) (int, string, error) {
 			var previewPathSuffix string
 			if preview.Activity.Request != nil && preview.Activity.Request.Path != "" {
 				previewPathSuffix += "/" + strings.TrimPrefix(preview.Activity.Request.Path, "/")
 			}
 
 			if lensName != "" {
-				previewService, err := s.ResolveService(req.Context(), lensName)
+				previewService, err := s.DefSet().ResolveService(req.Context(), lensName)
 				if err != nil {
 					return http.StatusInternalServerError, "", err
 				}
