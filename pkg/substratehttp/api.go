@@ -94,7 +94,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 
 			if len(events) > 0 {
 				event := events[0]
-				backendStatus, err := s.Status(req.Context(), event.Response.ServiceSpawnResponse.Name)
+				backendStatus, err := s.Driver.Status(req.Context(), event.Response.ServiceSpawnResponse.Name)
 				if err != nil {
 					return nil, http.StatusInternalServerError, err
 				}
@@ -119,7 +119,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		}
 
 		views.User = user.GithubUsername
-		sres, err := s.SpawnActivity(req.Context(), views)
+		sres, err := s.DefSet().SpawnActivity(req.Context(), s.Driver, views)
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
@@ -147,7 +147,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		}
 
 		alias := ""
-		view, err := s.ResolveSpaceView(r, user.GithubUsername, alias)
+		view, err := s.DefSet().ResolveSpaceView(r, user.GithubUsername, alias)
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
@@ -255,7 +255,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	})
 
 	handleRaw("GET", "/api/v1/backend/:backend/status/stream", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
-		ch, err := s.StatusStream(req.Context(), p.ByName("backend"))
+		ch, err := s.Driver.StatusStream(req.Context(), p.ByName("backend"))
 		if err != nil {
 			http.Error(rw, fmt.Sprintf("upstream error: %s", err), http.StatusInternalServerError)
 			return
@@ -285,7 +285,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	})
 
 	handle("GET", "/api/v1/lenses/:lens", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		lens, err := s.ResolveService(req.Context(), p.ByName("lens"))
+		lens, err := s.DefSet().ResolveService(req.Context(), p.ByName("lens"))
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
@@ -350,7 +350,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	})
 
 	handle("GET", "/api/v1/lenses", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		lenses, err := s.AllServices(req.Context())
+		lenses, err := s.DefSet().AllServices(req.Context())
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}

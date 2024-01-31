@@ -1,23 +1,21 @@
-package substrate
+package activityspec
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"net/http/httptest"
 
 	"cuelang.org/go/cue"
 
-	"github.com/ajbouh/substrate/pkg/activityspec"
 	"github.com/ajbouh/substrate/pkg/blackboard"
 )
 
 var requestPath = cue.MakePath(cue.Str("request"))
 var responsePath = cue.MakePath(cue.Str("response"))
 
-func (s *Substrate) serviceDefRefinement(serviceName string, serviceDef cue.Value, callDef cue.Value) blackboard.Refinement {
+func ServiceDefRefinement(pc *ProvisionerCache, serviceName string, serviceDef cue.Value, callDef cue.Value) blackboard.Refinement {
 	return func(ctx context.Context, match cue.Value) (cue.Value, error) {
 		request := match.LookupPath(requestPath)
 		// if !blackboard.IsTransitivelyConcrete(request) {
@@ -47,9 +45,9 @@ func (s *Substrate) serviceDefRefinement(serviceName string, serviceDef cue.Valu
 			}
 		}
 
-		handler := s.ProvisionReverseProxy(&activityspec.ServiceSpawnRequest{
+		handler := pc.ProvisionReverseProxy(&ServiceSpawnRequest{
 			ServiceName: serviceName,
-			Parameters:  activityspec.ServiceSpawnParameterRequests{},
+			Parameters:  ServiceSpawnParameterRequests{},
 		})
 
 		rec := httptest.NewRecorder()
@@ -69,7 +67,7 @@ func (s *Substrate) serviceDefRefinement(serviceName string, serviceDef cue.Valu
 			}
 		}
 
-		log.Printf("bres %#v", bres)
+		// log.Printf("bres %#v", bres)
 
 		match = match.FillPath(
 			responsePath,
