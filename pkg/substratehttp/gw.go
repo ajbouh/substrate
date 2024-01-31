@@ -67,6 +67,6 @@ func newLazyProxyHandler(sub *substrate.Substrate, api http.Handler) ([]string, 
 
 		views.User = user.GithubUsername
 		views.ServiceSpawnRequest.User = user.GithubUsername
-		sub.ProvisionReverseProxy(&views.ServiceSpawnRequest).ServeHTTP(rw, req)
+		sub.ProvisionerCache.ProvisionReverseProxy(&views.ServiceSpawnRequest).ServeHTTP(rw, req)
 	}
 }

@@ -68,10 +68,21 @@ type Match struct {
 	Error error
 }
 
-func New(cueCtx *cue.Context) *Blackboard {
+func (m *Match) EventsString() string {
+	s := ""
+	for i, event := range m.Events {
+		if i > 0 {
+			s += " "
+		}
+		s += event.Name + "=" + event.Dur.String()
+	}
+	return s
+}
+
+func New(cueCtx *cue.Context, cueMu *sync.Mutex) *Blackboard {
 	b := &Blackboard{
 		cueCtx: cueCtx,
-		cueMu:  &sync.Mutex{},
+		cueMu:  cueMu,
 		modMu:  &sync.RWMutex{},
 
 		offers: map[uint64]*Offer{},
@@ -114,6 +125,8 @@ func (b *Blackboard) Offer(ctx context.Context, selector Input, refinement Refin
 	selectorStart := time.Now()
 	if selector.Source != "" {
 		selectorValue = b.compileString(selector.Source)
+	} else if v, ok := selector.Value.(cue.Value); ok {
+		selectorValue = v
 	} else {
 		log.Printf("Offer b.cueCtx %#v %#v", b.cueCtx, selector)
 		selectorValue = b.encode(selector.Value, cue.NilIsAny(false))
@@ -161,57 +174,41 @@ func (b *Blackboard) Stream(ctx context.Context, input Input, cb func(*Match) bo
 	inputStart := time.Now()
 	var inputValue cue.Value
 	if input.Value == nil {
-		log.Printf("b.compileString(input.Source)")
 		inputValue = b.compileString(input.Source)
-		log.Printf("-> b.compileString(input.Source)")
 	} else {
-		log.Printf("b.encode(input.Value, cue.NilIsAny(false))")
 		inputValue = b.encode(input.Value, cue.NilIsAny(false))
-		log.Printf("-> b.encode(input.Value, cue.NilIsAny(false))")
 	}
 	rawInputEvent := newEvent("rawinput", inputStart, time.Now())
 
-	// ch := make(chan *Match, len(b.offers))
-	// wg := &sync.WaitGroup{}
 	for _, offer := range b.offers {
 		o := offer
-		// wg.Add(1)
 
-		// Run every match in parallel
-		// go
-		// func(o Offer) {
-		// defer wg.Done()
 		start := time.Now()
 
 		m := &Match{
 			Offer:          *o,
 			RawInputValue:  inputValue,
 			RawInputSource: input.Source,
-			Events:         make([]Event, 6),
+			Events:         make([]Event, 0, 6),
 		}
 		m.Events = append(m.Events, o.SelectorEvent, *rawInputEvent)
-		log.Printf("b.unify(o.SelectorValue, inputValue)")
-		m.Match = b.unify(o.SelectorValue, inputValue)
 
+		m.Match = b.unify(o.SelectorValue, inputValue)
 		m.Events = append(m.Events, *newEvent("match", start, time.Now()))
-		log.Printf("b.validate(m.Match)")
 		m.Error = b.validate(m.Match)
 
-		start = time.Now()
 		if m.Error == nil {
-			log.Printf("o.Refinement")
+			start = time.Now()
 			output, err := o.Refinement(ctx, m.Match)
-			log.Printf("o.Refinement done")
 			m.Events = append(m.Events, *newEvent("output", start, time.Now()))
 			m.Output = output
 			m.Error = err
 		}
 
 		if m.Error == nil && refinement != nil {
-			log.Printf("refinement")
+			start = time.Now()
 			output, err := refinement(ctx, m.Output)
-			log.Printf("refinement done")
-			m.Events = append(m.Events, *newEvent("output", start, time.Now()))
+			m.Events = append(m.Events, *newEvent("refinement", start, time.Now()))
 			m.Output = output
 			// log.Printf("refinement output is %#v", output)
 			m.Error = err
@@ -223,19 +220,12 @@ func (b *Blackboard) Stream(ctx context.Context, input Input, cb func(*Match) bo
 			m.Events = append(m.Events, *newEvent("result", start, time.Now()))
 			m.Error = b.validate(m.Result)
 		}
-		log.Printf("events %#v", m.Events)
-		// ch <- m
+
+		log.Printf("events %s", m.EventsString())
 		if !cb(m) {
 			break
 		}
-		// }(*offer)
 	}
-	// go func() {
-	// 	defer close(ch)
-	// 	wg.Wait()
-	// }()
-
-	// return ch
 }
 
 func (b *Blackboard) Call(ctx context.Context, input Input, refinement Refinement) (*Match, bool) {
@@ -251,9 +241,13 @@ func (b *Blackboard) Call(ctx context.Context, input Input, refinement Refinemen
 			errs := cueerrors.Errors(m.Error)
 			messages := make([]string, 0, len(errs))
 			for _, err := range errs {
-				messages = append(messages, err.Error())
+				message := err.Error()
+				if len(message) > 1024 {
+					message = message[0:512] + " (...) " + message[len(message)-512:]
+				}
+				messages = append(messages, message)
 			}
-			log.Printf("blackboard call error: %s", strings.Join(messages, "\n"))
+			log.Printf("blackboard call error: %s", strings.Join(messages, "\n\t"))
 		}
 
 		return true

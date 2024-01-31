@@ -39,6 +39,7 @@ func newBlackboardHandler(sub *substrate.Substrate) ([]string, func(rw http.Resp
 
 			mediaType, err := contenttype.GetMediaType(req)
 			if err != nil {
+				log.Printf("err in getmediatype %s: %#v", err, req)
 				jsonrw := httputil.NewJSONResponseWriter(rw)
 				jsonrw(nil, http.StatusUnsupportedMediaType, err)
 				return
@@ -49,11 +50,13 @@ func newBlackboardHandler(sub *substrate.Substrate) ([]string, func(rw http.Resp
 				err = json.Unmarshal(bodyBytes, &body)
 				if err != nil {
 					jsonrw := httputil.NewJSONResponseWriter(rw)
+					log.Printf("error in application/json %s: %#v", err, req)
 					jsonrw(nil, http.StatusBadRequest, err)
 					return
 				}
 			default:
 				jsonrw := httputil.NewJSONResponseWriter(rw)
+				log.Printf("error in default %s: %#v", err, req)
 				jsonrw(nil, http.StatusBadRequest, fmt.Errorf("bad Content-Type %s", mediaType.Type))
 				return
 			}
@@ -63,10 +66,12 @@ func newBlackboardHandler(sub *substrate.Substrate) ([]string, func(rw http.Resp
 
 		availableMediaTypes := []contenttype.MediaType{
 			contenttype.NewMediaType("application/json"),
+			contenttype.NewMediaType("application/json; charset=utf-8"),
 		}
 
 		accepted, _, err := contenttype.GetAcceptableMediaType(req, availableMediaTypes)
 		if err != nil {
+			log.Printf("err in GetAcceptableMediaType %s: %#v", err, req)
 			jsonrw := httputil.NewJSONResponseWriter(rw)
 			jsonrw(nil, http.StatusUnsupportedMediaType, err)
 			return
@@ -87,7 +92,7 @@ func newBlackboardHandler(sub *substrate.Substrate) ([]string, func(rw http.Resp
 		}
 
 		// use the *first* concrete Response
-		match, ok := sub.Blackboard.Call(
+		match, ok := sub.DefSet().Blackboard.Call(
 			req.Context(),
 			blackboard.Input{Value: call},
 			func(ctx context.Context, match cue.Value) (cue.Value, error) {
@@ -104,6 +109,11 @@ func newBlackboardHandler(sub *substrate.Substrate) ([]string, func(rw http.Resp
 		)
 
 		if !ok {
+			message := fmt.Sprintf("%#v %#v %#v", req, *call, *call.Request)
+			if len(message) > 2048 {
+				message = message[0:1024] + " (...) " + message[len(message)-1024:]
+			}
+			log.Printf("no match %s", message)
 			jsonrw := httputil.NewJSONResponseWriter(rw)
 			jsonrw(nil, http.StatusBadRequest, err)
 			return
@@ -112,6 +122,7 @@ func newBlackboardHandler(sub *substrate.Substrate) ([]string, func(rw http.Resp
 		bres := blackboard.Response{}
 		err = match.Result.LookupPath(responsePath).Decode(&bres)
 		if err != nil {
+			log.Printf("error lookup response path %s: %#v", err, req)
 			jsonrw := httputil.NewJSONResponseWriter(rw)
 			jsonrw(nil, http.StatusBadRequest, err)
 			return
@@ -124,12 +135,12 @@ func newBlackboardHandler(sub *substrate.Substrate) ([]string, func(rw http.Resp
 			}
 		}
 
-		log.Printf("bres %#v", bres)
+		// log.Printf("bres %#v", bres)
 
 		var b []byte
 
 		switch accepted.Type + "/" + accepted.Subtype {
-		case "application/json":
+		case "application/json", "":
 			b, err = json.Marshal(bres.Body)
 		default:
 			jsonrw := httputil.NewJSONResponseWriter(rw)

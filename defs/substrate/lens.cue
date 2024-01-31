@@ -99,7 +99,7 @@ package lens
 
 {
   name: string
-  spawn: null | {
+  spawn?: {
     parameters: [string]: #ServiceDefSpawnParameter
     parameters: {
       cuda_memory_total: {

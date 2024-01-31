@@ -3,10 +3,13 @@ package activityspec
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
+	"log"
 	"net/http"
+	"strings"
 	"sync"
+
+	cueerrors "cuelang.org/go/cue/errors"
 )
 
 // lazily boot machine
@@ -41,7 +44,12 @@ func (d *doomedReadCloser) Read(b []byte) (int, error) {
 func newDoomedHandler(status int, err error) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if err != nil {
-			fmt.Printf("err=%s\n", err)
+			errs := cueerrors.Errors(err)
+			messages := make([]string, 0, len(errs))
+			for _, err := range errs {
+				messages = append(messages, err.Error())
+			}
+			log.Printf("err in handler: %s", strings.Join(messages, "\n\t"))
 		}
 		rw.WriteHeader(status)
 	})

@@ -103,11 +103,11 @@ detect_dev_cue_tag_args() {
   fi
   CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t root_source_directory=$HOST_ROOT_SOURCE_DIR"
 
-  if [ -z "$BUILD_LENSES_EXPR_PATH" ]; then
-    echo >&2 "BUILD_LENSES_EXPR_PATH not set"
+  if [ -z "$CUE_DEV_DEFS" ]; then
+    echo >&2 "CUE_DEV_DEFS not set"
     exit 2
   fi
-  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t build_lenses_expr_path=$BUILD_LENSES_EXPR_PATH"
+  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t cue_defs=$CUE_DEV_DEFS"
 
   if [ -z "$HOST_DOCKER_SOCKET" ]; then
     echo >&2 "HOST_DOCKER_SOCKET not set"
@@ -201,24 +201,12 @@ write_rendered_cue_dev_expr_as() {
 }
 
 write_rendered_cue_dev_expr_as_cue() {
-  dest=$1
-  shift
-
   detect_dev_cue_tag_args
-  debug_cue_dev_expr
 
-  mkdir -p $(dirname $dest)
-  [ ! -e $dest ] || mv -f $dest $dest.old
-
-  # write cue
   cue def --strict --trace --all-errors --verbose --inline-imports --simplify \
     $CUE_DEV_PACKAGE \
-    --outfile $dest \
     $CUE_DEV_TAG_ARGS \
     "$@"
-
-  # double check it
-  cue eval --strict --trace --all-errors --verbose $dest
 }
 
 docker_compose() {
@@ -353,7 +341,7 @@ write_images_to_imagestore() {
 }
 
 set_os_vars() {
-  BUILD_LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
+  CUE_DEV_DEFS="defs"
   HOST_ROOT_SOURCE_DIR="/var/home/core/source"
   HOST_CUDA="1"
   HOST_DOCKER_SOCKET="/var/run/podman/podman.sock"
@@ -364,7 +352,7 @@ set_os_vars() {
 }
 
 set_docker_vars() {
-  BUILD_LENSES_EXPR_PATH=.gen/cue/$NAMESPACE-lenses.cue
+  CUE_DEV_DEFS="defs"
   HOST_ROOT_SOURCE_DIR=$HERE
   HOST_PROBE_PREFIX="sh -c"
 
@@ -380,7 +368,8 @@ set_docker_vars() {
 systemd_reload() {
   containers=$@
 
-  write_rendered_cue_dev_expr_as_cue $BUILD_LENSES_EXPR_PATH -e "#out.#lenses"
+  write_rendered_cue_dev_expr_as_cue
+
   DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
 
   # TODO only build $containers
@@ -422,8 +411,8 @@ systemd_reload() {
 
 os_oob_make() {
   write_os_resourcedirs_overlay
-  write_rendered_cue_dev_expr_as_cue $BUILD_LENSES_EXPR_PATH -e "#out.#lenses"
 
+  write_rendered_cue_dev_expr_as_cue
   build_images
   IMAGES=$(print_rendered_cue_dev_expr_as text -e '#out.image_references')
 
@@ -522,15 +511,15 @@ case "$1" in
   docker-compose-build)
     shift
     set_docker_vars
-    write_rendered_cue_dev_expr_as_cue $BUILD_LENSES_EXPR_PATH -e "#out.#lenses"
+    write_rendered_cue_dev_expr_as_cue
     DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
     docker_compose $DOCKER_COMPOSE_FILE build "$@"
     ;;
   docker-compose-up)
     shift
     set_docker_vars
-    write_rendered_cue_dev_expr_as_cue $BUILD_LENSES_EXPR_PATH -e "#out.#lenses"
     DOCKER_SERVICES=$@
+    write_rendered_cue_dev_expr_as_cue
     DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
     docker_compose $DOCKER_COMPOSE_FILE --profile daemons --profile default build
     docker_compose $DOCKER_COMPOSE_FILE --profile resourcedirs build
