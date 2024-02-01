@@ -1,0 +1,7 @@
+I will give you two entries describing historical events. I want you to confirm if these two entries describe the same event. Please consider the year provided, the nature of the event, and any specific details mentioned in both descriptions to make your analysis. I'll give you a few example. If the two entries are "1994: Introduction of CompactFlash" and "1994: CompactFlash was introduced by SanDisk", then the answer you give me is "yes". If the two entries are "1945: Article "As We May Think" by Vannevar Bush" and '1945: Creation of the ENIAC' then the answer is 'no'.
+
+Here are two entries: "1962: The book on Lisp was published." and "1962: LISP, a programming language with many profound insights and the reflective model of itself in its own code." What is your answer?
+
+Here are two entries: "1962: The book on Lisp was published." and "1963: Sketchpad book was published." What is your answer?
+
+Here are two entries: "1973: Construction of personal computer known as 'the Altos'" and "1974: Development of musical notation system for children" What is your answer?
