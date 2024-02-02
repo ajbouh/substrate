@@ -12,7 +12,7 @@ RUN apt-get update && apt-get upgrade -y \
     && mkdir -p /etc/OpenCL/vendors && echo "libnvidia-opencl.so.1" > /etc/OpenCL/vendors/nvidia.icd
 
 # Install depencencies
-RUN python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools fastapi uvicorn sse-starlette pydantic-settings starlette-context huggingface_hub pyyaml
+RUN python3 -m pip install --upgrade pip pytest cmake scikit-build setuptools fastapi uvicorn sse-starlette pydantic-settings starlette-context pyyaml
 
 COPY images/llama-cpp-python/README.md images/llama-cpp-python/pyproject.toml images/llama-cpp-python/CMakeLists.txt .
 COPY images/llama-cpp-python/vendor/llama.cpp vendor/llama.cpp
