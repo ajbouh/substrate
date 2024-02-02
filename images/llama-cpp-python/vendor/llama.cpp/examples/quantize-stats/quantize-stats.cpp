@@ -1,5 +1,4 @@
 #define LLAMA_API_INTERNAL
-#include "build-info.h"
 #include "common.h"
 #include "ggml.h"
 #include "llama.h"
@@ -322,7 +321,6 @@ int main(int argc, char ** argv) {
         auto cparams = llama_context_default_params();
         cparams.n_ctx      = 256;
         cparams.seed       = 1;
-        cparams.f16_kv     = false;
 
         ctx = llama_new_context_with_model(model, cparams);
 
@@ -379,6 +377,8 @@ int main(int argc, char ** argv) {
             if (params.verbose) {
                 printf("testing %s ...\n",  ggml_type_name(type));
             }
+
+            ggml_quantize_init(type);
 
             error_stats global_stats {};
 

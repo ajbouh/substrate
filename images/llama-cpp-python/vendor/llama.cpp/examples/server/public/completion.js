@@ -34,7 +34,8 @@ export async function* llama(prompt, params = {}, config = {}) {
     headers: {
       'Connection': 'keep-alive',
       'Content-Type': 'application/json',
-      'Accept': 'text/event-stream'
+      'Accept': 'text/event-stream',
+      ...(params.api_key ? {'Authorization': `Bearer ${params.api_key}`} : {})
     },
     signal: controller.signal,
   });
@@ -94,6 +95,19 @@ export async function* llama(prompt, params = {}, config = {}) {
               break;
             }
           }
+          if (result.error) {
+            result.error = JSON.parse(result.error);
+            if (result.error.content.includes('slot unavailable')) {
+              // Throw an error to be caught by upstream callers
+              throw new Error('slot unavailable');
+            } else {
+              console.error(`llama.cpp error: ${result.error.content}`);
+            }
+          }
+          if (result.error) {
+            result.error = JSON.parse(result.error);
+            console.error(`llama.cpp error: ${result.error.content}`);
+          }
         }
       }
     }
@@ -110,7 +124,7 @@ export async function* llama(prompt, params = {}, config = {}) {
   return content;
 }
 
-// Call llama, return an event target that you can subcribe to
+// Call llama, return an event target that you can subscribe to
 //
 // Example:
 //

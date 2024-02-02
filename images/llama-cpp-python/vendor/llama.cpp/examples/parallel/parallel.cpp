@@ -1,7 +1,5 @@
 // A basic application simulating a server with multiple clients.
-// The clients submite requests to the server and they are processed in parallel.
-
-#include "build-info.h"
+// The clients submit requests to the server and they are processed in parallel.
 
 #include "common.h"
 #include "llama.h"
@@ -115,6 +113,8 @@ int main(int argc, char ** argv) {
     // insert new requests as soon as the previous one is done
     const bool cont_batching = params.cont_batching;
 
+    const bool dump_kv_cache = params.dump_kv_cache;
+
 #ifndef LOG_DISABLE_LOGS
     log_set_target(log_filename_generator("parallel", "log"));
     LOG_TEE("Log start\n");
@@ -157,7 +157,7 @@ int main(int argc, char ** argv) {
     for (size_t i = 0; i < clients.size(); ++i) {
         auto & client = clients[i];
         client.id = i;
-        client.ctx_sampling = llama_sampling_init(params);
+        client.ctx_sampling = llama_sampling_init(params.sparams);
     }
 
     std::vector<llama_token> tokens_system;
@@ -173,6 +173,8 @@ int main(int argc, char ** argv) {
     int32_t n_total_prompt = 0;
     int32_t n_total_gen    = 0;
     int32_t n_cache_miss   = 0;
+
+    struct llama_kv_cache_view kvc_view = llama_kv_cache_view_init(ctx, n_clients);
 
     const auto t_main_start = ggml_time_us();
 
@@ -203,6 +205,11 @@ int main(int argc, char ** argv) {
     LOG_TEE("Processing requests ...\n\n");
 
     while (true) {
+        if (dump_kv_cache) {
+            llama_kv_cache_view_update(ctx, &kvc_view);
+            dump_kv_cache_view_seqs(kvc_view, 40);
+        }
+
         llama_batch_clear(batch);
 
         // decode any currently ongoing sequences
@@ -330,7 +337,7 @@ int main(int argc, char ** argv) {
 
                 const llama_token id = llama_sampling_sample(client.ctx_sampling, ctx, NULL, client.i_batch - i);
 
-                llama_sampling_accept(client.ctx_sampling, ctx, id);
+                llama_sampling_accept(client.ctx_sampling, ctx, id, true);
 
                 if (client.n_decoded == 1) {
                     // start measuring generation time after the first token to make sure all concurrent clients
@@ -347,7 +354,7 @@ int main(int argc, char ** argv) {
                 //        client.id, client.seq_id, id, client.n_decoded, client.i_batch, token_str.c_str());
 
                 if (client.n_decoded > 2 &&
-                        (id == llama_token_eos(ctx) ||
+                        (id == llama_token_eos(model) ||
                          (params.n_predict > 0 && client.n_decoded + client.n_prompt >= params.n_predict) ||
                          client.response.find("User:") != std::string::npos ||
                          client.response.find('\n') != std::string::npos)) {
