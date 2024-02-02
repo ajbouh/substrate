@@ -50,7 +50,6 @@ func UserFromContext(ctx context.Context) (*User, bool) {
 		GithubUsername: "nobody",
 	}, true
 
-
 	v := ctx.Value(userContextKey)
 	if v != nil {
 		user, ok := v.(*User)

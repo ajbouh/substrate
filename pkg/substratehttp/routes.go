@@ -56,7 +56,7 @@ func NewHTTPHandler(s *substrate.Substrate) http.Handler {
 	for _, method := range methods {
 		router.Handle(method, "/gw/:viewspec", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
 			viewspec := p.ByName("viewspec")
-			http.Redirect(rw, req, "/gw/" + viewspec + "/", http.StatusTemporaryRedirect)
+			http.Redirect(rw, req, "/gw/"+viewspec+"/", http.StatusTemporaryRedirect)
 		})
 	}
 
