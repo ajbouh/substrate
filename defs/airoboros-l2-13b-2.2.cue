@@ -41,6 +41,7 @@ imagespecs: "llama-cpp-python": {}
       response: {
         // headers: "Content-Type": "application/json"
         // body: chat_completion.#Response
+        ...
       }
     },
     // {
