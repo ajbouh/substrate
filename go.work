@@ -1,9 +1,0 @@
-go 1.21.1
-
-use (
-	./pkg
-	./images/bridge
-	./images/files
-	./images/screenshot
-	./images/substrate
-)

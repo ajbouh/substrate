@@ -1,2 +1,0 @@
-# for projects which have their canonical list of test deps upstream
-https://raw.githubusercontent.com/coreos/rpm-ostree/main/ci/testdeps.txt

@@ -1,6 +1,0 @@
-[Service]
-# Override Execstart in main unit
-ExecStart=
-# Add new Execstart with `-` prefix to ignore failure
-ExecStart=-/usr/sbin/agetty --autologin core --noclear %I $TERM
-TTYVTDisallocate=no
