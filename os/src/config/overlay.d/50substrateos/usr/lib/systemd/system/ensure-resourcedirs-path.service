@@ -1,7 +1,0 @@
-[Unit]
-ConditionPathExists=!/run/media/oob/resourcedirs
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=mkdir -m 0755 -p /run/media/oob/resourcedirs

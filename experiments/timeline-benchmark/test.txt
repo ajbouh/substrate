@@ -1,3 +1,0 @@
-1969: The ARPANET started running.
-1962: LISP, a programming language with many profound insights and the reflective model of itself in its own code.
-1962: LISP, a programming language with many profound insights and the reflective model of itself in its own code.
