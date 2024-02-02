@@ -156,8 +156,9 @@ retry:
 
 // reopenFDOnError determines whether we should reopen the file handle
 // in readwrite mode and try again. This comes from util-linux/sys-utils/flock.c:
-//  Since Linux 3.4 (commit 55725513)
-//  Probably NFSv4 where flock() is emulated by fcntl().
+//
+//	Since Linux 3.4 (commit 55725513)
+//	Probably NFSv4 where flock() is emulated by fcntl().
 func (f Flock) reopenFDOnError(fh *os.File, err error) (*os.File, bool, error) {
 	if err != syscall.EIO && err != syscall.EBADF {
 		return nil, false, nil

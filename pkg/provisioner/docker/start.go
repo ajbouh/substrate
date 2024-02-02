@@ -83,7 +83,7 @@ func (p *P) dumpLogs(ctx context.Context, containerID string) error {
 	return err
 }
 
-func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error)  {
+func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error) {
 	rdMainPath := path.Join(p.hostResourceDirsRoot, rd.SHA256)
 	if _, err := os.Stat(rdMainPath); err == nil {
 		return rdMainPath, nil
@@ -133,9 +133,9 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	}
 
 	c := &container.Config{
-		Image: as.ServiceDefSpawn.Image,
+		Image:        as.ServiceDefSpawn.Image,
 		ExposedPorts: nat.PortSet{},
-		Labels: labels,
+		Labels:       labels,
 	}
 
 	h := &container.HostConfig{
@@ -184,7 +184,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	}
 
 	h.Mounts = append(h.Mounts, resourcedirMounts...)
-	
+
 	// Pull PORT out of env, so it can be used for port forwarding.
 	// TODO consider using configured portmappings instead of this weird approach.
 	portStr := as.ServiceDefSpawn.Environment["PORT"]

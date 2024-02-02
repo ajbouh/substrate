@@ -86,7 +86,7 @@ func (p *P) dumpLogs(ctx context.Context, containerID string) error {
 	return err
 }
 
-func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error)  {
+func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error) {
 	rdMainPath := path.Join(p.hostResourceDirsRoot, rd.SHA256)
 	if _, err := os.Stat(rdMainPath); err == nil {
 		return rdMainPath, nil
@@ -207,9 +207,9 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 			return nil, fmt.Errorf("bad PORT value: %w", err)
 		}
 		s.PortMappings = append(s.PortMappings, nettypes.PortMapping{
-				ContainerPort: uint16(port),
-				Protocol:      "tcp",
-			},
+			ContainerPort: uint16(port),
+			Protocol:      "tcp",
+		},
 		)
 	}
 
