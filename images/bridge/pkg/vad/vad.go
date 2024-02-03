@@ -7,8 +7,8 @@ import (
 
 	"github.com/pion/rtp"
 
-	logr "github.com/ajbouh/bridge/pkg/log"
-	"github.com/ajbouh/bridge/pkg/router"
+	logr "github.com/ajbouh/substrate/images/bridge/pkg/log"
+	"github.com/ajbouh/substrate/images/bridge/pkg/router"
 	"github.com/lucsky/cuid"
 )
 

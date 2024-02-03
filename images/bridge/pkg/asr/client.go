@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/ajbouh/bridge/pkg/router"
+	"github.com/ajbouh/substrate/images/bridge/pkg/router"
 )
 
 type Client struct {

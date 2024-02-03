@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	logr "github.com/ajbouh/bridge/pkg/log"
-	"github.com/ajbouh/bridge/pkg/util"
+	logr "github.com/ajbouh/substrate/images/bridge/pkg/log"
+	"github.com/ajbouh/substrate/images/bridge/pkg/util"
 
 	"gopkg.in/hraban/opus.v2"
 )

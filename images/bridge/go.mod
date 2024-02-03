@@ -1,11 +1,10 @@
-module github.com/ajbouh/bridge
+module github.com/ajbouh/substrate/images/bridge
 
 go 1.21
 
 toolchain go1.21.1
 
 require (
-	github.com/ajbouh/substrate/pkg v0.0.0-00010101000000-000000000000
 	github.com/go-logr/logr v1.2.4
 	github.com/gorilla/websocket v1.5.0
 	github.com/lucsky/cuid v1.2.1
@@ -76,5 +75,3 @@ require (
 
 // ion hax
 replace github.com/pion/ion-sfu => ./thirdparty/github.com/pion/ion-sfu
-
-replace github.com/ajbouh/substrate/pkg => ../../pkg

@@ -5,9 +5,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ajbouh/bridge/pkg/asr"
-	"github.com/ajbouh/bridge/pkg/oggwriter"
-	"github.com/ajbouh/bridge/pkg/router"
+	"github.com/ajbouh/substrate/images/bridge/pkg/asr"
+	"github.com/ajbouh/substrate/images/bridge/pkg/oggwriter"
+	"github.com/ajbouh/substrate/images/bridge/pkg/router"
 )
 
 func New(url string, useAudio bool, targetLanguage string, languageAliases ...string) (router.MiddlewareFunc, error) {

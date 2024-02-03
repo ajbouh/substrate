@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/ajbouh/bridge/pkg/router"
-	"github.com/ajbouh/substrate/pkg/chat"
-	"github.com/ajbouh/substrate/pkg/chat/jsonschema"
+	"github.com/ajbouh/substrate/images/bridge/pkg/router"
+	"github.com/ajbouh/substrate/images/bridge/pkg/chat"
+	"github.com/ajbouh/substrate/images/bridge/pkg/chat/jsonschema"
 	"github.com/lucsky/cuid"
 )
 
