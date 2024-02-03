@@ -59,7 +59,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 			statusStreamURLPrefix = statusStreamURLPrefix + "/"
 		}
 
-		views, err := activityspec.ParseActivitySpecRequest(r.ActivitySpec, r.ForceReadOnly, "/"+r.ActivitySpec+"/")
+		views, err := activityspec.ParseActivitySpecRequest(r.ActivitySpec, r.ForceReadOnly, "/"+r.ActivitySpec)
 		if err != nil {
 			return nil, http.StatusBadRequest, err
 		}

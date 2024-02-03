@@ -1,7 +1,6 @@
 package substratehttp
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"net/url"
@@ -31,12 +30,12 @@ func newLazyProxyHandler(sub *substrate.Substrate, api http.Handler) ([]string, 
 
 		// TODO check entitlements and only put cookies back if we *must*
 		for _, cookie := range cookies {
-			if cookie.Domain == "" { // constrain cookie to the given host
-				cookie.Domain = req.Host
-			}
+			// if cookie.Domain == "" { // constrain cookie to the given host
+			// 	cookie.Domain = req.Host
+			// }
 
 			s := cookie.String()
-			fmt.Printf("keeping cookie: %s\n", s)
+			log.Printf("keeping cookie: %s\n", s)
 			req.Header.Add("Set-Cookie", s)
 		}
 		// fmt.Printf("req.header: %#v", req.Header)
@@ -46,11 +45,11 @@ func newLazyProxyHandler(sub *substrate.Substrate, api http.Handler) ([]string, 
 		req.URL.Path = "/" + strings.TrimPrefix(rest, "/")
 		if sub.Origin != "" {
 			req.URL.RawQuery = strings.ReplaceAll(req.URL.RawQuery, "$origin", url.QueryEscape(sub.Origin))
-			req.URL.Path = strings.ReplaceAll(req.URL.Path, "$origin", url.PathEscape(sub.Origin))
+			req.URL.Path = strings.ReplaceAll(req.URL.Path, "$origin", sub.Origin)
 		}
 		req.URL.RawPath = ""
 
-		views, err := activityspec.ParseActivitySpecRequest(viewspec, false, "/"+viewspec+"/")
+		views, err := activityspec.ParseActivitySpecRequest(viewspec, false, "/"+viewspec)
 		if err != nil {
 			jsonrw := httputil.NewJSONResponseWriter(rw)
 			jsonrw(nil, http.StatusBadRequest, err)
