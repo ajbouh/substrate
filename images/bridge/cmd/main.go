@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ajbouh/bridge/cmd/internal/ws"
-	"github.com/ajbouh/bridge/pkg/assistant"
-	"github.com/ajbouh/bridge/pkg/router"
-	"github.com/ajbouh/bridge/pkg/transcriber"
-	"github.com/ajbouh/bridge/pkg/translator"
-	"github.com/ajbouh/bridge/pkg/vad"
-	"github.com/ajbouh/bridge/pkg/webrtcpeer"
+	"github.com/ajbouh/substrate/images/bridge/cmd/internal/ws"
+	"github.com/ajbouh/substrate/images/bridge/pkg/assistant"
+	"github.com/ajbouh/substrate/images/bridge/pkg/router"
+	"github.com/ajbouh/substrate/images/bridge/pkg/transcriber"
+	"github.com/ajbouh/substrate/images/bridge/pkg/translator"
+	"github.com/ajbouh/substrate/images/bridge/pkg/vad"
+	"github.com/ajbouh/substrate/images/bridge/pkg/webrtcpeer"
 
 	log "github.com/pion/ion-sfu/pkg/logger"
 

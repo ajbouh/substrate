@@ -5,8 +5,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ajbouh/bridge/pkg/router"
-	"github.com/ajbouh/bridge/pkg/webrtcpeer/internal"
+	"github.com/ajbouh/substrate/images/bridge/pkg/router"
+	"github.com/ajbouh/substrate/images/bridge/pkg/webrtcpeer/internal"
 
 	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v3/pkg/media"

@@ -8,7 +8,7 @@ import (
 	"io"
 	"net/http"
 
-	utils "github.com/ajbouh/bridge/pkg/chat/internal"
+	utils "github.com/ajbouh/substrate/images/bridge/pkg/chat/internal"
 )
 
 // Client is OpenAI GPT-3 API client.

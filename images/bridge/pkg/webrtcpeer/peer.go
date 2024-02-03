@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/url"
 
-	logr "github.com/ajbouh/bridge/pkg/log"
-	"github.com/ajbouh/bridge/pkg/router"
+	logr "github.com/ajbouh/substrate/images/bridge/pkg/log"
+	"github.com/ajbouh/substrate/images/bridge/pkg/router"
 
 	"github.com/pion/webrtc/v3"
 )

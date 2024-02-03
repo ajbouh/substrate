@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	. "github.com/ajbouh/bridge/pkg/chat/jsonschema"
+	. "github.com/ajbouh/substrate/images/bridge/pkg/chat/jsonschema"
 )
 
 func TestDefinition_MarshalJSON(t *testing.T) {

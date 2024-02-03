@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"os"
 
-	utils "github.com/ajbouh/bridge/pkg/chat/internal"
+	utils "github.com/ajbouh/substrate/images/bridge/pkg/chat/internal"
 )
 
 // Whisper Defines the models provided by OpenAI to use when processing audio with OpenAI.

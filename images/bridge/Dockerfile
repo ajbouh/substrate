@@ -11,6 +11,7 @@ COPY images/bridge/ui/static ./static
 COPY images/bridge/ui/*.sh images/bridge/ui/*.js images/bridge/ui/*.json images/bridge/ui/*.cjs images/bridge/ui/.npmrc ./
 RUN npm run build
 
+
 FROM docker.io/library/golang:1.21 as builder
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
@@ -19,19 +20,11 @@ RUN apt-get update \
     libopusfile-dev \
   && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /go/src/github.com/ajbouh/substrate/pkg
-ADD pkg/go.mod pkg/go.sum ./
-RUN go mod download
-
 WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge
 COPY images/bridge/go.mod images/bridge/go.sum .
 COPY images/bridge/thirdparty thirdparty
 RUN go mod download
 
-WORKDIR /go/src/github.com/ajbouh/substrate/pkg
-COPY pkg/. .
-
-WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge
 COPY images/bridge/pkg pkg
 COPY images/bridge/cmd cmd
 RUN go build \
@@ -44,5 +37,4 @@ WORKDIR /app
 COPY --from=builder /bridge ./bridge
 COPY ./images/bridge/cmd/config.toml ./config.toml
 COPY --from=uibuild /app/build ./ui/.
-EXPOSE 8088
 CMD ["/app/bridge"]

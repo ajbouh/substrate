@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ajbouh/bridge/pkg/util"
+	"github.com/ajbouh/substrate/images/bridge/pkg/util"
 )
 
 func TestEncDec(t *testing.T) {
