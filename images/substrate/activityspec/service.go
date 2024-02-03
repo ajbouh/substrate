@@ -197,8 +197,8 @@ func (p *ServiceSpawnParameter) Format() string {
 const spaceViewCut = "="
 const spaceViewsSep = ";"
 const spaceViewMultiSep = ","
-const viewspecParameterStart = "["
-const viewspecParameterEnd = "]"
+const viewspecParameterStart = "("
+const viewspecParameterEnd = ")"
 
 func ParseServiceSpawnRequest(spec string, forceReadOnly bool, spawnPrefix string) (*ServiceSpawnRequest, string, error) {
 	var service string
