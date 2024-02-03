@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ajbouh/substrate/pkg/activityspec"
+	"github.com/ajbouh/substrate/images/substrate/activityspec"
 )
 
 func CreateTables(ctx context.Context, db *sql.DB) error {

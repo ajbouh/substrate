@@ -9,8 +9,8 @@ import (
 
 	"cuelang.org/go/cue"
 
-	"github.com/ajbouh/substrate/pkg/activityspec"
-	"github.com/ajbouh/substrate/pkg/substratefs"
+	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/ajbouh/substrate/images/substrate/fs"
 )
 
 func (s *DefSet) SpawnActivity(ctx context.Context, driver activityspec.ProvisionDriver, req *activityspec.ActivitySpecRequest) (*activityspec.ActivitySpawnResponse, error) {

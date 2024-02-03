@@ -9,9 +9,9 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/ajbouh/substrate/pkg/activityspec"
-	"github.com/ajbouh/substrate/pkg/auth"
-	"github.com/ajbouh/substrate/pkg/substrate"
+	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/ajbouh/substrate/images/substrate/auth"
+	"github.com/ajbouh/substrate/images/substrate/substrate"
 )
 
 func newUIHandler(sub *substrate.Substrate) ([]string, func(rw http.ResponseWriter, req *http.Request, p httprouter.Params), AllowOriginFunc) {

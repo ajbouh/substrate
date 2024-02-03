@@ -1,4 +1,4 @@
-package podmanprovisioner
+package dockerprovisioner
 
 import (
 	"context"
@@ -11,11 +11,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ajbouh/substrate/pkg/activityspec"
-	"github.com/containers/podman/v4/libpod/define"
-	"github.com/containers/podman/v4/pkg/bindings/containers"
-	"github.com/containers/podman/v4/pkg/bindings/system"
-	"github.com/containers/podman/v4/pkg/domain/entities"
+	"github.com/ajbouh/substrate/images/substrate/activityspec"
+
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/client"
 )
 
 type StatusEvent struct {
@@ -45,7 +45,7 @@ func (e *StatusEvent) String() string {
 	return fmt.Sprintf("backend=%s state=%s time=%s err=%s", e.Backend, e.State, e.Time, e.Err)
 }
 
-func ipAndPortFromContainerJSON(containerJSON *define.InspectContainerData) (string, string) {
+func ipAndPortFromContainerJSON(containerJSON types.ContainerJSON) (string, string) {
 	for _, e := range containerJSON.Config.Env {
 		if strings.HasPrefix(e, "PORT=") {
 			port := strings.TrimPrefix(e, "PORT=")
@@ -58,14 +58,14 @@ func ipAndPortFromContainerJSON(containerJSON *define.InspectContainerData) (str
 }
 
 type ContainerStatusCheck struct {
-	connect     func(ctx context.Context) (context.Context, error)
+	cli         *client.Client
 	containerID string
 
 	host string
 	port string
 
 	containerJSONTime time.Time
-	containerJSON     *define.InspectContainerData
+	containerJSON     types.ContainerJSON
 
 	waitForReadyTimeout time.Duration
 	waitForReadyTick    time.Duration
@@ -145,41 +145,17 @@ func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan activit
 	go func() {
 		defer close(statusCh)
 
-		ctx, err := c.connect(ctx)
-		if err != nil {
-			log.Printf("error %#v", err)
-			return
-		}
-		eventsOptions := &system.EventsOptions{
-			Filters: map[string][]string{
-				"type":      []string{"container"},
-				"container": []string{c.containerID},
-			},
-		}
-		eventChan := make(chan entities.Event)
-		cancelChan := make(chan bool, 1)
-		go func() {
-			defer close(cancelChan)
-			<-ctx.Done()
-			cancelChan <- true
-		}()
+		filters := filters.NewArgs()
+		filters.Add("type", "container")
+		filters.Add("container", c.containerID)
+
+		eventsOptions := types.EventsOptions{Filters: filters}
+		events, errs := c.cli.Events(ctx, eventsOptions)
 
 		emit := func(ev activityspec.ProvisionEvent) {
 			log.Printf("event %#v", ev)
 			statusCh <- ev
 		}
-
-		go func() {
-			defer close(eventChan)
-			err := system.Events(ctx, eventChan, cancelChan, eventsOptions)
-			if err != nil && err != io.EOF {
-				now := time.Now().UTC()
-				emit(&StatusEvent{
-					Err:  err,
-					Time: now.Format(time.RFC3339Nano),
-				})
-			}
-		}()
 
 		// Check the current status of the container
 		now := time.Now().UTC()
@@ -207,7 +183,7 @@ func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan activit
 			select {
 			case <-ctx.Done():
 				return
-			case event := <-eventChan:
+			case event := <-events:
 				if c.containerJSON.State.Status == "running" {
 					// Do we already know it's ready? If so, that's all we care about.
 					if err := c.waitUntilReadyTCP(ctx, 0); err == nil {
@@ -238,6 +214,15 @@ func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan activit
 						Time:    time.Unix(event.Time, event.TimeNano).Format(time.RFC3339Nano),
 					})
 				}
+			case err := <-errs:
+				if err != nil && err != io.EOF {
+					now := time.Now().UTC()
+					emit(&StatusEvent{
+						Err:  err,
+						Time: now.Format(time.RFC3339Nano),
+					})
+				}
+				return
 			}
 		}
 	}()
@@ -246,13 +231,8 @@ func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan activit
 }
 
 func (p *P) containerStatusCheck(ctx context.Context, containerID string) (*ContainerStatusCheck, error) {
-	ctx, err := p.connect(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	now := time.Now()
-	containerJSON, err := containers.Inspect(ctx, containerID, nil)
+	containerJSON, err := p.cli.ContainerInspect(ctx, containerID)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +240,7 @@ func (p *P) containerStatusCheck(ctx context.Context, containerID string) (*Cont
 	host, port := ipAndPortFromContainerJSON(containerJSON)
 
 	return &ContainerStatusCheck{
-		connect:             p.connect,
+		cli:                 p.cli,
 		host:                host,
 		port:                port,
 		containerID:         containerID,

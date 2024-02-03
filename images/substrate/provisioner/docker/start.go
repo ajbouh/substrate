@@ -8,8 +8,8 @@ import (
 	"path"
 	"time"
 
-	"github.com/ajbouh/substrate/pkg/activityspec"
-	"github.com/ajbouh/substrate/pkg/substratefs"
+	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/ajbouh/substrate/images/substrate/fs"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"

@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/ajbouh/substrate/pkg/auth"
-	"github.com/ajbouh/substrate/pkg/substrate"
+	"github.com/ajbouh/substrate/images/substrate/auth"
+	"github.com/ajbouh/substrate/images/substrate/substrate"
 	"github.com/dghubble/gologin/v2"
 	"github.com/dghubble/sessions"
 	"github.com/julienschmidt/httprouter"

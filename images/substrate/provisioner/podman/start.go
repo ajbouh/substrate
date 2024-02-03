@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ajbouh/substrate/pkg/activityspec"
-	"github.com/ajbouh/substrate/pkg/substratefs"
+	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/ajbouh/substrate/images/substrate/fs"
 
 	nettypes "github.com/containers/common/libnetwork/types"
 	"github.com/containers/podman/v4/pkg/bindings/containers"
