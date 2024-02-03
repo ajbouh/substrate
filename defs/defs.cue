@@ -312,6 +312,7 @@ for key, def in #out.resourcedir_fetches {
     if def.spawn != _|_ {
       services: (key): {
         environment: PORT: "8080"
+        environment: SUBSTRATE_URL_PREFIX: ""
         environment: ORIGIN: "localhost:8080"
         ports: [
           "127.0.0.1:8081:\(environment.PORT)",
