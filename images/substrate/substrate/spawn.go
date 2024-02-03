@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/ajbouh/substrate/pkg/activityspec"
-	"github.com/ajbouh/substrate/pkg/substratefs"
+	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/ajbouh/substrate/images/substrate/fs"
 
 	ulid "github.com/oklog/ulid/v2"
 )

@@ -9,7 +9,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
-	"github.com/ajbouh/substrate/pkg/blackboard"
+	"github.com/ajbouh/substrate/images/substrate/blackboard"
 
 	"github.com/stretchr/testify/assert"
 )

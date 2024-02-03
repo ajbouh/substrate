@@ -14,9 +14,9 @@ import (
 	"github.com/elnormous/contenttype"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/ajbouh/substrate/pkg/blackboard"
-	"github.com/ajbouh/substrate/pkg/httputil"
-	"github.com/ajbouh/substrate/pkg/substrate"
+	"github.com/ajbouh/substrate/images/substrate/blackboard"
+	"github.com/ajbouh/substrate/images/substrate/httputil"
+	"github.com/ajbouh/substrate/images/substrate/substrate"
 )
 
 var responsePath = cue.MakePath(cue.Str("response"))

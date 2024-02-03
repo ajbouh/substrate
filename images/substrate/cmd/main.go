@@ -22,11 +22,11 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"github.com/ajbouh/substrate/pkg/activityspec"
-	dockerprovisioner "github.com/ajbouh/substrate/pkg/provisioner/docker"
-	podmanprovisioner "github.com/ajbouh/substrate/pkg/provisioner/podman"
-	"github.com/ajbouh/substrate/pkg/substrate"
-	"github.com/ajbouh/substrate/pkg/substratehttp"
+	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	dockerprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/docker"
+	podmanprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/podman"
+	"github.com/ajbouh/substrate/images/substrate/substrate"
+	"github.com/ajbouh/substrate/images/substrate/http"
 )
 
 func mustGetenv(name string) string {

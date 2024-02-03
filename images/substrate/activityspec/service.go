@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ajbouh/substrate/pkg/substratefs"
+	"github.com/ajbouh/substrate/images/substrate/fs"
 )
 
 type ServiceDef struct {

@@ -1,18 +1,11 @@
 FROM docker.io/library/golang:1.21-bookworm as source
 
-WORKDIR /go/src/github.com/ajbouh/substrate/pkg
-ADD pkg/go.mod pkg/go.sum ./
-RUN go mod download
-
 WORKDIR /go/src/github.com/ajbouh/substrate/images/substrate
 ADD images/substrate/go.mod images/substrate/go.sum ./
 RUN go mod download
 
-WORKDIR /go/src/github.com/ajbouh/substrate/pkg
-COPY pkg/. .
-
 WORKDIR /go/src/github.com/ajbouh/substrate/images/substrate
-COPY images/substrate/*.go .
+COPY images/substrate/. .
 
 FROM source as build
 RUN apt update \
@@ -28,12 +21,12 @@ RUN --mount=type=cache,target=/go/pkg/mod \
   go build \
   -tags "remote exclude_graphdriver_btrfs btrfs_noversion exclude_graphdriver_devicemapper containers_image_openpgp"\
   -v \
-  -o /substrate .
+  -o /substrate ./cmd
 
 FROM source as test
 RUN go test \
   -tags "remote exclude_graphdriver_btrfs btrfs_noversion exclude_graphdriver_devicemapper containers_image_openpgp"\
-  github.com/ajbouh/substrate/pkg/... github.com/ajbouh/substrate/images/substrate/...
+  github.com/ajbouh/substrate/images/substrate/...
 
 # Used when we want to debug
 FROM docker.io/tianon/toybox:latest as toybox

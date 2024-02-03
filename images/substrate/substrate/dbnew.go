@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"log"
 
-	"github.com/ajbouh/substrate/pkg/sqliteuri"
+	"github.com/ajbouh/substrate/images/substrate/sqliteuri"
 
 	_ "github.com/mattn/go-sqlite3"
 )

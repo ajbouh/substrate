@@ -10,10 +10,10 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/ajbouh/substrate/pkg/activityspec"
-	"github.com/ajbouh/substrate/pkg/auth"
-	"github.com/ajbouh/substrate/pkg/httputil"
-	"github.com/ajbouh/substrate/pkg/substrate"
+	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/ajbouh/substrate/images/substrate/auth"
+	"github.com/ajbouh/substrate/images/substrate/httputil"
+	"github.com/ajbouh/substrate/images/substrate/substrate"
 )
 
 func stringPtr(s string) *string {

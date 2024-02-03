@@ -9,7 +9,7 @@ import (
 
 	"cuelang.org/go/cue"
 
-	"github.com/ajbouh/substrate/pkg/blackboard"
+	"github.com/ajbouh/substrate/images/substrate/blackboard"
 )
 
 var requestPath = cue.MakePath(cue.Str("request"))

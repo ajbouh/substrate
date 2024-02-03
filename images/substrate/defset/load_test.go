@@ -12,7 +12,7 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/load"
-	"github.com/ajbouh/substrate/pkg/defset"
+	"github.com/ajbouh/substrate/images/substrate/defset"
 )
 
 func assertLoad(t *testing.T, l *defset.CueLoad, want map[string]any, err string) {

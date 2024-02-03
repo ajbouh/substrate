@@ -15,9 +15,9 @@ import (
 	"cuelang.org/go/cue/load"
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/ajbouh/substrate/pkg/activityspec"
-	"github.com/ajbouh/substrate/pkg/blackboard"
-	"github.com/ajbouh/substrate/pkg/substratefs"
+	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/ajbouh/substrate/images/substrate/blackboard"
+	"github.com/ajbouh/substrate/images/substrate/fs"
 )
 
 type CueLoad struct {
