@@ -47,12 +47,12 @@ mkdir -p $JUPYTER_DATA_DIR
 # fi
 
 if [ -n "$NOTEBOOK" ]; then
-  echo "c.NotebookApp.default_url = '/retro/notebooks/${NOTEBOOK}'" >> $JUPYTER_CONFIG_DIR/jupyter_lab_config.py
+  echo "c.NotebookApp.default_url = '$SUBSTRATE_URL_PREFIX/retro/notebooks/${NOTEBOOK}'" >> $JUPYTER_CONFIG_DIR/jupyter_lab_config.py
 fi
 
-#   --frontend.base_url=${JAMSOCKET_BASE_URL}/ \
 jupyverse \
   --set auth.mode=noauth \
-  --set frontend.collaborative=true \
+  --set "frontend.base_url=${SUBSTRATE_URL_PREFIX}/" \
+  --allow-origin=$ORIGIN \
   --host=0.0.0.0 \
   --port=$PORT

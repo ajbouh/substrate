@@ -1,11 +1,11 @@
 package defs
 
-enable: "jupyverse": false
+enable: "jupyverse": true
 
 imagespecs: "jupyverse": {}
 
 "lenses": "jupyverse": {
-  spawn: schema: data: type: "space"
+  spawn: parameters: data: type: "space"
 
   space: {
     preview: "index.ipynb"
