@@ -34,7 +34,7 @@ There are a lot of rough edges here, but hopefully this is much better base for 
     sudo reboot
     ```
 
-6. Back on your development machine you should add the NUC's IP address to your `/etc/hosts` file and `~/.ssh/config`.
+6. Back on your development machine you should add the NUC's IP address to your `/etc/hosts` file and `~/.ssh/config`. Be sure to use the machine's actual IP address, which is not always going to be `192.168.1.193`.
     ```
     # /etc/hosts
     192.168.1.193 substrate.home.arpa
@@ -61,20 +61,12 @@ There are a lot of rough edges here, but hopefully this is much better base for 
     EOF
     ```
 
-8. Now on your development machine you can check out the future branch
-
-    ```shell
-    git checkout future
-    ```
-
-9. Build the container images, resourcedirs, and systemd units on the remote machine:
+8. Build the container images, resourcedirs, and systemd units on the remote machine:
 
     ```
     # HACK this is a workaround because we aren't properly mounting the oob files
     ./remote ssh sudo mkdir -p /run/media/oob/imagestore
-    # HACK we can't yet populate resourcedirs at "runtime". populate them as a side effect of building the oob (out-of-band) squashfs
-    ./remote ./dev.sh oob-make
-    ./remote ./dev.sh reload
+    ./remote ./dev.sh systemd-reload
     ```
 
     <details>
@@ -94,10 +86,10 @@ There are a lot of rough edges here, but hopefully this is much better base for 
     </details>
 
 
-10. On your laptop, visit https://substrate.home.arpa/gw/bridge/. Select your microphone, click "Unmute", and try speaking.
+9. On your laptop, visit https://substrate.home.arpa/gw/bridge/. Select your microphone, click "Unmute", and try speaking.
 
-11. After the initial reload, you can limit your build to a specific image. For example:
+10. After the initial reload, you can limit your build to a specific image. For example:
 
     ```
-    ./remote ./dev.sh reload bridge
+    ./remote ./dev.sh systemd-reload bridge
     ```
