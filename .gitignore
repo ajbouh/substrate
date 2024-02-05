@@ -1,4 +1,6 @@
+.DS_Store
 .docker
 .fly
 .gen
 os/overrides/rpm/*.rpm
+/local
