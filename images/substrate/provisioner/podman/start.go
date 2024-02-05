@@ -190,6 +190,17 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		return nil, err
 	}
 
+	for _, m := range as.ServiceDefSpawn.Mounts {
+		s.Mounts = append(s.Mounts,
+			specs.Mount{
+				Type:        "bind",
+				Source:      m.Source,
+				Destination: m.Destination,
+				Options:     []string{"ro"},
+			},
+		)
+	}
+
 	s.Mounts = append(s.Mounts, resourcedirMounts...)
 
 	// TODO need to check schema before we know how to interpret a given parameter...

@@ -23,7 +23,6 @@ type Substrate struct {
 	ProvisionerCache *activityspec.ProvisionerCache
 
 	defSet *defset.DefSet
-	Layout *substratefs.Layout
 
 	Origin string
 
@@ -33,7 +32,8 @@ type Substrate struct {
 
 func New(
 	ctx context.Context,
-	fileName, substratefsMountpoint, cueDefsDir string,
+	fileName, substratefsMountpoint string,
+	cueLoadConfig *load.Config,
 	driver activityspec.ProvisionDriver,
 	origin string,
 	cpuMemoryTotalMB, cudaMemoryTotalMB int,
@@ -45,11 +45,10 @@ func New(
 
 	cc := cuecontext.New()
 	cueMu := &sync.Mutex{}
-	cueConfig := &load.Config{Dir: cueDefsDir}
 
 	defLoader := defset.NewDefLoader(
 		defset.NewCueLoader(
-			cueConfig,
+			cueLoadConfig,
 			":defs",
 			defset.LookupPathTransform(cue.MakePath(cue.Def("#out"), cue.Def("#lenses"))),
 			defset.FillPathEncodeTransform(
@@ -95,7 +94,7 @@ func New(
 		Origin:           origin,
 	}
 
-	err = defset.NewCueWatcher(ctx, cueConfig, func(err error) {
+	err = defset.NewCueWatcher(ctx, cueLoadConfig, func(err error) {
 		if err != nil {
 			errs := cueerrors.Errors(err)
 			messages := make([]string, 0, len(errs))
@@ -116,7 +115,7 @@ func New(
 			for _, err := range errs {
 				messages = append(messages, err.Error())
 			}
-			log.Printf("err in defloader (config %#v): %s", cueConfig, strings.Join(messages, "\n\t"))
+			log.Printf("err in defloader (config %#v): %s", cueLoadConfig, strings.Join(messages, "\n\t"))
 			return
 		}
 

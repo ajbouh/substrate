@@ -2,7 +2,7 @@ package defs
 
 #var: {
   host_docker_socket: string
-  root_source_directory: string
+  host_source_directory: string
 }
 
 enable: "vscode-server": true
@@ -47,7 +47,7 @@ imagespecs: "vscode-server": {
   ]
 
   mounts: [
-    // {source: #var.root_source_directory, destination: environment.#workspace},
+    // {source: #var.host_source_directory, destination: environment.#workspace},
     {source: #home, destination: #home},
     {source: #var.host_docker_socket, destination: environment.#docker_socket},
   ]

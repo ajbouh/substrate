@@ -1,11 +1,8 @@
 package substratehttp
 
 import (
-	"log"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
-	"os"
+	"log"
 
 	"github.com/julienschmidt/httprouter"
 
@@ -17,26 +14,14 @@ import (
 func newUIHandler(sub *substrate.Substrate) ([]string, func(rw http.ResponseWriter, req *http.Request, p httprouter.Params), AllowOriginFunc) {
 	var allowOriginFunc AllowOriginFunc
 	var upstream http.Handler
-	externalUIHandler := os.Getenv("EXTERNAL_UI_HANDLER")
-	if externalUIHandler != "" {
-		externalUIHandlerTarget, err := url.Parse(externalUIHandler)
-		if err != nil {
-			log.Fatalf("invalid EXTERNAL_UI_HANDLER %q: %s", externalUIHandler, err)
-		}
-		upstream = httputil.NewSingleHostReverseProxy(externalUIHandlerTarget)
-		allowOriginFunc = func(origin string) bool {
-			return origin == "http://"+externalUIHandlerTarget.Host
-		}
-	} else {
 
-		upstream = http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-			sub.ProvisionerCache.ProvisionReverseProxy(&activityspec.ServiceSpawnRequest{ServiceName: "ui"}).ServeHTTP(rw, req)
-		})
-		allowOriginFunc = func(origin string) bool {
-			// panic("CORS origin check for UI backends not yet implemented")
-			// TODO actually implement
-			return true
-		}
+	upstream = http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		sub.ProvisionerCache.ProvisionReverseProxy(&activityspec.ServiceSpawnRequest{ServiceName: "ui"}).ServeHTTP(rw, req)
+	})
+	allowOriginFunc = func(origin string) bool {
+		// panic("CORS origin check for UI backends not yet implemented")
+		// TODO actually implement
+		return true
 	}
 
 	return []string{"/ui", "/ui/*rest"},

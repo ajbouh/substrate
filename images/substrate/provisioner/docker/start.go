@@ -178,6 +178,17 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		)
 	}
 
+	for _, m := range as.ServiceDefSpawn.Mounts {
+		h.Mounts = append(h.Mounts,
+			mount.Mount{
+				Type:     mount.TypeBind,
+				Source:   m.Source,
+				Target:   m.Destination,
+				ReadOnly: true,
+			},
+		)
+	}
+
 	resourcedirMounts, err := p.prepareResourceDirsMounts(as)
 	if err != nil {
 		return nil, err
