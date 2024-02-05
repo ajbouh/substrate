@@ -1,0 +1,20 @@
+1965: Butler Lampson's thesis.
+1966: Simula introduced by Nygaard and Dahl.
+1967: Case Western Reserve University founded.
+1967: Simula 67 introduced.
+1969: ARPANET started running.
+1970: Xerox PARC founded.
+Early 1970s: Alto computer developed.
+Early 1970s: FM synthesis developed for the Alto computer.
+1971 - 1983: Xerox PARC Smalltalk experience.
+1972: Smalltalk created.
+1979: C++ development started by Bjarne Stroustrup.
+1980s: C++ came into existence.
+Early 1980s: Apple began work on the Pink project.
+1981: MS-DOS introduced.
+1984: X Windows introduced.
+Late 1980s: Apple's Pink operating system (Taligent) project evolution.
+1989: HTML on the Internet's foundational technology proposed by Tim Berners-Lee.
+1990s: Browsers introduced.
+1993: Mosaic browser introduced.
+1995: Java programming language and Java VM first released by Sun Microsystems.

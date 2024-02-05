@@ -54,9 +54,9 @@ and actual question is:
 
 where `t` and `c` (test and control, or test and corrext answer) are the lines.
 
-benchmark.js expects a chat completion style API available at: `http://127.0.0.1:8080/completion`. If you run llamafile (I test v1.5), and mixtral-8x7b-instruct-v0.1.Q4_K_M.gguf, you start the server:
+benchmark.js expects a chat completion style API available at: `http://127.0.0.1:8080/completion`. If you run llamafile (I test v1.5), and mixtral-8x7b-instruct-v0.1.Q5_K_M.gguf, you start the server:
 
-    # ./llava-v1.5-7b-q4.llamafile -m mixtral-8x7b-instruct-v0.1.Q4_K_M.gguf
+    # ./llava-v1.5-7b-q4.llamafile -m mixtral-8x7b-instruct-v0.1.Q5_K_M.gguf
 
 and then run the benachmark:
 
@@ -64,4 +64,38 @@ and then run the benachmark:
 
 produces three numbers: (1) total number of correct entries, (2) entries missed in `test.txt`, and (3) excess entries that LLM produced.
 
-Currently test.txt has three entries with a duplicate. and expected.txt has two. the order is not sorted. Some LLM may produce a date as "Undated" or "1960's", In any case, we want to check all possibilities so we do NxM comparison at this moment.
+Currently test.txt has three entries that are duplicate. and expected.txt has two. the order is not sorted. Some LLM may produce a date as "Undated" or "1960's", In any case, we want to check all possibilities so we do NxM comparison at this moment.
+
+At the end of NxM judgements, the program produces a line that looks like this:
+
+   `total = 20, hit = 29, missed = 0`
+
+This means that there are 20 entries in the "expected" file, and they are 29 entries in the "test" file that have the equivalent entry in "expected". Because there are duplicates that "may" be considered equivalent, the hit in this case can be more than `total`. The `missed` value shows how many of  `expected` entries are not hit at all by the "test" entries.
+
+## A test file with some amgibious entries.
+
+`ambigious.txt has some overlapping concepts in it. As above, run an LLM in the server mode:
+
+    # ./llava-v1.5-7b-q4.llamafile -m mixtral-8x7b-instruct-v0.1.Q5_K_M.gguf
+
+and then run:
+
+    # node benchmark.js ambigious.txt ambigious.txt
+
+so that the "test" and "expected" files are the same. An expectation is to get "hit" somewhere between 20-26, and hit should be an even number.
+
+## A less ambigious test
+
+`less-ambigious.txt` has fewer entries than `amgibious.txt`. If you run:
+
+    # node benchmark.js less-ambigious.txt less-ambigious.txt
+
+In this case, the expection is that only the diagonal pairs in the NxN matrix (where N=11)are "yes" as they are the same, and everything else is "no". So the expected output is:
+
+    `total = 11, hit = 11, missed = 0`
+
+For my trials, mixtral-8x7b-instruct-v0.1.Q5_K_M.gguf gives some wrong answers.
+
+
+
+
