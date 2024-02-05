@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mithril/2.2.3/mithril.min.js" integrity="sha512-veJyRkYTPP9HJBUEq3oqA1uBzxGA+OiiHkcgT4Nm8Ovg9dNKSxf4mxClYVCkujcxIz+reFruwp4OPsXY10U8UA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="https://cdn.jsdelivr.net/npm/cbor-js@0.1.0/cbor.min.js"></script>
+  <script src="/webrtc/localmedia.js"></script>
+  <link rel="stylesheet" href="/ui/session.css" />
+</head>
+<body class="flex flex-row bg-gray-900 text-white antialiased"> 
+  <script type="module">
+
+import {Session} from "/ui/session.js";
+import {Sidebar} from "/ui/sidebar.js";
+import {Topbar} from "/ui/topbar.js";
+import {Session as SFU} from "/webrtc/session.js";
+
+
+let sess = null;
+const initSession = () => {
+  sess = new SFU(`ws://${location.host}${location.pathname}?sfu`);
+  sess.onclose = (evt) => console.log("Websocket has closed");
+  sess.onerror = (evt) => console.log("ERROR: " + evt.data);
+  sess.ontrack = ({ streams: [stream], track }) => {
+    // no-op!
+    return
+  };
+};
+
+const localMedia = new LocalMedia();
+localMedia.videoEnabled = false;
+localMedia.ondevicechange = () => m.redraw();
+localMedia.onstreamchange = (stream) => {
+    if (sess == null) {
+      initSession();
+    }
+    sess.setStream(stream);
+}
+
+let viewModel = {};
+let dataWS = new WebSocket(`ws://${location.host}${location.pathname}?data`);
+dataWS.binaryType = 'arraybuffer';
+dataWS.onmessage = e => {
+  const data = CBOR.decode((new Uint8Array(e.data)).buffer);
+
+  const events = data.Session.Tracks.map(t => t.Events).filter(e => e).flat();
+
+  viewModel = {
+    sessions: data.Sessions,
+    entries: events.filter(e => e.Type === "transcription").map(t => {
+      return {
+        speakerLabel: "user",
+        time: t.Start, // todo: convert
+        text: t.Data.segments.map(s => s.text).join()
+      }
+    })
+  }
+  m.redraw()
+}
+
+m.mount(document.body, {
+  view: () => [
+    m(Sidebar, {sessions: viewModel.sessions}), 
+    m("div", {"class":"flex flex-col mx-auto grow"},
+      [
+        m(Topbar, {localMedia}),
+        m("div", {"class":"grow px-6 mt-4 overflow-auto","id":"session"}, 
+          m(Session, {summary: "Summary", entries: viewModel.entries})
+        )
+      ]
+    )
+  ],
+});
+
+  </script>
+</body>
+</html>

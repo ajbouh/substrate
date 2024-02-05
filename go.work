@@ -3,6 +3,7 @@ go 1.21.1
 use (
 	./pkg
 	./images/bridge
+	./images/bridge2
 	./images/files
 	./images/screenshot
 	./images/substrate
