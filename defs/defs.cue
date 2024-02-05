@@ -12,44 +12,68 @@ import (
   docker_compose "github.com/ajbouh/substrate/defs/docker/compose:compose"
 )
 
-#no_cuda: string | *"" @tag(no_cuda)
+#Varset: {
+  namespace: string @tag(namespace)
+  cue_defs: string @tag(cue_defs)
+  build_source_directory: string | *"" @tag(build_source_directory)
+  use_varset: string @tag(use_varset)
 
-#var: {
-  "namespace": string @tag(namespace)
-  "root_source_directory": string | *"" @tag(root_source_directory)
-  "image_prefix": "ghcr.io/ajbouh/substrate:substrate-"
-  "no_cuda": #no_cuda != ""
-  "cue_defs": string | *"" @tag(cue_defs)
-  "secrets": {
-    "substrate": {
-      "session_secret": "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
-    }
-  }
-  "host_resourcedirs_root": string | *"" @tag(host_resourcedirs_root)
-  "host_resourcedirs_path": string | *"" @tag(host_resourcedirs_path)
-  "build_resourcedirs_root": string | *"" @tag(build_resourcedirs_root)
-  "host_docker_socket": string | *"/var/run/docker.sock" @tag(host_docker_socket)
+  host_source_directory: string
+  image_prefix: string | *"ghcr.io/ajbouh/substrate:substrate-"
+  host_resourcedirs_root: string
+  host_resourcedirs_path: string
+  build_resourcedirs_root: string
+
+  host_docker_socket: string | *"/var/run/docker.sock"
   // host_docker_socket: "/var/run/podman/podman.sock"
   // host_docker_socket: "/run/user/1001/podman/podman.sock"
-  "substrate": {
-    internal_port: 8080
-    // Uncomment the line below to enable live def editing.
-    // We can default to `live_defs: true` once:
-    // - the live ISO properly bundles source code
-    // - the installer properly copies source code
-    // - we have a valid "dummy" location that exists when source code is not present.
-    // live_defs: true
-    "docker_compose_prefix": "\(#var.namespace)-substrate_"
-    "external_origin": "https://substrate.home.arpa"
-    "internal_host": "substrate:\(internal_port)"
-    "internal_protocol": "http:"
-    "internal_network_name": "substrate-internal"
-    "external_network_name": "substrate-external"
-    "resourcedirs_root": "/var/lib/substrate/resourcedirs"
+
+  substrate: {
+    internal_port: int | *8080
+
+    network_name_prefix: string | *""
+    internal_host: "substrate:\(internal_port)"
+    internal_protocol: "http:"
+    internal_network_name: "substrate-internal"
+    external_network_name: "substrate-external"
+    resourcedirs_root: "/var/lib/substrate/resourcedirs"
   }
 }
 
+#varsets: [string]: #Varset
+
+#varsets: substrateos: {
+  build_source_directory: string
+  host_source_directory: "/var/home/core/source"
+  host_docker_socket: "/var/run/podman/podman.sock"
+  host_resourcedirs_root: "/var/lib/resourcedirs"
+  host_resourcedirs_path: "/run/media/oob/resourcedirs"
+  build_resourcedirs_root: "\(build_source_directory)/os/gen/oob/resourcedirs"
+}
+
+#varsets: docker_compose: {
+  namespace: string
+  build_source_directory: string
+  host_source_directory: build_source_directory
+
+  host_resourcedirs_path: ""
+  host_resourcedirs_root: "\(build_source_directory)/os/gen/oob/resourcedirs"
+  host_docker_socket: "/var/run/docker.sock"
+  build_resourcedirs_root: host_resourcedirs_root
+
+  substrate: {
+    network_name_prefix ?: "\(namespace)-substrate_"
+  }
+}
+
+#var: #Varset
+
+#use_varset: "substrateos" | "docker_compose" @tag(use_varset)
+#var: #varsets[#use_varset]
+
 enable: [string]: bool
+
+live_edit: [string]: bool | *false
 
 imagespecs: [key=string]: imagespec & {
   image: "\(#var.image_prefix)\(key)"
@@ -261,12 +285,7 @@ for key, def in #out.resourcedir_fetches {
       ]
 
       environment: {
-        // PORT: "\(#namespace_host_port_offset + #service_host_port_offset["substrate"] + 1)"
         "PORT": "8080"
-        // "ORIGIN": "http://localhost:\(environment.PORT)"
-        // if #lenses["ui"] != _|_ {
-        //   EXTERNAL_UI_HANDLER: "http://ui:\(services.ui.environment.PORT)"
-        // }
         ...
       }
     }

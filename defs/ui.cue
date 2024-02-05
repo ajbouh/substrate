@@ -2,14 +2,21 @@ package defs
 
 enable: "ui": true
 
+live_edit: "ui": bool
+
 imagespecs: "ui": {}
 
-"lenses": "ui": {
-  spawn: {}
-  spawn: environment: {
-    "PORT" ?: string
+if live_edit["ui"] {
+  imagespecs: "ui": build: target: "dev"
+}
 
-    // "PUBLIC_EXTERNAL_ORIGIN" ?: string
-    // "ORIGIN" ?: string
+lenses: "ui": {
+  spawn: {
+    if live_edit["ui"] {
+      mounts: [
+        { source: "\(#var.host_source_directory)/images/ui/static", destination: "/app/static", mode: "ro" },
+        { source: "\(#var.host_source_directory)/images/ui/src", destination: "/app/src", mode: "ro" },
+      ]
+    }
   }
 }

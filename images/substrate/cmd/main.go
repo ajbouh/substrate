@@ -20,6 +20,7 @@ import (
 
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 
+	"cuelang.org/go/cue/load"
 	"github.com/sirupsen/logrus"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
@@ -161,7 +162,7 @@ func main() {
 	}
 	fmt.Printf("cudaMemoryTotalMB %d\n", cudaMemoryTotalMB)
 
-	cudaAllowed := os.Getenv("SUBSTRATE_NO_CUDA") == "" && cudaMemoryTotalMB > 0
+	cudaAllowed := cudaMemoryTotalMB > 0
 	p := newProvisioner(cudaAllowed)
 
 	cueDefsDir := mustGetenv("SUBSTRATE_CUE_DEFS")
@@ -194,11 +195,27 @@ func main() {
 		log.Printf("clean up done")
 	}()
 
+	cueDefsLoadTags := []string{
+		// Include enough config to interpret things again
+		"namespace="+mustGetenv("SUBSTRATE_NAMESPACE"),
+		"use_varset="+mustGetenv("SUBSTRATE_USE_VARSET"),
+		"cue_defs="+mustGetenv("SUBSTRATE_CUE_DEFS"),
+	}
+
+	if os.Getenv("SUBSTRATE_SOURCE_DIRECTORY") != "" {
+		cueDefsLoadTags = append(cueDefsLoadTags, "build_source_directory="+os.Getenv("SUBSTRATE_SOURCE_DIRECTORY"))
+	}
+
+	cueLoadConfig := &load.Config{
+		Dir: cueDefsDir,
+		Tags: cueDefsLoadTags,
+	}
+
 	sub, err := substrate.New(
 		ctx,
 		mustGetenv("SUBSTRATE_DB"),
 		substratefsMountpoint,
-		cueDefsDir,
+		cueLoadConfig,
 		p,
 		os.Getenv("ORIGIN"),
 		cpuMemoryTotalMB,

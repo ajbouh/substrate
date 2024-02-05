@@ -10,28 +10,31 @@ import (
   namespace: string
   image_prefix: string
   cue_defs: string
-  root_source_directory: string
+  host_source_directory: string
   
   host_docker_socket: string
   host_resourcedirs_root: string
   host_resourcedirs_path: string
 
-  no_cuda: bool | *false
-
-  substrate: live_defs: bool | *false
-  substrate: docker_compose_prefix: string | *""
+  substrate: network_name_prefix: string | *""
   substrate: internal_network_name: string
   substrate: external_network_name: string
   substrate: resourcedirs_root: string
   substrate: internal_port: int
-  substrate: external_origin: string
   substrate: internal_host: string
   substrate: internal_protocol: string
-
-  secrets: substrate: session_secret: string
 }
 
 enable: "substrate": true
+
+live_edit: "substrate": bool
+
+// Uncomment the line below to enable live def editing.
+// We can default to `live_edit: "substrate": true` once:
+// - the live ISO properly bundles source code
+// - the installer properly copies source code
+// - we have a valid "dummy" location that exists when source code is not present.
+// live_edit: "substrate": true
 
 let substrate_cue_defs = "/app/defs"
 imagespecs: "substrate": {
@@ -47,15 +50,16 @@ let substrate_cue_defs_live = "/live/defs"
 
 daemons: "substrate": {
   environment: {
-    "DEBUG": "1"
     "PORT": string | *"\(#var.substrate.internal_port)"
     "SUBSTRATE_DB": "/var/lib/substrate/data/substrate.sqlite"
     "SUBSTRATE_CUE_DEFS": string | *substrate_cue_defs
-    if #var.substrate.live_defs {
+    if live_edit["substrate"] {
       "SUBSTRATE_CUE_DEFS_LIVE": substrate_cue_defs_live
     }
+    "SUBSTRATE_USE_VARSET": string | *#var.use_varset
+    "SUBSTRATE_SOURCE_DIRECTORY": string | *#var.host_source_directory
 
-    "ORIGIN": #var.substrate.external_origin
+    "ORIGIN": string
     // TODO pass in internal_host
     // TODO pass in internal_protocol
     "SUBSTRATE_NAMESPACE": #var.namespace
@@ -63,8 +67,6 @@ daemons: "substrate": {
     "SUBSTRATE_EXTERNAL_NETWORK": string | *#var.substrate.external_network_name
     "SUBSTRATE_RESOURCEDIRS_ROOT": string | *#var.host_resourcedirs_root
     "SUBSTRATE_RESOURCEDIRS_PATH": string | *#var.host_resourcedirs_path
-
-    "EXTERNAL_UI_HANDLER" ?: string
 
     #docker_socket: "/var/run/docker.sock"
 
@@ -75,8 +77,8 @@ daemons: "substrate": {
     {source: "\(#var.namespace)-substrate_data", destination: "/var/lib/substrate/data"},
     {source: #var.host_docker_socket, destination: environment.#docker_socket},
     {source: #var.host_resourcedirs_root, destination: #var.host_resourcedirs_root},
-    if #var.substrate.live_defs {
-      { source: "\(#var.root_source_directory)/\(#var.cue_defs)", destination: substrate_cue_defs_live },
+    if live_edit["substrate"] {
+      { source: "\(#var.host_source_directory)/\(#var.cue_defs)", destination: substrate_cue_defs_live },
     }
     if #var.host_resourcedirs_path != "" {
       for rddir in strings.Split(#var.host_resourcedirs_path, ":") {
@@ -89,19 +91,12 @@ daemons: "substrate": {
     environment: {
       "SUBSTRATE_PROVISIONER": "docker"
 
-      "SUBSTRATE_INTERNAL_NETWORK": "\(#var.substrate.docker_compose_prefix)\(#var.substrate.internal_network_name)"
-      "SUBSTRATE_EXTERNAL_NETWORK": "\(#var.substrate.docker_compose_prefix)\(#var.substrate.external_network_name)"
+      "ORIGIN": "http://localhost:8080"
+
+      "SUBSTRATE_INTERNAL_NETWORK": "\(#var.substrate.network_name_prefix)\(#var.substrate.internal_network_name)"
+      "SUBSTRATE_EXTERNAL_NETWORK": "\(#var.substrate.network_name_prefix)\(#var.substrate.external_network_name)"
     }
 
-    if !#var.no_cuda {
-      deploy: resources: reservations: devices: [{driver: "nvidia", count: "all", capabilities: ["gpu"]}]
-      // devices: ["nvidia.com/gpu=all"]
-      security_opt: ["label:disable"]
-    }
-    // extra_hosts: [
-    //   "host.docker.internal:host-gateway",
-    // ]
-    // cap_add: ["SYS_ADMIN"]
     networks: [
       #var.substrate.internal_network_name,
       #var.substrate.external_network_name,
@@ -186,7 +181,7 @@ daemons: "substrate": {
           "substrate-internal.network",
         ]
         Environment: {
-          SESSION_SECRET: "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
+          ORIGIN: "https://substrate.home.arpa"
           environment
         }
       }
