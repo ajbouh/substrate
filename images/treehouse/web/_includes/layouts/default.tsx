@@ -11,7 +11,7 @@ export default ({title, site, active, heading, subheading, children}) => (
   <link rel="stylesheet" href="/style/site.css" />
   <link rel="alternate" type="application/rss+xml" title="RSS Feed" href="/blog/feed.rss" />
   <link rel="alternate" type="application/rss+json" title="JSON Feed" href="/blog/feed.json" />
-  <script src="/analytics.js"></script>
+  <script src="./analytics.js"></script>
   <title>{title?`${title} - ${site.title}`:site.title}</title>
 </head>
 <body class={active}>

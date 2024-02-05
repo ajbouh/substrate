@@ -5,13 +5,13 @@ export default (data) => (
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" href="/icon.png" type="image/x-icon" />
-  <link rel="stylesheet" href="/style.css" />
-  <link rel="stylesheet" href="/style/site.css" />
+  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./style/site.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet" />
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="/analytics.js"></script>
+  <script src="./analytics.js"></script>
   <title>Treehouse: Note-taking Frontend</title>
 </head>
 <body>
@@ -32,7 +32,7 @@ export default (data) => (
         </svg>
         <span>GitHub</span>
       </a>
-      <a class="button hidden primary lg:flex" href="/demo/">
+      <a class="button hidden primary lg:flex" href="./demo/">
         <span>Try the Demo</span>
       </a>
     </nav>
@@ -64,7 +64,7 @@ export default (data) => (
         </div>
         <div class="relative" style={{minWidth: "640px"}}>
           <div class="dropshadow">&nbsp;</div>
-          <img class="bg-gray-400 image z-10 relative" width="640" height="420" src="/photos/hero-image.png" />
+          <img class="bg-gray-400 image z-10 relative" width="640" height="420" src="./photos/hero-image.png" />
         </div>
       </div>
       
@@ -82,19 +82,19 @@ export default (data) => (
       <h2 class="header">Simple note-taking out of the box</h2>
       <div class="flex flex-col gap-8 md:gap-16 md:flex-row">
         <div class="flex flex-col flex-1">
-          <img class="bg-gray-400 image h-64 mb-6 object-cover object-left" src="/photos/live-search.png" />
+          <img class="bg-gray-400 image h-64 mb-6 object-cover object-left" src="./photos/live-search.png" />
           <h3>Fields and Smart Nodes</h3>
           <p>Add metadata, then create a custom search view.</p>
         </div>
 
         <div class="flex flex-col flex-1">
-          <img class="bg-gray-400 image h-64 mb-6 object-cover object-left" src="/photos/quickadd-image.png" />
+          <img class="bg-gray-400 image h-64 mb-6 object-cover object-left" src="./photos/quickadd-image.png" />
           <h3>Quick Add and Daily Notes</h3>
           <p>Quickly add notes organized by date.</p>
         </div>
 
         <div class="flex flex-col flex-1">
-          <img class="bg-gray-400 image h-64 mb-6 object-cover object-left" src="/photos/search-image.png" />
+          <img class="bg-gray-400 image h-64 mb-6 object-cover object-left" src="./photos/search-image.png" />
           <h3>Full-Text Search</h3>
           <p>Quick, intuitive search that can be extended.</p>
         </div>
