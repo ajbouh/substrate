@@ -65,10 +65,10 @@ async function compare(tests, corrects) {
             let result = await test(sample, correct);
             if (/^.*yes[^a-z]*$/i.test(result.trim())) {
                 count++;
-                console.log("yes", sample, correct);
+                console.log(`yes, ${sample}, ${correct}`);
                 answer.notMissed[i] = true;
             } else {
-                console.log("no", sample, correct);
+                console.log(`no, ${sample}, ${correct}`);
             }
         }
         answer.hit[j] = count;
