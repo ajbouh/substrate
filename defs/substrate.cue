@@ -24,6 +24,7 @@ import (
   substrate: external_network_name: string
   substrate: resourcedirs_root: string
   substrate: internal_port: int
+  substrate: host_port: int
   substrate: external_origin: string
   substrate: internal_host: string
   substrate: internal_protocol: string
@@ -48,7 +49,7 @@ let substrate_cue_defs_live = "/live/defs"
 daemons: "substrate": {
   environment: {
     "DEBUG": "1"
-    "PORT": string | *"\(#var.substrate.internal_port)"
+    "PORT": "\(#var.substrate.internal_port)"
     "SUBSTRATE_DB": "/var/lib/substrate/data/substrate.sqlite"
     "SUBSTRATE_CUE_DEFS": string | *substrate_cue_defs
     if #var.substrate.live_defs {
@@ -86,12 +87,15 @@ daemons: "substrate": {
   ]
 
   #docker_compose_service: {
-    environment: {
+    "environment": {
       "SUBSTRATE_PROVISIONER": "docker"
 
       "SUBSTRATE_INTERNAL_NETWORK": "\(#var.substrate.docker_compose_prefix)\(#var.substrate.internal_network_name)"
       "SUBSTRATE_EXTERNAL_NETWORK": "\(#var.substrate.docker_compose_prefix)\(#var.substrate.external_network_name)"
     }
+    ports: [
+      "127.0.0.1:\(#var.substrate.host_port):\(environment.PORT)",
+    ]
 
     if !#var.no_cuda {
       deploy: resources: reservations: devices: [{driver: "nvidia", count: "all", capabilities: ["gpu"]}]
@@ -177,8 +181,7 @@ daemons: "substrate": {
       Container: {
         SecurityLabelDisable: true
         PublishPort: [
-          // To make localhost forwarding work (e.g. qemu, publish on the same port)
-          "\(Environment.PORT):\(Environment.PORT)",
+          "\(#var.substrate.host_port):\(Environment.PORT)",
         ]
         AddDevice: ["nvidia.com/gpu=all"]
         Network: [
