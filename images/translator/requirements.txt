@@ -1,0 +1,13 @@
+fastapi==0.95.2
+# fairseq2==0.1
+# pydub
+# https://github.com/facebookresearch/seamless_communication/archive/e2da150.zip
+torchaudio==2.0.2
+transformers==4.36.2
+numpy==1.24.3
+pydantic==1.10.8
+uvicorn==0.22.0
+sentencepiece==0.1.99
+protobuf==4.25.1
+soundfile==0.12.1
+pycountry==23.12.11
