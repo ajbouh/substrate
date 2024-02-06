@@ -152,7 +152,7 @@ func (m *Main) SavedSessions() (names []string, err error) {
 
 func (m *Main) StartSession(sess *Session) {
 	var err error
-	sess.peer, err = local.NewPeer(fmt.Sprintf("ws://localhost:8088/sessions/%s?sfu", sess.ID)) // FIX: hardcoded host
+	sess.peer, err = local.NewPeer(fmt.Sprintf("ws://localhost:8080/sessions/%s?sfu", sess.ID)) // FIX: hardcoded host
 	fatal(err)
 	sess.peer.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 		sessTrack := sess.NewTrack(m.format)
@@ -301,8 +301,8 @@ func (m *Main) Serve(ctx context.Context) {
 	http.Handle("/ui/", http.StripPrefix("/ui", http.FileServer(http.FS(ui.Dir))))
 	http.Handle("/", http.RedirectHandler("/sessions", http.StatusFound))
 
-	log.Println("running on http://localhost:8088 ...")
-	log.Fatal(http.ListenAndServe(":8088", nil))
+	log.Println("running on http://localhost:8080 ...")
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
 type fileSeeker struct {
