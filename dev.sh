@@ -406,7 +406,6 @@ systemd_reload() {
 
   # HACK restart a few services by name. It would be much better to it based on what's changed...
   sudo systemctl restart substrate caddy nvidia-ctk-cdi-generate vscode-server
-  journalctl -xfeu substrate.service
 }
 
 os_oob_make() {
@@ -483,6 +482,17 @@ case "$1" in
     shift
     set_os_vars
     systemd_reload "$@"
+    ;;
+  systemd-logs)
+    shift
+    set_os_vars
+    systemd_logs
+    ;;
+  systemd-reload-follow|srf)
+    shift
+    set_os_vars
+    systemd_reload "$@"
+    systemd_logs
     ;;
   build-iso)
     shift
