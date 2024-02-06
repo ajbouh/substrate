@@ -119,13 +119,15 @@ We support and collaborate closely with young and upcoming projects like Llamafi
 
 Voice-based assistant systems like Amazon's Alexa, Apple's Siri, and Google Home.
 
-❌ None are open, hackable, or extensible. None have research platforms.
+    ❌ None are open, hackable, or extensible. None have research platforms.
+
 Copilot-like experiences from GitHub, Microsoft, and Google.
 
-❌  None are truly local and bespoke tailored intelligence for your unique needs.
+    ❌ None are truly local and bespoke tailored intelligence for your unique needs.
+
 AI SaaS offerings from OpenAI, Anthropic, and Google.
 
-❌  All of them make users the product for massive data mining operations.
+    ❌ All of them make users the product for massive data mining operations.
 
 ---
 
