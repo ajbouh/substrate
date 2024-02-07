@@ -21,8 +21,8 @@ export var Sidebar = {
           ]
         ),
         ...sessions.map(s => m("div", {"class":"px-6 py-2"}, 
-          m("a", {"href":`./sessions/${s}`}, 
-            s
+          m("a", {"href":`./sessions/${s.ID}`},
+            new Date(s.Start).toLocaleString()
           )
         )) 
       ]
