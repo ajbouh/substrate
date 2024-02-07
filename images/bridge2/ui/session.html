@@ -6,21 +6,28 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mithril/2.2.3/mithril.min.js" integrity="sha512-veJyRkYTPP9HJBUEq3oqA1uBzxGA+OiiHkcgT4Nm8Ovg9dNKSxf4mxClYVCkujcxIz+reFruwp4OPsXY10U8UA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="https://cdn.jsdelivr.net/npm/cbor-js@0.1.0/cbor.min.js"></script>
-  <script src="/webrtc/localmedia.js"></script>
-  <link rel="stylesheet" href="/ui/session.css" />
+  <script src="./webrtc/localmedia.js"></script>
+  <link rel="stylesheet" href="./ui/session.css" />
 </head>
 <body class="flex flex-row bg-gray-900 text-white antialiased"> 
   <script type="module">
 
-import {Session} from "/ui/session.js";
-import {Sidebar} from "/ui/sidebar.js";
-import {Topbar} from "/ui/topbar.js";
-import {Session as SFU} from "/webrtc/session.js";
+import {Session} from "./ui/session.js";
+import {Sidebar} from "./ui/sidebar.js";
+import {Topbar} from "./ui/topbar.js";
+import {Session as SFU} from "./webrtc/session.js";
 
+let webSocketURL = (() => {
+  let u = new URL(`ws://${location.host}${location.pathname}`);
+  if (window.location.protocol == "https:") {
+    u.protocol = 'wss:'
+  }
+  return u.toString();
+})();
 
 let sess = null;
 const initSession = () => {
-  sess = new SFU(`ws://${location.host}${location.pathname}?sfu`);
+  sess = new SFU(`${webSocketURL}?sfu`);
   sess.onclose = (evt) => console.log("Websocket has closed");
   sess.onerror = (evt) => console.log("ERROR: " + evt.data);
   sess.ontrack = ({ streams: [stream], track }) => {
@@ -40,7 +47,7 @@ localMedia.onstreamchange = (stream) => {
 }
 
 let viewModel = {};
-let dataWS = new WebSocket(`ws://${location.host}${location.pathname}?data`);
+let dataWS = new WebSocket(`${webSocketURL}?data`);
 dataWS.binaryType = 'arraybuffer';
 dataWS.onmessage = e => {
   const data = CBOR.decode((new Uint8Array(e.data)).buffer);

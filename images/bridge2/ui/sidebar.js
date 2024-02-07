@@ -9,7 +9,7 @@ export var Sidebar = {
             m("h1", {"class":"py-1 text-xl font-bold grow"}, 
               "bridge"
             ),
-            m("a", {"class":"py-2","href":"/sessions"}, 
+            m("a", {"class":"py-2","href":"./sessions"}, 
               m("svg", {"class":"feather feather-plus-square","xmlns":"http://www.w3.org/2000/svg","width":"24","height":"24","viewBox":"0 0 24 24","fill":"none","stroke":"currentColor","stroke-width":"2","stroke-linecap":"round","stroke-linejoin":"round"},
                 [
                   m("rect", {"x":"3","y":"3","width":"18","height":"18","rx":"2","ry":"2"}),
@@ -21,7 +21,7 @@ export var Sidebar = {
           ]
         ),
         ...sessions.map(s => m("div", {"class":"px-6 py-2"}, 
-          m("a", {"href":`/sessions/${s}`}, 
+          m("a", {"href":`./sessions/${s}`}, 
             s
           )
         )) 
