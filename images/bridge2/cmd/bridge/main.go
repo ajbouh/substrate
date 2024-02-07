@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -57,6 +58,14 @@ func main() {
 	)
 }
 
+var cborenc = func() cbor.EncMode {
+	opts := cbor.CoreDetEncOptions()
+	opts.Time = cbor.TimeRFC3339
+	em, err := opts.EncMode()
+	fatal(err)
+	return em
+}()
+
 type eventLogger struct {
 	exclude []string
 }
@@ -81,6 +90,11 @@ type Main struct {
 	mu sync.Mutex
 }
 
+type SessionInfo struct {
+	ID    string
+	Start time.Time
+}
+
 type Session struct {
 	*tracks.Session
 	sfu  *sfu.Session
@@ -88,7 +102,7 @@ type Session struct {
 }
 
 type View struct {
-	Sessions []string
+	Sessions []SessionInfo
 	Session  *Session
 }
 
@@ -118,7 +132,7 @@ func (m *Main) TerminateDaemon(ctx context.Context) error {
 }
 
 func saveSession(sess *Session) error {
-	b, err := cbor.Marshal(sess)
+	b, err := cborenc.Marshal(sess)
 	if err != nil {
 		return err
 	}
@@ -138,16 +152,41 @@ func saveSession(sess *Session) error {
 	return nil
 }
 
-func (m *Main) SavedSessions() (names []string, err error) {
-	dir, err := os.ReadDir("./sessions")
+func readSession(root, id string) (*tracks.Session, error) {
+	b, err := os.ReadFile(filepath.Join(root, id, "session"))
+	if err != nil {
+		return nil, err
+	}
+	var sess tracks.Session
+	if err := cbor.Unmarshal(b, &sess); err != nil {
+		return nil, err
+	}
+	return &sess, nil
+}
+
+func (m *Main) SavedSessions() (info []SessionInfo, err error) {
+	root := "./sessions"
+	dir, err := os.ReadDir(root)
 	if err != nil {
 		return nil, err
 	}
 	for _, fi := range dir {
 		if fi.IsDir() {
-			names = append(names, fi.Name())
+			log.Printf("reading session %s", fi.Name())
+			sess, err := readSession(root, fi.Name())
+			if err != nil {
+				log.Printf("error reading session %s: %s", fi.Name(), err)
+				continue
+			}
+			info = append(info, SessionInfo{
+				ID:    string(sess.ID),
+				Start: sess.Start,
+			})
 		}
 	}
+	sort.Slice(info, func(i, j int) bool {
+		return info[i].Start.After(info[j].Start)
+	})
 	return
 }
 
@@ -276,7 +315,7 @@ func (m *Main) Serve(ctx context.Context) {
 					// update on this session
 					names, err := m.SavedSessions()
 					fatal(err)
-					data, err := cbor.Marshal(View{
+					data, err := cborenc.Marshal(View{
 						Sessions: names,
 						Session:  sess,
 					})
