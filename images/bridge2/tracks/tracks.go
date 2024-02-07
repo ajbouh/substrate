@@ -124,8 +124,9 @@ type sessionSnapshot struct {
 
 func (s *Session) snapshot() *sessionSnapshot {
 	snap := &sessionSnapshot{
-		ID:    s.ID,
-		Start: s.Start,
+		ID:     s.ID,
+		Start:  s.Start,
+		Tracks: []*trackSnapshot{}, // empty slice to ensure it doesn't serialize as "null"
 	}
 	s.tracks.Range(func(key, value any) bool {
 		snap.Tracks = append(snap.Tracks, value.(*Track).snapshot())
@@ -297,6 +298,7 @@ func (t *Track) snapshot() *trackSnapshot {
 		ID:     t.ID,
 		Start:  t.start,
 		Format: t.audio.Format(),
+		Events: []Event{}, // empty slice to ensure it doesn't serialize as "null"
 	}
 	t.rangeEvents(func(e Event) bool {
 		data.Events = append(data.Events, e)
