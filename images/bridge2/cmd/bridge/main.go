@@ -1,13 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"io/fs"
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"sync"
 	"time"
@@ -206,6 +207,8 @@ func sessionUpdateHandler(ctx context.Context, sess *Session) chan struct{} {
 }
 
 func (m *Main) Serve(ctx context.Context) {
+	basePath := "/gw/bridge2/"
+
 	m.sessions = make(map[string]*Session)
 
 	upgrader := websocket.Upgrader{
@@ -231,7 +234,7 @@ func (m *Main) Serve(ctx context.Context) {
 		m.mu.Unlock()
 		fatal(os.MkdirAll(fmt.Sprintf("./sessions/%s", sess.ID), 0744))
 		go m.StartSession(sess)
-		http.Redirect(w, r, fmt.Sprintf("/sessions/%s", sess.ID), http.StatusFound)
+		http.Redirect(w, r, path.Join(basePath, "sessions", string(sess.ID)), http.StatusFound)
 	})
 
 	http.HandleFunc("/sessions/", func(w http.ResponseWriter, r *http.Request) {
@@ -287,31 +290,24 @@ func (m *Main) Serve(ctx context.Context) {
 			return
 		}
 
-		f, err := ui.Dir.Open("session.html")
+		content, err := fs.ReadFile(ui.Dir, "session.html")
 		if err != nil {
 			log.Println(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		defer f.Close()
-		http.ServeContent(w, r, "session.html", time.Now(), fileSeeker{f})
+		content = bytes.Replace(content,
+			[]byte("<head>"),
+			[]byte(`<head><base href="`+basePath+`">`),
+			1)
+		b := bytes.NewReader(content)
+		http.ServeContent(w, r, "session.html", time.Now(), b)
 	})
 
 	http.Handle("/webrtc/", http.StripPrefix("/webrtc", http.FileServer(http.FS(js.Dir))))
 	http.Handle("/ui/", http.StripPrefix("/ui", http.FileServer(http.FS(ui.Dir))))
-	http.Handle("/", http.RedirectHandler("/sessions", http.StatusFound))
+	http.Handle("/", http.RedirectHandler(path.Join(basePath, "sessions"), http.StatusFound))
 
 	log.Println("running on http://localhost:8080 ...")
 	log.Fatal(http.ListenAndServe(":8080", nil))
-}
-
-type fileSeeker struct {
-	fs.File
-}
-
-func (fsk fileSeeker) Seek(offset int64, whence int) (int64, error) {
-	if seeker, ok := fsk.File.(io.Seeker); ok {
-		return seeker.Seek(offset, whence)
-	}
-	return 0, io.ErrUnexpectedEOF
 }
