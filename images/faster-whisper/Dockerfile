@@ -8,22 +8,14 @@ RUN apt-get update \
     libsndfile-dev \
   && rm -rf /var/lib/apt/lists/*
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Copy the requirements file to the container
-COPY images/faster-whisper/requirements.txt .
-
 # Install the dependencies
+COPY images/faster-whisper/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the source code to the container
 COPY images/faster-whisper/. .
-COPY pkg/asr substrate/asr
 
-# Expose the port on which the application will run (default is 8080)
-EXPOSE 8080
 ENV PYTHONUNBUFFERED=1
-
-# Start the application with Uvicorn
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
+ENTRYPOINT ["uvicorn", "app:app", "--host", "0.0.0.0"]

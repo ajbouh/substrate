@@ -2,7 +2,7 @@ import numpy as np
 from faster_whisper import WhisperModel
 import os
 
-from substrate.asr import Request, Response, Segment, Word, new_v1_api_app
+from transcriber import Request, Response, Segment, Word, new_v1_api_app
 
 import base64
 import io
@@ -24,7 +24,12 @@ model = WhisperModel(
 
 def transcribe(request: Request) -> Response:
     data = base64.b64decode(request.audio_data)
-    waveform, sample_rate = ogg2wav(data)
+    metadata = request.audio_metadata
+    if metadata and metadata.mime_type == 'audio/opus':
+        waveform, sample_rate = ogg2wav(data)
+    else:
+        waveform = io.BytesIO(data)
+        sample_rate = metadata.sample_rate if metadata else 16000
 
     segments, info = model.transcribe(
         waveform,

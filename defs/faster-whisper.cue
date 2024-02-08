@@ -6,7 +6,12 @@ import (
 
 enable: "faster-whisper": true
 
-imagespecs: "faster-whisper": {}
+tests: "faster-whisper": transcribe: {
+  test_templates["transcriber"]
+
+  environment: URL: "http://faster-whisper:8080/v1/transcribe"
+  depends_on: "faster-whisper": true
+}
 
 // default model choices are
 // "Systran/faster-whisper-tiny",
@@ -21,23 +26,35 @@ imagespecs: "faster-whisper": {}
 // "Systran/faster-whisper-large-v2",
 // "Systran/faster-whisper-large-v3",
 
+imagespecs: "faster-whisper": {}
+
 lenses: "faster-whisper": {
   spawn: {}
   spawn: {
     environment: {
       MODEL_REPO: string
+      PORT: string
     }
+
+    #docker_compose_service: {
+      // On Docker Desktop for macOS on an M3 Max, I see an error when we use platform linux/amd64.
+      // So switch back to the default and let it be linux/aarch64 if appropriate.
+      // ImportError: libctranslate2-1e22bce9.so.3.24.0: cannot enable executable stack as shared object requires: Invalid argument
+      platform: ""
+    }
+
+    command: ["--port", environment.PORT]
 
     resourcedirs: {
       tiny: {
         id: "huggingface:model:Systran/faster-whisper-tiny:d90ca5fe260221311c53c58e660288d3deb8d356"
       }
-      "large-v2": {
-        id: "huggingface:model:Systran/faster-whisper-large-v2:f0fe81560cb8b68660e564f55dd99207059c092e"
-      }
-      // "large-v3": {
-      //   id: "huggingface:model:Systran/faster-whisper-large-v3:edaa852ec7e145841d8ffdb056a99866b5f0a478"
+      // "large-v2": {
+      //   id: "huggingface:model:Systran/faster-whisper-large-v2:f0fe81560cb8b68660e564f55dd99207059c092e"
       // }
+      "large-v3": {
+        id: "huggingface:model:Systran/faster-whisper-large-v3:edaa852ec7e145841d8ffdb056a99866b5f0a478"
+      }
     }
 
     parameters: _
@@ -46,7 +63,7 @@ lenses: "faster-whisper": {
     let p = parameters
     if p.cuda_memory_total.resource.quantity > 0 {
       environment: {
-        MODEL_REPO: "/res/large-v2/huggingface/local"
+        MODEL_REPO: "/res/large-v3/huggingface/local"
         MODEL_DEVICE: "cuda"
         MODEL_COMPUTE_TYPE: "float16"
         CUDA_DEVICE_ORDER: "PCI_BUS_ID"
@@ -73,6 +90,7 @@ lenses: "faster-whisper": {
       response: {
         // headers: "Content-Type": "application/json"
         // body: asr.#Response
+        ...
       }
     }
   ]
