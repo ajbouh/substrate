@@ -36,15 +36,16 @@ const initSession = () => {
   };
 };
 
-const localMedia = new LocalMedia();
-localMedia.videoEnabled = false;
-localMedia.ondevicechange = () => m.redraw();
-localMedia.onstreamchange = (stream) => {
+const localMedia = new LocalMedia({
+  videoEnabled: false,
+  ondevicechange: () => m.redraw(),
+  onstreamchange: (stream) => {
     if (sess == null) {
       initSession();
     }
     sess.setStream(stream);
-}
+  },
+});
 
 let viewModel = {};
 let dataWS = new WebSocket(`${webSocketURL}?data`);

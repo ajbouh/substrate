@@ -1,15 +1,24 @@
 class LocalMedia {
-  constructor() {
-    this.onstreamchange = (stream) => null;
-    this.ondevicechange = () => null;
-    this.audioDevices = [];
-    this.videoDevices = [];
-    this.outputDevices = [];
-    this.audioSource = undefined;
-    this.videoSource = undefined;
-    this.audioEnabled = true;
-    this.videoEnabled = true;
-    this.stream = undefined;
+  constructor(opts) {
+    let defaults = {
+      onstreamchange: (stream) => null,
+      ondevicechange: () => null,
+      audioDevices: [],
+      videoDevices: [],
+      outputDevices: [],
+      audioSource: undefined,
+      videoSource: undefined,
+      audioEnabled: true,
+      videoEnabled: true,
+      stream: undefined,
+    };
+    for (const [key, defaultValue] of Object.entries(defaults)) {
+      if (opts.hasOwnProperty(key)) {
+        this[key] = opts[key];
+      } else {
+        this[key] = defaultValue;
+      }
+    }
     this.updateStream();
     this.updateDevices();
     navigator.mediaDevices.addEventListener('devicechange', () => this.updateDevices());
@@ -49,8 +58,8 @@ class LocalMedia {
       });
     } else {
       this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: {deviceId: this.audioSource ? {exact: this.audioSource} : true},
-        video: {deviceId: this.videoSource ? {exact: this.videoSource} : true}
+        audio: this.audioEnabled ? {deviceId: this.audioSource ? {exact: this.audioSource} : true} : false,
+        video: this.videoEnabled ? {deviceId: this.videoSource ? {exact: this.videoSource} : true} : false,
       });
     }
     if (!this.audioEnabled) {
