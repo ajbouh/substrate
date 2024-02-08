@@ -7,10 +7,12 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -84,6 +86,8 @@ type Main struct {
 
 	sessions map[string]*Session
 	format   beep.Format
+	basePath string
+	port     int
 
 	Daemon *daemon.Framework
 
@@ -105,6 +109,31 @@ func fatal(err error) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func must[T any](t T, err error) T {
+	fatal(err)
+	return t
+}
+
+func getEnv(key, def string) string {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	return v
+}
+
+func parsePort(port string) int {
+	port16 := must(strconv.ParseUint(port, 10, 16))
+	return int(port16)
+}
+
+func (m *Main) Initialize() {
+	basePath := os.Getenv("BRIDGE_URL_BASE_PATH")
+	// ensure the path starts and ends with a slash for setting <base href>
+	m.basePath = must(url.JoinPath("/", basePath, "/"))
+	m.port = parsePort(getEnv("PORT", "8080"))
 }
 
 func (m *Main) InitializeCLI(root *cli.Command) {
@@ -172,7 +201,7 @@ func (m *Main) SavedSessions() (info []*tracks.SessionInfo, err error) {
 
 func (m *Main) StartSession(sess *Session) {
 	var err error
-	sess.peer, err = local.NewPeer(fmt.Sprintf("ws://localhost:8080/sessions/%s?sfu", sess.ID)) // FIX: hardcoded host
+	sess.peer, err = local.NewPeer(fmt.Sprintf("ws://localhost:%d/sessions/%s?sfu", m.port, sess.ID)) // FIX: hardcoded host
 	fatal(err)
 	sess.peer.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 		sessTrack := sess.NewTrack(m.format)
@@ -226,8 +255,6 @@ func sessionUpdateHandler(ctx context.Context, sess *Session) chan struct{} {
 }
 
 func (m *Main) Serve(ctx context.Context) {
-	basePath := "/gw/bridge2/"
-
 	m.sessions = make(map[string]*Session)
 
 	upgrader := websocket.Upgrader{
@@ -253,7 +280,7 @@ func (m *Main) Serve(ctx context.Context) {
 		m.mu.Unlock()
 		fatal(os.MkdirAll(fmt.Sprintf("./sessions/%s", sess.ID), 0744))
 		go m.StartSession(sess)
-		http.Redirect(w, r, path.Join(basePath, "sessions", string(sess.ID)), http.StatusFound)
+		http.Redirect(w, r, path.Join(m.basePath, "sessions", string(sess.ID)), http.StatusFound)
 	})
 
 	http.HandleFunc("/sessions/", func(w http.ResponseWriter, r *http.Request) {
@@ -317,7 +344,7 @@ func (m *Main) Serve(ctx context.Context) {
 		}
 		content = bytes.Replace(content,
 			[]byte("<head>"),
-			[]byte(`<head><base href="`+basePath+`">`),
+			[]byte(`<head><base href="`+m.basePath+`">`),
 			1)
 		b := bytes.NewReader(content)
 		http.ServeContent(w, r, "session.html", time.Now(), b)
@@ -325,8 +352,8 @@ func (m *Main) Serve(ctx context.Context) {
 
 	http.Handle("/webrtc/", http.StripPrefix("/webrtc", http.FileServer(http.FS(js.Dir))))
 	http.Handle("/ui/", http.StripPrefix("/ui", http.FileServer(http.FS(ui.Dir))))
-	http.Handle("/", http.RedirectHandler(path.Join(basePath, "sessions"), http.StatusFound))
+	http.Handle("/", http.RedirectHandler(path.Join(m.basePath, "sessions"), http.StatusFound))
 
-	log.Println("running on http://localhost:8080 ...")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Printf("running on http://localhost:%d ...", m.port)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", m.port), nil))
 }
