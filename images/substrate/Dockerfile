@@ -24,9 +24,6 @@ RUN --mount=type=cache,target=/go/pkg/mod \
   -o /substrate ./cmd
 
 FROM source as test
-RUN go test \
-  -tags "remote exclude_graphdriver_btrfs btrfs_noversion exclude_graphdriver_devicemapper containers_image_openpgp"\
-  github.com/ajbouh/substrate/images/substrate/...
 
 # Used when we want to debug
 FROM docker.io/tianon/toybox:latest as toybox

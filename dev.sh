@@ -299,9 +299,6 @@ set_docker_vars() {
   CUE_DEV_DEFS="defs"
   USE_VARSET="docker_compose"
   BUILD_SOURCE_DIRECTORY="$HERE"
-
-  # Keep things simple and force amd64, even on Apple Silicon
-  export DOCKER_DEFAULT_PLATFORM=linux/amd64
 }
 
 systemd_logs() {
@@ -476,6 +473,29 @@ case "$1" in
  
     DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
     docker_compose $DOCKER_COMPOSE_FILE build "$@"
+    ;;
+  test)
+    shift
+    if [ $# -eq 0 ]; then
+      COMPOSE_PROFILES="tests"
+    else
+      COMPOSE_PROFILES="tests.$1"
+      shift
+      for t in "$@"; do
+        COMPOSE_PROFILES="$profiles,tests.$t"
+      done
+    fi
+
+    set_docker_vars
+    check_cue_dev_expr_as_cue
+    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
+    export COMPOSE_PROFILES
+    docker_compose $DOCKER_COMPOSE_FILE up \
+      --always-recreate-deps \
+      --remove-orphans \
+      --force-recreate \
+      --abort-on-container-exit	\
+      --build
     ;;
   docker-compose-up)
     shift

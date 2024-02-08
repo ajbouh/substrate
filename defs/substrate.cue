@@ -48,6 +48,18 @@ imagespecs: "substrate": {
 
 let substrate_cue_defs_live = "/live/defs"
 
+tests: "substrate": go: {
+  build: {
+    target: "test"
+    dockerfile: "images/substrate/Dockerfile"
+  }
+  command: [
+    "go", "test",
+    "-tags", "remote exclude_graphdriver_btrfs btrfs_noversion exclude_graphdriver_devicemapper containers_image_openpgp",
+    "github.com/ajbouh/substrate/images/substrate/...",
+  ]
+}
+
 daemons: "substrate": {
   environment: {
     "PORT": string | *"\(#var.substrate.internal_port)"

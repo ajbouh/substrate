@@ -75,6 +75,17 @@ enable: [string]: bool
 
 live_edit: [string]: bool | *false
 
+#TestDef: {
+  imagespec
+  containerspec.#ContainerSpec
+
+  depends_on: [string]: true
+}
+
+test_templates: [string]: #TestDef
+
+tests: [key=string]: [suitealias=string]: #TestDef
+
 imagespecs: [key=string]: imagespec & {
   image: "\(#var.image_prefix)\(key)"
   build: dockerfile: string | *"images/\(key)/Dockerfile"
@@ -195,23 +206,54 @@ for key, def in #out.resourcedir_fetches {
   }).#out
 }
 
-#out: "docker_compose": {
+#out: docker_compose_profiles: {
+  // Everything is in default
+  [string]: "default": true
+
+  for key, def in #out.daemons {
+    (key): "daemons": true
+  }
+
   for key, def in #out.imagespecs {
-    services: (key): profiles: [
-      if #out.daemons[key] != _|_ {
-        "daemons",
+    (key): {}
+  }
+
+  for key, def in #out.#lenses {
+    (key): {}
+  }
+
+  for testkey, testsuites in tests {
+    for suitealias, suitedef in testsuites {
+      "tests.\(testkey).\(suitealias)": {
+        "tests": true
+        "tests.\(testkey)": true
+        "tests.\(testkey).\(suitealias)": true
       }
-      "default",
-    ]
+
+      for depkey, b in suitedef.depends_on {
+        (depkey): {
+          "tests": true
+          "tests.\(testkey)": true
+          "tests.\(testkey).\(suitealias)": true
+        }
+      }
+    }
   }
 
   for key, def in #out.resourcedir_fetches {
-    services: "resourcedir-\(def.sha256)": {
-      profiles: [
-        "resourcedirs",
-        "default",
-      ]
+    "resourcedir-\(def.sha256)": "resourcedirs": true
+  }
+}
 
+#out: "docker_compose": {
+  // Keep things simple and default to amd64, even on Apple Silicon
+  services: [string]: platform: string | *"linux/amd64"
+
+  // Remap
+  services: [key=string]: profiles: [ for p, b in #out.docker_compose_profiles[key] { p } ]
+
+  for key, def in #out.resourcedir_fetches {
+    services: "resourcedir-\(def.sha256)": {
       (containerspec.#DockerComposeService & {
         #containerspec: def.#containerspec
         #imagespec: def.#imagespec
@@ -229,16 +271,17 @@ for key, def in #out.resourcedir_fetches {
     }).#out
   }
 
-  for key, def in #out.imagespecs {
-    services: "\(key)-test": {
-      profiles: [
-        "test",
-      ]
-      build: {
-        if def.build.context != _|_ { context: def.build.context }
-        if def.build.args != _|_ { args: def.build.args }
-        if def.build.dockerfile != _|_ { dockerfile: def.build.dockerfile }
-        target: "test"
+  for testkey, testsuites in tests {
+    for suitealias, suitedef in testsuites {
+      let key = "tests.\(testkey).\(suitealias)"
+      volumes: (containerspec.#DockerComposeVolumes & {#containerspec: suitedef}).#out
+      services: (key): {
+        // Use build platform instead of linux/amd64 default from elsewhere
+        platform: ""
+        (containerspec.#DockerComposeService & {#containerspec: suitedef, #imagespec: suitedef}).#out
+        if suitedef.depends_on != _|_ {
+          depends_on: [ for dep, b in suitedef.depends_on { dep } ]
+        }
       }
     }
   }
@@ -250,28 +293,25 @@ for key, def in #out.resourcedir_fetches {
   }
 
   for key, def in #out.#lenses {
-    // need to profiles for lenses too, as not all lenses have their own imagespec.
-    services: (key): profiles: [
-      if #out.daemons[key] != _|_ {
-        "daemons",
-      }
-      "default",
-    ]
-
     if def.spawn != _|_ {
       services: (key): {
         environment: PORT: string
         ports: [
           "127.0.0.1:8081:\(environment.PORT)",
         ]
+        if def.spawn.#docker_compose_service != _|_ {
+          def.spawn.#docker_compose_service
+        }
         (containerspec.#DockerComposeService & {
           #containerspec: {
             "environment": def.spawn.environment
             "command": def.spawn.command
             "image": def.spawn.image
-            for alias, rddef in def.spawn.resourcedirs {
-              mounts: [{source: "\(#var.build_resourcedirs_root)/\(rddef.sha256)", "destination": "/res/\(alias)", "mode": "Z"}]
-            }
+            mounts: [
+              for alias, rddef in def.spawn.resourcedirs {
+                {source: "\(#var.build_resourcedirs_root)/\(rddef.sha256)", "destination": "/res/\(alias)", "mode": "Z"}
+              }
+            ]
           }
         }).#out
       }
