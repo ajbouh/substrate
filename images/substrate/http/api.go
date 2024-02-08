@@ -22,14 +22,8 @@ func stringPtr(s string) *string {
 func newApiHandler(s *substrate.Substrate) http.Handler {
 	router := httprouter.New()
 
-	handleRaw := func(method, route string, f func(rw http.ResponseWriter, req *http.Request, p httprouter.Params)) {
-		// register below / and /gw/substrate/
-		router.Handle(method, route, f)
-		router.Handle(method, "/gw/substrate"+route, f)
-	}
-
 	handle := func(method, route string, f func(req *http.Request, p httprouter.Params) (interface{}, int, error)) {
-		handleRaw(method, route, func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
+		router.Handle(method, route, func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
 			jsonrw := httputil.NewJSONResponseWriter(rw)
 			jsonrw(f(req, p))
 		})
@@ -49,7 +43,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		ForceReadOnly bool   `json:"force_read_only"`
 	}
 
-	handle("POST", "/api/v1/activities", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("POST", "/substrate/v1/activities", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		r := &ActivityRequest{}
 		status, err := httputil.ReadRequestBody(req, &r)
 		if err != nil {
@@ -61,7 +55,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 			statusStreamURLPrefix = statusStreamURLPrefix + "/"
 		}
 
-		views, err := activityspec.ParseActivitySpecRequest(r.ActivitySpec, r.ForceReadOnly, "/gw/" + r.ActivitySpec + "/")
+		views, err := activityspec.ParseActivitySpecRequest(r.ActivitySpec, r.ForceReadOnly, "/"+r.ActivitySpec+"/")
 		if err != nil {
 			return nil, http.StatusBadRequest, err
 		}
@@ -133,7 +127,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		}, http.StatusOK, nil
 	})
 
-	handle("POST", "/api/v1/spaces", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("POST", "/substrate/v1/spaces", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		// TODO should we allow setting an alias here?
 		r := &activityspec.SpaceViewRequest{}
 		status, err := httputil.ReadRequestBody(req, &r)
@@ -197,7 +191,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		}, http.StatusOK, nil
 	})
 
-	handle("DELETE", "/api/v1/spaces/:space", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("DELETE", "/substrate/v1/spaces/:space", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		w := p.ByName("space")
 		result, err := s.ListSpaces(req.Context(), &substrate.SpaceListQuery{
 			SpaceWhere: substrate.SpaceWhere{
@@ -229,7 +223,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		return nil, http.StatusOK, nil
 	})
 
-	handle("PATCH", "/api/v1/spaces/:space", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("PATCH", "/substrate/v1/spaces/:space", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		r := &substrate.SpaceListingPatch{}
 		status, err := httputil.ReadRequestBody(req, &r)
 		if err != nil {
@@ -244,7 +238,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		return nil, http.StatusOK, nil
 	})
 
-	handleRaw("GET", "/api/v1/backend/:backend/status/stream", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
+	router.Handle("GET", "/substrate/v1/backend/:backend/status/stream", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
 		ch, err := s.Driver.StatusStream(req.Context(), p.ByName("backend"))
 		if err != nil {
 			http.Error(rw, fmt.Sprintf("upstream error: %s", err), http.StatusInternalServerError)
@@ -274,7 +268,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		}
 	})
 
-	handle("GET", "/api/v1/lenses/:lens", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("GET", "/substrate/v1/lenses/:lens", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		lens, err := s.DefSet().ResolveService(req.Context(), p.ByName("lens"))
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
@@ -285,7 +279,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		return lens, http.StatusOK, nil
 	})
 
-	handle("GET", "/api/v1/activities", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("GET", "/substrate/v1/activities", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		query := req.URL.Query()
 		activities, err := s.ListActivities(req.Context(), &substrate.ActivityListRequest{
 			ActivityWhere: substrate.ActivityWhere{
@@ -312,7 +306,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		return list, http.StatusOK, nil
 	})
 
-	handle("GET", "/api/v1/spaces/:space", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("GET", "/substrate/v1/spaces/:space", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		w := p.ByName("space")
 		result, err := s.ListSpaces(req.Context(), &substrate.SpaceListQuery{
 			SpaceWhere: substrate.SpaceWhere{
@@ -334,7 +328,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		return result[0], http.StatusOK, nil
 	})
 
-	handle("GET", "/api/v1/lenses", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("GET", "/substrate/v1/lenses", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		lenses, err := s.DefSet().AllServices(req.Context())
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
@@ -343,7 +337,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		return lenses, http.StatusOK, nil
 	})
 
-	handle("GET", "/api/v1/spaces", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("GET", "/substrate/v1/spaces", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		query := req.URL.Query()
 		result, err := s.ListSpaces(req.Context(), &substrate.SpaceListQuery{
 			SpaceWhere: substrate.SpaceWhere{
@@ -365,7 +359,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	})
 
 	// List all collections for an owner
-	handle("GET", "/api/v1/collections/:owner", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("GET", "/substrate/v1/collections/:owner", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		query := req.URL.Query()
 		result, err := s.ListCollections(req.Context(), &substrate.CollectionListQuery{
 			CollectionMembershipWhere: substrate.CollectionMembershipWhere{
@@ -380,7 +374,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	})
 
 	// Get specific collection (or list of collections with given prefix) for an owner
-	handle("GET", "/api/v1/collections/:owner/:name", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("GET", "/substrate/v1/collections/:owner/:name", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		query := req.URL.Query()
 		name := p.ByName("name")
 		var nameP *string
@@ -408,7 +402,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	})
 
 	// Attach a lens to a collection
-	handle("POST", "/api/v1/collections/:owner/:name/lenses", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("POST", "/substrate/v1/collections/:owner/:name/lenses", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		r := struct {
 			ServiceSpec string         `json:"lensspec"`
 			IsPublic    bool           `json:"public,omitempty"`
@@ -438,7 +432,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	})
 
 	// Add a space to a collection
-	handle("POST", "/api/v1/collections/:owner/:name/spaces", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("POST", "/substrate/v1/collections/:owner/:name/spaces", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		r := struct {
 			SpaceID    string         `json:"space"`
 			IsPublic   bool           `json:"public,omitempty"`
@@ -462,7 +456,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	})
 
 	// Remove a space from a collection
-	handle("DELETE", "/api/v1/collections/:owner/:name/spaces/:space", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("DELETE", "/substrate/v1/collections/:owner/:name/spaces/:space", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		err := s.DeleteCollectionMembership(req.Context(), &substrate.CollectionMembershipWhere{
 			Owner:   stringPtr(p.ByName("owner")),
 			Name:    stringPtr(p.ByName("name")),
@@ -475,7 +469,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	})
 
 	// Remove a lens from a collection
-	handle("DELETE", "/api/v1/collections/:owner/:name/lenses/:lensspec", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("DELETE", "/substrate/v1/collections/:owner/:name/lenses/:lensspec", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		err := s.DeleteCollectionMembership(req.Context(), &substrate.CollectionMembershipWhere{
 			Owner:       stringPtr(p.ByName("owner")),
 			Name:        stringPtr(p.ByName("name")),
@@ -487,7 +481,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		return nil, http.StatusOK, nil
 	})
 
-	handle("GET", "/api/v1/collections/:owner/:name/spaces", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("GET", "/substrate/v1/collections/:owner/:name/spaces", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		query := req.URL.Query()
 
 		name := p.ByName("name")
@@ -516,7 +510,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		return result[0].Members, http.StatusOK, nil
 	})
 
-	handle("GET", "/api/v1/collections/:owner/:name/lensspecs", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("GET", "/substrate/v1/collections/:owner/:name/lensspecs", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		query := req.URL.Query()
 
 		name := p.ByName("name")
@@ -545,7 +539,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		return result[0].Members, http.StatusOK, nil
 	})
 
-	handle("GET", "/api/v1/events", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("GET", "/substrate/v1/events", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		query := req.URL.Query()
 		result, err := s.ListEvents(req.Context(), &substrate.EventListRequest{
 			EventWhere: substrate.EventWhere{

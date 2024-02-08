@@ -205,7 +205,7 @@ daemons: "substrate": {
   activities: {
     // attach: {
     //   request: {
-    //     path: "/api/v1/collections/:owner/:name/lensspecs/:lensspec"
+    //     path: "/substrate/v1/collections/:owner/:name/lensspecs/:lensspec"
     //     method: "POST"
     //     schema: {
     //       owner: {
@@ -232,7 +232,7 @@ daemons: "substrate": {
 
       label: "Create new space"
       request: {
-        path: "/api/v1/spaces"
+        path: "/substrate/v1/spaces"
         method: "POST"
       }
       response: {
@@ -255,7 +255,7 @@ daemons: "substrate": {
 
       label: "fork space"
       request: {
-        path: "/api/v1/spaces"
+        path: "/substrate/v1/spaces"
         method: "POST"
         schema: {
           space_base_ref: {

@@ -69,6 +69,8 @@ type ServiceDefSpawn struct {
 	Command      []string                  `json:"command,omitempty"`
 	ResourceDirs map[string]ResourceDirDef `json:"resourcedirs,omitempty"`
 	Mounts       []ServiceDefSpawnMount    `json:"mounts,omitempty"`
+
+	URLPrefix string `json:"url_prefix,omitempty"`
 }
 
 type ServiceDefSpawnMount struct {

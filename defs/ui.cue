@@ -12,6 +12,8 @@ if live_edit["ui"] {
 
 lenses: "ui": {
   spawn: {
+    url_prefix: "/ui"
+
     if live_edit["ui"] {
       mounts: [
         { source: "\(#var.host_source_directory)/images/ui/static", destination: "/app/static", mode: "ro" },

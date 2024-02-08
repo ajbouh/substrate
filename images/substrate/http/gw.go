@@ -15,7 +15,7 @@ import (
 )
 
 func newLazyProxyHandler(sub *substrate.Substrate, api http.Handler) ([]string, func(rw http.ResponseWriter, req *http.Request, p httprouter.Params)) {
-	return []string{"/gw/:viewspec/*rest"}, func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
+	return []string{"/:viewspec/*rest"}, func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
 		log.Printf("%s %s %s", req.RemoteAddr, req.Method, req.URL.String())
 
 		viewspec := p.ByName("viewspec")
@@ -50,13 +50,12 @@ func newLazyProxyHandler(sub *substrate.Substrate, api http.Handler) ([]string, 
 		}
 		req.URL.RawPath = ""
 
-		views, err := activityspec.ParseActivitySpecRequest(viewspec, false, "/gw/" + viewspec + "/")
+		views, err := activityspec.ParseActivitySpecRequest(viewspec, false, "/"+viewspec+"/")
 		if err != nil {
 			jsonrw := httputil.NewJSONResponseWriter(rw)
 			jsonrw(nil, http.StatusBadRequest, err)
 			return
 		}
-
 		views.User = sub.User
 		views.ServiceSpawnRequest.User = sub.User
 		sub.ProvisionerCache.ProvisionReverseProxy(&views.ServiceSpawnRequest).ServeHTTP(rw, req)
