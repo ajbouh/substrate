@@ -131,13 +131,12 @@ func (r *ProvisionerCache) ProvisionReverseProxy(asr *ServiceSpawnRequest) http.
 	}
 
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	fn := r.provisionerFuncs[cacheKey]
 	if fn == nil {
 		fn = r.makeProvisionFunc(asr)
 		r.provisionerFuncs[cacheKey] = fn
 	}
+	r.mu.Unlock()
 
 	return provisioningReverseProxy(fn, 2, nil)
 }

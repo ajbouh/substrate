@@ -510,9 +510,6 @@ func (s *Substrate) ListSpaces(ctx context.Context, request *SpaceListQuery) ([]
 	}
 	defer rows.Close()
 
-	s.Mu.RLock()
-	defer s.Mu.RUnlock()
-
 	results := []*Space{}
 	for rows.Next() {
 		var o Space
@@ -710,9 +707,6 @@ func (s *Substrate) ListCollections(ctx context.Context, request *CollectionList
 		return nil, err
 	}
 	defer rows.Close()
-
-	s.Mu.RLock()
-	defer s.Mu.RUnlock()
 
 	results := []*Collection{}
 	for rows.Next() {

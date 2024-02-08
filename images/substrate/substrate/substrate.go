@@ -23,6 +23,7 @@ type Substrate struct {
 	ProvisionerCache *activityspec.ProvisionerCache
 
 	defSet *defset.DefSet
+	defSetMu *sync.RWMutex
 
 	Origin string
 
@@ -84,6 +85,7 @@ func New(
 	)
 	mu := &sync.RWMutex{}
 	defSet := defLoader(cueMu, cc, pc, layout)
+	defSetMu := &sync.RWMutex{}
 
 	s = &Substrate{
 		Driver:           driver,
@@ -91,6 +93,7 @@ func New(
 		defSet:           defSet,
 		DB:               db,
 		Mu:               mu,
+		defSetMu:         defSetMu,
 		Origin:           origin,
 	}
 
@@ -119,8 +122,8 @@ func New(
 			return
 		}
 
-		s.Mu.Lock()
-		defer s.Mu.Unlock()
+		s.defSetMu.Lock()
+		defer s.defSetMu.Unlock()
 		s.defSet = defSet
 	})
 	if err != nil {
@@ -131,8 +134,8 @@ func New(
 }
 
 func (s *Substrate) DefSet() *defset.DefSet {
-	s.Mu.RLock()
-	defer s.Mu.RUnlock()
+	s.defSetMu.RLock()
+	defer s.defSetMu.RUnlock()
 
 	return s.defSet
 }
