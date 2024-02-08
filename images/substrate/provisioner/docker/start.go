@@ -2,6 +2,7 @@ package dockerprovisioner
 
 import (
 	"context"
+	"fmt"
 	"errors"
 	"net/url"
 	"os"
@@ -80,6 +81,10 @@ func (p *P) dumpLogs(ctx context.Context, containerID string) error {
 	defer rd.Close()
 
 	_, err = stdcopy.StdCopy(os.Stderr, os.Stderr, rd)
+	if err != nil {
+		fmt.Printf("err tailing stderr: %s", err)
+	}
+
 	return err
 }
 
