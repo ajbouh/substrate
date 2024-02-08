@@ -31,8 +31,12 @@ type Handler interface {
 	HandleEvent(Event)
 }
 
+func newIDWithTime(t time.Time) ID {
+	return ID(xid.NewWithTime(t).String())
+}
+
 func newID() ID {
-	return ID(xid.New().String())
+	return newIDWithTime(time.Now().UTC())
 }
 
 type EventMeta struct {
@@ -77,6 +81,22 @@ func (e *Event) UnmarshalCBOR(data []byte) error {
 	return nil
 }
 
+type SessionInfo struct {
+	ID    ID
+	Start time.Time
+}
+
+func LoadSessionInfo(root, id string) (*SessionInfo, error) {
+	x, err := xid.FromString(id)
+	if err != nil {
+		return nil, err
+	}
+	return &SessionInfo{
+		ID:    ID(id),
+		Start: x.Time(),
+	}, nil
+}
+
 type Session struct {
 	EventEmitter
 	ID     ID
@@ -85,9 +105,10 @@ type Session struct {
 }
 
 func NewSession() *Session {
+	start := time.Now().UTC()
 	return &Session{
-		ID:    newID(),
-		Start: time.Now().UTC(),
+		ID:    newIDWithTime(start),
+		Start: start,
 	}
 }
 
