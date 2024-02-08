@@ -19,6 +19,8 @@ import (
 )
 
 type Substrate struct {
+	User string
+
 	Driver           activityspec.ProvisionDriver
 	ProvisionerCache *activityspec.ProvisionerCache
 
@@ -88,6 +90,7 @@ func New(
 	defSetMu := &sync.RWMutex{}
 
 	s = &Substrate{
+		User:             "nobody",
 		Driver:           driver,
 		ProvisionerCache: pc,
 		defSet:           defSet,

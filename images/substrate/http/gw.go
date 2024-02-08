@@ -10,7 +10,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
-	"github.com/ajbouh/substrate/images/substrate/auth"
 	"github.com/ajbouh/substrate/images/substrate/httputil"
 	"github.com/ajbouh/substrate/images/substrate/substrate"
 )
@@ -22,13 +21,6 @@ func newLazyProxyHandler(sub *substrate.Substrate, api http.Handler) ([]string, 
 		viewspec := p.ByName("viewspec")
 		if viewspec == "substrate" {
 			api.ServeHTTP(rw, req)
-			return
-		}
-
-		user, ok := auth.UserFromContext(req.Context())
-		if !ok {
-			jsonrw := httputil.NewJSONResponseWriter(rw)
-			jsonrw(nil, http.StatusBadRequest, fmt.Errorf("user not available in context"))
 			return
 		}
 
@@ -65,8 +57,8 @@ func newLazyProxyHandler(sub *substrate.Substrate, api http.Handler) ([]string, 
 			return
 		}
 
-		views.User = user.GithubUsername
-		views.ServiceSpawnRequest.User = user.GithubUsername
+		views.User = sub.User
+		views.ServiceSpawnRequest.User = sub.User
 		sub.ProvisionerCache.ProvisionReverseProxy(&views.ServiceSpawnRequest).ServeHTTP(rw, req)
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
-	"github.com/ajbouh/substrate/images/substrate/auth"
 	"github.com/ajbouh/substrate/images/substrate/substrate"
 )
 
@@ -33,9 +32,7 @@ func newUIHandler(sub *substrate.Substrate) ([]string, func(rw http.ResponseWrit
 
 			// We are keeping the leading /ui for simplicity...
 			req.Host = ""
-			if user, ok := auth.UserFromContext(req.Context()); ok {
-				req.Header.Set("Substrate-Github-Username", user.GithubUsername)
-			}
+			req.Header.Set("Substrate-User", sub.User)
 			upstream.ServeHTTP(rw, req)
 		}, allowOriginFunc
 }

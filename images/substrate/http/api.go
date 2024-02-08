@@ -11,7 +11,6 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
-	"github.com/ajbouh/substrate/images/substrate/auth"
 	"github.com/ajbouh/substrate/images/substrate/httputil"
 	"github.com/ajbouh/substrate/images/substrate/substrate"
 )
@@ -51,11 +50,6 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	}
 
 	handle("POST", "/api/v1/activities", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		user, ok := auth.UserFromContext(req.Context())
-		if !ok {
-			return nil, http.StatusBadRequest, fmt.Errorf("user not available in context")
-		}
-
 		r := &ActivityRequest{}
 		status, err := httputil.ReadRequestBody(req, &r)
 		if err != nil {
@@ -121,7 +115,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 			}
 		}
 
-		views.User = user.GithubUsername
+		views.User = s.User
 		sres, err := s.DefSet().SpawnActivity(req.Context(), s.Driver, views)
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
@@ -140,11 +134,6 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	})
 
 	handle("POST", "/api/v1/spaces", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		user, ok := auth.UserFromContext(req.Context())
-		if !ok {
-			return nil, http.StatusBadRequest, fmt.Errorf("user not available in context")
-		}
-
 		// TODO should we allow setting an alias here?
 		r := &activityspec.SpaceViewRequest{}
 		status, err := httputil.ReadRequestBody(req, &r)
@@ -153,7 +142,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		}
 
 		alias := ""
-		view, err := s.DefSet().ResolveSpaceView(r, user.GithubUsername, alias)
+		view, err := s.DefSet().ResolveSpaceView(r, s.User, alias)
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
@@ -185,7 +174,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		}
 
 		err = s.WriteSpace(req.Context(), &substrate.Space{
-			Owner:         user.GithubUsername,
+			Owner:         s.User,
 			Alias:         alias, // initial alias is just the ID itself
 			ID:            view.Tip.SpaceID.String(),
 			ForkedFromRef: forkedFromRef,
@@ -209,11 +198,6 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	})
 
 	handle("DELETE", "/api/v1/spaces/:space", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		user, ok := auth.UserFromContext(req.Context())
-		if !ok {
-			return nil, http.StatusBadRequest, fmt.Errorf("user not available in context")
-		}
-
 		w := p.ByName("space")
 		result, err := s.ListSpaces(req.Context(), &substrate.SpaceListQuery{
 			SpaceWhere: substrate.SpaceWhere{
@@ -231,7 +215,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		}
 		ws := result[0]
 
-		if ws.Owner != user.GithubUsername {
+		if ws.Owner != s.User {
 			return nil, http.StatusUnauthorized, fmt.Errorf("only the owner of the space can delete it")
 		}
 
@@ -329,18 +313,13 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	})
 
 	handle("GET", "/api/v1/spaces/:space", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		user, ok := auth.UserFromContext(req.Context())
-		if !ok {
-			return nil, http.StatusBadRequest, fmt.Errorf("user not available in context")
-		}
-
 		w := p.ByName("space")
 		result, err := s.ListSpaces(req.Context(), &substrate.SpaceListQuery{
 			SpaceWhere: substrate.SpaceWhere{
 				ID: &w,
 			},
 			SelectNestedCollections: &substrate.CollectionMembershipWhere{
-				Owner: stringPtr(user.GithubUsername),
+				Owner: stringPtr(s.User),
 			},
 			Limit: &substrate.Limit{
 				Limit: 1,

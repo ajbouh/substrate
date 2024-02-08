@@ -1,14 +1,9 @@
 package substratehttp
 
 import (
-	"fmt"
 	"net/http"
-	"os"
 
-	"github.com/ajbouh/substrate/images/substrate/auth"
 	"github.com/ajbouh/substrate/images/substrate/substrate"
-	"github.com/dghubble/gologin/v2"
-	"github.com/dghubble/sessions"
 	"github.com/julienschmidt/httprouter"
 	"github.com/rs/cors"
 )
@@ -71,43 +66,9 @@ func NewHTTPHandler(s *substrate.Substrate) http.Handler {
 		}
 	}
 
-	if os.Getenv("GIHUB_CLIENT_ID") == "" {
-		fmt.Printf("Disabling authentication\n")
-		router.Handle("GET", "/", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
-			http.Redirect(rw, req, "/ui/", http.StatusTemporaryRedirect)
-		})
+	router.Handle("GET", "/", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
+		http.Redirect(rw, req, "/ui/", http.StatusTemporaryRedirect)
+	})
 
-		return router
-	}
-
-	githubRedirectURL := s.Origin + "/auth/github/callback"
-	fmt.Printf("Origin=%s\n", githubRedirectURL)
-
-	return (&auth.Auth{
-		GithubClientID:     os.Getenv("GITHUB_CLIENT_ID"),
-		GithubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
-		GithubRedirectURL:  githubRedirectURL,
-
-		SessionName: "substrate-github-app",
-		SessionStore: sessions.NewCookieStore[string](
-			sessions.DefaultCookieConfig,
-			// sessions.DebugCookieConfig,
-			[]byte(os.Getenv("SESSION_SECRET")),
-			nil,
-		),
-		// state param cookies require HTTPS by default; disable for localhost development
-		// StateConfig: gologin.DebugOnlyCookieConfig,
-		StateConfig: gologin.CookieConfig{
-			Name:     "gologin-temporary-cookie",
-			Path:     "/",
-			MaxAge:   600, // 10 min
-			HTTPOnly: true,
-			Secure:   true, // HTTPS only
-			SameSite: http.SameSiteLaxMode,
-		},
-
-		DefaultLoginRedirect:  "/ui/",
-		DefaultLogoutRedirect: "/auth/github/login",
-	}).Protect(router)
-
+	return router
 }
