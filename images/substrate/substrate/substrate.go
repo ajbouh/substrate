@@ -22,7 +22,7 @@ type Substrate struct {
 	Driver           activityspec.ProvisionDriver
 	ProvisionerCache *activityspec.ProvisionerCache
 
-	defSet *defset.DefSet
+	defSet   *defset.DefSet
 	defSetMu *sync.RWMutex
 
 	Origin string

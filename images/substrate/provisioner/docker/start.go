@@ -2,9 +2,8 @@ package dockerprovisioner
 
 import (
 	"context"
-	"fmt"
 	"errors"
-	"net/url"
+	"fmt"
 	"os"
 	"path"
 	"time"
@@ -258,19 +257,11 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	// backendPortMap := inspect.NetworkSettings.Ports[natPort][0]
 	// backendURL := "http://host.docker.internal:" + backendPortMap.HostPort
 
-	// TODO should ProvisionerCookieAuthenticationMode be a parameter?
-	u, err := url.Parse(backendURL)
-	if err != nil {
-		return nil, err
-	}
-
 	var bearerToken *string
 	// bearerToken = r.BearerToken
 
 	return &activityspec.ServiceSpawnResponse{
 		Name: cResp.ID,
-
-		URLJoiner: activityspec.MakeJoiner(u, bearerToken),
 
 		BackendURL:  backendURL,
 		BearerToken: bearerToken,

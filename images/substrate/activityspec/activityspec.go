@@ -2,7 +2,6 @@ package activityspec
 
 import (
 	"fmt"
-	"net/http"
 	"net/url"
 )
 
@@ -37,11 +36,6 @@ type ResolvedActivity struct {
 
 type ProvisionerAuthenticationMode string
 
-const ProvisionerHeaderAuthenticationMode ProvisionerAuthenticationMode = "header"
-const ProvisionerCookieAuthenticationMode ProvisionerAuthenticationMode = "cookie"
-
-type AuthenticatedURLJoinerFunc func(u *url.URL, mode ProvisionerAuthenticationMode) (*url.URL, http.Header)
-
 type ActivitySpawnResponse struct {
 	ActivitySpec string
 
@@ -51,8 +45,13 @@ type ActivitySpawnResponse struct {
 	ServiceSpawnResponse ServiceSpawnResponse
 }
 
-func (s *ActivitySpawnResponse) URL(mode ProvisionerAuthenticationMode) (*url.URL, http.Header) {
-	return s.ServiceSpawnResponse.URLJoiner(s.PathURL, mode)
+func (s *ActivitySpawnResponse) URL() (*url.URL, error) {
+	u, err := url.Parse(s.ServiceSpawnResponse.BackendURL)
+	if err != nil {
+		return nil, err
+	}
+
+	return Join(u, s.PathURL), nil
 }
 
 type ActivitySpecRequest struct {

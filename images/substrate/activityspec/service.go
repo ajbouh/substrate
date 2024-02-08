@@ -2,7 +2,6 @@ package activityspec
 
 import (
 	"fmt"
-	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
@@ -20,7 +19,7 @@ type ServiceDef struct {
 type ServiceSpawnRequest struct {
 	ServiceName string
 	Parameters  ServiceSpawnParameterRequests
-	
+
 	URLPrefix     string
 	User          string
 	Ephemeral     bool
@@ -44,12 +43,10 @@ type ServiceSpawnResponse struct {
 	Name        string
 	BackendURL  string
 	BearerToken *string
-
-	URLJoiner AuthenticatedURLJoinerFunc
 }
 
-func (s *ServiceSpawnResponse) URL(mode ProvisionerAuthenticationMode) (*url.URL, http.Header) {
-	return s.URLJoiner(nil, mode)
+func (s *ServiceSpawnResponse) URL() (*url.URL, error) {
+	return url.Parse(s.BackendURL)
 }
 
 type ServiceSpawnParameterType string
@@ -234,7 +231,7 @@ func ParseServiceSpawnRequest(spec string, forceReadOnly bool, spawnPrefix strin
 	r := &ServiceSpawnRequest{
 		ServiceName: lens,
 		Parameters:  params,
-		URLPrefix: spawnPrefix,
+		URLPrefix:   spawnPrefix,
 	}
 
 	fmt.Printf("ParseServiceSpawnRequest %q %#v\n", spec, *r)

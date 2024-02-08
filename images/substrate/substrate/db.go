@@ -282,19 +282,12 @@ func (e *Event) SpawnResult() (*activityspec.ActivitySpawnResponse, error) {
 		return nil, err
 	}
 
-	u, err := url.Parse(e.Response.ServiceSpawnResponse.BackendURL)
-	if err != nil {
-		return nil, err
-	}
-
 	r := e.Response.ServiceSpawnResponse
 
 	pathURL, err := url.Parse(asr.Path)
 	if err != nil {
 		return nil, err
 	}
-
-	r.URLJoiner = activityspec.MakeJoiner(u, r.BearerToken)
 
 	return &activityspec.ActivitySpawnResponse{
 		ActivitySpec: e.ActivitySpec,

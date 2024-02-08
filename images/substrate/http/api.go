@@ -106,7 +106,10 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 						return nil, http.StatusInternalServerError, err
 					}
 
-					u, _ := sres.URL(activityspec.ProvisionerCookieAuthenticationMode)
+					u, err := sres.URL()
+					if err != nil {
+						return nil, http.StatusInternalServerError, err
+					}
 
 					return &ActivityResult{
 						URL: u.String(),
@@ -124,7 +127,10 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 			return nil, http.StatusInternalServerError, err
 		}
 
-		u, _ := sres.URL(activityspec.ProvisionerCookieAuthenticationMode)
+		u, err := sres.URL()
+		if err != nil {
+			return nil, http.StatusInternalServerError, err
+		}
 		return &ActivityResult{
 			URL: u.String(),
 			// Status:          nil,

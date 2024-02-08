@@ -1,60 +1,28 @@
 package activityspec
 
 import (
-	"net/http"
 	"net/url"
 	"strings"
 )
 
-func MakeJoiner(target *url.URL, token *string) AuthenticatedURLJoinerFunc {
-	return func(rest *url.URL, mode ProvisionerAuthenticationMode) (*url.URL, http.Header) {
-		var u url.URL
-		if rest != nil {
-			u = *rest
-			targetQuery := target.RawQuery
-			u.Scheme = target.Scheme
-			u.Host = target.Host
-			u.Path, u.RawPath = joinURLPath(target, &u)
-			if targetQuery == "" || u.RawQuery == "" {
-				u.RawQuery = targetQuery + u.RawQuery
-			} else {
-				u.RawQuery = targetQuery + "&" + u.RawQuery
-			}
+func Join(target *url.URL, rest *url.URL) *url.URL {
+	var u url.URL
+	if rest != nil {
+		u = *rest
+		targetQuery := target.RawQuery
+		u.Scheme = target.Scheme
+		u.Host = target.Host
+		u.Path, u.RawPath = joinURLPath(target, &u)
+		if targetQuery == "" || u.RawQuery == "" {
+			u.RawQuery = targetQuery + u.RawQuery
 		} else {
-			u = *target
+			u.RawQuery = targetQuery + "&" + u.RawQuery
 		}
-
-		if token == nil {
-			return &u, nil
-		}
-
-		switch mode {
-		case ProvisionerCookieAuthenticationMode:
-			var redirect url.URL
-			redirect = u
-			redirect.Host = ""
-			redirect.Scheme = ""
-			redirect.User = nil
-			return &url.URL{
-				Scheme:     u.Scheme,
-				User:       u.User,
-				Host:       u.Host,
-				Path:       "/_plane_auth",
-				RawPath:    "",
-				OmitHost:   u.OmitHost,
-				ForceQuery: false,
-				RawQuery:   "token=" + *token + "&redirect=" + url.QueryEscape(redirect.String()),
-				Fragment:   u.Fragment,
-			}, nil
-		case ProvisionerHeaderAuthenticationMode:
-			fallthrough
-		default:
-			h := http.Header{
-				"Authorization": []string{"Bearer " + *token},
-			}
-			return &u, h
-		}
+	} else {
+		u = *target
 	}
+
+	return &u
 }
 
 // From go stdlib

@@ -24,10 +24,10 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/ajbouh/substrate/images/substrate/http"
 	dockerprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/docker"
 	podmanprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/podman"
 	"github.com/ajbouh/substrate/images/substrate/substrate"
-	"github.com/ajbouh/substrate/images/substrate/http"
 )
 
 func mustGetenv(name string) string {
@@ -166,7 +166,7 @@ func main() {
 	p := newProvisioner(cudaAllowed)
 
 	cueDefsDir := mustGetenv("SUBSTRATE_CUE_DEFS")
-	
+
 	cueDefsLiveDir := os.Getenv("SUBSTRATE_CUE_DEFS_LIVE")
 	if cueDefsLiveDir != "" {
 		entries, err := os.ReadDir(cueDefsLiveDir)
@@ -207,7 +207,7 @@ func main() {
 	}
 
 	cueLoadConfig := &load.Config{
-		Dir: cueDefsDir,
+		Dir:  cueDefsDir,
 		Tags: cueDefsLoadTags,
 	}
 

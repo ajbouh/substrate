@@ -138,22 +138,20 @@ func (s *DefSet) NewProvisionFunc(driver activityspec.ProvisionDriver, req *acti
 	var gen = 0
 	var cached *url.URL
 	var cachedToken *string
-	var cachedJoiner activityspec.AuthenticatedURLJoinerFunc
-	set := func(v *url.URL, t *string, j activityspec.AuthenticatedURLJoinerFunc) {
+	set := func(v *url.URL, t *string) {
 		gen++
 		copy := *v
 		cached = &copy
 		cachedToken = t
-		cachedJoiner = j
 		logf("action=cache:set gen=%d url=%s", gen, v)
 	}
-	get := func() (*url.URL, *string, activityspec.AuthenticatedURLJoinerFunc, bool) {
+	get := func() (*url.URL, *string, bool) {
 		logf("action=cache:get gen=%d url=%s", gen, cached)
 		if cached != nil {
 			copy := *cached
-			return &copy, cachedToken, cachedJoiner, true
+			return &copy, cachedToken, true
 		}
-		return nil, nil, nil, false
+		return nil, nil, false
 	}
 	makeCleanup := func() func(error) {
 		cleanupGen := gen
@@ -170,12 +168,12 @@ func (s *DefSet) NewProvisionFunc(driver activityspec.ProvisionDriver, req *acti
 		}
 	}
 
-	return func(ctx context.Context) (activityspec.AuthenticatedURLJoinerFunc, bool, func(error), error) {
+	return func(ctx context.Context) (*url.URL, bool, func(error), error) {
 		mu.Lock()
 		defer mu.Unlock()
 
-		if _, _, joiner, ok := get(); ok {
-			return joiner, false, makeCleanup(), nil
+		if target, _, ok := get(); ok {
+			return target, false, makeCleanup(), nil
 		}
 
 		spawnCtx, _ := context.WithCancel(context.Background())
@@ -236,7 +234,7 @@ func (s *DefSet) NewProvisionFunc(driver activityspec.ProvisionDriver, req *acti
 			return nil, false, nil, fmt.Errorf("status stream ended without ready")
 		}
 
-		set(parsed, parsedToken, sres.URLJoiner)
+		set(parsed, parsedToken)
 		// Do this AFTER we've loaded the cache.
 		cleanup := makeCleanup()
 		go func() {
@@ -250,6 +248,6 @@ func (s *DefSet) NewProvisionFunc(driver activityspec.ProvisionDriver, req *acti
 			}
 		}()
 
-		return sres.URLJoiner, true, cleanup, nil
+		return parsed, true, cleanup, nil
 	}
 }
