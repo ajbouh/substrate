@@ -90,11 +90,6 @@ type Main struct {
 	mu sync.Mutex
 }
 
-type SessionInfo struct {
-	ID    string
-	Start time.Time
-}
-
 type Session struct {
 	*tracks.Session
 	sfu  *sfu.Session
@@ -102,7 +97,7 @@ type Session struct {
 }
 
 type View struct {
-	Sessions []SessionInfo
+	Sessions []*tracks.SessionInfo
 	Session  *Session
 }
 
@@ -152,19 +147,7 @@ func saveSession(sess *Session) error {
 	return nil
 }
 
-func readSession(root, id string) (*tracks.Session, error) {
-	b, err := os.ReadFile(filepath.Join(root, id, "session"))
-	if err != nil {
-		return nil, err
-	}
-	var sess tracks.Session
-	if err := cbor.Unmarshal(b, &sess); err != nil {
-		return nil, err
-	}
-	return &sess, nil
-}
-
-func (m *Main) SavedSessions() (info []SessionInfo, err error) {
+func (m *Main) SavedSessions() (info []*tracks.SessionInfo, err error) {
 	root := "./sessions"
 	dir, err := os.ReadDir(root)
 	if err != nil {
@@ -173,15 +156,12 @@ func (m *Main) SavedSessions() (info []SessionInfo, err error) {
 	for _, fi := range dir {
 		if fi.IsDir() {
 			log.Printf("reading session %s", fi.Name())
-			sess, err := readSession(root, fi.Name())
+			sess, err := tracks.LoadSessionInfo(root, fi.Name())
 			if err != nil {
 				log.Printf("error reading session %s: %s", fi.Name(), err)
 				continue
 			}
-			info = append(info, SessionInfo{
-				ID:    string(sess.ID),
-				Start: sess.Start,
-			})
+			info = append(info, sess)
 		}
 	}
 	sort.Slice(info, func(i, j int) bool {
