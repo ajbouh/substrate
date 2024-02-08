@@ -203,9 +203,10 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 
 	s.Mounts = append(s.Mounts, resourcedirMounts...)
 
-	// TODO need to check schema before we know how to interpret a given parameter...
-	// Maybe write a method for each interpretation? Can return an error if it's impossible...
 	for k, v := range as.ServiceDefSpawn.Environment {
+		s.Env[k] = v
+	}
+	for k, v := range as.ExtraEnvironment {
 		s.Env[k] = v
 	}
 
@@ -220,10 +221,11 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		s.PortMappings = append(s.PortMappings, nettypes.PortMapping{
 			ContainerPort: uint16(port),
 			Protocol:      "tcp",
-		},
-		)
+		})
 	}
 
+	// TODO need to check schema before we know how to interpret a given parameter...
+	// Maybe write a method for each interpretation? Can return an error if it's impossible...
 	for parameterName, parameterValue := range as.Parameters {
 		switch {
 		case parameterValue.Space != nil:

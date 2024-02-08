@@ -47,7 +47,7 @@ func newLazyProxyHandler(sub *substrate.Substrate, api http.Handler) ([]string, 
 			fmt.Printf("keeping cookie: %s\n", s)
 			req.Header.Add("Set-Cookie", s)
 		}
-		fmt.Printf("req.header: %#v", req.Header)
+		// fmt.Printf("req.header: %#v", req.Header)
 
 		// Strip prefix
 		req.Host = ""
@@ -58,7 +58,7 @@ func newLazyProxyHandler(sub *substrate.Substrate, api http.Handler) ([]string, 
 		}
 		req.URL.RawPath = ""
 
-		views, err := activityspec.ParseActivitySpecRequest(viewspec, false)
+		views, err := activityspec.ParseActivitySpecRequest(viewspec, false, "/gw/" + viewspec + "/")
 		if err != nil {
 			jsonrw := httputil.NewJSONResponseWriter(rw)
 			jsonrw(nil, http.StatusBadRequest, err)

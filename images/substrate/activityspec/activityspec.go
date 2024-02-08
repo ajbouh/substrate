@@ -76,8 +76,8 @@ type ActivitySpec struct {
 	Path   string         `json:"path"`
 }
 
-func ParseActivitySpecRequest(spec string, forceReadOnly bool) (*ActivitySpecRequest, error) {
-	ssr, path, err := ParseServiceSpawnRequest(spec, forceReadOnly)
+func ParseActivitySpecRequest(spec string, forceReadOnly bool, spawnPrefix string) (*ActivitySpecRequest, error) {
+	ssr, path, err := ParseServiceSpawnRequest(spec, forceReadOnly, spawnPrefix)
 	if err != nil {
 		return nil, err
 	}

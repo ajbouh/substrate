@@ -20,7 +20,8 @@ type ServiceDef struct {
 type ServiceSpawnRequest struct {
 	ServiceName string
 	Parameters  ServiceSpawnParameterRequests
-
+	
+	URLPrefix     string
 	User          string
 	Ephemeral     bool
 	ForceReadOnly bool
@@ -35,6 +36,8 @@ type ServiceSpawnResolution struct {
 	GracePeriodSeconds *int                   `json:"grace_period_seconds,omitempty"`
 
 	ServiceDefSpawn ServiceDefSpawn `json:"spawn"`
+
+	ExtraEnvironment  map[string]string `json:"environment,omitempty"`
 }
 
 type ServiceSpawnResponse struct {
@@ -183,7 +186,7 @@ const spaceViewMultiSep = ","
 const viewspecParameterStart = "["
 const viewspecParameterEnd = "]"
 
-func ParseServiceSpawnRequest(spec string, forceReadOnly bool) (*ServiceSpawnRequest, string, error) {
+func ParseServiceSpawnRequest(spec string, forceReadOnly bool, spawnPrefix string) (*ServiceSpawnRequest, string, error) {
 	var lens string
 	var viewspec string
 	var path string
@@ -231,6 +234,7 @@ func ParseServiceSpawnRequest(spec string, forceReadOnly bool) (*ServiceSpawnReq
 	r := &ServiceSpawnRequest{
 		ServiceName: lens,
 		Parameters:  params,
+		URLPrefix: spawnPrefix,
 	}
 
 	fmt.Printf("ParseServiceSpawnRequest %q %#v\n", spec, *r)

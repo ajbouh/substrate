@@ -123,6 +123,9 @@ func (s *DefSet) NewSpawnRequest(ctx context.Context, req *activityspec.ServiceS
 		ServiceName:     req.ServiceName,
 		Parameters:      parameters,
 		ServiceDefSpawn: serviceDef.Spawn,
+		ExtraEnvironment: map[string]string{
+			"SUBSTRATE_URL_PREFIX": req.URLPrefix,
+		},
 	}, nil
 }
 

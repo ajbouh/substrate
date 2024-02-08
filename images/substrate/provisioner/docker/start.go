@@ -208,11 +208,14 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 
 	c.Cmd = append([]string{}, as.ServiceDefSpawn.Command...)
 
-	// TODO need to check schema before we know how to interpret a given parameter...
-	// Maybe write a method for each interpretation? Can return an error if it's impossible...
 	for k, v := range as.ServiceDefSpawn.Environment {
 		c.Env = append(c.Env, k+"="+v)
 	}
+	for k, v := range as.ExtraEnvironment {
+		c.Env = append(c.Env, k+"="+v)
+	}
+	// TODO need to check schema before we know how to interpret a given parameter...
+	// Maybe write a method for each interpretation? Can return an error if it's impossible...
 	for parameterName, parameterValue := range as.Parameters {
 		switch {
 		case parameterValue.Space != nil:

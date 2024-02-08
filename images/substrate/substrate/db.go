@@ -185,6 +185,7 @@ type Event struct {
 
 	ID           string    `json:"id"`
 	ActivitySpec string    `json:"viewspec,omitempty"`
+	URLPrefix    string    `json:"urlprefix,omitempty"`
 	User         string    `json:"user"`
 	Service      string    `json:"lens"`
 	Type         string    `json:"type"`
@@ -276,7 +277,7 @@ func (s *Substrate) ListEvents(ctx context.Context, request *EventListRequest) (
 }
 
 func (e *Event) SpawnResult() (*activityspec.ActivitySpawnResponse, error) {
-	asr, err := activityspec.ParseActivitySpecRequest(e.ActivitySpec, false)
+	asr, err := activityspec.ParseActivitySpecRequest(e.ActivitySpec, false, e.URLPrefix)
 	if err != nil {
 		return nil, err
 	}
