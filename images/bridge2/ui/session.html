@@ -9,7 +9,7 @@
   <script src="./webrtc/localmedia.js"></script>
   <link rel="stylesheet" href="./ui/session.css" />
 </head>
-<body class="flex flex-row bg-gray-900 text-white antialiased"> 
+<body class="flex flex-row bg-gray-900 text-white antialiased">
   <script type="module">
 
 import {Session} from "./ui/session.js";
@@ -69,11 +69,11 @@ dataWS.onmessage = e => {
 
 m.mount(document.body, {
   view: () => [
-    m(Sidebar, {sessions: viewModel.sessions}), 
+    m(Sidebar, {sessions: viewModel.sessions}),
     m("div", {"class":"flex flex-col mx-auto grow"},
       [
         m(Topbar, {localMedia}),
-        m("div", {"class":"grow px-6 mt-4 overflow-auto","id":"session"}, 
+        m("div", {"class":"grow px-6 mt-4 overflow-auto","id":"session"},
           m(Session, {summary: "Summary", entries: viewModel.entries})
         )
       ]

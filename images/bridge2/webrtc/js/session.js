@@ -1,5 +1,3 @@
-
-
 export class Session {
   constructor(url) {
     this.signals = new WebSocket(url);
@@ -60,7 +58,7 @@ export class Session {
       audioSender.replaceTrack(audioTrack);
     } else {
       this.peer.addTrack(audioTrack, stream);
-    } 
+    }
   }
 
   set ontrack(fn) { this.peer.ontrack = fn; }
