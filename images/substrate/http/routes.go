@@ -28,9 +28,6 @@ var methods []string = []string{
 func NewHTTPHandler(s *substrate.Substrate) http.Handler {
 	router := httprouter.New()
 
-	previewHandler := newPreviewHandler(s)
-	router.Handle("GET", "/preview/*rest", previewHandler)
-
 	routes, handler, allowOriginFunc := newUIHandler(s)
 	router.Handle("GET", "/@fs/*rest", handler) // HACK for SvelteKit
 	for _, uiRoute := range routes {
