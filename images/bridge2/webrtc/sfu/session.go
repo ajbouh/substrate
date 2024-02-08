@@ -48,9 +48,9 @@ func (s *Session) AddPeer(conn *websocket.Conn) (*Peer, error) {
 
 	s.mu.Lock()
 	s.peers = append(s.peers, peer)
+	badPeerID := len(s.peers) - 1
 	s.mu.Unlock()
 
-	badPeerID := len(s.peers) - 1
 	log.Println("new peer:", badPeerID)
 
 	rtcpeer.OnICECandidate(func(i *webrtc.ICECandidate) {
@@ -126,8 +126,8 @@ func (s *Session) removeTrack(t *webrtc.TrackLocalStaticRTP) {
 }
 
 func (s *Session) broadcastKeyFrame() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	for i := range s.peers {
 		for _, receiver := range s.peers[i].GetReceivers() {
