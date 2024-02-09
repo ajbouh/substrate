@@ -46,7 +46,6 @@ class LocalMedia {
 
   shareScreen() {
     this.setVideoSource('screen');
-    this.updateStream();
   }
 
   async updateStream() {
