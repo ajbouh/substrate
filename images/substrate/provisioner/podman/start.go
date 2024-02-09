@@ -205,9 +205,6 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	for k, v := range as.ServiceDefSpawn.Environment {
 		s.Env[k] = v
 	}
-	for k, v := range as.ExtraEnvironment {
-		s.Env[k] = v
-	}
 
 	// Pull PORT out of env, so it can be used for port forwarding.
 	// TODO consider using configured portmappings instead of this weird approach.
@@ -266,5 +263,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 
 		BackendURL:  backendURL + as.ServiceDefSpawn.URLPrefix,
 		BearerToken: bearerToken,
+
+		ServiceSpawnResolution: *as,
 	}, nil
 }

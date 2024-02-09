@@ -148,8 +148,6 @@ func main() {
 
 	var err error
 
-	var substratefsMountpoint string
-
 	cpuMemoryTotalMB, err := substrate.MeasureCPUMemoryTotalMB()
 	if err != nil {
 		fmt.Printf("error measuring total cpu memory: %s\n", err)
@@ -197,9 +195,9 @@ func main() {
 
 	cueDefsLoadTags := []string{
 		// Include enough config to interpret things again
-		"namespace="+mustGetenv("SUBSTRATE_NAMESPACE"),
-		"use_varset="+mustGetenv("SUBSTRATE_USE_VARSET"),
-		"cue_defs="+mustGetenv("SUBSTRATE_CUE_DEFS"),
+		"namespace=" + mustGetenv("SUBSTRATE_NAMESPACE"),
+		"use_varset=" + mustGetenv("SUBSTRATE_USE_VARSET"),
+		"cue_defs=" + mustGetenv("SUBSTRATE_CUE_DEFS"),
 	}
 
 	if os.Getenv("SUBSTRATE_SOURCE_DIRECTORY") != "" {
@@ -214,7 +212,7 @@ func main() {
 	sub, err := substrate.New(
 		ctx,
 		mustGetenv("SUBSTRATE_DB"),
-		substratefsMountpoint,
+		mustGetenv("SUBSTRATEFS_ROOT"),
 		cueLoadConfig,
 		p,
 		os.Getenv("ORIGIN"),

@@ -14,14 +14,17 @@ import (
 )
 
 func (s *DefSet) SpawnActivity(ctx context.Context, driver activityspec.ProvisionDriver, req *activityspec.ActivitySpecRequest) (*activityspec.ActivitySpawnResponse, error) {
-	viewspec, _ := req.ActivitySpec()
-
-	as, err := s.NewSpawnRequest(ctx, &req.ServiceSpawnRequest)
+	serviceDefSpawnValue, err := s.resolveServiceDefSpawn(&req.ServiceSpawnRequest)
 	if err != nil {
 		return nil, err
 	}
 
-	sres, err := driver.Spawn(ctx, as)
+	serviceSpawnResolution, err := s.resolveServiceSpawn(&req.ServiceSpawnRequest, serviceDefSpawnValue)
+	if err != nil {
+		return nil, err
+	}
+
+	serviceSpawnResponse, err := driver.Spawn(ctx, serviceSpawnResolution)
 	if err != nil {
 		return nil, err
 	}
@@ -31,57 +34,107 @@ func (s *DefSet) SpawnActivity(ctx context.Context, driver activityspec.Provisio
 		return nil, err
 	}
 
+	viewspec, _ := req.ActivitySpec()
 	return &activityspec.ActivitySpawnResponse{
 		ActivitySpec: viewspec,
 
 		PathURL: pathURL,
 		Path:    req.Path,
 
-		ServiceSpawnResponse: *sres,
+		ServiceSpawnResponse: *serviceSpawnResponse,
 	}, nil
 }
 
 var parameterTypePath = cue.MakePath(cue.Str("type"))
 
-func (s *DefSet) NewSpawnRequest(ctx context.Context, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResolution, error) {
+func (s *DefSet) IsConcrete(req *activityspec.ServiceSpawnRequest) (bool, error) {
+	serviceDefSpawnValue, err := s.resolveServiceDefSpawn(req)
+	if err != nil {
+		return false, err
+	}
+
 	s.CueMu.Lock()
 	defer s.CueMu.Unlock()
 
-	log.Printf("newSpawnRequest req %#v", req)
+	parametersValue, err := serviceDefSpawnValue.LookupPath(cue.MakePath(cue.Str("parameters"))).Fields()
+	if err != nil {
+		return false, fmt.Errorf("error decoding service parametersValue: %w", err)
+	}
+
+	for parametersValue.Next() {
+		sel := parametersValue.Selector()
+		if !sel.IsString() {
+			continue
+		}
+		parameterName := sel.Unquoted()
+
+		parameterType, err := parametersValue.Value().LookupPath(cue.MakePath(cue.Str("type"))).String()
+		if err != nil {
+			return false, err
+		}
+
+		if !req.Parameters[parameterName].IsConcrete(activityspec.ServiceSpawnParameterType(parameterType)) {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+func (s *DefSet) resolveServiceDefSpawn(req *activityspec.ServiceSpawnRequest) (cue.Value, error) {
 	serviceDefValue, ok := s.Services[req.ServiceName]
 	if !ok {
 		lenses := []string{}
 		for k := range s.Services {
 			lenses = append(lenses, k)
 		}
-		return nil, fmt.Errorf("no such service: %q (have %#v)", req.ServiceName, lenses)
+		return cue.Value{}, fmt.Errorf("no such service: %q (have %#v)", req.ServiceName, lenses)
+	}
+
+	s.CueMu.Lock()
+	defer s.CueMu.Unlock()
+
+	serviceDefSpawnValue := serviceDefValue.LookupPath(cue.MakePath(cue.Str("spawn")))
+	serviceDefSpawnValue = serviceDefSpawnValue.FillPath(
+		cue.MakePath(cue.Str("environment"), cue.Str("SUBSTRATE_URL_PREFIX")),
+		req.URLPrefix,
+	)
+
+	for parameterName, parameterReq := range req.Parameters {
+		serviceDefSpawnValue = serviceDefSpawnValue.FillPath(
+			cue.MakePath(cue.Str("parameters"), cue.Str(parameterName), cue.Str("value")),
+			parameterReq.String(),
+		)
+	}
+
+	return serviceDefSpawnValue, nil
+}
+
+func (s *DefSet) resolveServiceSpawn(req *activityspec.ServiceSpawnRequest, serviceDefSpawnValue cue.Value) (*activityspec.ServiceSpawnResolution, error) {
+	s.CueMu.Lock()
+	defer s.CueMu.Unlock()
+
+	parametersValue, err := serviceDefSpawnValue.LookupPath(cue.MakePath(cue.Str("parameters"))).Fields()
+	if err != nil {
+		return nil, fmt.Errorf("error decoding service parametersValue: %w", err)
 	}
 
 	parameters := activityspec.ServiceSpawnParameters{}
-	cueCtx := serviceDefValue.Context()
+	for parametersValue.Next() {
+		sel := parametersValue.Selector()
+		if !sel.IsString() {
+			continue
+		}
+		parameterName := sel.Unquoted()
 
-	for parameterName, parameterReq := range req.Parameters {
-		parameterTypeValue := serviceDefValue.LookupPath(parameterTypePath)
-		parameterType, err := parameterTypeValue.String()
+		parameterType, err := parametersValue.Value().LookupPath(cue.MakePath(cue.Str("type"))).String()
 		if err != nil {
 			return nil, err
 		}
 
-		serviceDefValue = serviceDefValue.FillPath(
-			cue.MakePath(cue.Str("spawn"), cue.Str("parameters"), cue.Str(parameterName), cue.Str("value")),
-			cueCtx.Encode(parameterReq.String()),
-		)
+		parameterReq := req.Parameters[parameterName]
 
 		switch activityspec.ServiceSpawnParameterType(parameterType) {
-		case activityspec.ServiceSpawnParameterTypeResource:
-			r := parameterReq.Resource()
-			parameters[parameterName] = &activityspec.ServiceSpawnParameter{Resource: r}
-			serviceDefValue = serviceDefValue.FillPath(
-				cue.MakePath(cue.Str("spawn"), cue.Str("parameters"), cue.Str(parameterName), cue.Str("resource")),
-				cueCtx.Encode(map[string]any{
-					"unit":    r.Unit,
-					"quantiy": r.Quantity,
-				}))
 		case activityspec.ServiceSpawnParameterTypeString:
 			s := parameterReq.String()
 			parameters[parameterName] = &activityspec.ServiceSpawnParameter{String: &s}
@@ -113,8 +166,8 @@ func (s *DefSet) NewSpawnRequest(ctx context.Context, req *activityspec.ServiceS
 		}
 	}
 
-	serviceDef := &activityspec.ServiceDef{}
-	err := serviceDefValue.Decode(serviceDef)
+	serviceDefSpawn := &activityspec.ServiceDefSpawn{}
+	err = serviceDefSpawnValue.Decode(serviceDefSpawn)
 	if err != nil {
 		return nil, err
 	}
@@ -122,10 +175,7 @@ func (s *DefSet) NewSpawnRequest(ctx context.Context, req *activityspec.ServiceS
 	return &activityspec.ServiceSpawnResolution{
 		ServiceName:     req.ServiceName,
 		Parameters:      parameters,
-		ServiceDefSpawn: serviceDef.Spawn,
-		ExtraEnvironment: map[string]string{
-			"SUBSTRATE_URL_PREFIX": req.URLPrefix,
-		},
+		ServiceDefSpawn: *serviceDefSpawn,
 	}, nil
 }
 
@@ -176,14 +226,17 @@ func (s *DefSet) NewProvisionFunc(driver activityspec.ProvisionDriver, req *acti
 			return target, false, makeCleanup(), nil
 		}
 
-		spawnCtx, _ := context.WithCancel(context.Background())
-
-		as, err := s.NewSpawnRequest(spawnCtx, req)
+		serviceDefSpawnValue, err := s.resolveServiceDefSpawn(req)
 		if err != nil {
 			return nil, false, nil, err
 		}
 
-		sres, err := driver.Spawn(ctx, as)
+		serviceSpawnResolution, err := s.resolveServiceSpawn(req, serviceDefSpawnValue)
+		if err != nil {
+			return nil, false, nil, err
+		}
+
+		sres, err := driver.Spawn(ctx, serviceSpawnResolution)
 		if err != nil {
 			return nil, false, nil, err
 		}

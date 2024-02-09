@@ -58,6 +58,31 @@ func newLazyProxyHandler(sub *substrate.Substrate, api http.Handler) ([]string, 
 		}
 		views.User = sub.User
 		views.ServiceSpawnRequest.User = sub.User
+
+		defSet := sub.DefSet()
+		_, seemsConcrete := views.ActivitySpec()
+		concrete := seemsConcrete
+		if seemsConcrete {
+			concrete, err = defSet.IsConcrete(&views.ServiceSpawnRequest)
+			if err != nil {
+				jsonrw := httputil.NewJSONResponseWriter(rw)
+				jsonrw(nil, http.StatusBadRequest, err)
+				return
+			}
+		}
+		if !concrete {
+			activitySpawnResponse, err := defSet.SpawnActivity(req.Context(), sub.Driver, views)
+			if err != nil {
+				jsonrw := httputil.NewJSONResponseWriter(rw)
+				jsonrw(nil, http.StatusInternalServerError, err)
+				return
+			}
+
+			concretized, _ := activitySpawnResponse.ServiceSpawnResponse.ServiceSpawnResolution.Format()
+			http.RedirectHandler("/"+concretized+"/", http.StatusFound).ServeHTTP(rw, req)
+			return
+		}
+
 		sub.ProvisionerCache.ProvisionReverseProxy(&views.ServiceSpawnRequest).ServeHTTP(rw, req)
 	}
 }

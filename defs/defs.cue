@@ -18,6 +18,7 @@ import (
   build_source_directory: string | *"" @tag(build_source_directory)
   use_varset: string @tag(use_varset)
 
+  host_substratefs_root: string
   host_source_directory: string
   image_prefix: string | *"ghcr.io/ajbouh/substrate:substrate-"
   host_resourcedirs_root: string
@@ -45,6 +46,7 @@ import (
 #varsets: substrateos: {
   build_source_directory: string
   host_source_directory: "/var/home/core/source"
+  host_substratefs_root: "/var/lib/substratefs"
   host_docker_socket: "/var/run/podman/podman.sock"
   host_resourcedirs_root: "/var/lib/resourcedirs"
   host_resourcedirs_path: "/run/media/oob/resourcedirs"
@@ -56,6 +58,7 @@ import (
   build_source_directory: string
   host_source_directory: build_source_directory
 
+  host_substratefs_root: "\(build_source_directory)/substratefs"
   host_resourcedirs_path: ""
   host_resourcedirs_root: "\(build_source_directory)/os/gen/oob/resourcedirs"
   host_docker_socket: "/var/run/docker.sock"
@@ -295,7 +298,8 @@ for key, def in #out.resourcedir_fetches {
   for key, def in #out.#lenses {
     if def.spawn != _|_ {
       services: (key): {
-        environment: PORT: string
+        environment: PORT: "8080"
+        environment: ORIGIN: "localhost:8080"
         ports: [
           "127.0.0.1:8081:\(environment.PORT)",
         ]

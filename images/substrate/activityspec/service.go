@@ -35,14 +35,14 @@ type ServiceSpawnResolution struct {
 	GracePeriodSeconds *int                   `json:"grace_period_seconds,omitempty"`
 
 	ServiceDefSpawn ServiceDefSpawn `json:"spawn"`
-
-	ExtraEnvironment  map[string]string `json:"environment,omitempty"`
 }
 
 type ServiceSpawnResponse struct {
 	Name        string
 	BackendURL  string
 	BearerToken *string
+
+	ServiceSpawnResolution ServiceSpawnResolution
 }
 
 func (s *ServiceSpawnResponse) URL() (*url.URL, error) {
@@ -90,6 +90,21 @@ type ServiceSpawnParameterRequest string
 
 func (v ServiceSpawnParameterRequest) String() string {
 	return string(v)
+}
+
+func (v ServiceSpawnParameterRequest) IsConcrete(t ServiceSpawnParameterType) bool {
+	switch t {
+	case ServiceSpawnParameterTypeSpace:
+		return string(v) != "" && !strings.HasPrefix(string(v), spaceViewForkPrefix)
+	case ServiceSpawnParameterTypeSpaces:
+		for s := range v.Spaces(false) {
+			if string(s) == "" || strings.HasPrefix(string(s), spaceViewForkPrefix) {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func (v ServiceSpawnParameterRequest) Resource() *Resource {

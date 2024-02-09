@@ -47,6 +47,7 @@ imagespecs: "substrate": {
 }
 
 let substrate_cue_defs_live = "/live/defs"
+let substrate_data = "/var/lib/substrate/data"
 
 tests: "substrate": go: {
   build: {
@@ -63,7 +64,8 @@ tests: "substrate": go: {
 daemons: "substrate": {
   environment: {
     "PORT": string | *"\(#var.substrate.internal_port)"
-    "SUBSTRATE_DB": "/var/lib/substrate/data/substrate.sqlite"
+    "SUBSTRATE_DB": "\(substrate_data)/substrate.sqlite"
+    "SUBSTRATEFS_ROOT": #var.host_substratefs_root
     "SUBSTRATE_CUE_DEFS": string | *substrate_cue_defs
     if live_edit["substrate"] {
       "SUBSTRATE_CUE_DEFS_LIVE": substrate_cue_defs_live
@@ -86,7 +88,8 @@ daemons: "substrate": {
   }
 
   mounts: [
-    {source: "\(#var.namespace)-substrate_data", destination: "/var/lib/substrate/data"},
+    {source: "\(#var.namespace)-substrate_data", destination: substrate_data},
+    {source: #var.host_substratefs_root, destination: #var.host_substratefs_root},
     {source: #var.host_docker_socket, destination: environment.#docker_socket},
     {source: #var.host_resourcedirs_root, destination: #var.host_resourcedirs_root},
     if live_edit["substrate"] {
@@ -171,8 +174,8 @@ daemons: "substrate": {
     }
     "substrate.container": {
       Unit: {
-        Requires: ["podman.socket", "nvidia-ctk-cdi-generate.service", "ensure-resourcedirs-root.service", "ensure-resourcedirs-path.service", "ensure-oob-imagestore.service"]
-        After: ["podman.socket", "nvidia-ctk-cdi-generate.service", "ensure-resourcedirs-root.service", "ensure-resourcedirs-path.service", "ensure-oob-imagestore.service"]
+        Requires: ["podman.socket", "nvidia-ctk-cdi-generate.service", "ensure-substratefs-root.service", "ensure-resourcedirs-root.service", "ensure-resourcedirs-path.service", "ensure-oob-imagestore.service"]
+        After: ["podman.socket", "nvidia-ctk-cdi-generate.service", "ensure-substratefs-root.service", "ensure-resourcedirs-root.service", "ensure-resourcedirs-path.service", "ensure-oob-imagestore.service"]
       }
       Install: {
         WantedBy: ["multi-user.target", "default.target"]

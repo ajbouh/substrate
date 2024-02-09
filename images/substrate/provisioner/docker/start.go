@@ -215,9 +215,6 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	for k, v := range as.ServiceDefSpawn.Environment {
 		c.Env = append(c.Env, k+"="+v)
 	}
-	for k, v := range as.ExtraEnvironment {
-		c.Env = append(c.Env, k+"="+v)
-	}
 	// TODO need to check schema before we know how to interpret a given parameter...
 	// Maybe write a method for each interpretation? Can return an error if it's impossible...
 	for parameterName, parameterValue := range as.Parameters {
@@ -265,5 +262,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 
 		BackendURL:  backendURL + as.ServiceDefSpawn.URLPrefix,
 		BearerToken: bearerToken,
+
+		ServiceSpawnResolution: *as,
 	}, nil
 }
