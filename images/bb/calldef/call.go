@@ -1,28 +1,47 @@
-package activityspec
+package calldef
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
-	"net/http/httptest"
+	"net/url"
 
 	"cuelang.org/go/cue"
 
-	"github.com/ajbouh/substrate/images/substrate/blackboard"
+	"github.com/ajbouh/substrate/images/bb/blackboard"
 )
+
+type Call struct {
+	Response *Response `json:"response"`
+	Request  *Request  `json:"request"`
+}
+
+type Response struct {
+	Status  *int        `json:"status"`
+	Headers http.Header `json:"headers"`
+	Body    any         `json:"body"`
+}
+
+type URLParts struct {
+	Path  *string     `json:"path"`
+	Query *url.Values `json:"query"`
+}
+
+type Request struct {
+	Method  *string     `json:"method"`
+	URL     *URLParts   `json:"url"`
+	Headers http.Header `json:"headers"`
+	Body    any         `json:"body"`
+}
 
 var requestPath = cue.MakePath(cue.Str("request"))
 var responsePath = cue.MakePath(cue.Str("response"))
 
-func ServiceDefRefinement(pc *ProvisionerCache, serviceName string, serviceDef cue.Value, callDef cue.Value) blackboard.Refinement {
+func Refinement(baseURL string) blackboard.Refinement {
 	return func(ctx context.Context, match cue.Value) (cue.Value, error) {
 		request := match.LookupPath(requestPath)
-		// if !blackboard.IsTransitivelyConcrete(request) {
-		// 	return match, blackboard.NotTransitivelyConcrete
-		// }
-
-		breq := &blackboard.Request{}
+		breq := &Request{}
 		err := request.Decode(&breq)
 		if err != nil {
 			return match, err
@@ -33,7 +52,7 @@ func ServiceDefRefinement(pc *ProvisionerCache, serviceName string, serviceDef c
 			return match, err
 		}
 
-		hreq, err := http.NewRequestWithContext(ctx, *breq.Method, "http://0.0.0.0"+*breq.URL.Path, bytes.NewReader(b))
+		hreq, err := http.NewRequestWithContext(ctx, *breq.Method, baseURL+*breq.URL.Path, bytes.NewReader(b))
 		if err != nil {
 			return match, err
 		}
@@ -45,18 +64,14 @@ func ServiceDefRefinement(pc *ProvisionerCache, serviceName string, serviceDef c
 			}
 		}
 
-		handler := pc.ProvisionReverseProxy(&ServiceSpawnRequest{
-			ServiceName: serviceName,
-			Parameters:  ServiceSpawnParameterRequests{},
-		})
-
-		rec := httptest.NewRecorder()
-		handler.ServeHTTP(rec, hreq)
-		hres := rec.Result()
+		hres, err := http.DefaultClient.Do(hreq)
+		if err != nil {
+			return match, err
+		}
 
 		// log.Printf("hres %#v", hres)
 
-		bres := blackboard.Response{
+		bres := Response{
 			Status:  &hres.StatusCode,
 			Headers: hres.Header,
 		}

@@ -253,23 +253,6 @@ func (b *Blackboard) Call(ctx context.Context, input Input, refinement Refinemen
 		return true
 	}, refinement)
 
-	// for m := range ch {
-	// 	matches = append(matches, *m)
-	// 	if m.Error == nil {
-	// 		match = m
-	// 		break
-	// 	} else {
-	// 		log.Printf("blackboard call error: %s", m.Error)
-	// 	}
-	// }
-
-	// go func() {
-	// 	for m := range ch {
-	// 		// todo log these
-	// 		matches = append(matches, *m)
-	// 	}
-	// }()
-
 	if match != nil {
 		// log.Printf("blackboard call matched %#v", match)
 		return match, true

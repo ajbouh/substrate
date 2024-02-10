@@ -6,6 +6,7 @@ toolchain go1.21.1
 
 require (
 	cuelang.org/go v0.7.0
+	github.com/ajbouh/substrate/pkg/cueloader v0.0.0-00010101000000-000000000000
 	github.com/NVIDIA/go-nvml v0.12.0-2
 	github.com/cloudfoundry/gosigar v1.3.36
 	github.com/containers/common v0.57.1
@@ -149,3 +150,5 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 	tags.cncf.io/container-device-interface v0.6.2 // indirect
 )
+
+replace github.com/ajbouh/substrate/pkg/cueloader => ../../pkg/cueloader

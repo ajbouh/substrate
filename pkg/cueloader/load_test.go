@@ -1,4 +1,4 @@
-package defset_test
+package cueloader_test
 
 import (
 	"context"
@@ -12,10 +12,9 @@ import (
 
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/load"
-	"github.com/ajbouh/substrate/images/substrate/defset"
 )
 
-func assertLoad(t *testing.T, l *defset.CueLoad, want map[string]any, err string) {
+func assertLoad(t *testing.T, l *cueloader.Loader, want map[string]any, err string) {
 	if l == nil {
 		t.Fatalf("unexpected nil load")
 	}
@@ -57,7 +56,7 @@ func runLoadNowCase(t *testing.T, c loadNowCase) {
 		os.WriteFile(filepath.Join(dir, n), []byte(s), 0644)
 	}
 
-	l := defset.NewCueLoader(config, c.arg)(&sync.Mutex{}, cc)
+	l := cueloader.NewCueLoader(config, c.arg)(&sync.Mutex{}, cc)
 	assertLoad(t, l, c.want, "")
 }
 
@@ -117,10 +116,10 @@ func runLoadUntilCase(t *testing.T, c loadUntilCase) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	cl := make(chan *defset.CueLoad, 1)
-	loader := defset.NewCueLoader(config, c.arg)
+	cl := make(chan *cueloader.Loader, 1)
+	loader := cueloader.NewCueLoader(config, c.arg)
 	mu := &sync.Mutex{}
-	defset.NewCueWatcher(ctx, config, func(err error) {
+	cueloader.NewCueConfigWatcher(ctx, config, func(err error) {
 		cl <- loader(mu, cc)
 	})
 
