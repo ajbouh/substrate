@@ -251,7 +251,7 @@ func ParseServiceSpawnRequest(spec string, forceReadOnly bool, spawnPrefix strin
 		URLPrefix:   spawnPrefix,
 	}
 
-	fmt.Printf("ParseServiceSpawnRequest %q %#v\n", spec, *r)
+	// fmt.Printf("ParseServiceSpawnRequest %q %#v\n", spec, *r)
 
 	return r, path, nil
 }
@@ -272,7 +272,7 @@ func (r *ServiceSpawnRequest) Format() (string, bool) {
 	sort.Strings(fragments)
 
 	viewspec := strings.Join(fragments, spaceViewsSep)
-	fmt.Printf("ServiceSpawn() viewspec=%q fragments=%#v r=%#v\n", viewspec, fragments, r)
+	// fmt.Printf("ServiceSpawn() viewspec=%q fragments=%#v r=%#v\n", viewspec, fragments, r)
 
 	return r.ServiceName + viewspecParameterStart + viewspec + viewspecParameterEnd, concrete
 }
@@ -289,7 +289,7 @@ func (r ServiceSpawnResolution) Format() (string, bool) {
 	sort.Strings(spaceFragments)
 
 	viewspec := strings.Join(spaceFragments, spaceViewsSep)
-	fmt.Printf("ServiceSpawnResolution() viewspec=%s r=%#v\n", viewspec, r)
+	// fmt.Printf("ServiceSpawnResolution() viewspec=%s r=%#v\n", viewspec, r)
 
 	return r.ServiceName + viewspecParameterStart + viewspec + viewspecParameterEnd, r.ServiceName != ""
 }

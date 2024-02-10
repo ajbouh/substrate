@@ -1,7 +1,6 @@
 package activityspec
 
 import (
-	"fmt"
 	"net/url"
 )
 
@@ -86,7 +85,7 @@ func ParseActivitySpecRequest(spec string, forceReadOnly bool, spawnPrefix strin
 		Path:                path,
 	}
 
-	fmt.Printf("ParseActivitySpecRequest %q %#v\n", spec, *r)
+	// fmt.Printf("ParseActivitySpecRequest %q %#v\n", spec, *r)
 
 	return r, nil
 }
