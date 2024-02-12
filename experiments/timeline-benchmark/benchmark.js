@@ -1,5 +1,6 @@
 const fs = require("fs");
-const API_URL = 'http://127.0.0.1:8080'
+//const API_URL = 'http://127.0.0.1:8080'
+const API_URL = 'http://substrate.home.arpa:8081'
 /*
 
 Run this with a command:
@@ -63,7 +64,9 @@ async function compare(tests, corrects) {
         for (let i = 0; i < corrects.length; i++) {
             const correct = corrects[i];
             let result = await test(sample, correct);
-            if (/^.*yes[^a-z]*$/i.test(result.trim())) {
+            console.log("result", result.trim());
+            if (/^.*yes[^a-z]*$/i.test(result.trim()) ||
+                /^[^a-z]*yes/i.test(result.trim())) {
                 count++;
                 console.log(`yes, ${sample}, ${correct}`);
                 answer.notMissed[i] = true;
