@@ -25,27 +25,48 @@ let webSocketURL = (() => {
   return u.toString();
 })();
 
-let sess = null;
+let micSess = null;
+let screenSess = null;
 const initSession = () => {
-  sess = new SFU(`${webSocketURL}?sfu`);
+  let sess = new SFU(`${webSocketURL}?sfu`);
   sess.onclose = (evt) => console.log("Websocket has closed");
   sess.onerror = (evt) => console.log("ERROR: " + evt.data);
   sess.ontrack = ({ streams: [stream], track }) => {
     // no-op!
     return
   };
+  return sess;
 };
 
 const localMedia = new LocalMedia({
-  videoEnabled: false,
+  videoSource: false,
   ondevicechange: () => m.redraw(),
   onstreamchange: (stream) => {
-    if (sess == null) {
-      initSession();
+    if (micSess == null) {
+      micSess = initSession();
     }
-    sess.setStream(stream);
+    micSess.setStream(stream);
   },
 });
+
+let screenMedia = null;
+
+const shareScreen = () => {
+  if (screenMedia) {
+    screenMedia.updateStream();
+    return
+  }
+  screenMedia = new LocalMedia({
+    videoSource: 'screen',
+    // videoEnabled: false,
+    onstreamchange: (stream) => {
+      if (screenSess == null) {
+        screenSess = initSession();
+      }
+      screenSess.setStream(stream);
+    },
+  });
+};
 
 let viewModel = {};
 let dataWS = new WebSocket(`${webSocketURL}?data`);
@@ -73,7 +94,7 @@ m.mount(document.body, {
     m(Sidebar, {sessions: viewModel.sessions}),
     m("div", {"class":"flex flex-col mx-auto grow"},
       [
-        m(Topbar, {localMedia}),
+        m(Topbar, {localMedia, shareScreen}),
         m("div", {"class":"grow px-6 mt-4 overflow-auto","id":"session"},
           m(Session, {summary: "Summary", entries: viewModel.entries})
         )

@@ -46,7 +46,6 @@ class LocalMedia {
 
   shareScreen() {
     this.setVideoSource('screen');
-    this.updateStream();
   }
 
   async updateStream() {
@@ -57,16 +56,26 @@ class LocalMedia {
         systemAudio: 'include',
       });
     } else {
+      const source = (src) => {
+        if (src === false) {
+          return false;
+        }
+        return {deviceId: src ? {exact: src} : true};
+      }
       this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: this.audioEnabled ? {deviceId: this.audioSource ? {exact: this.audioSource} : true} : false,
-        video: this.videoEnabled ? {deviceId: this.videoSource ? {exact: this.videoSource} : true} : false,
+        audio: source(this.audioSource),
+        video: source(this.videoSource),
       });
     }
     if (!this.audioEnabled) {
-      this.stream.getAudioTracks()[0].enabled = false;
+      for (const track of this.stream.getAudioTracks()) {
+        track.enabled = false;
+      }
     }
     if (!this.videoEnabled) {
-      this.stream.getVideoTracks()[0].enabled = false;
+      for (const track of this.stream.getVideoTracks()) {
+        track.enabled = false;
+      }
     }
     if (this.onstreamchange) {
       this.onstreamchange(this.stream);
