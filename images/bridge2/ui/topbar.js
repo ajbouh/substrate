@@ -32,7 +32,7 @@ export var Topbar = {
           m("button", {
             class:"p-2 border border-gray-600 rounded-md text-md focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-gray-400",
             disabled: false,
-            onclick: () => localMedia.shareScreen()
+            onclick: () => attrs.shareScreen()
           },
             "Send System Audio"
           )
