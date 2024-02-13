@@ -12,6 +12,19 @@ import (
 	"github.com/rs/xid"
 )
 
+var cborenc = func() cbor.EncMode {
+	// We have to repeat this here since cbor doesn't have a way to propagate
+	// these options down. So since we customize the encoding, calling
+	// cbor.Marshal() would lose the options set in the main package.
+	opts := cbor.CoreDetEncOptions()
+	opts.Time = cbor.TimeRFC3339
+	em, err := opts.EncMode()
+	if err != nil {
+		panic(err)
+	}
+	return em
+}()
+
 type Timestamp time.Duration // relative to stream start
 type ID string
 
@@ -160,7 +173,7 @@ func (s *Session) snapshot() *sessionSnapshot {
 }
 
 func (s *Session) MarshalCBOR() ([]byte, error) {
-	return cbor.Marshal(s.snapshot())
+	return cborenc.Marshal(s.snapshot())
 }
 
 func (s *Session) UnmarshalCBOR(data []byte) error {
