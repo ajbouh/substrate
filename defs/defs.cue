@@ -249,9 +249,6 @@ for key, def in #out.resourcedir_fetches {
 }
 
 #out: "docker_compose": {
-  // Keep things simple and default to amd64, even on Apple Silicon
-  services: [string]: platform: string | *"linux/amd64"
-
   // Remap
   services: [key=string]: profiles: [ for p, b in #out.docker_compose_profiles[key] { p } ]
 

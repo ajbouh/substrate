@@ -4,6 +4,9 @@ enable: "bridge2": true
 
 live_edit: "bridge2": bool
 
+// HACK force amd64 because we need to build on apple silicon but copy .so files and we're hard-coding the paths like n00bs.
+#out: "docker_compose": services: "bridge2": platform: "linux/amd64"
+
 imagespecs: "bridge2": {}
 
 lenses: "bridge2": {
