@@ -36,7 +36,6 @@ class Response(BaseModel):
 
     segments: List[Segment]
 
-
 class AudioMetadata(BaseModel):
     mime_type: Optional[str]
     sample_rate: Optional[int]
@@ -51,7 +50,6 @@ class Request(BaseModel):
     target_language: Optional[str]
     text: Optional[str]
     segments: Optional[Segment]
-
 
 def new_v1_api_app(
         transcribe: Optional[Callable[[Request], Response]]=None,
@@ -69,5 +67,6 @@ def new_v1_api_app(
 
             print("Took:", end - start)
             return transcription
+    
     
     return app
