@@ -254,6 +254,52 @@ func sessionUpdateHandler(ctx context.Context, sess *Session) chan struct{} {
 	return ch
 }
 
+func (m *Main) loadSession(ctx context.Context, id string) (*Session, error) {
+	m.mu.Lock()
+	sess := m.sessions[id]
+	m.mu.Unlock()
+	if sess != nil {
+		log.Println("found session in cache", id)
+		return sess, nil
+	}
+	log.Println("loading session from disk", id)
+	trackSess, err := tracks.LoadSession("./sessions", id)
+	if err != nil {
+		// TODO handle not found error
+		return nil, err
+	}
+	sess = m.addSession(ctx, trackSess)
+	return sess, nil
+}
+
+func (m *Main) addSession(ctx context.Context, trackSess *tracks.Session) *Session {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if sess := m.sessions[string(trackSess.ID)]; sess != nil {
+		return sess
+	}
+	sess := &Session{
+		sfu:     sfu.NewSession(),
+		Session: trackSess,
+	}
+	// For older sessions we may want to leave them read-only, at least by
+	// default. We could give them the option to start recording again, but they
+	// may not want new audio to be automatically recorded when they look it up.
+	for _, h := range m.EventHandlers {
+		sess.Listen(h)
+	}
+	go func() {
+		for range sessionUpdateHandler(ctx, sess) {
+			log.Printf("saving session")
+			fatal(saveSession(sess))
+		}
+	}()
+	m.sessions[string(sess.ID)] = sess
+	fatal(os.MkdirAll(fmt.Sprintf("./sessions/%s", sess.ID), 0744))
+	go m.StartSession(sess)
+	return sess
+}
+
 func (m *Main) Serve(ctx context.Context) {
 	m.sessions = make(map[string]*Session)
 
@@ -262,35 +308,16 @@ func (m *Main) Serve(ctx context.Context) {
 	}
 
 	http.HandleFunc("/sessions", func(w http.ResponseWriter, r *http.Request) {
-		m.mu.Lock()
-		sess := &Session{
-			sfu:     sfu.NewSession(),
-			Session: tracks.NewSession(),
-		}
-		for _, h := range m.EventHandlers {
-			sess.Listen(h)
-		}
-		go func() {
-			for range sessionUpdateHandler(ctx, sess) {
-				log.Printf("saving session")
-				fatal(saveSession(sess))
-			}
-		}()
-		m.sessions[string(sess.ID)] = sess
-		m.mu.Unlock()
-		fatal(os.MkdirAll(fmt.Sprintf("./sessions/%s", sess.ID), 0744))
-		go m.StartSession(sess)
+		sess := m.addSession(ctx, tracks.NewSession())
 		http.Redirect(w, r, path.Join(m.basePath, "sessions", string(sess.ID)), http.StatusFound)
 	})
 
 	http.HandleFunc("/sessions/", func(w http.ResponseWriter, r *http.Request) {
 		sessID := filepath.Base(r.URL.Path)
-
-		m.mu.Lock()
-		sess, found := m.sessions[sessID]
-		m.mu.Unlock()
-
-		if !found {
+		sess, err := m.loadSession(ctx, sessID)
+		if err != nil {
+			// TODO different error if we failed to load vs not found
+			log.Printf("error loading session %s: %s", sessID, err)
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
