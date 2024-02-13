@@ -2,6 +2,8 @@ package tracks
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"sync"
@@ -94,6 +96,19 @@ func LoadSessionInfo(root, id string) (*SessionInfo, error) {
 		ID:    ID(id),
 		Start: x.Time(),
 	}, nil
+}
+
+func LoadSession(root, id string) (*Session, error) {
+	var s Session
+	f, err := os.Open(filepath.Join(root, id, "session"))
+	if err != nil {
+		return nil, err
+	}
+	if err := cbor.NewDecoder(f).Decode(&s); err != nil {
+		return nil, err
+	}
+	// FIXME load the audio tracks as well
+	return &s, nil
 }
 
 type Session struct {
