@@ -497,6 +497,19 @@ case "$1" in
       --abort-on-container-exit	\
       --build
     ;;
+  run-test)
+    shift
+    set_docker_vars
+    check_cue_dev_expr_as_cue
+    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
+    export COMPOSE_PROFILES
+    docker_compose $DOCKER_COMPOSE_FILE run \
+      --remove-orphans \
+      --build \
+      --rm \
+      -it \
+      tests.$1
+    ;;
   docker-compose-up)
     shift
     set_docker_vars

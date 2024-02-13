@@ -1,12 +1,16 @@
 import torchaudio
+import torch
 from transformers import AutoProcessor, SeamlessM4Tv2Model
 import os
 import pycountry
 
-from substrate.asr import Request, Response, Segment, Word, new_v1_api_app
+from translator import Request, Response, Segment, Word, new_v1_api_app
 
-processor = AutoProcessor.from_pretrained(os.environ.get("MODEL"))
-model = SeamlessM4Tv2Model.from_pretrained(os.environ.get("MODEL"))
+modelname = os.environ.get("MODEL", "facebook/seamless-m4t-v2-large")
+processor = AutoProcessor.from_pretrained(modelname)
+model = SeamlessM4Tv2Model.from_pretrained(modelname)
+
+print("HIIII")
 
 supported = {
     "afr": {"label": "Afrikaans",              "script": "Latn"}, #       | Sp, Tx | Tx     |
@@ -144,11 +148,21 @@ def fuzzy_find_alpha_3(lang, kind):
 
     return lang
 
-def ogg2wav(ogg: bytes):
-    ogg_buf = io.BytesIO(ogg)
-    ogg_buf.name = 'file.opus'
-    data, samplerate = sf.read(ogg_buf, dtype='float32')
-    return data, samplerate
+def read_waveform(request: Request):
+    metadata = request.audio_metadata
+    data = base64.b64decode(request.audio_data)
+    buf = io.BytesIO(data)
+    if metadata and metadata.mime_type == 'audio/opus':
+        buf.name = 'file.opus'
+    else:
+        buf.name = 'file.wav'
+
+    dtype = 'float32'
+    samplerate = metadata.sample_rate if metadata and metadata.sample_rate else None
+    channels = metadata.channels if metadata and metadata.channels else None
+
+    waveform, samplerate = sf.read(buf, dtype=dtype, channels=channels, samplerate=samplerate)
+    return waveform, samplerate
 
 def transcribe(request: Request) -> Response:
     tgt_lang = fuzzy_find_alpha_3(request.target_language or "eng", "target")
@@ -156,15 +170,12 @@ def transcribe(request: Request) -> Response:
     translated_text = ""
 
     if request.audio_data:
-        print("base64 decoding audio_data len=", len(request.audio_data))
-        data = base64.b64decode(request.audio_data)
-        waveform, sample_rate = ogg2wav(data)
+        waveform, sample_rate = read_waveform(request)
         n_samples = waveform.shape[0]
 
         duration = n_samples / sample_rate
-        print("decoded audio_data sample_rate=", sample_rate, "n_samples=", n_samples, "duration=", duration)
 
-        audio =  torchaudio.functional.resample(waveform, orig_freq=sample_rate, new_freq=16_000) # must be a 16 kHz waveform array
+        audio = torchaudio.functional.resample(torch.from_numpy(waveform), orig_freq=sample_rate, new_freq=16_000) # must be a 16 kHz waveform array
         audio_inputs = processor(audios=audio, return_tensors="pt")
         output_tokens = model.generate(**audio_inputs, tgt_lang=tgt_lang, text_num_beams=5, generate_speech=False)
         translated_text = processor.decode(output_tokens[0].tolist()[0], skip_special_tokens=True)
