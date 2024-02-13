@@ -37,7 +37,6 @@ type Span interface {
 	Audio() beep.Streamer
 	EventTypes() []string
 	Events(typ string) []Event
-	RecordEvent(typ string, data any) Event
 }
 
 type Handler interface {
@@ -200,10 +199,6 @@ type Track struct {
 }
 
 var _ Span = (*Track)(nil)
-
-func (t *Track) RecordEvent(typ string, data any) Event {
-	return t.record(typ, t, data)
-}
 
 func (t *Track) record(typ string, span Span, data any) Event {
 	e := Event{
@@ -371,10 +366,6 @@ type filteredSpan struct {
 
 var _ Span = (*filteredSpan)(nil)
 
-func (s *filteredSpan) RecordEvent(typ string, data any) Event {
-	return s.Track().record(typ, s, data)
-}
-
 func (s *filteredSpan) EventTypes() []string {
 	// TODO should it return all types for the Track, or only ones found within this span?
 	return s.Track().EventTypes()
@@ -421,7 +412,17 @@ func (s *filteredSpan) Track() *Track {
 
 var eventTypes = map[string]reflect.Type{}
 
-func RegisterEvent[T any](name string) {
+func EventRecorder[T any](name string) func(Span, T) Event {
 	// TODO(Go 1.22) can use reflect.TypeFor[T]()
 	eventTypes[name] = reflect.TypeOf((*T)(nil)).Elem()
+	return func(s Span, data T) Event {
+		return s.Track().record(name, s, data)
+	}
+}
+
+func NilEventRecorder(name string) func(Span) Event {
+	record := EventRecorder[*struct{}](name)
+	return func(s Span) Event {
+		return record(s, nil)
+	}
 }
