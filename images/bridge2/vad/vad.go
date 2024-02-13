@@ -69,6 +69,8 @@ func New(config Config) *Agent {
 	}
 }
 
+var recordActivity = tracks.NilEventRecorder("activity")
+
 func (a *Agent) HandleEvent(annot tracks.Event) {
 	if annot.Type != "audio" {
 		return
@@ -86,7 +88,7 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		start = annot.Track().Start()
 	}
 	if ok && start != 0 {
-		annot.Track().Span(start, annot.End).RecordEvent("activity", nil)
+		recordActivity(annot.Track().Span(start, annot.End))
 	}
 }
 

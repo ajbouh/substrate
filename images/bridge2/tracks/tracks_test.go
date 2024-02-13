@@ -17,9 +17,7 @@ var eqopts = cmp.Options{
 	cmpopts.IgnoreFields(Event{}, "track"),
 }
 
-func init() {
-	RegisterEvent[string]("text")
-}
+var recordTextEvent = EventRecorder[string]("text")
 
 func TestTrack(t *testing.T) {
 	session := &Session{}
@@ -32,7 +30,7 @@ func TestTrack(t *testing.T) {
 	track.AddAudio(generators.Silence(rate.N(10 * time.Millisecond)))
 	assert.DeepEqual(t, []Event(nil), track.Events("text"))
 
-	track.RecordEvent("text", "foo-one")
+	recordTextEvent(track, "foo-one")
 	types := track.EventTypes()
 	assert.DeepEqual(t, []string{"text"}, types)
 
@@ -44,7 +42,7 @@ func TestTrack(t *testing.T) {
 		eqopts, cmpopts.IgnoreFields(Track{}, "ID"), cmpopts.IgnoreFields(Event{}, "ID"),
 	)
 
-	track.Span(Timestamp(5*time.Millisecond), Timestamp(10*time.Millisecond)).RecordEvent("text", "foo-two")
+	recordTextEvent(track.Span(Timestamp(5*time.Millisecond), Timestamp(10*time.Millisecond)), "foo-two")
 	assert.DeepEqual(t,
 		[]Event{
 			{EventMeta: EventMeta{Start: 0, End: Timestamp(10 * time.Millisecond), Type: "text"}, Data: "foo-one"},
@@ -78,7 +76,7 @@ func TestSerializeEventTypes(t *testing.T) {
 	type MyType struct {
 		Foo string
 	}
-	RegisterEvent[MyType]("my-type")
+	_ = EventRecorder[MyType]("my-type")
 	b := Event{
 		EventMeta: EventMeta{
 			Start: 0, End: Timestamp(10 * time.Millisecond),
@@ -96,8 +94,8 @@ func TestSerializeSession(t *testing.T) {
 		NumChannels: 2,
 		Precision:   2,
 	})
-	track.RecordEvent("text", "foo-one")
-	track.Span(Timestamp(5*time.Millisecond), Timestamp(10*time.Millisecond)).RecordEvent("text", "foo-two")
+	recordTextEvent(track, "foo-one")
+	recordTextEvent(track.Span(Timestamp(5*time.Millisecond), Timestamp(10*time.Millisecond)), "foo-two")
 
 	out, err := cbor.Marshal(session)
 	require.NoError(t, err)
@@ -190,7 +188,7 @@ func TestUpdateEvent(t *testing.T) {
 		return
 	}
 
-	e1 := track.RecordEvent("text", "original")
+	e1 := recordTextEvent(track, "original")
 	assert.DeepEqual(t, []any{"original"}, eventData("text"))
 
 	e1.Data = "modified"
