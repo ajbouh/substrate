@@ -22,8 +22,8 @@ export var Entry = {
     return m("div", {"class":"entry"}, [
       m("div", {"class":"left"},
         [
-          m("div", {"class":"time"}, formatTime(attrs.time)),
-          m("div", {"class":"session-time"}, formatSessionTime(attrs.sessionTime))
+          m("div", {"class":"time"}, formatTime(attrs.start)),
+          // m("div", {"class":"session-time"}, formatSessionTime(attrs.sessionTime))
         ]
       ),
       m("div", {"class":"line","style":{"background-color":attrs.lineColor}},

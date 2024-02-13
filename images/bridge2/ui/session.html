@@ -75,16 +75,17 @@ dataWS.onmessage = e => {
   const data = CBOR.decode((new Uint8Array(e.data)).buffer);
 
   const events = data.Session.Tracks.map(t => t.Events).filter(e => e).flat();
+  const sessionStart = new Date(data.Session.Start).getTime();
 
   viewModel = {
     sessions: data.Sessions,
     entries: events.filter(e => e.Type === "transcription").map(t => {
       return {
         speakerLabel: "user",
-        time: t.Start, // todo: convert
+        start: new Date(sessionStart + (t.Start / 1000000)), // todo: convert
         text: t.Data.segments.map(s => s.text).join()
       }
-    })
+    }).sort(({start}) => start)
   }
   m.redraw()
 }
