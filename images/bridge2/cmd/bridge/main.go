@@ -379,7 +379,13 @@ func (m *Main) Serve(ctx context.Context) {
 
 	http.Handle("/webrtc/", http.StripPrefix("/webrtc", http.FileServer(http.FS(js.Dir))))
 	http.Handle("/ui/", http.StripPrefix("/ui", http.FileServer(http.FS(ui.Dir))))
-	http.Handle("/", http.RedirectHandler(path.Join(m.basePath, "sessions"), http.StatusFound))
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		http.Redirect(w, r, path.Join(m.basePath, "sessions"), http.StatusFound)
+	})
 
 	log.Printf("running on http://localhost:%d ...", m.port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", m.port), nil))
