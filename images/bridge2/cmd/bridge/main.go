@@ -130,7 +130,7 @@ func parsePort(port string) int {
 }
 
 func (m *Main) Initialize() {
-	basePath := os.Getenv("BRIDGE_URL_BASE_PATH")
+	basePath := os.Getenv("SUBSTRATE_URL_PREFIX")
 	// ensure the path starts and ends with a slash for setting <base href>
 	m.basePath = must(url.JoinPath("/", basePath, "/"))
 	m.port = parsePort(getEnv("PORT", "8080"))

@@ -13,8 +13,5 @@ lenses: "bridge2": {
         { source: "\(#var.host_source_directory)/images/bridge2/ui", destination: "/go/src/github.com/ajbouh/substrate/images/bridge2/ui", mode: "ro" },
       }
     ]
-    environment: {
-      BRIDGE_URL_BASE_PATH: "/gw/bridge2",
-    }
   }
 }
