@@ -84,5 +84,9 @@ lenses: "miniService": {
 
 ![browser](miniService.png)
 
+or from the terminal:
+
+![terminal](terminal.png)
+
 
 
