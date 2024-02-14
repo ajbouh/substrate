@@ -8,7 +8,7 @@ ENV NODE_ENV development
 WORKDIR /express-docker
 
 # Copying all the files in our project
-COPY images/miniDocker/. .
+COPY images/miniService/. .
 
 
 # Installing dependencies
