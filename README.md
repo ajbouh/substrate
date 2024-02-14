@@ -86,7 +86,7 @@ There are a lot of rough edges here, but hopefully this is much better base for 
     </details>
 
 
-9. On your laptop, visit https://substrate.home.arpa/gw/bridge/. Select your microphone, click "Unmute", and try speaking.
+9. On your laptop, visit https://substrate.home.arpa/bridge/. Select your microphone, click "Unmute", and try speaking.
 
 10. After the initial reload, you can limit your build to a specific image. For example:
 

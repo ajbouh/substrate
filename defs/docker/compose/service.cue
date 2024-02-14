@@ -13,6 +13,8 @@ let #service = close({
     dockerfile ?: string
   })
 
+  platform ?: string
+
   profiles ?: [...string]
 
   environment ?: [string]: string
@@ -32,6 +34,8 @@ let #service = close({
   network_mode ?: "host" | string
 
   security_opt ?: [...string]
+
+  privileged ?: bool
 })
 
 #service

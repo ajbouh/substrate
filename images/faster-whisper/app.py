@@ -2,18 +2,27 @@ import numpy as np
 from faster_whisper import WhisperModel
 import os
 
-from substrate.asr import Request, Response, Segment, Word, new_v1_api_app
+from transcriber import Request, Response, Segment, Word, new_v1_api_app
 
 import base64
 import io
 import soundfile as sf
 
-def ogg2wav(ogg: bytes):
-    ogg_buf = io.BytesIO(ogg)
-    ogg_buf.name = 'file.opus'
-    data, samplerate = sf.read(ogg_buf, dtype='float32')
-    return data, samplerate
+def read_waveform(request: Request):
+    metadata = request.audio_metadata
+    data = base64.b64decode(request.audio_data)
+    buf = io.BytesIO(data)
+    if metadata and metadata.mime_type == 'audio/opus':
+        buf.name = 'file.opus'
+    else:
+        buf.name = 'file.wav'
 
+    dtype = 'float32'
+    samplerate = metadata.sample_rate if metadata and metadata.sample_rate else None
+    channels = metadata.channels if metadata and metadata.channels else None
+
+    waveform, samplerate = sf.read(buf, dtype=dtype, channels=channels, samplerate=samplerate)
+    return waveform, samplerate
 
 model = WhisperModel(
     os.environ.get("MODEL_REPO", "tiny"),
@@ -23,8 +32,7 @@ model = WhisperModel(
 )
 
 def transcribe(request: Request) -> Response:
-    data = base64.b64decode(request.audio_data)
-    waveform, sample_rate = ogg2wav(data)
+    waveform, sample_rate = read_waveform(request)
 
     segments, info = model.transcribe(
         waveform,

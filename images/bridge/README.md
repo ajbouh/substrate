@@ -10,4 +10,4 @@ To try it out, navigate to top-level directory of repo and run:
 ./dev.sh docker-compose-up
 ```
 
-Then open http://localhost:8080/gw/bridge/ in a browser.
+Then open http://localhost:8080/bridge/ in a browser.

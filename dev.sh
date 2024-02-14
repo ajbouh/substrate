@@ -97,11 +97,17 @@ detect_dev_cue_tag_args() {
   fi
   CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t namespace=$NAMESPACE"
 
-  if [ -z "$HOST_ROOT_SOURCE_DIR" ]; then
-    echo >&2 "HOST_ROOT_SOURCE_DIR not set"
+  if [ -z "$USE_VARSET" ]; then
+    echo >&2 "USE_VARSET not set"
     exit 2
   fi
-  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t root_source_directory=$HOST_ROOT_SOURCE_DIR"
+  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t use_varset=$USE_VARSET"
+
+  if [ -z "$BUILD_SOURCE_DIRECTORY" ]; then
+    echo >&2 "BUILD_SOURCE_DIRECTORY not set"
+    exit 2
+  fi
+  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t build_source_directory=$BUILD_SOURCE_DIRECTORY"
 
   if [ -z "$CUE_DEV_DEFS" ]; then
     echo >&2 "CUE_DEV_DEFS not set"
@@ -109,62 +115,8 @@ detect_dev_cue_tag_args() {
   fi
   CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t cue_defs=$CUE_DEV_DEFS"
 
-  if [ -z "$HOST_DOCKER_SOCKET" ]; then
-    echo >&2 "HOST_DOCKER_SOCKET not set"
-    exit 2
-  fi
-  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t host_docker_socket=$HOST_DOCKER_SOCKET"
-
-  if [ -z "$HOST_RESOURCEDIRS_ROOT" ]; then
-    echo >&2 "HOST_RESOURCEDIRS_ROOT not set"
-    exit 2
-  fi
-  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t host_resourcedirs_root=$HOST_RESOURCEDIRS_ROOT"
-
-  if [ -n "$HOST_RESOURCEDIRS_PATH" ]; then
-    CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t host_resourcedirs_path=$HOST_RESOURCEDIRS_PATH"
-  fi
-
-  if [ -z "$BUILD_RESOURCEDIRS_ROOT" ]; then
-    echo >&2 "BUILD_RESOURCEDIRS_ROOT not set"
-    exit 2
-  fi
-  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t build_resourcedirs_root=$BUILD_RESOURCEDIRS_ROOT"
-
-  if [ -n "$HOST_CUDA" ]; then
-    case "$HOST_CUDA" in
-      no)
-        CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t no_cuda=1"
-      ;;
-    esac
-  else
-    # if [ -z "$HOST_PROBE_PREFIX" ]; then
-    #   echo >&2 "HOST_CUDA and HOST_PROBE_PREFIX both not set"
-    #   exit 2
-    # fi
-  
-    if [ -n "$HOST_PROBE_PREFIX" ]; then
-      if ! $HOST_PROBE_PREFIX nvidia-smi >/dev/null 2>&1; then
-        CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t no_cuda=1"
-      fi
-    fi
-  fi
 
   set -x
-}
-
-debug_cue_dev_expr() {
-  # disable for now
-  return
-
-  detect_dev_cue_tag_args
-
-  mkdir -p $(dirname $CUE_DEV_EXPR_PATH)
-  [ ! -e $CUE_DEV_EXPR_PATH ] || mv -f $CUE_DEV_EXPR_PATH $CUE_DEV_EXPR_PATH.old
-  cue def \
-    $CUE_DEV_PACKAGE \
-    --outfile $CUE_DEV_EXPR_PATH \
-    $CUE_DEV_TAG_ARGS
 }
 
 print_rendered_cue_dev_expr_as() {
@@ -172,8 +124,6 @@ print_rendered_cue_dev_expr_as() {
   shift
 
   detect_dev_cue_tag_args
-
-  debug_cue_dev_expr
 
   cue export \
     --out $format \
@@ -188,7 +138,6 @@ write_rendered_cue_dev_expr_as() {
   shift 2
 
   detect_dev_cue_tag_args
-  debug_cue_dev_expr
 
   mkdir -p $(dirname $dest)
   [ ! -e $docker_compose_yml ] || mv -f $docker_compose_yml $docker_compose_yml.old
@@ -200,7 +149,7 @@ write_rendered_cue_dev_expr_as() {
     "$@"
 }
 
-write_rendered_cue_dev_expr_as_cue() {
+check_cue_dev_expr_as_cue() {
   detect_dev_cue_tag_args
 
   cue def --strict --trace --all-errors --verbose --inline-imports --simplify \
@@ -342,33 +291,24 @@ write_images_to_imagestore() {
 
 set_os_vars() {
   CUE_DEV_DEFS="defs"
-  HOST_ROOT_SOURCE_DIR="/var/home/core/source"
-  HOST_CUDA="1"
-  HOST_DOCKER_SOCKET="/var/run/podman/podman.sock"
-  HOST_RESOURCEDIRS_ROOT="/var/lib/resourcedirs"
-  HOST_RESOURCEDIRS_PATH="/run/media/oob/resourcedirs"
-  REL_BUILD_RESOURCEDIRS_ROOT="gen/oob/resourcedirs"
-  BUILD_RESOURCEDIRS_ROOT="$HERE/os/$REL_BUILD_RESOURCEDIRS_ROOT"
+  USE_VARSET="substrateos"
+  BUILD_SOURCE_DIRECTORY="$HERE"
 }
 
 set_docker_vars() {
   CUE_DEV_DEFS="defs"
-  HOST_ROOT_SOURCE_DIR=$HERE
-  HOST_PROBE_PREFIX="sh -c"
+  USE_VARSET="docker_compose"
+  BUILD_SOURCE_DIRECTORY="$HERE"
+}
 
-  HOST_RESOURCEDIRS_PATH=""
-  HOST_RESOURCEDIRS_ROOT="$HERE/os/gen/oob/resourcedirs"
-  BUILD_RESOURCEDIRS_ROOT="$HOST_RESOURCEDIRS_ROOT"
-  HOST_DOCKER_SOCKET="/var/run/docker.sock"
-
-  # Keep things simple and force amd64, even on Apple Silicon
-  export DOCKER_DEFAULT_PLATFORM=linux/amd64
+systemd_logs() {
+  journalctl -xfeu substrate.service
 }
 
 systemd_reload() {
   containers=$@
 
-  write_rendered_cue_dev_expr_as_cue
+  check_cue_dev_expr_as_cue
 
   DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
 
@@ -378,7 +318,10 @@ systemd_reload() {
   # HACK should actually only be pulling the images we built...
   IMAGES=$(print_rendered_cue_dev_expr_as text -e '#out.image_references')
   for image in $IMAGES; do
-    $PODMAN save $image | sudo $PODMAN load
+    image_id=$($PODMAN image inspect $image -f '{{.ID}}')
+    if ! sudo $PODMAN image exists $image_id; then
+      $PODMAN save $image | sudo $PODMAN load
+    fi
   done
 
   write_os_resourcedirs_overlay
@@ -401,18 +344,22 @@ systemd_reload() {
   sudo cp -r $RELOAD_OVERLAY_BASEDIR/* /
 
   sudo systemctl daemon-reload
+
   # show overrides
   systemd-delta
 
+  # HB it would be better to run this on the overlay dir *before* we copy it. how do we do that?
+  /usr/libexec/podman/quadlet --dryrun
+
   # HACK restart a few services by name. It would be much better to it based on what's changed...
   sudo systemctl restart substrate caddy nvidia-ctk-cdi-generate vscode-server
-  journalctl -xfeu substrate.service
 }
 
 os_oob_make() {
   write_os_resourcedirs_overlay
 
-  write_rendered_cue_dev_expr_as_cue
+  check_cue_dev_expr_as_cue
+ 
   build_images
   IMAGES=$(print_rendered_cue_dev_expr_as text -e '#out.image_references')
 
@@ -484,6 +431,17 @@ case "$1" in
     set_os_vars
     systemd_reload "$@"
     ;;
+  systemd-logs)
+    shift
+    set_os_vars
+    systemd_logs
+    ;;
+  systemd-reload-follow|srf)
+    shift
+    set_os_vars
+    systemd_reload "$@"
+    systemd_logs
+    ;;
   build-iso)
     shift
     set_os_vars
@@ -511,15 +469,53 @@ case "$1" in
   docker-compose-build)
     shift
     set_docker_vars
-    write_rendered_cue_dev_expr_as_cue
+    check_cue_dev_expr_as_cue
+ 
     DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
     docker_compose $DOCKER_COMPOSE_FILE build "$@"
+    ;;
+  test)
+    shift
+    if [ $# -eq 0 ]; then
+      COMPOSE_PROFILES="tests"
+    else
+      COMPOSE_PROFILES="tests.$1"
+      shift
+      for t in "$@"; do
+        COMPOSE_PROFILES="$profiles,tests.$t"
+      done
+    fi
+
+    set_docker_vars
+    check_cue_dev_expr_as_cue
+    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
+    export COMPOSE_PROFILES
+    docker_compose $DOCKER_COMPOSE_FILE up \
+      --always-recreate-deps \
+      --remove-orphans \
+      --force-recreate \
+      --abort-on-container-exit	\
+      --build
+    ;;
+  run-test)
+    shift
+    set_docker_vars
+    check_cue_dev_expr_as_cue
+    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
+    export COMPOSE_PROFILES
+    docker_compose $DOCKER_COMPOSE_FILE run \
+      --remove-orphans \
+      --build \
+      --rm \
+      -it \
+      tests.$1
     ;;
   docker-compose-up)
     shift
     set_docker_vars
     DOCKER_SERVICES=$@
-    write_rendered_cue_dev_expr_as_cue
+    check_cue_dev_expr_as_cue
+ 
     DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
     docker_compose $DOCKER_COMPOSE_FILE --profile daemons --profile default build
     docker_compose $DOCKER_COMPOSE_FILE --profile resourcedirs build

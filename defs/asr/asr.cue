@@ -44,6 +44,7 @@ package asr
     target_language ?: string
     text ?: string
     segments ?: _ // [...#Segment]
+    ...
 }
 
 // #DiarizationSegment: {

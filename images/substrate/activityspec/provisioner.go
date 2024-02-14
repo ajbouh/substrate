@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -74,7 +75,7 @@ func NewProvisionerCache(makeProvisionFunc func(req *ServiceSpawnRequest) Provis
 	}
 }
 
-type ProvisionFunc func(context.Context) (AuthenticatedURLJoinerFunc, bool, func(error), error)
+type ProvisionFunc func(context.Context) (*url.URL, bool, func(error), error)
 
 type ProvisionEvent interface {
 	Error() error

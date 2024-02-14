@@ -224,41 +224,41 @@ export const urls = {
   },
   gateway: {
     activity: ({ activityspec }: { activityspec: string }) => {
-      return `${fetchOrigin}/gw/${activityspec}`
+      return `${fetchOrigin}/${activityspec}`
     },
   },
   api: {
-    lenses: ({}: {}) => debug(`${fetchOrigin}/api/v1/lenses`),
-    activities: ({}: {}) => debug(`${fetchOrigin}/api/v1/activities`),
-    space: ({ space }: { space: string}) => debug(`${fetchOrigin}/api/v1/spaces/${space}`),
-    activity: ({ activityspec }: { activityspec: string }) => debug(`${fetchOrigin}/api/v1/activities/${activityspec}`),
+    lenses: ({}: {}) => debug(`${fetchOrigin}/substrate/v1/lenses`),
+    activities: ({}: {}) => debug(`${fetchOrigin}/substrate/v1/activities`),
+    space: ({ space }: { space: string}) => debug(`${fetchOrigin}/substrate/v1/spaces/${space}`),
+    activity: ({ activityspec }: { activityspec: string }) => debug(`${fetchOrigin}/substrate/v1/activities/${activityspec}`),
 
     collectionSpaceMembership: ({ owner, name, space }: { owner: string; name: string; space?: string }) => debug(
       space
-      ? `${fetchOrigin}/api/v1/collections/${owner}/${name}/spaces/${space}`
-      : `${fetchOrigin}/api/v1/collections/${owner}/${name}/spaces`,
+      ? `${fetchOrigin}/substrate/v1/collections/${owner}/${name}/spaces/${space}`
+      : `${fetchOrigin}/substrate/v1/collections/${owner}/${name}/spaces`,
     ),
     collectionLensMembership: ({ owner, name, lensspec }: { owner: string; name: string; lensspec?: string }) => debug(
       lensspec
-      ? `${fetchOrigin}/api/v1/collections/${owner}/${name}/lensspecs/${lensspec}`
-      : `${fetchOrigin}/api/v1/collections/${owner}/${name}/lensspecs`,
+      ? `${fetchOrigin}/substrate/v1/collections/${owner}/${name}/lensspecs/${lensspec}`
+      : `${fetchOrigin}/substrate/v1/collections/${owner}/${name}/lensspecs`,
     ),
     collections: ({ owner }: { owner: string }) => debug(
-      `${fetchOrigin}/api/v1/collections/${owner}`,
+      `${fetchOrigin}/substrate/v1/collections/${owner}`,
     ),
     collection: ({ owner, name }: { owner: string, name: string }) => debug(
-      `${fetchOrigin}/api/v1/collections/${owner}/${name}`,
+      `${fetchOrigin}/substrate/v1/collections/${owner}/${name}`,
     ),
     spaces: ({ owner }: { owner?: string}) => debug([
-      `${fetchOrigin}/api/v1/spaces?`,
+      `${fetchOrigin}/substrate/v1/spaces?`,
       ...(owner? [`owner=${owner}`]:[]),
     ].join("")),
     events: ({ user }: { user?: string}) => debug([
-      `${fetchOrigin}/api/v1/events?`,
+      `${fetchOrigin}/substrate/v1/events?`,
       ...(user? [`user=${user}`]:[]),
     ].join("")),
-    spawn: ({}: {}) => debug(`${fetchOrigin}/api/v1/activities`),
-    screenshotServiceURL: ({}: {}) => `${domOrigin}/gw/${screenshotService}`, // TODO don't hardcode "screenshot"
+    spawn: ({}: {}) => debug(`${fetchOrigin}/substrate/v1/activities`),
+    screenshotServiceURL: ({}: {}) => `${domOrigin}/${screenshotService}`, // TODO don't hardcode "screenshot"
     spacePreviewURL: ({ origin, space, previewFile }: { origin?: string; space: string; previewFile?: string }) => `${origin || domOrigin}/preview/space/${space}`,
     activityPreviewURL: ({ origin, activity, previewFile }: { origin?: string; activity: string; previewFile?: string }) => `${origin || domOrigin}/preview/activity/${activity}`,
     thumbnailPreviewURL: ({ space, activity, previewFile }: { activity: string; space: string; previewFile?: string }) =>

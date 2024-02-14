@@ -117,6 +117,8 @@ package lens
     environment: PORT: string | *"8080"
     command ?: [...string]
 
+    url_prefix ?: string
+
     resourcedirs: [alias=string]: {
       id: string
       sha256: string

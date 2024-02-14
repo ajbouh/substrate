@@ -12,44 +12,82 @@ import (
   docker_compose "github.com/ajbouh/substrate/defs/docker/compose:compose"
 )
 
-#no_cuda: string | *"" @tag(no_cuda)
+#Varset: {
+  namespace: string @tag(namespace)
+  cue_defs: string @tag(cue_defs)
+  build_source_directory: string | *"" @tag(build_source_directory)
+  use_varset: string @tag(use_varset)
 
-#var: {
-  "namespace": string @tag(namespace)
-  "root_source_directory": string | *"" @tag(root_source_directory)
-  "image_prefix": "ghcr.io/ajbouh/substrate:substrate-"
-  "no_cuda": #no_cuda != ""
-  "cue_defs": string | *"" @tag(cue_defs)
-  "secrets": {
-    "substrate": {
-      "session_secret": "NhnxMMlvBM7PuNgZ6sAaSqnkoAso8LlMBqnHZsQjxDFoclD5RREDRROk"
-    }
-  }
-  "host_resourcedirs_root": string | *"" @tag(host_resourcedirs_root)
-  "host_resourcedirs_path": string | *"" @tag(host_resourcedirs_path)
-  "build_resourcedirs_root": string | *"" @tag(build_resourcedirs_root)
-  "host_docker_socket": string | *"/var/run/docker.sock" @tag(host_docker_socket)
+  host_substratefs_root: string
+  host_source_directory: string
+  image_prefix: string | *"ghcr.io/ajbouh/substrate:substrate-"
+  host_resourcedirs_root: string
+  host_resourcedirs_path: string
+  build_resourcedirs_root: string
+
+  host_docker_socket: string | *"/var/run/docker.sock"
   // host_docker_socket: "/var/run/podman/podman.sock"
   // host_docker_socket: "/run/user/1001/podman/podman.sock"
-  "substrate": {
-    internal_port: 8080
-    // Uncomment the line below to enable live def editing.
-    // We can default to `live_defs: true` once:
-    // - the live ISO properly bundles source code
-    // - the installer properly copies source code
-    // - we have a valid "dummy" location that exists when source code is not present.
-    // live_defs: true
-    "docker_compose_prefix": "\(#var.namespace)-substrate_"
-    "external_origin": "https://substrate.home.arpa"
-    "internal_host": "substrate:\(internal_port)"
-    "internal_protocol": "http:"
-    "internal_network_name": "substrate-internal"
-    "external_network_name": "substrate-external"
-    "resourcedirs_root": "/var/lib/substrate/resourcedirs"
+
+  substrate: {
+    internal_port: int | *8080
+
+    network_name_prefix: string | *""
+    internal_host: "substrate:\(internal_port)"
+    internal_protocol: "http:"
+    internal_network_name: "substrate-internal"
+    external_network_name: "substrate-external"
+    resourcedirs_root: "/var/lib/substrate/resourcedirs"
   }
 }
 
+#varsets: [string]: #Varset
+
+#varsets: substrateos: {
+  build_source_directory: string
+  host_source_directory: "/var/home/core/source"
+  host_substratefs_root: "/var/lib/substratefs"
+  host_docker_socket: "/var/run/podman/podman.sock"
+  host_resourcedirs_root: "/var/lib/resourcedirs"
+  host_resourcedirs_path: "/run/media/oob/resourcedirs"
+  build_resourcedirs_root: "\(build_source_directory)/os/gen/oob/resourcedirs"
+}
+
+#varsets: docker_compose: {
+  namespace: string
+  build_source_directory: string
+  host_source_directory: build_source_directory
+
+  host_substratefs_root: "\(build_source_directory)/substratefs"
+  host_resourcedirs_path: ""
+  host_resourcedirs_root: "\(build_source_directory)/os/gen/oob/resourcedirs"
+  host_docker_socket: "/var/run/docker.sock"
+  build_resourcedirs_root: host_resourcedirs_root
+
+  substrate: {
+    network_name_prefix ?: "\(namespace)-substrate_"
+  }
+}
+
+#var: #Varset
+
+#use_varset: "substrateos" | "docker_compose" @tag(use_varset)
+#var: #varsets[#use_varset]
+
 enable: [string]: bool
+
+live_edit: [string]: bool | *false
+
+#TestDef: {
+  imagespec
+  containerspec.#ContainerSpec
+
+  depends_on: [string]: true
+}
+
+test_templates: [string]: #TestDef
+
+tests: [key=string]: [suitealias=string]: #TestDef
 
 imagespecs: [key=string]: imagespec & {
   image: "\(#var.image_prefix)\(key)"
@@ -171,23 +209,54 @@ for key, def in #out.resourcedir_fetches {
   }).#out
 }
 
-#out: "docker_compose": {
+#out: docker_compose_profiles: {
+  // Everything is in default
+  [string]: "default": true
+
+  for key, def in #out.daemons {
+    (key): "daemons": true
+  }
+
   for key, def in #out.imagespecs {
-    services: (key): profiles: [
-      if #out.daemons[key] != _|_ {
-        "daemons",
+    (key): {}
+  }
+
+  for key, def in #out.#lenses {
+    (key): {}
+  }
+
+  for testkey, testsuites in tests {
+    for suitealias, suitedef in testsuites {
+      "tests.\(testkey).\(suitealias)": {
+        "tests": true
+        "tests.\(testkey)": true
+        "tests.\(testkey).\(suitealias)": true
       }
-      "default",
-    ]
+
+      for depkey, b in suitedef.depends_on {
+        (depkey): {
+          "tests": true
+          "tests.\(testkey)": true
+          "tests.\(testkey).\(suitealias)": true
+        }
+      }
+    }
   }
 
   for key, def in #out.resourcedir_fetches {
-    services: "resourcedir-\(def.sha256)": {
-      profiles: [
-        "resourcedirs",
-        "default",
-      ]
+    "resourcedir-\(def.sha256)": "resourcedirs": true
+  }
+}
 
+#out: "docker_compose": {
+  // Keep things simple and default to amd64, even on Apple Silicon
+  services: [string]: platform: string | *"linux/amd64"
+
+  // Remap
+  services: [key=string]: profiles: [ for p, b in #out.docker_compose_profiles[key] { p } ]
+
+  for key, def in #out.resourcedir_fetches {
+    services: "resourcedir-\(def.sha256)": {
       (containerspec.#DockerComposeService & {
         #containerspec: def.#containerspec
         #imagespec: def.#imagespec
@@ -205,16 +274,17 @@ for key, def in #out.resourcedir_fetches {
     }).#out
   }
 
-  for key, def in #out.imagespecs {
-    services: "\(key)-test": {
-      profiles: [
-        "test",
-      ]
-      build: {
-        if def.build.context != _|_ { context: def.build.context }
-        if def.build.args != _|_ { args: def.build.args }
-        if def.build.dockerfile != _|_ { dockerfile: def.build.dockerfile }
-        target: "test"
+  for testkey, testsuites in tests {
+    for suitealias, suitedef in testsuites {
+      let key = "tests.\(testkey).\(suitealias)"
+      volumes: (containerspec.#DockerComposeVolumes & {#containerspec: suitedef}).#out
+      services: (key): {
+        // Use build platform instead of linux/amd64 default from elsewhere
+        platform: ""
+        (containerspec.#DockerComposeService & {#containerspec: suitedef, #imagespec: suitedef}).#out
+        if suitedef.depends_on != _|_ {
+          depends_on: [ for dep, b in suitedef.depends_on { dep } ]
+        }
       }
     }
   }
@@ -226,28 +296,26 @@ for key, def in #out.resourcedir_fetches {
   }
 
   for key, def in #out.#lenses {
-    // need to profiles for lenses too, as not all lenses have their own imagespec.
-    services: (key): profiles: [
-      if #out.daemons[key] != _|_ {
-        "daemons",
-      }
-      "default",
-    ]
-
     if def.spawn != _|_ {
       services: (key): {
-        environment: PORT: string
+        environment: PORT: "8080"
+        environment: ORIGIN: "localhost:8080"
         ports: [
           "127.0.0.1:8081:\(environment.PORT)",
         ]
+        if def.spawn.#docker_compose_service != _|_ {
+          def.spawn.#docker_compose_service
+        }
         (containerspec.#DockerComposeService & {
           #containerspec: {
             "environment": def.spawn.environment
             "command": def.spawn.command
             "image": def.spawn.image
-            for alias, rddef in def.spawn.resourcedirs {
-              mounts: [{source: "\(#var.build_resourcedirs_root)/\(rddef.sha256)", "destination": "/res/\(alias)", "mode": "Z"}]
-            }
+            mounts: [
+              for alias, rddef in def.spawn.resourcedirs {
+                {source: "\(#var.build_resourcedirs_root)/\(rddef.sha256)", "destination": "/res/\(alias)", "mode": "Z"}
+              }
+            ]
           }
         }).#out
       }
@@ -261,12 +329,7 @@ for key, def in #out.resourcedir_fetches {
       ]
 
       environment: {
-        // PORT: "\(#namespace_host_port_offset + #service_host_port_offset["substrate"] + 1)"
         "PORT": "8080"
-        // "ORIGIN": "http://localhost:\(environment.PORT)"
-        // if #lenses["ui"] != _|_ {
-        //   EXTERNAL_UI_HANDLER: "http://ui:\(services.ui.environment.PORT)"
-        // }
         ...
       }
     }

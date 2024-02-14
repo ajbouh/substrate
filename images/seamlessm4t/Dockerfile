@@ -6,6 +6,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     python3 python3-pip git \
     libsndfile-dev \
+    libgomp1 \
   && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory in the container
@@ -19,11 +20,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the source code to the container
 COPY images/seamlessm4t/. .
-COPY pkg/asr substrate/asr
 
-# Expose the port on which the application will run (default is 8080)
-EXPOSE 8080
 ENV PYTHONUNBUFFERED=1
 
 # Start the application with Uvicorn
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
+ENTRYPOINT ["uvicorn", "app:app", "--host", "0.0.0.0"]

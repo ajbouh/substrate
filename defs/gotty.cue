@@ -1,14 +1,26 @@
 package defs
 
-enable: "gotty": false
+enable: "gotty": true
 
-imagespecs: "gotty": {}
+imagespecs: "gotty": {
+  build: target: "dist-alpine"
+}
 
 "lenses": "gotty": {
-  spawn: {}
-  spawn: schema: {
-    data: {
-      type: "space"
+  spawn: {
+    url_prefix: "/gotty"
+    environment: {
+      PORT: string
+      ORIGIN: string
+      GOTTY_PATH: "/gotty"
+      GOTTY_PORT: PORT
+      GOTTY_WS_ORIGIN: ORIGIN
+    }
+
+    parameters: {
+      data: {
+        type: "space"
+      }
     }
   }
 

@@ -185,6 +185,7 @@ type Event struct {
 
 	ID           string    `json:"id"`
 	ActivitySpec string    `json:"viewspec,omitempty"`
+	URLPrefix    string    `json:"urlprefix,omitempty"`
 	User         string    `json:"user"`
 	Service      string    `json:"lens"`
 	Type         string    `json:"type"`
@@ -276,12 +277,7 @@ func (s *Substrate) ListEvents(ctx context.Context, request *EventListRequest) (
 }
 
 func (e *Event) SpawnResult() (*activityspec.ActivitySpawnResponse, error) {
-	asr, err := activityspec.ParseActivitySpecRequest(e.ActivitySpec, false)
-	if err != nil {
-		return nil, err
-	}
-
-	u, err := url.Parse(e.Response.ServiceSpawnResponse.BackendURL)
+	asr, err := activityspec.ParseActivitySpecRequest(e.ActivitySpec, false, e.URLPrefix)
 	if err != nil {
 		return nil, err
 	}
@@ -292,8 +288,6 @@ func (e *Event) SpawnResult() (*activityspec.ActivitySpawnResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	r.URLJoiner = activityspec.MakeJoiner(u, r.BearerToken)
 
 	return &activityspec.ActivitySpawnResponse{
 		ActivitySpec: e.ActivitySpec,
@@ -509,9 +503,6 @@ func (s *Substrate) ListSpaces(ctx context.Context, request *SpaceListQuery) ([]
 	}
 	defer rows.Close()
 
-	s.Mu.RLock()
-	defer s.Mu.RUnlock()
-
 	results := []*Space{}
 	for rows.Next() {
 		var o Space
@@ -709,9 +700,6 @@ func (s *Substrate) ListCollections(ctx context.Context, request *CollectionList
 		return nil, err
 	}
 	defer rows.Close()
-
-	s.Mu.RLock()
-	defer s.Mu.RUnlock()
 
 	results := []*Collection{}
 	for rows.Next() {

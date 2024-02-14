@@ -1,0 +1,11 @@
+1965: Butler Lampson's thesis.
+1966: Simula introduced by Nygaard and Dahl.
+1967: Case Western Reserve University founded.
+1969: ARPANET started running.
+1970: Xerox PARC founded.
+1972: Smalltalk created.
+1979: C++ development started by Bjarne Stroustrup.
+1981: MS-DOS introduced.
+1984: X Windows introduced.
+1989: HTML on the Internet's foundational technology proposed by Tim Berners-Lee.
+1995: Java programming language and Java VM first released by Sun Microsystems.

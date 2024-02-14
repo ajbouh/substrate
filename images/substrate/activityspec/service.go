@@ -2,7 +2,6 @@ package activityspec
 
 import (
 	"fmt"
-	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
@@ -21,6 +20,7 @@ type ServiceSpawnRequest struct {
 	ServiceName string
 	Parameters  ServiceSpawnParameterRequests
 
+	URLPrefix     string
 	User          string
 	Ephemeral     bool
 	ForceReadOnly bool
@@ -42,11 +42,11 @@ type ServiceSpawnResponse struct {
 	BackendURL  string
 	BearerToken *string
 
-	URLJoiner AuthenticatedURLJoinerFunc
+	ServiceSpawnResolution ServiceSpawnResolution
 }
 
-func (s *ServiceSpawnResponse) URL(mode ProvisionerAuthenticationMode) (*url.URL, http.Header) {
-	return s.URLJoiner(nil, mode)
+func (s *ServiceSpawnResponse) URL() (*url.URL, error) {
+	return url.Parse(s.BackendURL)
 }
 
 type ServiceSpawnParameterType string
@@ -68,6 +68,15 @@ type ServiceDefSpawn struct {
 	Environment  map[string]string         `json:"environment,omitempty"`
 	Command      []string                  `json:"command,omitempty"`
 	ResourceDirs map[string]ResourceDirDef `json:"resourcedirs,omitempty"`
+	Mounts       []ServiceDefSpawnMount    `json:"mounts,omitempty"`
+
+	URLPrefix string `json:"url_prefix,omitempty"`
+}
+
+type ServiceDefSpawnMount struct {
+	Source      string `json:"source"`
+	Destination string `json:"destination"`
+	Mode        string `json:"mode",omitempty`
 }
 
 type ResourceDirDef struct {
@@ -81,6 +90,21 @@ type ServiceSpawnParameterRequest string
 
 func (v ServiceSpawnParameterRequest) String() string {
 	return string(v)
+}
+
+func (v ServiceSpawnParameterRequest) IsConcrete(t ServiceSpawnParameterType) bool {
+	switch t {
+	case ServiceSpawnParameterTypeSpace:
+		return string(v) != "" && !strings.HasPrefix(string(v), spaceViewForkPrefix)
+	case ServiceSpawnParameterTypeSpaces:
+		for s := range v.Spaces(false) {
+			if string(s) == "" || strings.HasPrefix(string(s), spaceViewForkPrefix) {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 func (v ServiceSpawnParameterRequest) Resource() *Resource {
@@ -176,7 +200,7 @@ const spaceViewMultiSep = ","
 const viewspecParameterStart = "["
 const viewspecParameterEnd = "]"
 
-func ParseServiceSpawnRequest(spec string, forceReadOnly bool) (*ServiceSpawnRequest, string, error) {
+func ParseServiceSpawnRequest(spec string, forceReadOnly bool, spawnPrefix string) (*ServiceSpawnRequest, string, error) {
 	var lens string
 	var viewspec string
 	var path string
@@ -224,6 +248,7 @@ func ParseServiceSpawnRequest(spec string, forceReadOnly bool) (*ServiceSpawnReq
 	r := &ServiceSpawnRequest{
 		ServiceName: lens,
 		Parameters:  params,
+		URLPrefix:   spawnPrefix,
 	}
 
 	fmt.Printf("ParseServiceSpawnRequest %q %#v\n", spec, *r)

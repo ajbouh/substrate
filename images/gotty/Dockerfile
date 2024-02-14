@@ -1,4 +1,4 @@
-FROM node:16 as js-build
+FROM docker.io/library/node:16 as js-build
 WORKDIR /gotty
 COPY images/gotty/js/. /gotty/js
 COPY images/gotty/Makefile /gotty/
@@ -35,5 +35,5 @@ RUN apt update && \
   apt clean && \
   rm -rf /var/lib/apt/lists/*
 ENV PORT 8080
-COPY --from=build --chown=nonroot:nonroot /go/bin/gotty /bin/
+COPY --from=go-build --chown=nonroot:nonroot /gotty/gotty /bin/
 ENTRYPOINT ["/bin/gotty", "-w", "/bin/bash"]

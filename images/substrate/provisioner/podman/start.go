@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path"
 	"strconv"
@@ -190,10 +189,19 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		return nil, err
 	}
 
+	for _, m := range as.ServiceDefSpawn.Mounts {
+		s.Mounts = append(s.Mounts,
+			specs.Mount{
+				Type:        "bind",
+				Source:      m.Source,
+				Destination: m.Destination,
+				Options:     []string{"ro"},
+			},
+		)
+	}
+
 	s.Mounts = append(s.Mounts, resourcedirMounts...)
 
-	// TODO need to check schema before we know how to interpret a given parameter...
-	// Maybe write a method for each interpretation? Can return an error if it's impossible...
 	for k, v := range as.ServiceDefSpawn.Environment {
 		s.Env[k] = v
 	}
@@ -209,10 +217,11 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		s.PortMappings = append(s.PortMappings, nettypes.PortMapping{
 			ContainerPort: uint16(port),
 			Protocol:      "tcp",
-		},
-		)
+		})
 	}
 
+	// TODO need to check schema before we know how to interpret a given parameter...
+	// Maybe write a method for each interpretation? Can return an error if it's impossible...
 	for parameterName, parameterValue := range as.Parameters {
 		switch {
 		case parameterValue.Space != nil:
@@ -246,21 +255,15 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	// backendPortMap := inspect.NetworkSettings.Ports[natPort][0]
 	// backendURL := "http://host.docker.internal:" + backendPortMap.HostPort
 
-	// TODO should ProvisionerCookieAuthenticationMode be a parameter?
-	u, err := url.Parse(backendURL)
-	if err != nil {
-		return nil, err
-	}
-
 	var bearerToken *string
 	// bearerToken = r.BearerToken
 
 	return &activityspec.ServiceSpawnResponse{
 		Name: cResp.ID,
 
-		URLJoiner: activityspec.MakeJoiner(u, bearerToken),
-
-		BackendURL:  backendURL,
+		BackendURL:  backendURL + as.ServiceDefSpawn.URLPrefix,
 		BearerToken: bearerToken,
+
+		ServiceSpawnResolution: *as,
 	}, nil
 }
