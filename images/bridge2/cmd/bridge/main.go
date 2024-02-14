@@ -52,7 +52,7 @@ func main() {
 			SampleWindow: 24 * time.Second,
 		}),
 		transcribe.Agent{
-			Endpoint: "http://localhost:8090/v1/transcribe",
+			Endpoint: getEnv("BRIDGE_TRANSCRIBE_URL", "http://localhost:8090/v1/transcribe"),
 		},
 		eventLogger{
 			exclude: []string{"audio"},
