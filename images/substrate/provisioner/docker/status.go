@@ -107,6 +107,9 @@ func (c *ContainerStatusCheck) waitUntilReadyTCP(ctx context.Context, maxAttempt
 			log.Printf("waitUntilReadyTCP try host=%s port=%s attempts=%d maxAttempts=%d", c.host, c.port, attempts, maxAttempts)
 			conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", c.host, c.port))
 			if err != nil {
+				if e, ok := err.(*net.DNSError); ok && e.IsNotFound {
+					return fmt.Errorf("gave up waiting for the container to be ready, since it seems to be gone: %w", err)
+				}
 				attempts++
 				log.Printf("waitUntilReadyTCP err host=%s port=%s attempts=%d maxAttempts=%d err=%s", c.host, c.port, attempts, maxAttempts, err)
 				continue
