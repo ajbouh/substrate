@@ -79,13 +79,15 @@ dataWS.onmessage = e => {
 
   viewModel = {
     sessions: data.Sessions,
-    entries: events.filter(e => e.Type === "transcription").map(t => {
+    entries: events.filter(e => e.Type === "transcription").sort((a, b) => {
+      return a.Start - b.Start;
+    }).map(t => {
       return {
         speakerLabel: "user",
         start: new Date(sessionStart + (t.Start / 1000000)), // todo: convert
         text: t.Data.segments.map(s => s.text).join()
       }
-    }).sort(({start}) => start)
+    })
   }
   m.redraw()
 }
