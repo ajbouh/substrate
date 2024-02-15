@@ -2,6 +2,8 @@ package tracks
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"sync"
@@ -11,6 +13,19 @@ import (
 	"github.com/gopxl/beep"
 	"github.com/rs/xid"
 )
+
+var cborenc = func() cbor.EncMode {
+	// We have to repeat this here since cbor doesn't have a way to propagate
+	// these options down. So since we customize the encoding, calling
+	// cbor.Marshal() would lose the options set in the main package.
+	opts := cbor.CoreDetEncOptions()
+	opts.Time = cbor.TimeRFC3339
+	em, err := opts.EncMode()
+	if err != nil {
+		panic(err)
+	}
+	return em
+}()
 
 type Timestamp time.Duration // relative to stream start
 type ID string
@@ -24,15 +39,18 @@ type Span interface {
 	Audio() beep.Streamer
 	EventTypes() []string
 	Events(typ string) []Event
-	RecordEvent(typ string, data any) Event
 }
 
 type Handler interface {
 	HandleEvent(Event)
 }
 
+func newIDWithTime(t time.Time) ID {
+	return ID(xid.NewWithTime(t).String())
+}
+
 func newID() ID {
-	return ID(xid.New().String())
+	return newIDWithTime(time.Now().UTC())
 }
 
 type EventMeta struct {
@@ -77,6 +95,35 @@ func (e *Event) UnmarshalCBOR(data []byte) error {
 	return nil
 }
 
+type SessionInfo struct {
+	ID    ID
+	Start time.Time
+}
+
+func LoadSessionInfo(root, id string) (*SessionInfo, error) {
+	x, err := xid.FromString(id)
+	if err != nil {
+		return nil, err
+	}
+	return &SessionInfo{
+		ID:    ID(id),
+		Start: x.Time(),
+	}, nil
+}
+
+func LoadSession(root, id string) (*Session, error) {
+	var s Session
+	f, err := os.Open(filepath.Join(root, id, "session"))
+	if err != nil {
+		return nil, err
+	}
+	if err := cbor.NewDecoder(f).Decode(&s); err != nil {
+		return nil, err
+	}
+	// FIXME load the audio tracks as well
+	return &s, nil
+}
+
 type Session struct {
 	EventEmitter
 	ID     ID
@@ -85,9 +132,10 @@ type Session struct {
 }
 
 func NewSession() *Session {
+	start := time.Now().UTC()
 	return &Session{
-		ID:    newID(),
-		Start: time.Now().UTC(),
+		ID:    newIDWithTime(start),
+		Start: start,
 	}
 }
 
@@ -124,8 +172,9 @@ type sessionSnapshot struct {
 
 func (s *Session) snapshot() *sessionSnapshot {
 	snap := &sessionSnapshot{
-		ID:    s.ID,
-		Start: s.Start,
+		ID:     s.ID,
+		Start:  s.Start,
+		Tracks: []*trackSnapshot{}, // empty slice to ensure it doesn't serialize as "null"
 	}
 	s.tracks.Range(func(key, value any) bool {
 		snap.Tracks = append(snap.Tracks, value.(*Track).snapshot())
@@ -138,7 +187,7 @@ func (s *Session) snapshot() *sessionSnapshot {
 }
 
 func (s *Session) MarshalCBOR() ([]byte, error) {
-	return cbor.Marshal(s.snapshot())
+	return cborenc.Marshal(s.snapshot())
 }
 
 func (s *Session) UnmarshalCBOR(data []byte) error {
@@ -165,10 +214,6 @@ type Track struct {
 }
 
 var _ Span = (*Track)(nil)
-
-func (t *Track) RecordEvent(typ string, data any) Event {
-	return t.record(typ, t, data)
-}
 
 func (t *Track) record(typ string, span Span, data any) Event {
 	e := Event{
@@ -297,6 +342,7 @@ func (t *Track) snapshot() *trackSnapshot {
 		ID:     t.ID,
 		Start:  t.start,
 		Format: t.audio.Format(),
+		Events: []Event{}, // empty slice to ensure it doesn't serialize as "null"
 	}
 	t.rangeEvents(func(e Event) bool {
 		data.Events = append(data.Events, e)
@@ -334,10 +380,6 @@ type filteredSpan struct {
 }
 
 var _ Span = (*filteredSpan)(nil)
-
-func (s *filteredSpan) RecordEvent(typ string, data any) Event {
-	return s.Track().record(typ, s, data)
-}
 
 func (s *filteredSpan) EventTypes() []string {
 	// TODO should it return all types for the Track, or only ones found within this span?
@@ -385,7 +427,17 @@ func (s *filteredSpan) Track() *Track {
 
 var eventTypes = map[string]reflect.Type{}
 
-func RegisterEvent[T any](name string) {
+func EventRecorder[T any](name string) func(Span, T) Event {
 	// TODO(Go 1.22) can use reflect.TypeFor[T]()
 	eventTypes[name] = reflect.TypeOf((*T)(nil)).Elem()
+	return func(s Span, data T) Event {
+		return s.Track().record(name, s, data)
+	}
+}
+
+func NilEventRecorder(name string) func(Span) Event {
+	record := EventRecorder[*struct{}](name)
+	return func(s Span) Event {
+		return record(s, nil)
+	}
 }

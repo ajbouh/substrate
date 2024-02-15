@@ -1,14 +1,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"io/fs"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -48,13 +52,21 @@ func main() {
 			SampleWindow: 24 * time.Second,
 		}),
 		transcribe.Agent{
-			Endpoint: "http://localhost:8090/v1/transcribe",
+			Endpoint: getEnv("BRIDGE_TRANSCRIBE_URL", "http://localhost:8090/v1/transcribe"),
 		},
 		eventLogger{
 			exclude: []string{"audio"},
 		},
 	)
 }
+
+var cborenc = func() cbor.EncMode {
+	opts := cbor.CoreDetEncOptions()
+	opts.Time = cbor.TimeRFC3339
+	em, err := opts.EncMode()
+	fatal(err)
+	return em
+}()
 
 type eventLogger struct {
 	exclude []string
@@ -74,6 +86,8 @@ type Main struct {
 
 	sessions map[string]*Session
 	format   beep.Format
+	basePath string
+	port     int
 
 	Daemon *daemon.Framework
 
@@ -87,7 +101,7 @@ type Session struct {
 }
 
 type View struct {
-	Sessions []string
+	Sessions []*tracks.SessionInfo
 	Session  *Session
 }
 
@@ -95,6 +109,31 @@ func fatal(err error) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func must[T any](t T, err error) T {
+	fatal(err)
+	return t
+}
+
+func getEnv(key, def string) string {
+	v := os.Getenv(key)
+	if v == "" {
+		return def
+	}
+	return v
+}
+
+func parsePort(port string) int {
+	port16 := must(strconv.ParseUint(port, 10, 16))
+	return int(port16)
+}
+
+func (m *Main) Initialize() {
+	basePath := os.Getenv("SUBSTRATE_URL_PREFIX")
+	// ensure the path starts and ends with a slash for setting <base href>
+	m.basePath = must(url.JoinPath("/", basePath, "/"))
+	m.port = parsePort(getEnv("PORT", "8080"))
 }
 
 func (m *Main) InitializeCLI(root *cli.Command) {
@@ -117,7 +156,7 @@ func (m *Main) TerminateDaemon(ctx context.Context) error {
 }
 
 func saveSession(sess *Session) error {
-	b, err := cbor.Marshal(sess)
+	b, err := cborenc.Marshal(sess)
 	if err != nil {
 		return err
 	}
@@ -137,22 +176,32 @@ func saveSession(sess *Session) error {
 	return nil
 }
 
-func (m *Main) SavedSessions() (names []string, err error) {
-	dir, err := os.ReadDir("./sessions")
+func (m *Main) SavedSessions() (info []*tracks.SessionInfo, err error) {
+	root := "./sessions"
+	dir, err := os.ReadDir(root)
 	if err != nil {
 		return nil, err
 	}
 	for _, fi := range dir {
 		if fi.IsDir() {
-			names = append(names, fi.Name())
+			log.Printf("reading session %s", fi.Name())
+			sess, err := tracks.LoadSessionInfo(root, fi.Name())
+			if err != nil {
+				log.Printf("error reading session %s: %s", fi.Name(), err)
+				continue
+			}
+			info = append(info, sess)
 		}
 	}
+	sort.Slice(info, func(i, j int) bool {
+		return info[i].Start.After(info[j].Start)
+	})
 	return
 }
 
 func (m *Main) StartSession(sess *Session) {
 	var err error
-	sess.peer, err = local.NewPeer(fmt.Sprintf("ws://localhost:8088/sessions/%s?sfu", sess.ID)) // FIX: hardcoded host
+	sess.peer, err = local.NewPeer(fmt.Sprintf("ws://localhost:%d/sessions/%s?sfu", m.port, sess.ID)) // FIX: hardcoded host
 	fatal(err)
 	sess.peer.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 		sessTrack := sess.NewTrack(m.format)
@@ -205,6 +254,52 @@ func sessionUpdateHandler(ctx context.Context, sess *Session) chan struct{} {
 	return ch
 }
 
+func (m *Main) loadSession(ctx context.Context, id string) (*Session, error) {
+	m.mu.Lock()
+	sess := m.sessions[id]
+	m.mu.Unlock()
+	if sess != nil {
+		log.Println("found session in cache", id)
+		return sess, nil
+	}
+	log.Println("loading session from disk", id)
+	trackSess, err := tracks.LoadSession("./sessions", id)
+	if err != nil {
+		// TODO handle not found error
+		return nil, err
+	}
+	sess = m.addSession(ctx, trackSess)
+	return sess, nil
+}
+
+func (m *Main) addSession(ctx context.Context, trackSess *tracks.Session) *Session {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if sess := m.sessions[string(trackSess.ID)]; sess != nil {
+		return sess
+	}
+	sess := &Session{
+		sfu:     sfu.NewSession(),
+		Session: trackSess,
+	}
+	// For older sessions we may want to leave them read-only, at least by
+	// default. We could give them the option to start recording again, but they
+	// may not want new audio to be automatically recorded when they look it up.
+	for _, h := range m.EventHandlers {
+		sess.Listen(h)
+	}
+	go func() {
+		for range sessionUpdateHandler(ctx, sess) {
+			log.Printf("saving session")
+			fatal(saveSession(sess))
+		}
+	}()
+	m.sessions[string(sess.ID)] = sess
+	fatal(os.MkdirAll(fmt.Sprintf("./sessions/%s", sess.ID), 0744))
+	go m.StartSession(sess)
+	return sess
+}
+
 func (m *Main) Serve(ctx context.Context) {
 	m.sessions = make(map[string]*Session)
 
@@ -213,35 +308,16 @@ func (m *Main) Serve(ctx context.Context) {
 	}
 
 	http.HandleFunc("/sessions", func(w http.ResponseWriter, r *http.Request) {
-		m.mu.Lock()
-		sess := &Session{
-			sfu:     sfu.NewSession(),
-			Session: tracks.NewSession(),
-		}
-		for _, h := range m.EventHandlers {
-			sess.Listen(h)
-		}
-		go func() {
-			for range sessionUpdateHandler(ctx, sess) {
-				log.Printf("saving session")
-				fatal(saveSession(sess))
-			}
-		}()
-		m.sessions[string(sess.ID)] = sess
-		m.mu.Unlock()
-		fatal(os.MkdirAll(fmt.Sprintf("./sessions/%s", sess.ID), 0744))
-		go m.StartSession(sess)
-		http.Redirect(w, r, fmt.Sprintf("/sessions/%s", sess.ID), http.StatusFound)
+		sess := m.addSession(ctx, tracks.NewSession())
+		http.Redirect(w, r, path.Join(m.basePath, "sessions", string(sess.ID)), http.StatusFound)
 	})
 
 	http.HandleFunc("/sessions/", func(w http.ResponseWriter, r *http.Request) {
 		sessID := filepath.Base(r.URL.Path)
-
-		m.mu.Lock()
-		sess, found := m.sessions[sessID]
-		m.mu.Unlock()
-
-		if !found {
+		sess, err := m.loadSession(ctx, sessID)
+		if err != nil {
+			// TODO different error if we failed to load vs not found
+			log.Printf("error loading session %s: %s", sessID, err)
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
@@ -273,7 +349,7 @@ func (m *Main) Serve(ctx context.Context) {
 					// update on this session
 					names, err := m.SavedSessions()
 					fatal(err)
-					data, err := cbor.Marshal(View{
+					data, err := cborenc.Marshal(View{
 						Sessions: names,
 						Session:  sess,
 					})
@@ -287,31 +363,30 @@ func (m *Main) Serve(ctx context.Context) {
 			return
 		}
 
-		f, err := ui.Dir.Open("session.html")
+		content, err := fs.ReadFile(ui.Dir, "session.html")
 		if err != nil {
 			log.Println(err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		defer f.Close()
-		http.ServeContent(w, r, "session.html", time.Now(), fileSeeker{f})
+		content = bytes.Replace(content,
+			[]byte("<head>"),
+			[]byte(`<head><base href="`+m.basePath+`">`),
+			1)
+		b := bytes.NewReader(content)
+		http.ServeContent(w, r, "session.html", time.Now(), b)
 	})
 
 	http.Handle("/webrtc/", http.StripPrefix("/webrtc", http.FileServer(http.FS(js.Dir))))
 	http.Handle("/ui/", http.StripPrefix("/ui", http.FileServer(http.FS(ui.Dir))))
-	http.Handle("/", http.RedirectHandler("/sessions", http.StatusFound))
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		http.Redirect(w, r, path.Join(m.basePath, "sessions"), http.StatusFound)
+	})
 
-	log.Println("running on http://localhost:8088 ...")
-	log.Fatal(http.ListenAndServe(":8088", nil))
-}
-
-type fileSeeker struct {
-	fs.File
-}
-
-func (fsk fileSeeker) Seek(offset int64, whence int) (int64, error) {
-	if seeker, ok := fsk.File.(io.Seeker); ok {
-		return seeker.Seek(offset, whence)
-	}
-	return 0, io.ErrUnexpectedEOF
+	log.Printf("running on http://localhost:%d ...", m.port)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", m.port), nil))
 }

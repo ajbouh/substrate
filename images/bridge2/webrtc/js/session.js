@@ -1,5 +1,3 @@
-
-
 export class Session {
   constructor(url) {
     this.signals = new WebSocket(url);
@@ -41,26 +39,24 @@ export class Session {
     }
   }
 
-  setStream(stream) {
-    const videoTrack = stream.getVideoTracks()[0];
-    const audioTrack = stream.getAudioTracks()[0];
-
-    const videoSender = this.peer.getSenders().find((s) => s.track && s.track.kind == videoTrack.kind);
-    const audioSender = this.peer.getSenders().find((s) => s.track && s.track.kind == audioTrack.kind);
-
-    if (videoSender) {
-      // console.log("replacing video track:", videoTrack.id);
-      videoSender.replaceTrack(videoTrack);
+  setTrack(track, stream) {
+    const sender = this.peer.getSenders().find((s) => s.track && s.track.kind == track.kind);
+    if (sender) {
+      sender.replaceTrack(track);
     } else {
-      // console.log("adding video track:", videoTrack.id);
-      this.peer.addTrack(videoTrack, stream);
+      this.peer.addTrack(track, stream);
     }
+  }
 
-    if (audioSender) {
-      audioSender.replaceTrack(audioTrack);
-    } else {
-      this.peer.addTrack(audioTrack, stream);
-    } 
+  setStream(stream) {
+    for (const track of stream.getVideoTracks()) {
+      this.setTrack(track, stream);
+      break; // send at most one video track
+    }
+    for (const track of stream.getAudioTracks()) {
+      this.setTrack(track, stream);
+      break; // send at most one audio track
+    }
   }
 
   set ontrack(fn) { this.peer.ontrack = fn; }

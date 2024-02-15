@@ -1,15 +1,24 @@
 class LocalMedia {
-  constructor() {
-    this.onstreamchange = (stream) => null;
-    this.ondevicechange = () => null;
-    this.audioDevices = [];
-    this.videoDevices = [];
-    this.outputDevices = [];
-    this.audioSource = undefined;
-    this.videoSource = undefined;
-    this.audioEnabled = true;
-    this.videoEnabled = true;
-    this.stream = undefined;
+  constructor(opts) {
+    let defaults = {
+      onstreamchange: (stream) => null,
+      ondevicechange: () => null,
+      audioDevices: [],
+      videoDevices: [],
+      outputDevices: [],
+      audioSource: undefined,
+      videoSource: undefined,
+      audioEnabled: true,
+      videoEnabled: true,
+      stream: undefined,
+    };
+    for (const [key, defaultValue] of Object.entries(defaults)) {
+      if (opts.hasOwnProperty(key)) {
+        this[key] = opts[key];
+      } else {
+        this[key] = defaultValue;
+      }
+    }
     this.updateStream();
     this.updateDevices();
     navigator.mediaDevices.addEventListener('devicechange', () => this.updateDevices());
@@ -37,7 +46,6 @@ class LocalMedia {
 
   shareScreen() {
     this.setVideoSource('screen');
-    this.updateStream();
   }
 
   async updateStream() {
@@ -48,16 +56,26 @@ class LocalMedia {
         systemAudio: 'include',
       });
     } else {
+      const source = (src) => {
+        if (src === false) {
+          return false;
+        }
+        return {deviceId: src ? {exact: src} : true};
+      }
       this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: {deviceId: this.audioSource ? {exact: this.audioSource} : true},
-        video: {deviceId: this.videoSource ? {exact: this.videoSource} : true}
+        audio: source(this.audioSource),
+        video: source(this.videoSource),
       });
     }
     if (!this.audioEnabled) {
-      this.stream.getAudioTracks()[0].enabled = false;
+      for (const track of this.stream.getAudioTracks()) {
+        track.enabled = false;
+      }
     }
     if (!this.videoEnabled) {
-      this.stream.getVideoTracks()[0].enabled = false;
+      for (const track of this.stream.getVideoTracks()) {
+        track.enabled = false;
+      }
     }
     if (this.onstreamchange) {
       this.onstreamchange(this.stream);

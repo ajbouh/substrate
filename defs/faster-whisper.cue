@@ -9,7 +9,7 @@ enable: "faster-whisper": true
 tests: "faster-whisper": transcribe: {
   test_templates["transcriber"]
 
-  environment: URL: "http://faster-whisper:8080/v1/transcribe"
+  environment: URL: "http://substrate:8080/faster-whisper/v1/transcribe"
   depends_on: "faster-whisper": true
 }
 
