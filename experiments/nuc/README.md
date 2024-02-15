@@ -7,16 +7,17 @@ The SSD slot shown in the video is slot #3 (out of #1-#3).
 
 The 8-pin cable for the card needs to be connected, but not before you open the BIOS by hitting F2 while the unit powers up.
 
-- Go to the "Boot" section of the BIOS menu, and "disable" the Secure Boot flag. This presumably allow the driver to access the video card.
-- Go to "Advanced" setion of the BIOS menu, choose "Video" and then change "Primary Display" to IGFX so that the system won't bother using GPU card as display.
+Go to the "Boot" section of the BIOS menu, and "disable" the Secure Boot flag. This presumably allow the driver to access the video card.
+
+Go to "Advanced" setion of the BIOS menu, choose "Video" and then change "Primary Display" to IGFX so that the system won't bother using GPU card as display.
 
 Then, connect the 8-pin cable.
 
 ## Installing OS
 
-- Download the ISO file from: https://drive.google.com/drive/folders/1D_046vPN9cbfVP6orFfcblz4DeeT-aXc
+Download the ISO file from: https://drive.google.com/drive/folders/1D_046vPN9cbfVP6orFfcblz4DeeT-aXc
 
-- Burn it to a USB memory. On Mac use `dd`:
+Burn it to a USB memory. On Mac use `dd`:
 
 (make sure that your `of` device is the correct device)
 
@@ -28,17 +29,19 @@ on Linux, it'd typically be:
 
 again make sure that the `of` is your USB memory.
 
-- Plug the network cable (either port should work), USB keyboard and the OS USB image and power on.
+Plug the network cable (either port should work), USB keyboard and the OS USB image and power on.
 
-- Login as user "core" (?)
+You should see a command prompt if it properly booted from the USB. if not, turn off and on the computer, and hitting F10 on keyboard to get the BIOS boot menu.
 
-- Run `sudo coreos-installer install /dev/nvme0n1`
+Run
 
-- Just make sure that the destination disk should be the correct one (this will reformat the disk without confirmation).
+    # `sudo coreos-installer install /dev/nvme0n1`
 
-- Type nvidia-smi to see if the command can find the GPU card.
+Just make sure that the destination disk should be the correct one (this will reformat the disk without confirmation).
 
-- When the `coreos-installer` command finishes, run `sudo shutdown -h now`, and when it goes down pull the USB memory and power on again.
+Type nvidia-smi to see if the command can find the GPU card.
+
+When the `coreos-installer` command finishes, run `sudo shutdown -h now`, and when it goes down pull the USB memory and power on again.
 
 ---
 On a remote computer you use to access to NUC, set up the domain name in /etc/hosts or its equivalent:
@@ -82,6 +85,8 @@ where `AAAA... is a string of the public key generated for `id_substrate`.
 
 - First Update Substrate OS on the NUC by running:
 
-    # ./remote dev.sh reload
+    # ./remote ./dev.sh reload
 
-on your computer.
+on your computer. This may take a long time (like half an hour).
+
+Once it is done, access `https://substrate.home.arpa/bridge/` from your browser running on your computer. You need to click on the "unsecure but access anyway" link to acknowledge that this is using aself-signed certificate. If you press the "Unmute" button it should start listening audio from the microphone and transcribe it.
