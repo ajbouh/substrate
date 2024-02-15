@@ -8,12 +8,10 @@ import (
 	"cuelang.org/go/cue"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
-	"github.com/ajbouh/substrate/images/substrate/blackboard"
 	"github.com/ajbouh/substrate/images/substrate/fs"
 )
 
 type DefSet struct {
-	Blackboard *blackboard.Blackboard
 	Services   map[string]cue.Value
 	CueMu      *sync.Mutex
 	CueContext *cue.Context

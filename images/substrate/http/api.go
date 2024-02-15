@@ -43,6 +43,10 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		ForceReadOnly bool   `json:"force_read_only"`
 	}
 
+	router.Handle("GET", "/substrate/v1/defs", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
+		s.DefsAnnouncer.ServeHTTP(rw, req)
+	})
+
 	handle("POST", "/substrate/v1/activities", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		r := &ActivityRequest{}
 		status, err := httputil.ReadRequestBody(req, &r)

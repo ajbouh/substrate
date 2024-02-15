@@ -5,7 +5,7 @@ go 1.21
 toolchain go1.21.1
 
 require (
-	github.com/ajbouh/substrate/pkg v0.0.0-00010101000000-000000000000
+	github.com/ajbouh/substrate/pkg/cookie v0.0.0-00010101000000-000000000000
 	github.com/chromedp/cdproto v0.0.0-20220924210414-0e3390be1777
 	github.com/chromedp/chromedp v0.8.6
 )
@@ -22,4 +22,4 @@ require (
 	golang.org/x/text v0.14.0 // indirect
 )
 
-replace github.com/ajbouh/substrate/pkg => ../../pkg
+replace github.com/ajbouh/substrate/pkg/cookie => ../../pkg/cookie

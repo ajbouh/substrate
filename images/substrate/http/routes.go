@@ -41,13 +41,6 @@ func NewHTTPHandler(s *substrate.Substrate) http.Handler {
 		router.Handle(method, "/substrate/*rest", apiHandler)
 	}
 
-	routes, handler := newBlackboardHandler(s)
-	for _, route := range routes {
-		for _, method := range methods {
-			router.Handle(method, route, handler)
-		}
-	}
-
 	// HACK For temporary backwards compatibility.... redirect /gw/* to just /*.
 	// This redirect is safe to remove after 2024-02-20. That should give everyone enough time to adjust.
 	router.Handle("GET", "/gw/*rest", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
@@ -71,7 +64,7 @@ func NewHTTPHandler(s *substrate.Substrate) http.Handler {
 		})
 	}
 
-	routes, handler = newLazyProxyHandler(s, apiHandler0)
+	routes, handler := newLazyProxyHandler(s, apiHandler0)
 	for _, route := range routes {
 		for _, method := range methods {
 			gwRouter.Handle(method, route, handler)

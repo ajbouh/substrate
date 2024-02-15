@@ -13,6 +13,7 @@ import (
 	cueerrors "cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
 
+	"github.com/ajbouh/substrate/pkg/cueloader"
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	"github.com/ajbouh/substrate/images/substrate/defset"
 	"github.com/ajbouh/substrate/images/substrate/fs"
@@ -23,6 +24,8 @@ type Substrate struct {
 
 	Driver           activityspec.ProvisionDriver
 	ProvisionerCache *activityspec.ProvisionerCache
+
+	DefsAnnouncer *cueloader.Announcer
 
 	defSet   *defset.DefSet
 	defSetMu *sync.RWMutex
@@ -50,19 +53,18 @@ func New(
 	cueMu := &sync.Mutex{}
 
 	defLoader := defset.NewDefLoader(
-		defset.NewCueLoader(
-			cueLoadConfig,
+		cueloader.NewCueLoader(
 			":defs",
-			defset.LookupPathTransform(cue.MakePath(cue.Def("#out"), cue.Def("#lenses"))),
-			defset.FillPathEncodeTransform(
+			cueloader.LookupPathTransform(cue.MakePath(cue.Def("#out"), cue.Def("#lenses"))),
+			cueloader.FillPathEncodeTransform(
 				cue.MakePath(cue.AnyString, cue.Str("spawn").Optional(), cue.Str("parameters"), cue.Str("cpu_memory_total"), cue.Str("resource"), cue.Str("quantity")),
 				cpuMemoryTotalMB,
 			),
-			defset.FillPathEncodeTransform(
+			cueloader.FillPathEncodeTransform(
 				cue.MakePath(cue.AnyString, cue.Str("spawn").Optional(), cue.Str("parameters"), cue.Str("cuda_memory_total"), cue.Str("resource"), cue.Str("quantity")),
 				cudaMemoryTotalMB,
 			),
-			defset.FillPathEncodeTransform(
+			cueloader.FillPathEncodeTransform(
 				cue.MakePath(cue.AnyString, cue.Str("spawn").Optional(), cue.Str("environment")),
 				map[string]string{
 					"JAMSOCKET_IFRAME_DOMAIN":    origin,
@@ -85,12 +87,24 @@ func New(
 			return s.DefSet().NewProvisionFunc(driver, asr)
 		},
 	)
+	defsAnnouncer := cueloader.NewAnnouncer("application/json")
 	mu := &sync.RWMutex{}
-	defSet := defLoader(cueMu, cc, pc, layout)
+	files, cueLoadConfigWithFiles, err := cueloader.CopyConfigAndReadFilesIntoOverrides(cueLoadConfig)
+	if err != nil {
+		return nil, err
+	}
+	if b, err := cueloader.Marshal(files, cueLoadConfigWithFiles); err == nil {
+		defsAnnouncer.Announce(b)
+	} else {
+		log.Printf("error encoding cue defs for announce: %s", err)
+	}
+
+	defSet := defLoader(cueMu, cc, cueLoadConfigWithFiles, pc, layout)
 	defSetMu := &sync.RWMutex{}
 
 	s = &Substrate{
 		User:             "nobody",
+		DefsAnnouncer:    defsAnnouncer,
 		Driver:           driver,
 		ProvisionerCache: pc,
 		defSet:           defSet,
@@ -100,7 +114,13 @@ func New(
 		Origin:           origin,
 	}
 
-	err = defset.NewCueWatcher(ctx, cueLoadConfig, func(err error) {
+	err = cueloader.NewCueConfigWatcher(ctx, cueLoadConfig, func(err error, files map[string]string, cueLoadConfigWithFiles *load.Config) {
+		if b, err := cueloader.Marshal(files, cueLoadConfigWithFiles); err == nil {
+			defsAnnouncer.Announce(b)
+		} else {
+			log.Printf("error encoding cue defs for announce: %s", err)
+		}
+
 		if err != nil {
 			errs := cueerrors.Errors(err)
 			messages := make([]string, 0, len(errs))
@@ -111,7 +131,7 @@ func New(
 			return
 		}
 
-		defSet := defLoader(cueMu, cc, s.ProvisionerCache, layout)
+		defSet := defLoader(cueMu, cc, cueLoadConfigWithFiles, s.ProvisionerCache, layout)
 
 		// check for errors before applying. how should we handle it if there's an error?
 		err = defSet.Err
@@ -121,7 +141,7 @@ func New(
 			for _, err := range errs {
 				messages = append(messages, err.Error())
 			}
-			log.Printf("err in defloader (config %#v): %s", cueLoadConfig, strings.Join(messages, "\n\t"))
+			log.Printf("err in defloader: %s", strings.Join(messages, "\n\t"))
 			return
 		}
 

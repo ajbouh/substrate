@@ -1,4 +1,4 @@
-module github.com/ajbouh/substrate/pkg
+module github.com/ajbouh/substrate/pkg/cookie
 
 go 1.21
 
