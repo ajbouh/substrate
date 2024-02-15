@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ajbouh/substrate/images/bridge2/stage"
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 	"github.com/ajbouh/substrate/images/bridge2/transcribe"
 	"github.com/ajbouh/substrate/images/bridge2/ui"
@@ -53,6 +54,9 @@ func main() {
 		}),
 		transcribe.Agent{
 			Endpoint: getEnv("BRIDGE_TRANSCRIBE_URL", "http://localhost:8090/v1/transcribe"),
+		},
+		stage.Agent{
+			Endpoint: "ws://localhost:8000/",
 		},
 		eventLogger{
 			exclude: []string{"audio"},
