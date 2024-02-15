@@ -78,7 +78,7 @@ func (l eventLogger) HandleEvent(e tracks.Event) {
 			return
 		}
 	}
-	log.Printf("event: %s %s %s", e.Type, e.ID, time.Duration(e.Start))
+	log.Printf("event: %s %s %s-%s", e.Type, e.ID, time.Duration(e.Start), time.Duration(e.End))
 }
 
 type Main struct {

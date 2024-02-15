@@ -82,12 +82,13 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 	}
 	win := a.Window(string(annot.Track().ID))
 	start, ok := win.Push(pcm, annot.End)
-	// the VAD window is subtracting a 500ms buffer before audio is detected, but
-	// clamp that to the start of the track
-	if start < annot.Track().Start() {
-		start = annot.Track().Start()
-	}
 	if ok && start != 0 {
+		// the VAD window is subtracting a 500ms buffer before audio is detected, but
+		// clamp that to the start of the track
+		if start < annot.Track().Start() {
+			log.Printf("vad: clamping start %d to track start %d", start, annot.Track().Start())
+			start = annot.Track().Start()
+		}
 		recordActivity(annot.Track().Span(start, annot.End))
 	}
 }
