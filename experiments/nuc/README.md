@@ -35,7 +35,7 @@ You should see a command prompt if it properly booted from the USB. if not, turn
 
 Run
 
-    # `sudo coreos-installer install /dev/nvme0n1`
+    # sudo coreos-installer install /dev/nvme0n1
 
 Just make sure that the destination disk should be the correct one (this will reformat the disk without confirmation).
 
@@ -79,11 +79,11 @@ EOF
 
 where `AAAA... is a string of the public key generated for `id_substrate`.
 
-- Now  you can run `ssh into substrate.home.arpa` from your computer to access Substrate OS.
+Now  you can run `ssh into substrate.home.arpa` from your computer to access Substrate OS.
 
 ## Running Bridge
 
-- First Update Substrate OS on the NUC by running:
+First we update Substrate OS on the NUC by running:
 
     # ./remote ./dev.sh reload
 
