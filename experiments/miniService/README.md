@@ -1,10 +1,10 @@
-# Adding a very simple service to substrate.
+# Adding a simple service to Substrate OS
 
-You basically follow the instruction from line 27 in this file:
+The basic idea is described from line 27 of the file:
 
 https://github.com/ajbouh/substrate/pull/91/files
 
-with some modifications.
+This doc provides a concrete version of that description.
 
 To add a service that is based on a simple web server perhaps written in NodeJS with Express sesrver.
 
@@ -20,7 +20,8 @@ app.use(express.json())
   
 app.get('/', (req, res) => res.send('Hello, Substrate!'))
   
-app.listen(process.env.PORT, () => console.log(`⚡️[bootup]: Server is running at port: ${process.env.PORT}`))
+app.listen(process.env.PORT, () => {
+  console.log(`⚡️[bootup]: Server is running at port: ${process.env.PORT}`)})
 ```
 
 Note that the PORT is given by substrate as an environment variable
@@ -89,6 +90,3 @@ lenses: "miniService": {
 or from the terminal:
 
 ![terminal](terminal.png)
-
-
-
