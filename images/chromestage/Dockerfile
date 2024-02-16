@@ -1,20 +1,20 @@
-FROM golang:1.21-alpine as builder
+FROM docker.io/library/golang:1.21-bookworm as builder
 WORKDIR /chromestage
 
-COPY go.mod .
-COPY go.sum .
+COPY images/chromestage/go.mod .
+COPY images/chromestage/go.sum .
 
-RUN apk add --no-cache ca-certificates git
+# RUN apk add --no-cache ca-certificates git
 
 # Get dependancies - will also be cached if we won't change mod/sum
 RUN go mod download
 
-COPY ./cmd/chromestage .
+COPY images/chromestage/cmd/chromestage .
 RUN CGO_ENABLED=0 GOARCH=amd64 go install -installsuffix "static" .
 
 #########
 
-FROM ubuntu:jammy
+FROM docker.io/library/ubuntu:jammy
 ENV LANG="C.UTF-8"
 
 # install utilities
@@ -51,9 +51,9 @@ EXPOSE 9222
 # chomestage+chromedp+novnc
 EXPOSE 8000
 
-COPY ./vnc /vnc
+COPY images/chromestage/vnc /vnc
 COPY --from=builder /go/bin /bin
-COPY /start.sh /home/chromium/start.sh
+COPY images/chromestage/start.sh /home/chromium/start.sh
 RUN chmod +x /home/chromium/start.sh
 
 # Run as non privileged user

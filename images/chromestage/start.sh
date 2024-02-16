@@ -17,7 +17,17 @@ pulseaudio -D --verbose --exit-idle-time=-1 --disallow-exit
 # echo "starting xterm..."
 # xterm -maximized &
 echo "starting chrome..."
-google-chrome --no-default-browser-check --remote-debugging-port=9222 --window-position=0,0 --window-size=1280,720 --no-first-run --kiosk about:blank & # --start-maximized --start-fullscreen
+# Need remote-allow-origins option to avoid:
+# Rejected an incoming WebSocket connection from the http://127.0.0.1:8083 origin. Use the command line flag --remote-allow-origins=http://127.0.0.1:8083 to allow connections from this origin or --remote-allow-origins=* to allow all origins.
+google-chrome \
+  --no-default-browser-check \
+  --remote-allow-origins=* \
+  --remote-debugging-port=9222 \
+  --window-position=0,0 \
+  --window-size=1280,720 \
+  --no-first-run \
+  --kiosk \
+  http://example.com & # --start-maximized --start-fullscreen
 sleep 1
 echo "starting chromestage..."
 /bin/chromestage "$start_page" &
@@ -44,5 +54,5 @@ if [ -n "$stream_url" ]; then
     -ssrc 1 -payload_type 111 \
     -f rtp -max_delay 0 -application lowdelay "$stream_url"':5006?pkt_size=1200'
 else
-  cat
+  wait
 fi

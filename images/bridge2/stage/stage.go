@@ -2,9 +2,12 @@ package stage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 	"github.com/ajbouh/substrate/images/bridge2/transcribe"
@@ -20,7 +23,28 @@ type Agent struct {
 }
 
 func (a *Agent) InitializeDaemon() error {
-	ctx, _ := chromedp.NewRemoteAllocator(context.Background(), a.Endpoint)
+	ctx := context.Background()
+	lctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+
+	// to get "webSocketDebuggerUrl" in the response
+	req, err := http.NewRequestWithContext(lctx, "GET", a.Endpoint + "/json/version", nil)
+	if err != nil {
+		return err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return err
+	}
+	wsURL := result["webSocketDebuggerUrl"].(string)
+
+	ctx, _ = chromedp.NewRemoteAllocator(context.Background(), wsURL, chromedp.NoModifyURL)
 	a.ctx, a.finish = chromedp.NewContext(ctx)
 	return nil
 }

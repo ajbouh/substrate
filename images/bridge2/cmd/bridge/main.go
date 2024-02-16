@@ -56,7 +56,7 @@ func main() {
 			Endpoint: getEnv("BRIDGE_TRANSCRIBE_URL", "http://localhost:8090/v1/transcribe"),
 		},
 		stage.Agent{
-			Endpoint: "ws://localhost:8000/",
+			Endpoint: getEnv("BRIDGE_CHROMESTAGE_CHROMEDP_URL", "ws://localhost:8000/"),
 		},
 		eventLogger{
 			exclude: []string{"audio"},
@@ -92,6 +92,8 @@ type Main struct {
 	format   beep.Format
 	basePath string
 	port     int
+	
+	chromestageURL string
 
 	Daemon *daemon.Framework
 
@@ -138,6 +140,8 @@ func (m *Main) Initialize() {
 	// ensure the path starts and ends with a slash for setting <base href>
 	m.basePath = must(url.JoinPath("/", basePath, "/"))
 	m.port = parsePort(getEnv("PORT", "8080"))
+
+	m.chromestageURL = getEnv("BRIDGE_CHROMESTAGE_UI_URL", "http://localhost:8000/vnc")
 }
 
 func (m *Main) InitializeCLI(root *cli.Command) {
@@ -376,6 +380,10 @@ func (m *Main) Serve(ctx context.Context) {
 		content = bytes.Replace(content,
 			[]byte("<head>"),
 			[]byte(`<head><base href="`+m.basePath+`">`),
+			1)
+		content = bytes.Replace(content,
+			[]byte("%bridge.chromestage_url%"),
+			[]byte(m.chromestageURL),
 			1)
 		b := bytes.NewReader(content)
 		http.ServeContent(w, r, "session.html", time.Now(), b)

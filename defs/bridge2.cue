@@ -18,6 +18,9 @@ lenses: "bridge2": {
     ]
     environment: {
       BRIDGE_TRANSCRIBE_URL: "http://substrate:8080/faster-whisper/v1/transcribe",
+      BRIDGE_CHROMESTAGE_CHROMEDP_URL: "http://substrate:8080/chromestage",
+      BRIDGE_CHROMESTAGE_UI_URL: "\(ORIGIN)/chromestage/vnc",
+      ORIGIN: string
     }
   }
 }

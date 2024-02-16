@@ -99,7 +99,7 @@ m.mount(document.body, {
       [
         m(Topbar, {localMedia, shareScreen}),
         m("div", {"class":"grow px-6 mt-4 overflow-auto","id":"session"},
-          m("iframe", {style:"position: absolute; right: 0px; width: 640px; height: 330px;", class: "w-96 h-52 px-6", src: "http://localhost:8000/vnc"}),
+          m("iframe", {style:"position: absolute; right: 0px; width: 640px; height: 330px;", class: "w-96 h-52 px-6", src: "%bridge.chromestage_url%"}),
           m(Session, {summary: "Summary", entries: viewModel.entries})
         )
       ]
