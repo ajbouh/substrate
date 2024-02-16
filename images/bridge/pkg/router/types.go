@@ -27,9 +27,15 @@ type TranscriptionSegment struct {
 	IsAssistant bool   `json:"is_assistant"`
 }
 
+type AudioMetadata struct {
+	MimeType   string `json:"mime_type,omitempty"`
+}
+
 type TranscriptionRequest struct {
 	AudioData *[]byte `json:"audio_data,omitempty"`
 	Text      *string `json:"text,omitempty"`
+
+	AudioMetadata AudioMetadata `json:"audio_metadata,omitempty"`
 
 	Task           string  `json:"task"`
 	SourceLanguage *string `json:"source_language,omitempty"`
