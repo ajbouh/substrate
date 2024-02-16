@@ -1,8 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"sync"
@@ -19,7 +19,7 @@ var upgrader = websocket.Upgrader{
 func novncHandler(w http.ResponseWriter, r *http.Request) {
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		fmt.Println("Error upgrading to websocket:", err)
+		log.Println("Error upgrading to websocket:", err)
 		return
 	}
 	defer ws.Close()
@@ -28,7 +28,7 @@ func novncHandler(w http.ResponseWriter, r *http.Request) {
 
 	backend, err := net.Dial("tcp", "localhost:5900")
 	if err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		return
 	}
 	defer backend.Close()
@@ -38,7 +38,7 @@ func novncHandler(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		if _, err := io.Copy(backend, conn); err != nil {
 			backend.Close()
-			fmt.Println(err)
+			log.Println(err)
 		}
 		wg.Done()
 	}()
@@ -46,7 +46,7 @@ func novncHandler(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		if _, err := io.Copy(conn, backend); err != nil {
 			backend.Close()
-			fmt.Println(err)
+			log.Println(err)
 		}
 		wg.Done()
 	}()
