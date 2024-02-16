@@ -8,9 +8,6 @@ require (
 	cuelang.org/go v0.7.0
 	github.com/ajbouh/substrate/pkg/cueloader v0.0.0-00010101000000-000000000000
 	github.com/elnormous/contenttype v1.0.4
-	github.com/fsnotify/fsnotify v1.7.0
-	github.com/go-playground/form/v4 v4.2.1
-	github.com/julienschmidt/httprouter v1.3.0
 	github.com/stretchr/testify v1.8.4
 	tractor.dev/toolkit-go v0.0.0-20240111035846-6a7f40f8500e
 )
@@ -20,6 +17,7 @@ require (
 	github.com/cockroachdb/apd/v3 v3.2.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/proto v1.10.0 // indirect
+	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/google/uuid v1.2.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/mpvl/unique v0.0.0-20150818121801-cbe035fff7de // indirect
