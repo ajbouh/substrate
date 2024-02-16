@@ -1,7 +1,13 @@
 package defs
 enable: "miniService": true
+live_edit: "miniService": true
 imagespecs: "miniService": {}
 lenses: "miniService": {
-    spawn: {
+  spawn: {
+    if live_edit["miniService"] {
+      mounts: [
+        { source: "\(#var.host_source_directory)/images/miniService", destination: "/app/", mode: "ro" },
+      ]
     }
+  }
 }
