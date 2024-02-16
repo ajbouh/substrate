@@ -11,7 +11,6 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/elnormous/contenttype"
-	"github.com/julienschmidt/httprouter"
 
 	"github.com/ajbouh/substrate/images/bb/blackboard"
 	"github.com/ajbouh/substrate/images/bb/calldef"
@@ -28,17 +27,9 @@ var methods []string = []string{
 }
 
 func NewHandler(blackboardFunc func() *blackboard.Blackboard) http.Handler {
-	router := httprouter.New()
-
-	handle := func(route string, f func(rw http.ResponseWriter, req *http.Request, p httprouter.Params)) {
-		for _, method := range methods {
-			router.Handle(method, route, f)
-		}
-	}
-	
 	var responsePath = cue.MakePath(cue.Str("response"))
 
-	handle("/*rest", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
+	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		log.Printf("%s %s %s", req.RemoteAddr, req.Method, req.URL.String())
 
 		var body any
@@ -101,13 +92,6 @@ func NewHandler(blackboardFunc func() *blackboard.Blackboard) http.Handler {
 				Body:    body,
 			},
 		}
-
-		// ignore URL path for now.
-		// rest := p.ByName("rest")
-		// if rest != "" {
-		// 	rest = "/" + strings.TrimPrefix(rest, "/")
-		// 	call.Request.URL = &calldef.URLParts{Path: &rest}
-		// }
 
 		// use the *first* concrete Response
 		match, ok := blackboardFunc().Call(
@@ -174,6 +158,4 @@ func NewHandler(blackboardFunc func() *blackboard.Blackboard) http.Handler {
 			log.Printf("error while writing %s", err)
 		}
 	})
-
-	return router
 }

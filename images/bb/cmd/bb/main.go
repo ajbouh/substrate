@@ -62,8 +62,7 @@ func (m *Main) Serve(ctx context.Context) {
 	var bb *blackboard.Blackboard
 
 	// close when ready
-	ready := make(chan struct{})
-	markReady := func() { close(ready) }
+	readyCtx, markReady := context.WithCancel(context.Background())
 	var markReadyOnce sync.Once
 
 	go func() {
@@ -111,9 +110,7 @@ func (m *Main) Serve(ctx context.Context) {
 
 	handler := bbhttp.NewHandler(func() *blackboard.Blackboard {
 		// Wait for first load
-		select {
-		case _, _ = <-ready:
-		}
+		<-readyCtx.Done()
 
 		mu.RLock()
 		defer mu.RUnlock()
