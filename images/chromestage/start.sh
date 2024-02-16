@@ -1,29 +1,92 @@
 #!/bin/bash
-# echo "starting dbus..."
-# mkdir -p /run/dbus/
-# export DBUS_FATAL_WARNINGS=0
-# dbus-daemon --system
-stream_url="${1:-}"
-default_start='https://pkg.go.dev/time'
-start_page="${2:-"$default_start"}"
 
-echo "starting xvfb..."
-Xvfb $DISPLAY -ac -screen 0 $XVFB_WHD -nolisten tcp &
-sleep 1
+
+_cleanup() {
+  kill -TERM $chromestage
+  wait $chromestage
+  kill -TERM $chromium
+  wait $chromium
+  kill -TERM $xvnc
+  wait $xvnc
+}
+
+# Setup a trap to catch SIGTERM and relay it to child processes
+trap _cleanup SIGTERM
+
+env | sort
+
+# echo "starting dbus..."
+mkdir -p /run/dbus/
+export DBUS_FATAL_WARNINGS=0
+dbus-daemon --system
+
+stream_url="${1:-}"
+default_start='about:blank'
+start_page="${2:-"$default_start"}"
+vncpassword="chromestage"
+
+echo "$vncpassword" | vncpasswd -f ./vncpassword
+
+echo "starting xvnc..."
+Xvnc $DISPLAY \
+  -AlwaysShared \
+  -geometry $XVNC_GEOMETRY \
+  -depth 24 \
+  -PasswordFile=./vncpassword \
+  -rfbauth ./vncpassword \
+  -rfbport 5900 \
+  -SecurityTypes=None,Plain,VncAuth \
+  &
+xvnc=$!
 
 echo "starting pulseaudio..."
 pulseaudio -D --verbose --exit-idle-time=-1 --disallow-exit
 
+# mkdir -p ~/.config
+# ln -s ~/.config/chromium $CHROMIUM_PROFILE_DIR
+
 # echo "starting xterm..."
 # xterm -maximized &
 echo "starting chrome..."
-google-chrome --no-default-browser-check --remote-debugging-port=9222 --window-position=0,0 --window-size=1280,720 --no-first-run --kiosk about:blank & # --start-maximized --start-fullscreen
-sleep 1
+# Need remote-allow-origins option to avoid:
+# Rejected an incoming WebSocket connection from the http://127.0.0.1:8083 origin. Use the command line flag --remote-allow-origins=http://127.0.0.1:8083 to allow connections from this origin or --remote-allow-origins=* to allow all origins.
+chromium \
+  --disable-sandbox \
+  --no-default-browser-check \
+  --remote-allow-origins=* \
+  --remote-debugging-port=9222 \
+  --window-position=0,0 \
+  --window-size=$CHROMIUM_WINDOW_SIZE \
+  --no-first-run \
+  --kiosk \
+	--disable-background-networking=true \
+	--enable-features="NetworkService,NetworkServiceInProcess" \
+	--disable-background-timer-throttling=true \
+	--disable-backgrounding-occluded-windows=true \
+	--disable-breakpad=true \
+	--disable-client-side-phishing-detection=true \
+	--disable-default-apps=true \
+	--disable-dev-shm-usage=true \
+	--disable-extensions=true \
+	--disable-features="site-per-process,Translate,BlinkGenPropertyTrees" \
+	--disable-hang-monitor=true \
+	--disable-ipc-flooding-protection=true \
+	--disable-popup-blocking=true \
+	--disable-prompt-on-repost=true \
+	--disable-renderer-backgrounding=true \
+	--disable-sync=true \
+	--force-color-profile="srgb" \
+	--metrics-recording-only=true \
+	--safebrowsing-disable-auto-update=true \
+	--password-store="basic" \
+	--use-mock-keychain=true \
+  $start_page & # --start-maximized --start-fullscreen
+chromium=$!
+
 echo "starting chromestage..."
 /bin/chromestage "$start_page" &
-echo "starting x11vnc..."
-x11vnc -display $DISPLAY -forever -passwd chromestage &
-sleep 1
+chromestage=$!
+
 if [ -n "$stream_url" ]; then
   echo "starting ffmpeg..."
   # ffmpeg \
@@ -44,5 +107,5 @@ if [ -n "$stream_url" ]; then
     -ssrc 1 -payload_type 111 \
     -f rtp -max_delay 0 -application lowdelay "$stream_url"':5006?pkt_size=1200'
 else
-  cat
+  wait $chromium
 fi

@@ -130,10 +130,10 @@
 
         // Read parameters specified in the URL query string
         // By default, use the host and port of server that served this file
-        const host = readQueryVariable('host', "localhost");
-        let port = readQueryVariable('port', "8000");
+        const host = readQueryVariable('host', window.location.hostname);
+        let port = readQueryVariable('port', window.location.port);
         const password = readQueryVariable('password', "chromestage");
-        const path = readQueryVariable('path', 'vnc/ws');
+        const path = readQueryVariable('path', new URL('ws', window.location.href).pathname.substring(1));
 
         // | | |         | | |
         // | | | Connect | | |
