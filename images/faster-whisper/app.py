@@ -6,23 +6,21 @@ from transcriber import Request, Response, Segment, Word, new_v1_api_app
 
 import base64
 import io
-import soundfile as sf
 
-def read_waveform(request: Request):
+def read_audio(request: Request):
     metadata = request.audio_metadata
     data = base64.b64decode(request.audio_data)
     buf = io.BytesIO(data)
     if metadata and metadata.mime_type == 'audio/opus':
         buf.name = 'file.opus'
-    else:
+    elif metadata and metadata.mime_type == 'audio/ogg':
+        buf.name = 'file.opus'
+    elif metadata.mime_type == 'audio/wav':
         buf.name = 'file.wav'
+    else:
+        raise Exception("unknown mime_type")
 
-    dtype = 'float32'
-    samplerate = metadata.sample_rate if metadata and metadata.sample_rate else None
-    channels = metadata.channels if metadata and metadata.channels else None
-
-    waveform, samplerate = sf.read(buf, dtype=dtype, channels=channels, samplerate=samplerate)
-    return waveform, samplerate
+    return buf
 
 model = WhisperModel(
     os.environ.get("MODEL_REPO", "tiny"),
@@ -32,10 +30,10 @@ model = WhisperModel(
 )
 
 def transcribe(request: Request) -> Response:
-    waveform, sample_rate = read_waveform(request)
+    audio = read_audio(request)
 
     segments, info = model.transcribe(
-        waveform,
+        audio,
         vad_filter=True,
         beam_size=5,
         word_timestamps=True,
