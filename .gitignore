@@ -4,3 +4,4 @@
 .gen
 os/overrides/rpm/*.rpm
 /local
+node_modules
