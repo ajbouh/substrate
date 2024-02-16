@@ -90,6 +90,10 @@ dataWS.onmessage = e => {
     })
   }
   m.redraw()
+  setTimeout(() => {
+    let elt = document.getElementById("entries");
+    elt.lastChild.scrollIntoView({ block: "end", behavior: 'smooth' })
+  }, 0);
 }
 
 m.mount(document.body, {
