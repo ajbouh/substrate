@@ -11,14 +11,14 @@ live_edit: "seamlessm4t": bool
 tests: "seamlessm4t": translate: {
   test_templates["translator"]
 
-  environment: URL: "http://host.docker.internal:8080/seamlessm4t/v1/transcribe"
+  environment: URL: "http://substrate:8080/seamlessm4t/v1/transcribe"
   depends_on: "substrate": true
 }
 
 tests: "seamlessm4t": transcribe: {
   test_templates["transcriber"]
 
-  environment: URL: "http://host.docker.internal:8080/seamlessm4t/v1/transcribe"
+  environment: URL: "http://substrate:8080/seamlessm4t/v1/transcribe"
   depends_on: "substrate": true
 }
 
