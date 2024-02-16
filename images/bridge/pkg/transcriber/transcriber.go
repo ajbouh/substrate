@@ -41,6 +41,9 @@ func Run(s *asr.Client, transcriptionStream chan<- *router.Transcription, audioS
 
 		response, err := s.Transcribe(&router.TranscriptionRequest{
 			AudioData: &audioData,
+			AudioMetadata: router.AudioMetadata {
+				MimeType:   "audio/ogg",
+			},
 			Task:      "transcribe",
 		})
 
