@@ -10,7 +10,7 @@ tests: "faster-whisper": transcribe: {
   test_templates["transcriber"]
 
   environment: URL: "http://substrate:8080/faster-whisper/v1/transcribe"
-  depends_on: "faster-whisper": true
+  depends_on: "substrate": true
 }
 
 // default model choices are

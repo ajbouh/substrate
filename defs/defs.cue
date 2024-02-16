@@ -282,6 +282,10 @@ for key, def in #out.resourcedir_fetches {
         if suitedef.depends_on != _|_ {
           depends_on: [ for dep, b in suitedef.depends_on { dep } ]
         }
+        networks: [
+          #var.substrate.internal_network_name,
+          #var.substrate.external_network_name,
+        ]
       }
     }
   }
