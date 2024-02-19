@@ -54,7 +54,7 @@ export let events = []
             from
             <a href="{urls.ui.space({space: event.forked_from_id})}" class="font-medium text-gray-900">{event.forked_from_id}</a>
           {/if}
-          via {event.lens}
+          via {event.service}
           <span class="whitespace-nowrap"><Ago time={new Date(event.ts)} /></span>
         </span>
 

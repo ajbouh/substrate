@@ -3,8 +3,8 @@ import { error } from '@sveltejs/kit'
 import {
   urls,
   fetchJSON,
-  processLenses,
-  processLensSpecs,
+  processServices,
+  processServiceSpecs,
   processSpaces,
   processEvents,
   processActivities,
@@ -24,7 +24,7 @@ export interface BaseEntitySelection {
 // TODO make these real
 export type Collection = any
 export type Space = any
-export type Lens = any
+export type Service = any
 export type Event = any
 export type Activity = any
 
@@ -43,9 +43,9 @@ export interface SpaceSelection extends BaseEntitySelection {
   entities: Space[]
 }
 
-export interface LensSelection extends BaseEntitySelection {
-  entityType: "lens"
-  entities: Lens[]
+export interface ServiceSelection extends BaseEntitySelection {
+  entityType: "service"
+  entities: Service[]
 }
 
 export interface EventSelection extends BaseEntitySelection {
@@ -53,7 +53,7 @@ export interface EventSelection extends BaseEntitySelection {
   entities: Event[]
 }
 
-export type EntitySelection = LensSelection | SpaceSelection | CollectionSelection | ActivitySelection | EventSelection
+export type EntitySelection = ServiceSelection | SpaceSelection | CollectionSelection | ActivitySelection | EventSelection
 
 export async function load({ params, url, fetch }) {
   console.log({ params, url })
@@ -76,11 +76,11 @@ export async function load({ params, url, fetch }) {
             entities: processSpaces(spaces),
             label: `${owner}/${id} Spaces`,
           })
-          const lenses = await fetchJSON(fetch, urls.api.collectionLensMembership({ owner, name: id }))
+          const services = await fetchJSON(fetch, urls.api.collectionServiceMembership({ owner, name: id }))
           selections.push({
-            entityType: "lens",
-            entities: processLensSpecs(lenses),
-            label: `${owner}/${id} Lenses`,
+            entityType: "service",
+            entities: processServiceSpecs(services),
+            label: `${owner}/${id} Services`,
           })
         } else {
           const collections = await fetchJSON(fetch, urls.api.collections({ owner }))
@@ -132,12 +132,12 @@ export async function load({ params, url, fetch }) {
     }
   } else {
     switch (type) {
-      case "lenses": {
-        const lenses = await fetchJSON(fetch, urls.api.lenses({}))
+      case "services": {
+        const services = await fetchJSON(fetch, urls.api.services({}))
         selections.push({
-          entityType: "lens",
-          entities: processLenses(lenses),
-          label: `Lenses`,
+          entityType: "service",
+          entities: processServices(services),
+          label: `Services`,
         })
         break
       }

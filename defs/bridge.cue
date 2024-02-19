@@ -4,7 +4,7 @@ enable: "bridge": true
 
 imagespecs: "bridge": {}
 
-"lenses": "bridge": {
+services: "bridge": {
   spawn: {}
   spawn: environment: {
     // BRIDGE_TRANSCRIPTION: "http://substrate:8080/gw/faster-whisper/v1/transcribe"

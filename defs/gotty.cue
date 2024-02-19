@@ -6,7 +6,7 @@ imagespecs: "gotty": {
   build: target: "dist-alpine"
 }
 
-"lenses": "gotty": {
+services: "gotty": {
   spawn: {
     url_prefix: "/gotty"
     environment: {

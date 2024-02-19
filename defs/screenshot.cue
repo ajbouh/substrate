@@ -4,6 +4,6 @@ enable: "screenshot": false
 
 imagespecs: "screenshot": {}
 
-"lenses": "screenshot": {
+services: "screenshot": {
   spawn: {}
 }

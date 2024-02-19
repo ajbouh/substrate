@@ -4,7 +4,7 @@ enable: "jupyverse": true
 
 imagespecs: "jupyverse": {}
 
-"lenses": "jupyverse": {
+services: "jupyverse": {
   spawn: parameters: data: type: "space"
 
   space: {

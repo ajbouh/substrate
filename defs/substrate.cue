@@ -204,11 +204,11 @@ daemons: "substrate": {
   }
 }
 
-"lenses": "substrate": {
+services: "substrate": {
   activities: {
     // attach: {
     //   request: {
-    //     path: "/substrate/v1/collections/:owner/:name/lensspecs/:lensspec"
+    //     path: "/substrate/v1/collections/:owner/:name/servicespecs/:servicespec"
     //     method: "POST"
     //     schema: {
     //       owner: {
@@ -217,7 +217,7 @@ daemons: "substrate": {
     //       name: {
     //         type: "?"
     //       }
-    //       lensspec: {
+    //       servicespec: {
     //         type: "?"
     //       }
     //     }

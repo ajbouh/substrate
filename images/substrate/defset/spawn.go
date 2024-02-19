@@ -84,11 +84,11 @@ func (s *DefSet) IsConcrete(req *activityspec.ServiceSpawnRequest) (bool, error)
 func (s *DefSet) resolveServiceDefSpawn(req *activityspec.ServiceSpawnRequest) (cue.Value, error) {
 	serviceDefValue, ok := s.Services[req.ServiceName]
 	if !ok {
-		lenses := []string{}
+		services := []string{}
 		for k := range s.Services {
-			lenses = append(lenses, k)
+			services = append(services, k)
 		}
-		return cue.Value{}, fmt.Errorf("no such service: %q (have %#v)", req.ServiceName, lenses)
+		return cue.Value{}, fmt.Errorf("no such service: %q (have %#v)", req.ServiceName, services)
 	}
 
 	s.CueMu.Lock()

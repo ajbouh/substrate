@@ -4,7 +4,7 @@ enable: "files": false
 
 imagespecs: "files": {}
 
-"lenses": "files": {
+services: "files": {
   spawn: {}
   spawn: schema: data: type: "space"
 

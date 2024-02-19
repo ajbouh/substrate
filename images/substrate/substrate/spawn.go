@@ -43,11 +43,6 @@ func (s *Substrate) WriteSpawn(
 				ForkedFromRef: forkedFromRef,
 				ForkedFromID:  forkedFromID,
 				CreatedAt:     now,
-				// InitialService:   &req.ActivitySpec.ServiceName,
-				// InitialMount: &SpaceMount{
-				// 	Name:  viewName,
-				// 	Multi: multi,
-				// },
 			})
 		}
 

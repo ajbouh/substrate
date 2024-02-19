@@ -272,22 +272,22 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		}
 	})
 
-	handle("GET", "/substrate/v1/lenses/:lens", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		lens, err := s.DefSet().ResolveService(req.Context(), p.ByName("lens"))
+	handle("GET", "/substrate/v1/services/:service", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+		service, err := s.DefSet().ResolveService(req.Context(), p.ByName("service"))
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
-		if lens == nil {
+		if service == nil {
 			return nil, http.StatusNotFound, err
 		}
-		return lens, http.StatusOK, nil
+		return service, http.StatusOK, nil
 	})
 
 	handle("GET", "/substrate/v1/activities", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		query := req.URL.Query()
 		activities, err := s.ListActivities(req.Context(), &substrate.ActivityListRequest{
 			ActivityWhere: substrate.ActivityWhere{
-				Service: httputil.GetValueAsStringPtr(query, "lens"),
+				Service: httputil.GetValueAsStringPtr(query, "service"),
 			},
 			Limit: substrate.LimitFromPtr(httputil.GetValueAsIntPtr(query, "limit")),
 		})
@@ -332,13 +332,13 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		return result[0], http.StatusOK, nil
 	})
 
-	handle("GET", "/substrate/v1/lenses", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		lenses, err := s.DefSet().AllServices(req.Context())
+	handle("GET", "/substrate/v1/services", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+		services, err := s.DefSet().AllServices(req.Context())
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
 
-		return lenses, http.StatusOK, nil
+		return services, http.StatusOK, nil
 	})
 
 	handle("GET", "/substrate/v1/spaces", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
@@ -352,7 +352,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 				Owner:       httputil.GetValueAsStringPtr(query, "collection_owner"),
 				Name:        httputil.GetValueAsStringPtr(query, "collection_name"),
 				NamePrefix:  httputil.GetValueAsStringPtr(query, "collection_prefix"),
-				ServiceSpec: httputil.GetValueAsStringPtr(query, "collection_lensspec"),
+				ServiceSpec: httputil.GetValueAsStringPtr(query, "collection_servicespec"),
 				IsPublic:    httputil.GetValueAsBoolPtr(query, "collection_public"),
 			},
 		})
@@ -405,10 +405,10 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		return result[0], http.StatusOK, nil
 	})
 
-	// Attach a lens to a collection
-	handle("POST", "/substrate/v1/collections/:owner/:name/lenses", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	// Attach a service to a collection
+	handle("POST", "/substrate/v1/collections/:owner/:name/services", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		r := struct {
-			ServiceSpec string         `json:"lensspec"`
+			ServiceSpec string         `json:"servicespec"`
 			IsPublic    bool           `json:"public,omitempty"`
 			Attributes  map[string]any `json:"attributes,omitempty"`
 		}{}
@@ -418,8 +418,8 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		}
 
 		// TODO take a space spawned by git-export, use it as config for export
-		// TODO does the lensspec accept any inputs other than the collection?
-		// TODO If so, need to create it as needed and return a proper lensspec.
+		// TODO does the servicespec accept any inputs other than the collection?
+		// TODO If so, need to create it as needed and return a proper servicespec.
 		// TODO
 
 		err = s.WriteCollectionMembership(req.Context(), &substrate.CollectionMembership{
@@ -472,12 +472,12 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		return nil, http.StatusOK, nil
 	})
 
-	// Remove a lens from a collection
-	handle("DELETE", "/substrate/v1/collections/:owner/:name/lenses/:lensspec", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	// Remove a service from a collection
+	handle("DELETE", "/substrate/v1/collections/:owner/:name/services/:servicespec", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		err := s.DeleteCollectionMembership(req.Context(), &substrate.CollectionMembershipWhere{
 			Owner:       stringPtr(p.ByName("owner")),
 			Name:        stringPtr(p.ByName("name")),
-			ServiceSpec: stringPtr(p.ByName("lensspec")),
+			ServiceSpec: stringPtr(p.ByName("servicespec")),
 		})
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
@@ -514,7 +514,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		return result[0].Members, http.StatusOK, nil
 	})
 
-	handle("GET", "/substrate/v1/collections/:owner/:name/lensspecs", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+	handle("GET", "/substrate/v1/collections/:owner/:name/servicespecs", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		query := req.URL.Query()
 
 		name := p.ByName("name")

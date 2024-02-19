@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation'
-  import "../app.css";
+	import "../app.css";
 	import { setContext } from 'svelte'
 	import { writable } from 'svelte/store'
-  import CommandPalette2 from '$lib/CommandPalette2.svelte'
-	import type { Lens, CommandSelection } from '$lib/activities'
+	import CommandPalette2 from '$lib/CommandPalette2.svelte'
+	import type { CommandSelection } from '$lib/activities'
 	import { getCommandSet } from '$lib/activities'
 
 	export let data
@@ -17,7 +17,7 @@
 
 
 	function getCommands(commandSelection?: CommandSelection) {
-		const { context, commands } = getCommandSet(data.lenses, commandSelection)
+		const { context, commands } = getCommandSet(data.services, commandSelection)
 		return commands
 	}
 

@@ -32,11 +32,11 @@ func CreateTables(ctx context.Context, db *sql.DB) error {
 const activitiesTable = "activities"
 
 // DROP TABLE IF EXISTS "activities";
-const createActivitiesTable = `CREATE TABLE IF NOT EXISTS "activities" (activityspec TEXT, owner TEXT, created_at_us INTEGER, lens TEXT, PRIMARY KEY (activityspec));`
+const createActivitiesTable = `CREATE TABLE IF NOT EXISTS "activities" (activityspec TEXT, owner TEXT, created_at_us INTEGER, service TEXT, PRIMARY KEY (activityspec));`
 
 type ActivityWhere struct {
 	ActivitySpec *string `json:"activityspec,omitempty"`
-	Service      *string `json:"lens,omitempty"`
+	Service      *string `json:"service,omitempty"`
 }
 
 type ActivityListRequest struct {
@@ -48,18 +48,18 @@ type ActivityListRequest struct {
 type Activity struct {
 	ActivitySpec string    `json:"activityspec"`
 	CreatedAt    time.Time `json:"created_at"`
-	Service      string    `json:"lens"`
+	Service      string    `json:"service"`
 }
 
 func (s *Substrate) WriteActivity(ctx context.Context, Activity *Activity) error {
-	return s.dbExecContext(ctx, `INSERT INTO "activities" (activityspec, created_at_us, lens) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`,
+	return s.dbExecContext(ctx, `INSERT INTO "activities" (activityspec, created_at_us, service) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`,
 		Activity.ActivitySpec, Activity.CreatedAt.UnixMicro(), Activity.Service)
 }
 
 func (q *ActivityWhere) AppendWhere(query *Query) bool {
 	modified := false
 	if q.Service != nil {
-		query.Where = append(query.Where, activitiesTable+".lens = ?")
+		query.Where = append(query.Where, activitiesTable+".service = ?")
 		query.WhereValues = append(query.WhereValues, *q.Service)
 		modified = true
 	}
@@ -77,7 +77,7 @@ func (q *ActivityWhere) AppendWhere(query *Query) bool {
 
 func (s *Substrate) ListActivities(ctx context.Context, request *ActivityListRequest) ([]*Activity, error) {
 	query := &Query{
-		Select:          []string{`activityspec`, `created_at_us`, `lens`},
+		Select:          []string{`activityspec`, `created_at_us`, `service`},
 		FromTablesNamed: map[string]string{activitiesTable: activitiesTable},
 		WherePredicates: map[string]bool{},
 		Limit:           request.Limit,
@@ -167,7 +167,7 @@ type SpaceCollectionMembership struct {
 type EventWhere struct {
 	ActivitySpec *string `json:"viewspec,omitempty"`
 	User         *string `json:"user,omitempty"`
-	Service      *string `json:"lens,omitempty"`
+	Service      *string `json:"service,omitempty"`
 	Type         *string `json:"type,omitempty"`
 }
 
@@ -187,7 +187,7 @@ type Event struct {
 	ActivitySpec string    `json:"viewspec,omitempty"`
 	URLPrefix    string    `json:"urlprefix,omitempty"`
 	User         string    `json:"user"`
-	Service      string    `json:"lens"`
+	Service      string    `json:"service"`
 	Type         string    `json:"type"`
 	Timestamp    time.Time `json:"ts"`
 }
@@ -195,7 +195,7 @@ type Event struct {
 const eventsTable = "events"
 
 // DROP TABLE IF EXISTS "events";
-const createEventsTable = `CREATE TABLE IF NOT EXISTS "events" (id TEXT, viewspec TEXT, ts TEXT, type TEXT, user TEXT, lens TEXT, event TEXT, PRIMARY KEY (id));`
+const createEventsTable = `CREATE TABLE IF NOT EXISTS "events" (id TEXT, viewspec TEXT, ts TEXT, type TEXT, user TEXT, service TEXT, event TEXT, PRIMARY KEY (id));`
 
 func (s *Substrate) WriteEvent(ctx context.Context, event *Event) error {
 	b, err := json.Marshal(event)
@@ -203,14 +203,14 @@ func (s *Substrate) WriteEvent(ctx context.Context, event *Event) error {
 		return err
 	}
 
-	return s.dbExecContext(ctx, `INSERT INTO "events" (id, viewspec, ts, type, user, lens, event) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+	return s.dbExecContext(ctx, `INSERT INTO "events" (id, viewspec, ts, type, user, service, event) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		event.ID, event.ActivitySpec, event.Timestamp, event.Type, event.User, event.Service, string(b))
 }
 
 func (q *EventWhere) AppendWhere(query *Query) bool {
 	modified := false
 	if q.Service != nil {
-		query.Where = append(query.Where, eventsTable+".lens = ?")
+		query.Where = append(query.Where, eventsTable+".service = ?")
 		query.WhereValues = append(query.WhereValues, *q.Service)
 		modified = true
 	}
@@ -300,7 +300,7 @@ func (e *Event) SpawnResult() (*activityspec.ActivitySpawnResponse, error) {
 }
 
 const spacesTable = "spaces"
-const createSpacesTable = `CREATE TABLE IF NOT EXISTS "spaces" (id TEXT, owner TEXT, alias TEXT, created_at_us INTEGER, deleted_at_us TEXT, initial_lens TEXT, forked_from_id TEXT, forked_from_ref TEXT, PRIMARY KEY (id), FOREIGN KEY (forked_from_id) REFERENCES spaces(id));`
+const createSpacesTable = `CREATE TABLE IF NOT EXISTS "spaces" (id TEXT, owner TEXT, alias TEXT, created_at_us INTEGER, deleted_at_us TEXT, forked_from_id TEXT, forked_from_ref TEXT, PRIMARY KEY (id), FOREIGN KEY (forked_from_id) REFERENCES spaces(id));`
 
 func (s *Substrate) WriteSpace(ctx context.Context, space *Space) error {
 	return s.dbExecContext(ctx, `INSERT INTO "spaces" (id, owner, alias, created_at_us, forked_from_id, forked_from_ref) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -331,22 +331,22 @@ func (w *CollectionMembershipWhere) AppendWhere(query *Query) bool {
 	}
 
 	if w.ServiceSpec != nil {
-		query.Where = append(query.Where, collectionMembershipsTable+".lensspec = ?")
+		query.Where = append(query.Where, collectionMembershipsTable+".servicespec = ?")
 		query.WhereValues = append(query.WhereValues, *w.ServiceSpec)
 		modified = true
 	}
 
 	if w.HasServiceSpec {
 		query.Where = append(query.Where,
-			collectionMembershipsTable+".lensspec NOT NULL",
-			collectionMembershipsTable+".lensspec != ''",
+			collectionMembershipsTable+".servicespec NOT NULL",
+			collectionMembershipsTable+".servicespec != ''",
 		)
 		modified = true
 	}
 
 	if w.Service != nil {
 		query.Where = append(query.Where,
-			"("+collectionMembershipsTable+".lensspec = ? OR "+collectionMembershipsTable+".lensspec LIKE ?)")
+			"("+collectionMembershipsTable+".servicespec = ? OR "+collectionMembershipsTable+".servicespec LIKE ?)")
 		query.WhereValues = append(query.WhereValues, *w.Service, *w.Service+"[%")
 		modified = true
 	}
@@ -475,7 +475,7 @@ func (s *Substrate) ListSpaces(ctx context.Context, request *SpaceListQuery) ([]
 				rootAlias + ".collection_name = " + collectionMembershipsTable + ".collection_name", "AND",
 				rootAlias + ".collection_owner = " + collectionMembershipsTable + ".collection_owner", "AND",
 				rootAlias + ".space_id IS NULL", "AND",
-				rootAlias + ".lensspec IS NULL",
+				rootAlias + ".servicespec IS NULL",
 			},
 			WherePredicates: map[string]bool{
 				spacesTable + ".id = " + collectionMembershipsTable + ".space_id": true,
@@ -566,7 +566,7 @@ func (s *Substrate) ListSpaces(ctx context.Context, request *SpaceListQuery) ([]
 const collectionMembershipsTable = "collection_memberships"
 
 // DROP TABLE IF EXISTS "collection_memberships";
-const createCollectionMembershipsTable = `CREATE TABLE IF NOT EXISTS "collection_memberships" (collection_owner TEXT, collection_name TEXT, space_id TEXT, lensspec TEXT, created_at_us INTEGER, updated_at_us INTEGER, deleted_at_us INTEGER, membership TEXT, is_public INTEGER, PRIMARY KEY (collection_owner, collection_name, space_id, lensspec), FOREIGN KEY (space_id) REFERENCES space(id));`
+const createCollectionMembershipsTable = `CREATE TABLE IF NOT EXISTS "collection_memberships" (collection_owner TEXT, collection_name TEXT, space_id TEXT, servicespec TEXT, created_at_us INTEGER, updated_at_us INTEGER, deleted_at_us INTEGER, membership TEXT, is_public INTEGER, PRIMARY KEY (collection_owner, collection_name, space_id, servicespec), FOREIGN KEY (space_id) REFERENCES space(id));`
 
 type Collection struct {
 	Owner string `json:"owner"`
@@ -578,12 +578,12 @@ type Collection struct {
 
 	Root *CollectionMember `json:"-"`
 
-	// TODO make this a separate list of lenses and spaces
+	// TODO make this a separate list of services and spaces
 	Members []*CollectionMember `json:"members"`
 }
 
 func findAndRemoveRootMember(members []*CollectionMember) (*CollectionMember, []*CollectionMember) {
-	// Loop over members, find nil space/lensspec, call it root, copy values
+	// Loop over members, find nil space/servicespec, call it root, copy values
 	var root *CollectionMember
 	index := 0
 	for _, member := range members {
@@ -600,7 +600,7 @@ func findAndRemoveRootMember(members []*CollectionMember) (*CollectionMember, []
 }
 
 func (c *Collection) normalize() {
-	// Loop over members, find nil space/lensspec, call it root, copy values
+	// Loop over members, find nil space/servicespec, call it root, copy values
 	c.Root, c.Members = findAndRemoveRootMember(c.Members)
 
 	var label string
@@ -633,7 +633,7 @@ func (c *Collection) normalize() {
 
 type CollectionMember struct {
 	SpaceID     string    `json:"space,omitempty"`
-	ServiceSpec string    `json:"lensspec,omitempty"`
+	ServiceSpec string    `json:"servicespec,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	// DeletedAt time.Time
 	// UpdatedAt time.Time
@@ -647,7 +647,7 @@ type CollectionMembership struct {
 	Name  string `json:"name"`
 
 	SpaceID     string    `json:"space,omitempty"`
-	ServiceSpec string    `json:"lensspec,omitempty"`
+	ServiceSpec string    `json:"servicespec,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	// DeletedAt time.Time
 	// UpdatedAt time.Time
@@ -731,7 +731,7 @@ func (s *Substrate) WriteCollectionMembership(ctx context.Context, membership *C
 		return err
 	}
 
-	return s.dbExecContext(ctx, `INSERT INTO "collection_memberships" (collection_owner, collection_name, space_id, lensspec, created_at_us, is_public, membership) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO UPDATE SET collection_owner=excluded.collection_owner, collection_name=excluded.collection_name, space_id=excluded.space_id, lensspec=excluded.lensspec, is_public=excluded.is_public, membership=excluded.membership`,
+	return s.dbExecContext(ctx, `INSERT INTO "collection_memberships" (collection_owner, collection_name, space_id, servicespec, created_at_us, is_public, membership) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO UPDATE SET collection_owner=excluded.collection_owner, collection_name=excluded.collection_name, space_id=excluded.space_id, servicespec=excluded.servicespec, is_public=excluded.is_public, membership=excluded.membership`,
 		membership.Owner, membership.Name, membership.SpaceID, membership.ServiceSpec, membership.CreatedAt.UnixMicro(), membership.IsPublic, string(b))
 }
 

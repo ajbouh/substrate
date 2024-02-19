@@ -55,7 +55,7 @@ func New(
 	defLoader := defset.NewDefLoader(
 		cueloader.NewCueLoader(
 			":defs",
-			cueloader.LookupPathTransform(cue.MakePath(cue.Def("#out"), cue.Def("#lenses"))),
+			cueloader.LookupPathTransform(cue.MakePath(cue.Def("#out"), cue.Str("services"))),
 			cueloader.FillPathEncodeTransform(
 				cue.MakePath(cue.AnyString, cue.Str("spawn").Optional(), cue.Str("parameters"), cue.Str("cpu_memory_total"), cue.Str("resource"), cue.Str("quantity")),
 				cpuMemoryTotalMB,

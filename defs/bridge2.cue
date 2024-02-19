@@ -9,7 +9,7 @@ live_edit: "bridge2": bool
 
 imagespecs: "bridge2": {}
 
-lenses: "bridge2": {
+services: "bridge2": {
   spawn: {
     mounts: [
       if live_edit["bridge2"] {

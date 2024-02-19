@@ -31,6 +31,6 @@ tests: "bb": go: {
 
 imagespecs: "bb": {}
 
-lenses: "bb": {
+services: "bb": {
   spawn: {}
 }

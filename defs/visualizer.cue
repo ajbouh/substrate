@@ -4,7 +4,7 @@ enable: "visualizer": false
 
 imagespecs: "visualizer": {}
 
-"lenses": "visualizer": {
+services: "visualizer": {
   spawn: {}
   spawn: schema: data: type: "space"
 

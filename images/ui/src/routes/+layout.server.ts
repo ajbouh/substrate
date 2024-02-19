@@ -1,18 +1,18 @@
 import { fetchJSON, urls } from '$lib/activities'
-import type { Lens } from '$lib/activities'
+import type { Service } from '$lib/activities'
 
 /** @type {import('./$types').LayoutServerLoad} */
 
 export async function load({ params, locals, fetch }) {
-  let lenses: Record<string, Lens> = {}
+  let services: Record<string, Service> = {}
   try {
-    lenses = await fetchJSON<Record<string, Lens>>(fetch, urls.api.lenses({}))
+    services = await fetchJSON<Record<string, Service>>(fetch, urls.api.services({}))
   } catch (e) {
     console.error(e)
   }
 
   return {
     user: locals.user,
-    lenses,
+    services,
   }
 }

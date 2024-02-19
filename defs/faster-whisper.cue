@@ -28,7 +28,7 @@ tests: "faster-whisper": transcribe: {
 
 imagespecs: "faster-whisper": {}
 
-lenses: "faster-whisper": {
+services: "faster-whisper": {
   spawn: {}
   spawn: {
     environment: {

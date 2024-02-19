@@ -2,13 +2,13 @@
   import type {
     EntitySelection,
     CollectionSelection,
-    LensSelection,
+    ServiceSelection,
     SpaceSelection,
     ActivitySelection,
     EventSelection,
   } from '$lib/entities'
   import CardGallery from '$lib/CardGallery.svelte'
-  import LensCard from '$lib/LensCard.svelte'
+  import ServiceCard from '$lib/ServiceCard.svelte'
   import CollectionCard from '$lib/CollectionCard.svelte'
   import SpaceCard from '$lib/SpaceCard.svelte'
   import ActivityCard from '$lib/ActivityCard.svelte'
@@ -23,10 +23,10 @@
         cards: entities,
       })
     },
-    "lens": {
+    "service": {
       component: CardGallery,
-      props: (entities: LensSelection[]) => ({
-        Card: LensCard,
+      props: (entities: ServiceSelection[]) => ({
+        Card: ServiceCard,
         sortCardsBy: "label",
         cards: entities,
       }),

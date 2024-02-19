@@ -201,10 +201,10 @@ const viewspecParameterStart = "["
 const viewspecParameterEnd = "]"
 
 func ParseServiceSpawnRequest(spec string, forceReadOnly bool, spawnPrefix string) (*ServiceSpawnRequest, string, error) {
-	var lens string
+	var service string
 	var viewspec string
 	var path string
-	if strings.HasPrefix(spec, viewspecParameterStart) { // lens is unknown!
+	if strings.HasPrefix(spec, viewspecParameterStart) { // service is unknown!
 		viewspec = strings.TrimPrefix(spec, viewspecParameterStart)
 		if !strings.HasSuffix(viewspec, viewspecParameterEnd) {
 			split := strings.SplitN(viewspec, "/", 2)
@@ -218,7 +218,7 @@ func ParseServiceSpawnRequest(spec string, forceReadOnly bool, spawnPrefix strin
 		viewspec = strings.TrimSuffix(viewspec, viewspecParameterEnd)
 	} else {
 		var found bool
-		lens, viewspec, found = strings.Cut(spec, viewspecParameterStart)
+		service, viewspec, found = strings.Cut(spec, viewspecParameterStart)
 		if found {
 			if !strings.HasSuffix(viewspec, viewspecParameterEnd) {
 				split := strings.SplitN(viewspec, "/", 2)
@@ -246,7 +246,7 @@ func ParseServiceSpawnRequest(spec string, forceReadOnly bool, spawnPrefix strin
 	}
 
 	r := &ServiceSpawnRequest{
-		ServiceName: lens,
+		ServiceName: service,
 		Parameters:  params,
 		URLPrefix:   spawnPrefix,
 	}
