@@ -21,6 +21,7 @@ type DefSetLoader func(
 	config *load.Config,
 	pc *activityspec.ProvisionerCache,
 	layout *substratefs.Layout,
+	serviceSpawned ServiceSpawnedFunc,
 ) *DefSet
 
 func NewDefLoader(cueLoader cueloader.Loader) DefSetLoader {
@@ -30,6 +31,7 @@ func NewDefLoader(cueLoader cueloader.Loader) DefSetLoader {
 		config *load.Config,
 		pc *activityspec.ProvisionerCache,
 		layout *substratefs.Layout,
+		serviceSpawned ServiceSpawnedFunc,
 	) *DefSet {
 		load := cueLoader(cueMu, cc, config)
 
@@ -38,6 +40,8 @@ func NewDefLoader(cueLoader cueloader.Loader) DefSetLoader {
 			CueMu:      cueMu,
 			CueContext: cc,
 			Layout:     layout,
+
+			ServiceSpawned: serviceSpawned,
 		}
 		if load.Err != nil {
 			sds.Err = fmt.Errorf("error loading cue defs: %w", load.Err)

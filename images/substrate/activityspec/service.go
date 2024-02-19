@@ -11,9 +11,8 @@ import (
 )
 
 type ServiceDef struct {
-	Name       string                 `json:"name"`
-	Spawn      ServiceDefSpawn        `json:"spawn"`
-	Activities map[string]ActivityDef `json:"activities"`
+	Name  string          `json:"name"`
+	Spawn ServiceDefSpawn `json:"spawn"`
 }
 
 type ServiceSpawnRequest struct {
@@ -22,13 +21,11 @@ type ServiceSpawnRequest struct {
 
 	URLPrefix     string
 	User          string
-	Ephemeral     bool
 	ForceReadOnly bool
 }
 
 type ServiceSpawnResolution struct {
-	User      string
-	Ephemeral bool
+	User string
 
 	ServiceName        string
 	Parameters         ServiceSpawnParameters `json:"parameters"`
@@ -42,7 +39,7 @@ type ServiceSpawnResponse struct {
 	BackendURL  string
 	BearerToken *string
 
-	ServiceSpawnResolution ServiceSpawnResolution
+	ServiceSpawnResolution ServiceSpawnResolution `json:"resolution"`
 }
 
 func (s *ServiceSpawnResponse) URL() (*url.URL, error) {
@@ -71,6 +68,7 @@ type ServiceDefSpawn struct {
 	Mounts       []ServiceDefSpawnMount    `json:"mounts,omitempty"`
 
 	URLPrefix string `json:"url_prefix,omitempty"`
+	Ephemeral bool   `json:"ephemeral,omitempty"`
 }
 
 type ServiceDefSpawnMount struct {

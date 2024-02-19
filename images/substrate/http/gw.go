@@ -43,26 +43,25 @@ func newLazyProxyHandler(sub *substrate.Substrate, api http.Handler) ([]string, 
 		// Strip prefix
 		req.Host = ""
 		req.URL.Path = "/" + strings.TrimPrefix(rest, "/")
-		if sub.Origin != "" {
-			req.URL.RawQuery = strings.ReplaceAll(req.URL.RawQuery, "$origin", url.QueryEscape(sub.Origin))
-			req.URL.Path = strings.ReplaceAll(req.URL.Path, "$origin", sub.Origin)
+		if sub.InternalSubstrateOrigin != "" {
+			req.URL.RawQuery = strings.ReplaceAll(req.URL.RawQuery, "$origin", url.QueryEscape(sub.InternalSubstrateOrigin))
+			req.URL.Path = strings.ReplaceAll(req.URL.Path, "$origin", sub.InternalSubstrateOrigin)
 		}
 		req.URL.RawPath = ""
 
-		views, err := activityspec.ParseActivitySpecRequest(viewspec, false, "/"+viewspec)
+		views, _, err := activityspec.ParseServiceSpawnRequest(viewspec, false, "/"+viewspec)
 		if err != nil {
 			jsonrw := httputil.NewJSONResponseWriter(rw)
 			jsonrw(nil, http.StatusBadRequest, err)
 			return
 		}
 		views.User = sub.User
-		views.ServiceSpawnRequest.User = sub.User
 
 		defSet := sub.DefSet()
-		_, seemsConcrete := views.ActivitySpec()
+		_, seemsConcrete := views.Format()
 		concrete := seemsConcrete
 		if seemsConcrete {
-			concrete, err = defSet.IsConcrete(&views.ServiceSpawnRequest)
+			concrete, err = defSet.IsConcrete(views)
 			if err != nil {
 				jsonrw := httputil.NewJSONResponseWriter(rw)
 				jsonrw(nil, http.StatusBadRequest, err)
@@ -70,18 +69,18 @@ func newLazyProxyHandler(sub *substrate.Substrate, api http.Handler) ([]string, 
 			}
 		}
 		if !concrete {
-			activitySpawnResponse, err := defSet.SpawnActivity(req.Context(), sub.Driver, views)
+			serviceSpawnResponse, err := defSet.SpawnService(req.Context(), sub.Driver, views)
 			if err != nil {
 				jsonrw := httputil.NewJSONResponseWriter(rw)
 				jsonrw(nil, http.StatusInternalServerError, err)
 				return
 			}
 
-			concretized, _ := activitySpawnResponse.ServiceSpawnResponse.ServiceSpawnResolution.Format()
+			concretized, _ := serviceSpawnResponse.ServiceSpawnResolution.Format()
 			http.RedirectHandler("/"+concretized+"/", http.StatusFound).ServeHTTP(rw, req)
 			return
 		}
 
-		sub.ProvisionerCache.ProvisionReverseProxy(&views.ServiceSpawnRequest).ServeHTTP(rw, req)
+		sub.ProvisionerCache.ProvisionReverseProxy(views).ServeHTTP(rw, req)
 	}
 }

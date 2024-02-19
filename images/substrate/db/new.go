@@ -1,9 +1,10 @@
-package substrate
+package substratedb
 
 import (
 	"context"
 	"database/sql"
 	"log"
+	"sync"
 
 	"github.com/ajbouh/substrate/images/substrate/sqliteuri"
 
@@ -26,11 +27,23 @@ func newDB(fileName string) (*sql.DB, error) {
 
 	db.SetMaxOpenConns(1)
 
-	err = CreateTables(context.Background(), db)
+	err = createTables(context.Background(), db)
 	if err != nil {
 		defer db.Close()
 		return nil, err
 	}
 
 	return db, nil
+}
+
+func New(fileName string) (*DB, error) {
+	db, err := newDB(fileName)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DB{
+		mu: &sync.RWMutex{},
+		db: db,
+	}, nil
 }

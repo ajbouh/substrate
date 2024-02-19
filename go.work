@@ -1,7 +1,6 @@
 go 1.21.1
 
 use (
-	./pkg/cookie
 	./pkg/cueloader
 	./images/bb
 	./images/bridge

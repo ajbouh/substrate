@@ -1,4 +1,4 @@
-package substrate
+package substratedb
 
 import (
 	"context"
@@ -16,9 +16,9 @@ func wrapSQLError(err error, sql string, values ...interface{}) error {
 	return fmt.Errorf("error with sql: `%s`: (%#v): %w", sql, values, err)
 }
 
-func (s *Substrate) dbExecContext(ctx context.Context, query string, values ...any) error {
-	s.Mu.Lock()
-	defer s.Mu.Unlock()
+func (s *DB) dbExecContext(ctx context.Context, query string, values ...any) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	start := time.Now()
 	var err error
@@ -26,7 +26,7 @@ func (s *Substrate) dbExecContext(ctx context.Context, query string, values ...a
 		log.Printf("sql=`%s` values=%#v time=%s err=%s", query, values, time.Since(start), err)
 	}()
 
-	_, err = s.DB.ExecContext(ctx, query, values...)
+	_, err = s.db.ExecContext(ctx, query, values...)
 	if err != nil {
 		return wrapSQLError(err, query, values...)
 	}
@@ -34,14 +34,14 @@ func (s *Substrate) dbExecContext(ctx context.Context, query string, values ...a
 	return nil
 }
 
-func (s *Substrate) dbQueryContext(ctx context.Context, query string, values ...any) (*sql.Rows, error) {
+func (s *DB) dbQueryContext(ctx context.Context, query string, values ...any) (*sql.Rows, error) {
 	start := time.Now()
 	var err error
 	defer func() {
 		log.Printf("sql=`%s` values=%#v time=%s err=%s", query, values, time.Since(start), err)
 	}()
 
-	r, err := s.DB.QueryContext(ctx, query, values...)
+	r, err := s.db.QueryContext(ctx, query, values...)
 	if err != nil {
 		return nil, wrapSQLError(err, query, values...)
 	}

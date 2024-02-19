@@ -18,7 +18,7 @@ import (
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 
-	"github.com/ajbouh/substrate/pkg/cookie"
+	"github.com/ajbouh/substrate/images/screenshot/cookie"
 )
 
 func getInt(v url.Values, key string, defaultValue int) (int, error) {
@@ -120,9 +120,9 @@ func main() {
 		chromedp.Flag("ignore-certificate-errors", "1"),
 	)
 
-	substrateOrigin, substrateOriginAddress, err := resolve(os.Getenv("JAMSOCKET_SUBSTRATE_ORIGIN"), os.Getenv("JAMSOCKET_SUBSTRATE_ORIGIN_RESOLVER"))
+	substrateOrigin, substrateOriginAddress, err := resolve(os.Getenv("INTERNAL_SUBSTRATE_HOST"), os.Getenv("SUBSTRATE_ORIGIN_RESOLVER"))
 	if err != nil {
-		log.Printf("invalid URL for JAMSOCKET_SUBSTRATE_ORIGIN err=%v", err)
+		log.Printf("invalid URL for SUBSTRATE_ORIGIN err=%v", err)
 	}
 	if substrateOriginAddress != "" && err == nil {
 		// Chrome fails to resolve MagicDNS names sometimes... here's some discussion:
@@ -194,12 +194,16 @@ func main() {
 		log.Printf("header.set-cookie=%#v", req.Header["Set-Cookie"])
 		for _, c := range cookie.ReadSetCookies(req.Header) {
 			cookie := c
+			if cookie.Domain == "" {
+				log.Printf("skipping cookie=%s because cookie.domain=%s is empty", cookie, cookie.Domain)
+				continue
+			}
 			if !strings.HasSuffix(parsedTargetURL.Host, cookie.Domain) {
-				log.Printf("skipping cookie=%s because cookie.domain=%s doesn't match url.host=%s", cookie.Domain, parsedTargetURL.Host)
+				log.Printf("skipping cookie=%s because cookie.domain=%s doesn't match url.host=%s", cookie, cookie.Domain, parsedTargetURL.Host)
 				continue
 			}
 			if !strings.HasPrefix(parsedTargetURL.Path, cookie.Path) {
-				log.Printf("skipping cookie=%s because cookie.path=%s doesn't match url.path=%s", cookie.Path, parsedTargetURL.Path)
+				log.Printf("skipping cookie=%s because cookie.path=%s doesn't match url.path=%s", cookie, cookie.Path, parsedTargetURL.Path)
 				continue
 			}
 

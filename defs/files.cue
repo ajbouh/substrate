@@ -1,12 +1,18 @@
 package defs
 
-enable: "files": false
+enable: "files": true
 
 imagespecs: "files": {}
 
 services: "files": {
-  spawn: {}
-  spawn: schema: data: type: "space"
+  spawn: {
+    environment: {
+      SUBSTRATE_URL_PREFIX: string
+    }
+    ephemeral: true
+    url_prefix: environment.SUBSTRATE_URL_PREFIX
+  }
+  spawn: parameters: data: type: "space"
 
   activities: {
     // previewFiles: {

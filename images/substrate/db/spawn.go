@@ -1,4 +1,4 @@
-package substrate
+package substratedb
 
 import (
 	"context"
@@ -10,12 +10,31 @@ import (
 	ulid "github.com/oklog/ulid/v2"
 )
 
-func (s *Substrate) WriteSpawn(
+func (s *DB) WriteSpawn(
 	ctx context.Context,
 	req *activityspec.ServiceSpawnRequest,
-	views *activityspec.ServiceSpawnResolution,
-	res *activityspec.ActivitySpawnResponse,
+	res *activityspec.ServiceSpawnResponse,
 ) error {
+
+	views := &res.ServiceSpawnResolution
+	usesSpaces := false
+loop:
+	for _, view := range views.Parameters {
+		switch {
+		case view.Space != nil:
+			usesSpaces = true
+			break loop
+		case view.Spaces != nil:
+			usesSpaces = true
+			break loop
+		}
+	}
+
+	// Return early if we're not using any spaces
+	if !usesSpaces {
+		return nil
+	}
+
 	var err error
 
 	var spaces = []*Space{}
@@ -75,6 +94,10 @@ func (s *Substrate) WriteSpawn(
 		}
 	}
 
+	if res.ServiceSpawnResolution.ServiceDefSpawn.Ephemeral {
+		return nil
+	}
+
 	eventULID := ulid.MustNew(nowTs, entropy)
 	eventID := "ev-" + eventULID.String()
 	viewspecReq, _ := req.Format()
@@ -101,7 +124,7 @@ func (s *Substrate) WriteSpawn(
 
 	viewspec, _ := views.Format()
 
-	if !req.Ephemeral {
+	if !res.ServiceSpawnResolution.ServiceDefSpawn.Ephemeral && len(spaces) > 0 {
 		err = s.WriteActivity(ctx, &Activity{
 			ActivitySpec: viewspec,
 			CreatedAt:    now,

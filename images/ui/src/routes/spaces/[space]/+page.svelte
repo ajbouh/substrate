@@ -14,4 +14,4 @@
 
 </script>
 
-<iframe class="mx-auto px-6 max-w-7xl flex-grow w-full" src="{urls.api.spacePreviewURL({ space: data.space })}"></iframe>
+<iframe class="mx-auto px-6 max-w-7xl flex-grow w-full" src="{urls.api.spaceExploreURL({ space: data.space })}"></iframe>

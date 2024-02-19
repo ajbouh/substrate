@@ -67,19 +67,21 @@ func main() {
 
 func server(addr string) error {
 	mux := http.NewServeMux()
-	mux.Handle("/raw/", &fileHandler{
-		route:       "/raw/",
+	prefix := os.Getenv("SUBSTRATE_URL_PREFIX")
+
+	mux.Handle(prefix+"/raw/", &fileHandler{
+		route:       prefix+"/raw/",
 		path:        "/spaces/data/tree",
 		allowUpload: allowUploadsFlag,
 		allowDelete: allowDeletesFlag,
 	})
 
-	mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.FS(assets.Content))))
+	mux.Handle(prefix+"/assets/", http.StripPrefix(prefix+"/assets/", http.FileServer(http.FS(assets.Content))))
 
 	nbpreviewHandler := func(rw http.ResponseWriter, req *http.Request) {
 		var buf = newBufferedResponseWriter()
 		rawReq := req.Clone(req.Context())
-		rawReq.URL.Path = "/raw" + rawReq.URL.Path
+		rawReq.URL.Path = prefix+"/raw" + rawReq.URL.Path
 
 		// assume 404
 		buf.statusCode = 404
@@ -98,9 +100,9 @@ func server(addr string) error {
 			[]byte(strconv.Quote(buf.b.String())),
 		))
 	}
-	mux.Handle("/nbpreview/retro/notebooks/", http.StripPrefix("/nbpreview/retro/notebooks", http.HandlerFunc(nbpreviewHandler)))
-	mux.Handle("/nbpreview/", http.StripPrefix("/nbpreview", http.HandlerFunc(nbpreviewHandler)))
-	mux.Handle("/", http.RedirectHandler("/raw/", http.StatusFound))
+	mux.Handle(prefix+"/nbpreview/retro/notebooks/", http.StripPrefix(prefix+"/nbpreview/retro/notebooks", http.HandlerFunc(nbpreviewHandler)))
+	mux.Handle(prefix+"/nbpreview/", http.StripPrefix(prefix+"/nbpreview", http.HandlerFunc(nbpreviewHandler)))
+	mux.Handle(prefix+"/", http.RedirectHandler(prefix+"/raw/", http.StatusFound))
 
 	binaryPath, _ := os.Executable()
 	if binaryPath == "" {
