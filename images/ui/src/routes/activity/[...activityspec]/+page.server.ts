@@ -16,7 +16,7 @@ export const actions = {
 
     console.log({ r, data })
 
-    throw redirect(301, urls.ui.activity({
+    throw redirect(301, urls.gateway.activity({
       activityspec: r.activityspec,
     }))
   }

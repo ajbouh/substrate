@@ -1,6 +1,6 @@
 package defs
 
-enable: "screenshot": false
+enable: "screenshot": true
 
 imagespecs: "screenshot": {}
 

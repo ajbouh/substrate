@@ -1,12 +1,14 @@
 package defs
 
-enable: "visualizer": false
+enable: "visualizer": true
 
 imagespecs: "visualizer": {}
 
 services: "visualizer": {
-  spawn: {}
-  spawn: schema: data: type: "space"
+  spawn: {
+    ephemeral: true
+  }
+  spawn: parameters: data: type: "space"
 
   activities: {
     previewFiles: {

@@ -212,15 +212,14 @@ export const urls = {
   ui: {
     home: () => `${base}/`,
     spaces: () => `${base}/spaces`,
+    events: () => `${base}/events`,
     user: ({ user }: {user: string}) => `${base}/@${user}`,
     userSpaces: ({ user }: {user: string}) => `${base}/@${user}/spaces`,
     userCollections: ({ user }: {user: string}) => `${base}/@${user}/collections`,
     collection: ({ owner, name }: {owner: string, name: string}) => `${base}/@${owner}/collections/${name}`,
     space: ({ space }: {space: string}) => `${base}/spaces/${space}`,
     service: ({ name }: {name: string}) => `${base}/services/${name}`,
-    activity: ({ activityspec }: { activityspec: string }) => {
-      return `${base}/activity/${activityspec}`
-    }
+    activity: ({ activityspec }: { activityspec: string }) => `${base}/activity/${activityspec}`,
   },
   gateway: {
     activity: ({ activityspec }: { activityspec: string }) => {
@@ -259,8 +258,9 @@ export const urls = {
     ].join("")),
     spawn: ({}: {}) => debug(`${fetchOrigin}/substrate/v1/activities`),
     screenshotServiceURL: ({}: {}) => `${domOrigin}/${screenshotService}`, // TODO don't hardcode "screenshot"
-    spacePreviewURL: ({ origin, space, previewFile }: { origin?: string; space: string; previewFile?: string }) => `${origin || domOrigin}/preview/space/${space}`,
-    activityPreviewURL: ({ origin, activity, previewFile }: { origin?: string; activity: string; previewFile?: string }) => `${origin || domOrigin}/preview/activity/${activity}`,
+    spaceExploreURL: ({ origin, space, previewFile }: { origin?: string; space: string; previewFile?: string }) => `${origin || domOrigin}/files(data=${space})/`,
+    spacePreviewURL: ({ origin, space, previewFile }: { origin?: string; space: string; previewFile?: string }) => `${origin || domOrigin}/visualizer(data=${space})/`,
+    activityPreviewURL: ({ origin, activity, previewFile }: { origin?: string; activity: string; previewFile?: string }) => `${origin || domOrigin}/${activity}/`,
     thumbnailPreviewURL: ({ space, activity, previewFile }: { activity: string; space: string; previewFile?: string }) =>
       space
       ? `${urls.api.screenshotServiceURL({})}?wait=networkIdle&url=${urls.api.spacePreviewURL({ space, origin: '$origin', previewFile })}`
@@ -687,9 +687,7 @@ function activityRequestToCommandRequest(ac: ActivityCommand) {
 
   const run = async (rc: RunContext) => {
     const { body, activityspec } = await prepare(rc)
-    const url = activityRequest?.interactive
-      ? urls.ui.activity({ activityspec })
-      : urls.gateway.activity({ activityspec })
+    const url = urls.gateway.activity({ activityspec })
     console.log("run", {activityRequest, activityspec, body, url})
 
     return await fetchJSONRaw(rc.fetch,
@@ -703,7 +701,7 @@ function activityRequestToCommandRequest(ac: ActivityCommand) {
           href: (!method || method.toLowerCase() === "get" && !hasBody)
             ? async () => {
               const { activityspec } = await prepare({fetch: (a: any, b?: any) => globalThis.fetch(a, b)})
-                return urls.ui.activity({ activityspec })
+                return urls.gateway.activity({ activityspec })
               }
             : async () => {
               const { headers } = await run({ fetch: (a: any, b?: any) => globalThis.fetch(a, b) })

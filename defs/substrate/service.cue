@@ -42,7 +42,9 @@ package service
       unit: string
       quantity: number
     }
+
     value: =~"^([0-9]+)\(resource.unit)$"
+    value: "\(resource.quantity)\(resource.unit)"
   }
 
   value: string
@@ -112,6 +114,7 @@ package service
         resource: {unit: "MB", quantity: number | *0}
       }
     }
+    ephemeral ?: bool | *false
     image: string
     environment: [string]: string
     environment: PORT: string | *"8080"

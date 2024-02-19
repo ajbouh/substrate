@@ -1,18 +1,23 @@
-package substrate
+package substratedb
 
 import (
 	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 )
 
-func CreateTables(ctx context.Context, db *sql.DB) error {
+type DB struct {
+	mu *sync.RWMutex
+	db *sql.DB
+}
+
+func createTables(ctx context.Context, db *sql.DB) error {
 	tables := []string{
 		createActivitiesTable,
 		createEventsTable,
@@ -51,7 +56,7 @@ type Activity struct {
 	Service      string    `json:"service"`
 }
 
-func (s *Substrate) WriteActivity(ctx context.Context, Activity *Activity) error {
+func (s *DB) WriteActivity(ctx context.Context, Activity *Activity) error {
 	return s.dbExecContext(ctx, `INSERT INTO "activities" (activityspec, created_at_us, service) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`,
 		Activity.ActivitySpec, Activity.CreatedAt.UnixMicro(), Activity.Service)
 }
@@ -75,7 +80,7 @@ func (q *ActivityWhere) AppendWhere(query *Query) bool {
 	return modified
 }
 
-func (s *Substrate) ListActivities(ctx context.Context, request *ActivityListRequest) ([]*Activity, error) {
+func (s *DB) ListActivities(ctx context.Context, request *ActivityListRequest) ([]*Activity, error) {
 	query := &Query{
 		Select:          []string{`activityspec`, `created_at_us`, `service`},
 		FromTablesNamed: map[string]string{activitiesTable: activitiesTable},
@@ -87,8 +92,8 @@ func (s *Substrate) ListActivities(ctx context.Context, request *ActivityListReq
 
 	request.AppendWhere(query)
 
-	s.Mu.RLock()
-	defer s.Mu.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	q, values := query.Render()
 	rows, err := s.dbQueryContext(ctx, q, values...)
@@ -181,7 +186,7 @@ type Event struct {
 	// DockerSpawn  *dockerprovisioner.SpawnEvent  `json:"docker_spawn,omitempty"`
 	// DockerStatus *dockerprovisioner.StatusEvent `json:"docker_status,omitempty"`
 
-	Response *activityspec.ActivitySpawnResponse
+	Response *activityspec.ServiceSpawnResponse `json:"spawn_response"`
 
 	ID           string    `json:"id"`
 	ActivitySpec string    `json:"viewspec,omitempty"`
@@ -197,7 +202,7 @@ const eventsTable = "events"
 // DROP TABLE IF EXISTS "events";
 const createEventsTable = `CREATE TABLE IF NOT EXISTS "events" (id TEXT, viewspec TEXT, ts TEXT, type TEXT, user TEXT, service TEXT, event TEXT, PRIMARY KEY (id));`
 
-func (s *Substrate) WriteEvent(ctx context.Context, event *Event) error {
+func (s *DB) WriteEvent(ctx context.Context, event *Event) error {
 	b, err := json.Marshal(event)
 	if err != nil {
 		return err
@@ -236,7 +241,7 @@ func (q *EventWhere) AppendWhere(query *Query) bool {
 	return modified
 }
 
-func (s *Substrate) ListEvents(ctx context.Context, request *EventListRequest) ([]*Event, error) {
+func (s *DB) ListEvents(ctx context.Context, request *EventListRequest) ([]*Event, error) {
 	query := &Query{
 		Select:          []string{`event`},
 		FromTablesNamed: map[string]string{eventsTable: eventsTable},
@@ -248,8 +253,8 @@ func (s *Substrate) ListEvents(ctx context.Context, request *EventListRequest) (
 
 	request.AppendWhere(query)
 
-	s.Mu.RLock()
-	defer s.Mu.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	q, values := query.Render()
 	rows, err := s.dbQueryContext(ctx, q, values...)
@@ -276,33 +281,10 @@ func (s *Substrate) ListEvents(ctx context.Context, request *EventListRequest) (
 	return results, rows.Err()
 }
 
-func (e *Event) SpawnResult() (*activityspec.ActivitySpawnResponse, error) {
-	asr, err := activityspec.ParseActivitySpecRequest(e.ActivitySpec, false, e.URLPrefix)
-	if err != nil {
-		return nil, err
-	}
-
-	r := e.Response.ServiceSpawnResponse
-
-	pathURL, err := url.Parse(asr.Path)
-	if err != nil {
-		return nil, err
-	}
-
-	return &activityspec.ActivitySpawnResponse{
-		ActivitySpec: e.ActivitySpec,
-
-		Path:    asr.Path,
-		PathURL: pathURL,
-
-		ServiceSpawnResponse: r,
-	}, nil
-}
-
 const spacesTable = "spaces"
 const createSpacesTable = `CREATE TABLE IF NOT EXISTS "spaces" (id TEXT, owner TEXT, alias TEXT, created_at_us INTEGER, deleted_at_us TEXT, forked_from_id TEXT, forked_from_ref TEXT, PRIMARY KEY (id), FOREIGN KEY (forked_from_id) REFERENCES spaces(id));`
 
-func (s *Substrate) WriteSpace(ctx context.Context, space *Space) error {
+func (s *DB) WriteSpace(ctx context.Context, space *Space) error {
 	return s.dbExecContext(ctx, `INSERT INTO "spaces" (id, owner, alias, created_at_us, forked_from_id, forked_from_ref) VALUES (?, ?, ?, ?, ?, ?)`,
 		space.ID, space.Owner, space.Alias, space.CreatedAt.UnixMicro(), space.ForkedFromID, space.ForkedFromRef)
 }
@@ -414,7 +396,7 @@ func (w *SpaceWhere) AppendWhere(query *Query) bool {
 	return modified
 }
 
-func (s *Substrate) PatchSpace(ctx context.Context, patch *SpaceListingPatch) error {
+func (s *DB) PatchSpace(ctx context.Context, patch *SpaceListingPatch) error {
 	set := []string{}
 	values := []any{}
 	if patch.Owner != nil {
@@ -434,7 +416,7 @@ func (s *Substrate) PatchSpace(ctx context.Context, patch *SpaceListingPatch) er
 	return s.dbExecContext(ctx, strings.Join(query, ""), values...)
 }
 
-func (s *Substrate) DeleteSpace(ctx context.Context, request *SpaceWhere) error {
+func (s *DB) DeleteSpace(ctx context.Context, request *SpaceWhere) error {
 	query := &Query{
 		Preamble:        []string{`DELETE`},
 		FromTablesNamed: map[string]string{spacesTable: spacesTable},
@@ -446,7 +428,7 @@ func (s *Substrate) DeleteSpace(ctx context.Context, request *SpaceWhere) error 
 	return s.dbExecContext(ctx, q, values...)
 }
 
-func (s *Substrate) ListSpaces(ctx context.Context, request *SpaceListQuery) ([]*Space, error) {
+func (s *DB) ListSpaces(ctx context.Context, request *SpaceListQuery) ([]*Space, error) {
 	query := &Query{
 		Select:          []string{"id", "owner", "alias", "created_at_us", "forked_from_id", "forked_from_ref"},
 		FromTablesNamed: map[string]string{spacesTable: spacesTable},
@@ -494,8 +476,8 @@ func (s *Substrate) ListSpaces(ctx context.Context, request *SpaceListQuery) ([]
 
 	q, values := query.Render()
 
-	s.Mu.RLock()
-	defer s.Mu.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	rows, err := s.dbQueryContext(ctx, q, values...)
 	if err != nil {
@@ -681,7 +663,7 @@ type CollectionMembershipListQuery struct {
 	OrderBy *OrderBy
 }
 
-func (s *Substrate) ListCollections(ctx context.Context, request *CollectionListQuery) ([]*Collection, error) {
+func (s *DB) ListCollections(ctx context.Context, request *CollectionListQuery) ([]*Collection, error) {
 	query := &Query{
 		Preamble:        []string{`SELECT DISTINCT collection_memberships.collection_owner, collection_memberships.collection_name, json_group_array(json(collection_memberships.membership))`},
 		FromTablesNamed: map[string]string{collectionMembershipsTable: collectionMembershipsTable},
@@ -692,8 +674,8 @@ func (s *Substrate) ListCollections(ctx context.Context, request *CollectionList
 	request.AppendWhere(query)
 
 	q, values := query.Render()
-	s.Mu.RLock()
-	defer s.Mu.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	rows, err := s.dbQueryContext(ctx, q, values...)
 	if err != nil {
@@ -725,7 +707,7 @@ func (s *Substrate) ListCollections(ctx context.Context, request *CollectionList
 	return results, rows.Err()
 }
 
-func (s *Substrate) WriteCollectionMembership(ctx context.Context, membership *CollectionMembership) error {
+func (s *DB) WriteCollectionMembership(ctx context.Context, membership *CollectionMembership) error {
 	b, err := json.Marshal(membership)
 	if err != nil {
 		return err
@@ -735,7 +717,7 @@ func (s *Substrate) WriteCollectionMembership(ctx context.Context, membership *C
 		membership.Owner, membership.Name, membership.SpaceID, membership.ServiceSpec, membership.CreatedAt.UnixMicro(), membership.IsPublic, string(b))
 }
 
-func (s *Substrate) DeleteCollectionMembership(ctx context.Context, request *CollectionMembershipWhere) error {
+func (s *DB) DeleteCollectionMembership(ctx context.Context, request *CollectionMembershipWhere) error {
 	query := &Query{
 		Preamble:        []string{`DELETE`},
 		FromTablesNamed: map[string]string{collectionMembershipsTable: collectionMembershipsTable},

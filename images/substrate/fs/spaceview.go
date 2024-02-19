@@ -7,19 +7,19 @@ import (
 )
 
 type SpaceViewCreation struct {
-	Time time.Time
-	Base *Ref
+	Time time.Time `json:"time"`
+	Base *Ref      `json:"base"`
 }
 
 type SpaceView struct {
-	layout *Layout
+	layout *Layout `json:"-"`
 
-	Tip *TipRef
+	Tip *TipRef `json:"tip"`
 
-	Time       time.Time
-	IsReadOnly bool
+	Time       time.Time `json:"time"`
+	IsReadOnly bool      `json:"is_read_only,omitempty"`
 
-	Creation *SpaceViewCreation
+	Creation *SpaceViewCreation `json:"creation,omitempty"`
 }
 
 func (l *Layout) NewSpaceView(tip *TipRef, base *Ref, readOnly, checkpointExistingFirst bool, owner, alias string) (*SpaceView, error) {

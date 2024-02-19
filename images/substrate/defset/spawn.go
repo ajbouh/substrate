@@ -13,13 +13,13 @@ import (
 	"github.com/ajbouh/substrate/images/substrate/fs"
 )
 
-func (s *DefSet) SpawnActivity(ctx context.Context, driver activityspec.ProvisionDriver, req *activityspec.ActivitySpecRequest) (*activityspec.ActivitySpawnResponse, error) {
-	serviceDefSpawnValue, err := s.resolveServiceDefSpawn(&req.ServiceSpawnRequest)
+func (s *DefSet) SpawnService(ctx context.Context, driver activityspec.ProvisionDriver, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResponse, error) {
+	serviceDefSpawnValue, err := s.resolveServiceDefSpawn(req)
 	if err != nil {
 		return nil, err
 	}
 
-	serviceSpawnResolution, err := s.resolveServiceSpawn(&req.ServiceSpawnRequest, serviceDefSpawnValue)
+	serviceSpawnResolution, err := s.resolveServiceSpawn(req, serviceDefSpawnValue)
 	if err != nil {
 		return nil, err
 	}
@@ -29,20 +29,11 @@ func (s *DefSet) SpawnActivity(ctx context.Context, driver activityspec.Provisio
 		return nil, err
 	}
 
-	pathURL, err := url.Parse(req.Path)
-	if err != nil {
-		return nil, err
+	if s.ServiceSpawned != nil {
+		s.ServiceSpawned(ctx, driver, req, serviceSpawnResponse)
 	}
 
-	viewspec, _ := req.ActivitySpec()
-	return &activityspec.ActivitySpawnResponse{
-		ActivitySpec: viewspec,
-
-		PathURL: pathURL,
-		Path:    req.Path,
-
-		ServiceSpawnResponse: *serviceSpawnResponse,
-	}, nil
+	return serviceSpawnResponse, nil
 }
 
 var parameterTypePath = cue.MakePath(cue.Str("type"))
@@ -226,17 +217,7 @@ func (s *DefSet) NewProvisionFunc(driver activityspec.ProvisionDriver, req *acti
 			return target, false, makeCleanup(), nil
 		}
 
-		serviceDefSpawnValue, err := s.resolveServiceDefSpawn(req)
-		if err != nil {
-			return nil, false, nil, err
-		}
-
-		serviceSpawnResolution, err := s.resolveServiceSpawn(req, serviceDefSpawnValue)
-		if err != nil {
-			return nil, false, nil, err
-		}
-
-		sres, err := driver.Spawn(ctx, serviceSpawnResolution)
+		sres, err := s.SpawnService(ctx, driver, req)
 		if err != nil {
 			return nil, false, nil, err
 		}

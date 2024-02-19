@@ -11,6 +11,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/ajbouh/substrate/images/substrate/db"
 	"github.com/ajbouh/substrate/images/substrate/httputil"
 	"github.com/ajbouh/substrate/images/substrate/substrate"
 )
@@ -45,90 +46,6 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 
 	router.Handle("GET", "/substrate/v1/defs", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
 		s.DefsAnnouncer.ServeHTTP(rw, req)
-	})
-
-	handle("POST", "/substrate/v1/activities", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		r := &ActivityRequest{}
-		status, err := httputil.ReadRequestBody(req, &r)
-		if err != nil {
-			return nil, status, err
-		}
-
-		statusStreamURLPrefix := strings.Replace(req.URL.Path, "/activities", "/backend/jamsocket", 1)
-		if !strings.HasSuffix(statusStreamURLPrefix, "/") {
-			statusStreamURLPrefix = statusStreamURLPrefix + "/"
-		}
-
-		views, err := activityspec.ParseActivitySpecRequest(r.ActivitySpec, r.ForceReadOnly, "/"+r.ActivitySpec)
-		if err != nil {
-			return nil, http.StatusBadRequest, err
-		}
-
-		if !r.ForceSpawn {
-			as, concrete := views.ActivitySpec()
-			if !concrete {
-				return nil, http.StatusBadRequest, fmt.Errorf("as must be concrete to be used with resume")
-			}
-
-			events, err := s.ListEvents(req.Context(), &substrate.EventListRequest{
-				EventWhere: substrate.EventWhere{
-					ActivitySpec: &as,
-					Type:         stringPtr("spawn"),
-				},
-				OrderBy: &substrate.OrderBy{Descending: true},
-				Limit:   &substrate.Limit{Limit: 1},
-			})
-			if err != nil {
-				return nil, http.StatusInternalServerError, err
-			}
-
-			fmt.Printf("events: %#v\n", events)
-
-			if len(events) > 0 {
-				event := events[0]
-				backendStatus, err := s.Driver.Status(req.Context(), event.Response.ServiceSpawnResponse.Name)
-				if err != nil {
-					return nil, http.StatusInternalServerError, err
-				}
-
-				if backendStatus.IsReady() || backendStatus.IsPending() {
-					sres, err := event.SpawnResult()
-					if err != nil {
-						// Is this right? Or should we respawn?
-						return nil, http.StatusInternalServerError, err
-					}
-
-					u, err := sres.URL()
-					if err != nil {
-						return nil, http.StatusInternalServerError, err
-					}
-
-					return &ActivityResult{
-						URL: u.String(),
-						// Status:          backendStatus,
-						StatusStreamURL: statusStreamURLPrefix + event.Response.ServiceSpawnResponse.Name + "/status/stream",
-						ActivitySpec:    event.ActivitySpec,
-					}, http.StatusOK, nil
-				}
-			}
-		}
-
-		views.User = s.User
-		sres, err := s.DefSet().SpawnActivity(req.Context(), s.Driver, views)
-		if err != nil {
-			return nil, http.StatusInternalServerError, err
-		}
-
-		u, err := sres.URL()
-		if err != nil {
-			return nil, http.StatusInternalServerError, err
-		}
-		return &ActivityResult{
-			URL: u.String(),
-			// Status:          nil,
-			StatusStreamURL: statusStreamURLPrefix + sres.ServiceSpawnResponse.Name + "/status/stream",
-			ActivitySpec:    sres.ActivitySpec,
-		}, http.StatusOK, nil
 	})
 
 	handle("POST", "/substrate/v1/spaces", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
@@ -171,7 +88,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 			return nil, http.StatusInternalServerError, err
 		}
 
-		err = s.WriteSpace(req.Context(), &substrate.Space{
+		err = s.DB.WriteSpace(req.Context(), &substratedb.Space{
 			Owner:         s.User,
 			Alias:         alias, // initial alias is just the ID itself
 			ID:            view.Tip.SpaceID.String(),
@@ -197,11 +114,11 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 
 	handle("DELETE", "/substrate/v1/spaces/:space", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		w := p.ByName("space")
-		result, err := s.ListSpaces(req.Context(), &substrate.SpaceListQuery{
-			SpaceWhere: substrate.SpaceWhere{
+		result, err := s.DB.ListSpaces(req.Context(), &substratedb.SpaceListQuery{
+			SpaceWhere: substratedb.SpaceWhere{
 				ID: &w,
 			},
-			Limit: &substrate.Limit{
+			Limit: &substratedb.Limit{
 				Limit: 1,
 			},
 		})
@@ -217,7 +134,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 			return nil, http.StatusUnauthorized, fmt.Errorf("only the owner of the space can delete it")
 		}
 
-		err = s.DeleteSpace(req.Context(), &substrate.SpaceWhere{
+		err = s.DB.DeleteSpace(req.Context(), &substratedb.SpaceWhere{
 			ID: &ws.ID,
 		})
 		if err != nil {
@@ -228,13 +145,13 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	})
 
 	handle("PATCH", "/substrate/v1/spaces/:space", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		r := &substrate.SpaceListingPatch{}
+		r := &substratedb.SpaceListingPatch{}
 		status, err := httputil.ReadRequestBody(req, &r)
 		if err != nil {
 			return nil, status, err
 		}
 		r.ID = p.ByName("space")
-		err = s.PatchSpace(req.Context(), r)
+		err = s.DB.PatchSpace(req.Context(), r)
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
@@ -285,11 +202,11 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 
 	handle("GET", "/substrate/v1/activities", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		query := req.URL.Query()
-		activities, err := s.ListActivities(req.Context(), &substrate.ActivityListRequest{
-			ActivityWhere: substrate.ActivityWhere{
+		activities, err := s.DB.ListActivities(req.Context(), &substratedb.ActivityListRequest{
+			ActivityWhere: substratedb.ActivityWhere{
 				Service: httputil.GetValueAsStringPtr(query, "service"),
 			},
-			Limit: substrate.LimitFromPtr(httputil.GetValueAsIntPtr(query, "limit")),
+			Limit: substratedb.LimitFromPtr(httputil.GetValueAsIntPtr(query, "limit")),
 		})
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
@@ -312,14 +229,14 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 
 	handle("GET", "/substrate/v1/spaces/:space", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		w := p.ByName("space")
-		result, err := s.ListSpaces(req.Context(), &substrate.SpaceListQuery{
-			SpaceWhere: substrate.SpaceWhere{
+		result, err := s.DB.ListSpaces(req.Context(), &substratedb.SpaceListQuery{
+			SpaceWhere: substratedb.SpaceWhere{
 				ID: &w,
 			},
-			SelectNestedCollections: &substrate.CollectionMembershipWhere{
+			SelectNestedCollections: &substratedb.CollectionMembershipWhere{
 				Owner: stringPtr(s.User),
 			},
-			Limit: &substrate.Limit{
+			Limit: &substratedb.Limit{
 				Limit: 1,
 			},
 		})
@@ -343,12 +260,12 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 
 	handle("GET", "/substrate/v1/spaces", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		query := req.URL.Query()
-		result, err := s.ListSpaces(req.Context(), &substrate.SpaceListQuery{
-			SpaceWhere: substrate.SpaceWhere{
+		result, err := s.DB.ListSpaces(req.Context(), &substratedb.SpaceListQuery{
+			SpaceWhere: substratedb.SpaceWhere{
 				Owner:        httputil.GetValueAsStringPtr(query, "owner"),
 				ForkedFromID: httputil.GetValueAsStringPtr(query, "forked_from"),
 			},
-			SelectNestedCollections: &substrate.CollectionMembershipWhere{
+			SelectNestedCollections: &substratedb.CollectionMembershipWhere{
 				Owner:       httputil.GetValueAsStringPtr(query, "collection_owner"),
 				Name:        httputil.GetValueAsStringPtr(query, "collection_name"),
 				NamePrefix:  httputil.GetValueAsStringPtr(query, "collection_prefix"),
@@ -365,11 +282,11 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 	// List all collections for an owner
 	handle("GET", "/substrate/v1/collections/:owner", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		query := req.URL.Query()
-		result, err := s.ListCollections(req.Context(), &substrate.CollectionListQuery{
-			CollectionMembershipWhere: substrate.CollectionMembershipWhere{
+		result, err := s.DB.ListCollections(req.Context(), &substratedb.CollectionListQuery{
+			CollectionMembershipWhere: substratedb.CollectionMembershipWhere{
 				Owner: stringPtr(p.ByName("owner")),
 			},
-			Limit: substrate.LimitFromPtr(httputil.GetValueAsIntPtr(query, "limit")),
+			Limit: substratedb.LimitFromPtr(httputil.GetValueAsIntPtr(query, "limit")),
 		})
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
@@ -388,13 +305,13 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		} else {
 			nameP = &name
 		}
-		result, err := s.ListCollections(req.Context(), &substrate.CollectionListQuery{
-			CollectionMembershipWhere: substrate.CollectionMembershipWhere{
+		result, err := s.DB.ListCollections(req.Context(), &substratedb.CollectionListQuery{
+			CollectionMembershipWhere: substratedb.CollectionMembershipWhere{
 				Owner:      stringPtr(p.ByName("owner")),
 				Name:       nameP,
 				NamePrefix: prefixP,
 			},
-			Limit: substrate.LimitFromPtr(httputil.GetValueAsIntPtr(query, "limit")),
+			Limit: substratedb.LimitFromPtr(httputil.GetValueAsIntPtr(query, "limit")),
 		})
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
@@ -422,7 +339,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		// TODO If so, need to create it as needed and return a proper servicespec.
 		// TODO
 
-		err = s.WriteCollectionMembership(req.Context(), &substrate.CollectionMembership{
+		err = s.DB.WriteCollectionMembership(req.Context(), &substratedb.CollectionMembership{
 			Owner:       p.ByName("owner"),
 			Name:        p.ByName("name"),
 			ServiceSpec: r.ServiceSpec,
@@ -446,7 +363,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		if err != nil {
 			return nil, status, err
 		}
-		err = s.WriteCollectionMembership(req.Context(), &substrate.CollectionMembership{
+		err = s.DB.WriteCollectionMembership(req.Context(), &substratedb.CollectionMembership{
 			Owner:      p.ByName("owner"),
 			Name:       p.ByName("name"),
 			SpaceID:    r.SpaceID,
@@ -461,7 +378,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 
 	// Remove a space from a collection
 	handle("DELETE", "/substrate/v1/collections/:owner/:name/spaces/:space", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		err := s.DeleteCollectionMembership(req.Context(), &substrate.CollectionMembershipWhere{
+		err := s.DB.DeleteCollectionMembership(req.Context(), &substratedb.CollectionMembershipWhere{
 			Owner:   stringPtr(p.ByName("owner")),
 			Name:    stringPtr(p.ByName("name")),
 			SpaceID: stringPtr(p.ByName("space")),
@@ -474,7 +391,7 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 
 	// Remove a service from a collection
 	handle("DELETE", "/substrate/v1/collections/:owner/:name/services/:servicespec", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		err := s.DeleteCollectionMembership(req.Context(), &substrate.CollectionMembershipWhere{
+		err := s.DB.DeleteCollectionMembership(req.Context(), &substratedb.CollectionMembershipWhere{
 			Owner:       stringPtr(p.ByName("owner")),
 			Name:        stringPtr(p.ByName("name")),
 			ServiceSpec: stringPtr(p.ByName("servicespec")),
@@ -496,20 +413,20 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		} else {
 			nameP = &name
 		}
-		result, err := s.ListCollections(req.Context(), &substrate.CollectionListQuery{
-			CollectionMembershipWhere: substrate.CollectionMembershipWhere{
+		result, err := s.DB.ListCollections(req.Context(), &substratedb.CollectionListQuery{
+			CollectionMembershipWhere: substratedb.CollectionMembershipWhere{
 				Owner:      stringPtr(p.ByName("owner")),
 				NamePrefix: prefixP,
 				Name:       nameP,
 				HasSpaceID: true,
 			},
-			Limit: substrate.LimitFromPtr(httputil.GetValueAsIntPtr(query, "limit")),
+			Limit: substratedb.LimitFromPtr(httputil.GetValueAsIntPtr(query, "limit")),
 		})
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
 		if len(result) == 0 {
-			return []*substrate.CollectionMember{}, http.StatusOK, nil
+			return []*substratedb.CollectionMember{}, http.StatusOK, nil
 		}
 		return result[0].Members, http.StatusOK, nil
 	})
@@ -525,32 +442,32 @@ func newApiHandler(s *substrate.Substrate) http.Handler {
 		} else {
 			nameP = &name
 		}
-		result, err := s.ListCollections(req.Context(), &substrate.CollectionListQuery{
-			CollectionMembershipWhere: substrate.CollectionMembershipWhere{
+		result, err := s.DB.ListCollections(req.Context(), &substratedb.CollectionListQuery{
+			CollectionMembershipWhere: substratedb.CollectionMembershipWhere{
 				Owner:          stringPtr(p.ByName("owner")),
 				NamePrefix:     prefixP,
 				Name:           nameP,
 				HasServiceSpec: true,
 			},
-			Limit: substrate.LimitFromPtr(httputil.GetValueAsIntPtr(query, "limit")),
+			Limit: substratedb.LimitFromPtr(httputil.GetValueAsIntPtr(query, "limit")),
 		})
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
 		if len(result) == 0 {
-			return []*substrate.CollectionMember{}, http.StatusOK, nil
+			return []*substratedb.CollectionMember{}, http.StatusOK, nil
 		}
 		return result[0].Members, http.StatusOK, nil
 	})
 
 	handle("GET", "/substrate/v1/events", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		query := req.URL.Query()
-		result, err := s.ListEvents(req.Context(), &substrate.EventListRequest{
-			EventWhere: substrate.EventWhere{
+		result, err := s.DB.ListEvents(req.Context(), &substratedb.EventListRequest{
+			EventWhere: substratedb.EventWhere{
 				User:         httputil.GetValueAsStringPtr(query, "user"),
 				ActivitySpec: httputil.GetValueAsStringPtr(query, "activityspec"),
 			},
-			Limit: substrate.LimitFromPtr(httputil.GetValueAsIntPtr(query, "limit")),
+			Limit: substratedb.LimitFromPtr(httputil.GetValueAsIntPtr(query, "limit")),
 		})
 		if err != nil {
 			return nil, http.StatusInternalServerError, err

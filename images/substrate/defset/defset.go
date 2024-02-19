@@ -11,6 +11,13 @@ import (
 	"github.com/ajbouh/substrate/images/substrate/fs"
 )
 
+type ServiceSpawnedFunc func(
+	ctx context.Context,
+	driver activityspec.ProvisionDriver,
+	req *activityspec.ServiceSpawnRequest,
+	res *activityspec.ServiceSpawnResponse,
+)
+
 type DefSet struct {
 	Services   map[string]cue.Value
 	CueMu      *sync.Mutex
@@ -18,38 +25,8 @@ type DefSet struct {
 	Err        error
 
 	Layout *substratefs.Layout
-}
 
-func (s *DefSet) ResolveActivity(ctx context.Context, activityName string) ([]*activityspec.ResolvedActivity, error) {
-	s.CueMu.Lock()
-	defer s.CueMu.Unlock()
-
-	activities := []*activityspec.ResolvedActivity{}
-
-	for serviceName, service := range s.Services {
-		var serviceDef *activityspec.ServiceDef
-		if err := service.Decode(&serviceDef); err != nil {
-			return nil, err
-		}
-
-		for _, activity := range serviceDef.Activities {
-			if activity.Activity == activityName {
-				activity0 := activity
-				activities = append(activities, &activityspec.ResolvedActivity{
-					ServiceName: serviceName,
-					Service:     serviceDef,
-					Activity:    &activity0,
-				})
-			}
-		}
-	}
-
-	var result []*activityspec.ResolvedActivity
-	if err := deepCloneViaJSON(&result, activities); err != nil {
-		return nil, err
-	}
-
-	return result, nil
+	ServiceSpawned ServiceSpawnedFunc
 }
 
 func (s *DefSet) ResolveService(ctx context.Context, serviceName string) (*activityspec.ServiceDef, error) {
