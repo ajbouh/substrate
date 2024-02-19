@@ -10,7 +10,7 @@ enable: "airoboros-l2-13b-2.2": true
 
 imagespecs: "llama-cpp-python": {}
 
-"lenses": "airoboros-l2-13b-2.2": {
+services: "airoboros-l2-13b-2.2": {
   spawn: {
     image: imagespecs["llama-cpp-python"].image
     environment: {

@@ -24,7 +24,7 @@ tests: "seamlessm4t": transcribe: {
 
 imagespecs: "seamlessm4t": {}
 
-"lenses": "seamlessm4t": {
+services: "seamlessm4t": {
   spawn: {
     environment: {
       MODEL: "/res/model/huggingface/local"

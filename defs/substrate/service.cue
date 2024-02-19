@@ -1,4 +1,4 @@
-package lens
+package service
 
 #HTTPRequest: {
 	method !: string

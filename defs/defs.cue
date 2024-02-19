@@ -6,7 +6,7 @@ import (
   cryptosha256 "crypto/sha256"
 
   systemd "github.com/ajbouh/substrate/defs/systemd"
-  lens "github.com/ajbouh/substrate/defs/substrate:lens"
+  service "github.com/ajbouh/substrate/defs/substrate:service"
   imagespec "github.com/ajbouh/substrate/defs/substrate:imagespec"
   containerspec "github.com/ajbouh/substrate/defs/substrate:containerspec"
   docker_compose "github.com/ajbouh/substrate/defs/docker/compose:compose"
@@ -99,13 +99,12 @@ resourcedirs: [id=string]: {
   #imagespec: imagespec
 }
 
-lenses: [key=string]: lens & {"name": key}
+services: [key=string]: service & {"name": key}
 
 daemons: [key=string]: containerspec.#ContainerSpec
 
 #out: {
-  // HACK so `cue def` works with less rewriting...
-  #lenses: [string]: lens
+  services: [string]: service
 
   imagespecs: [string]: imagespec
   daemons: [string]: containerspec.#ContainerSpec
@@ -134,7 +133,7 @@ daemons: [key=string]: containerspec.#ContainerSpec
   }
 }
 
-for key, def in #out.#lenses {
+for key, def in #out.services {
   if def.spawn != _|_ {
     for alias, rddef in def.spawn.resourcedirs {
       resourcedirs: (rddef.id): _
@@ -156,8 +155,8 @@ for key, def in #out.#lenses {
   }
 ], "\n")
 
-#out: #lenses: {
-  for key, def in lenses {
+#out: "services": {
+  for key, def in services {
     if (enable[key]) {
       (key): def & {
         if def.spawn != _|_ {
@@ -221,7 +220,7 @@ for key, def in #out.resourcedir_fetches {
     (key): {}
   }
 
-  for key, def in #out.#lenses {
+  for key, def in #out.services {
     (key): {}
   }
 
@@ -296,7 +295,7 @@ for key, def in #out.resourcedir_fetches {
     networks: (containerspec.#DockerComposeNetworks & {#containerspec: def}).#out
   }
 
-  for key, def in #out.#lenses {
+  for key, def in #out.services {
     if def.spawn != _|_ {
       services: (key): {
         environment: PORT: "8080"

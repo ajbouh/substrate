@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getContext, onMount } from 'svelte'
   import CommandPaletteButton from '$lib/CommandPaletteButton.svelte'
-  import type { LensActivity } from '$lib/activities'
+  import type { ServiceActivity } from '$lib/activities'
   import { urls, fetchJSON } from '$lib/activities'
 
   export let data
@@ -18,7 +18,7 @@
 
   // $: isThisMine = owner == $user$
 
-  let activity: LensActivity | undefined
+  let activity: ServiceActivity | undefined
 
   onMount(async () => {
     ({ activity } = await fetchJSON(fetch, urls.api.activity({ activityspec: data.activityspec })));

@@ -54,7 +54,7 @@ func (m *Main) Serve(ctx context.Context) {
 	callDefLoader := calldef.NewLoader(
 		cueloader.NewCueLoader(
 			":defs",
-			cueloader.LookupPathTransform(cue.MakePath(cue.Def("#out"), cue.Def("#lenses"))),
+			cueloader.LookupPathTransform(cue.MakePath(cue.Def("#out"), cue.Str("services"))),
 		),
 	)
 

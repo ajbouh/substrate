@@ -1,1 +1,1 @@
-Define a lens based on https://github.com/simonw/datasette
+Define a service based on https://github.com/simonw/datasette

@@ -1,5 +1,5 @@
 
-export interface LensActivity {
+export interface ServiceActivity {
   activity: string
   label: string
   description?: string
@@ -21,7 +21,7 @@ export interface LensActivity {
 
 type ResponseSchema = Record<string, ResponseFieldDef>
 type RequestSchema = Record<string, RequestParameterDef>
-type LensSpawnSchema = Record<string, LensSpawnParameterDef>
+type ServiceSpawnSchema = Record<string, ServiceSpawnParameterDef>
 
 interface ResponseFieldDef {
   type: "space" // "collection" | "file", and what else?
@@ -42,36 +42,36 @@ interface RequestParameterDef {
   optional?: boolean
 }
 
-interface LensSpawnParameterDef {
+interface ServiceSpawnParameterDef {
   type: "space" | "spaces" // should it be collection instead of spaces?
   optional?: boolean
   description?: string
   default: string
 }
 
-interface LensSpawn {
+interface ServiceSpawn {
   jamsocket: {
     service: string
     env: Record<string, string>
   }
-  schema: LensSpawnSchema
+  schema: ServiceSpawnSchema
 }
 
-export interface Lens {
+export interface Service {
   name: string
-  spawn: LensSpawn
-  activities: Record<string, LensActivity>
+  spawn: ServiceSpawn
+  activities: Record<string, ServiceActivity>
 }
 
 interface ActivityCommand {
-  activity: LensActivity
-  spawn: LensSpawn
-  lensName: string
+  activity: ServiceActivity
+  spawn: ServiceSpawn
+  serviceName: string
 
   parameterSelectionBindings? : Record<string, Selection>
   unusedSelections? : Selection[]
 
-  lensParameters: Record<string, (rc: RunContext) => Promise<string>>
+  serviceParameters: Record<string, (rc: RunContext) => Promise<string>>
   requestParameters: Record<string, (rc: RunContext) => Promise<string>>
   freeParameterNames: string[]
 }
@@ -85,7 +85,7 @@ export interface CommandSelection {
     owner: string
     memberships?: Membership[]
   }
-  lens?: {
+  service?: {
     name: string
     label: string
     memberships?: Membership[]
@@ -93,10 +93,10 @@ export interface CommandSelection {
   activity?: {
     id: string
     activity: string
-    lens: string
+    service: string
     views: Record<string, SpaceView>
     schema: {
-      spawn: LensSpawnSchema
+      spawn: ServiceSpawnSchema
     }
   }
   collection?: {
@@ -104,7 +104,7 @@ export interface CommandSelection {
     name: string
     label: string
   }
-  optional?: Record<'space' | 'lens' | 'spaces', boolean>
+  optional?: Record<'space' | 'service' | 'spaces', boolean>
 }
 
 export interface Command {
@@ -189,8 +189,8 @@ export function processSpaces(spaces: any[]) {
   return spaces.map(space => ({...space, created_at: new Date(Date.parse(space.created_at))}))
 }
 
-export function processLensSpecs(lensspecs: any[]) {
-  return lensspecs
+export function processServiceSpecs(servicespecs: any[]) {
+  return servicespecs
 }
 
 export function processActivities(activities: any[]) {
@@ -204,8 +204,8 @@ export function processEvents(events: any[]) {
   return events
 }
 
-export function processLenses(lenses: Record<string, object>) {
-  return Object.entries(lenses).map(([name, lens]) => ({name, label: name, ...lens}))
+export function processServices(services: Record<string, object>) {
+  return Object.entries(services).map(([name, service]) => ({name, label: name, ...service}))
 }
 
 export const urls = {
@@ -217,7 +217,7 @@ export const urls = {
     userCollections: ({ user }: {user: string}) => `${base}/@${user}/collections`,
     collection: ({ owner, name }: {owner: string, name: string}) => `${base}/@${owner}/collections/${name}`,
     space: ({ space }: {space: string}) => `${base}/spaces/${space}`,
-    lens: ({ name }: {name: string}) => `${base}/lenses/${name}`,
+    service: ({ name }: {name: string}) => `${base}/services/${name}`,
     activity: ({ activityspec }: { activityspec: string }) => {
       return `${base}/activity/${activityspec}`
     }
@@ -228,7 +228,7 @@ export const urls = {
     },
   },
   api: {
-    lenses: ({}: {}) => debug(`${fetchOrigin}/substrate/v1/lenses`),
+    services: ({}: {}) => debug(`${fetchOrigin}/substrate/v1/services`),
     activities: ({}: {}) => debug(`${fetchOrigin}/substrate/v1/activities`),
     space: ({ space }: { space: string}) => debug(`${fetchOrigin}/substrate/v1/spaces/${space}`),
     activity: ({ activityspec }: { activityspec: string }) => debug(`${fetchOrigin}/substrate/v1/activities/${activityspec}`),
@@ -238,10 +238,10 @@ export const urls = {
       ? `${fetchOrigin}/substrate/v1/collections/${owner}/${name}/spaces/${space}`
       : `${fetchOrigin}/substrate/v1/collections/${owner}/${name}/spaces`,
     ),
-    collectionLensMembership: ({ owner, name, lensspec }: { owner: string; name: string; lensspec?: string }) => debug(
-      lensspec
-      ? `${fetchOrigin}/substrate/v1/collections/${owner}/${name}/lensspecs/${lensspec}`
-      : `${fetchOrigin}/substrate/v1/collections/${owner}/${name}/lensspecs`,
+    collectionServiceMembership: ({ owner, name, servicespec }: { owner: string; name: string; servicespec?: string }) => debug(
+      servicespec
+      ? `${fetchOrigin}/substrate/v1/collections/${owner}/${name}/servicespecs/${servicespec}`
+      : `${fetchOrigin}/substrate/v1/collections/${owner}/${name}/servicespecs`,
     ),
     collections: ({ owner }: { owner: string }) => debug(
       `${fetchOrigin}/substrate/v1/collections/${owner}`,
@@ -279,18 +279,18 @@ function activityHasAnyPrefix(...prefixes: string[]) {
   return (a: ActivityCommand) => prefixes.some(prefix => a.activity.activity.startsWith(prefix))
 }
 
-function* everyPossibleActivity(lenses: Lens[]): Generator<ActivityCommand> {
-  for (const { name, spawn, activities } of lenses) {
+function* everyPossibleActivity(services: Service[]): Generator<ActivityCommand> {
+  for (const { name, spawn, activities } of services) {
     for (const activity of Object.values(activities || {})) {
       yield {
         activity,
         spawn,
-        lensName: name,
+        serviceName: name,
         freeParameterNames: [
           ...(spawn.schema ? Object.keys(spawn.schema) : []),
           ...(activity.request?.schema ? Object.keys(activity.request?.schema) : []),
         ],
-        lensParameters: {},
+        serviceParameters: {},
         requestParameters: {},
       }
     }
@@ -364,12 +364,12 @@ function* everyPossibleActivityUsingAllSelections0(activity: ActivityCommand): G
         ...activity.parameterSelectionBindings,
         [firstFree]: selection,
       },
-      lensParameters: useAsSpawnParameter
+      serviceParameters: useAsSpawnParameter
         ? {
-          ...activity.lensParameters,
+          ...activity.serviceParameters,
           [firstFree]: selection.value,
         }
-        : activity.lensParameters,
+        : activity.serviceParameters,
       requestParameters: useAsRequestParameter
         ? {
           ...activity.requestParameters,
@@ -395,16 +395,16 @@ function everyPossibleActivityForSelections(...selections: Selection[]) {
 }
 
 function *matchingActivityCommands(
-  lenses: Record<string, Lens>,
-  enumerators: Array<(lenses: Lens[]) => Generator<ActivityCommand>>,
+  services: Record<string, Service>,
+  enumerators: Array<(services: Service[]) => Generator<ActivityCommand>>,
   qualifiers: Array<(activity: ActivityCommand) => boolean>,
   hypothesizers: Array<(activity: ActivityCommand) => Generator<ActivityCommand>>,
   filter: (activity: ActivityCommand) => boolean,
 ): Generator<ActivityCommand> {
-  const lensList = Object.values(lenses)
+  const serviceList = Object.values(services)
   for (const enumerator of enumerators) {
     baseActivity:
-    for (const baseActivity of enumerator(lensList)) {
+    for (const baseActivity of enumerator(serviceList)) {
       for (const qualifier of qualifiers) {
         if (!qualifier(baseActivity)) {
           // console.log("disqualifying", baseActivity, "due to", qualifier)
@@ -428,8 +428,8 @@ function *matchingActivityCommands(
 }
 
 function matchingActivityCommandList(
-  lenses: Record<string, Lens>,
-  enumerators: Array<(lenses: Lens[]) => Generator<ActivityCommand>>,
+  services: Record<string, Service>,
+  enumerators: Array<(services: Service[]) => Generator<ActivityCommand>>,
   qualifiers: Array<(activity: ActivityCommand) => boolean>,
   hypothesizers: Array<(activity: ActivityCommand) => Generator<ActivityCommand>>,
   filter: (activity: ActivityCommand) => boolean,
@@ -440,7 +440,7 @@ function matchingActivityCommandList(
   }
 
   const activities: ActivityCommand[] = []
-  for (const activity of matchingActivityCommands(lenses, enumerators, qualifiers, hypothesizers, filter)) {
+  for (const activity of matchingActivityCommands(services, enumerators, qualifiers, hypothesizers, filter)) {
     activities.push(activity)
   }
 
@@ -491,7 +491,7 @@ function matchingActivityCommandList(
       return o
     }
 
-    const children = activityRequestToSubcommands(lenses, responseSchema, response, ttl)
+    const children = activityRequestToSubcommands(services, responseSchema, response, ttl)
 
     return {
       id: ac.activity.label,
@@ -511,26 +511,26 @@ function matchingActivityCommandList(
   return commands
 }
 
-function renderLensParameters(views: Record<string, SpaceView>): Record<string, string> {
-  const lensParameters: Record<string, string> = {}
+function renderServiceParameters(views: Record<string, SpaceView>): Record<string, string> {
+  const serviceParameters: Record<string, string> = {}
   for (const [k, v] of Object.entries(views)) {
     if ('single' in v && v.single) {
-      lensParameters[k] = v.single.space
+      serviceParameters[k] = v.single.space
     } else if ('multi' in v && v.multi) {
-      lensParameters[k] = "," + v.multi.map(o => o.space).join(",")
+      serviceParameters[k] = "," + v.multi.map(o => o.space).join(",")
     }
   }
 
-  return lensParameters
+  return serviceParameters
 }
 
-function renderActivitySpecFor(lensName: string, lensParameters: Record<string, string>, path: string, query: URLSearchParams): string {
-  const lensParameterEntries = Object.entries(lensParameters).map(([k, v]) => `${k}=${v}`).join(";")
+function renderActivitySpecFor(serviceName: string, serviceParameters: Record<string, string>, path: string, query: URLSearchParams): string {
+  const serviceParameterEntries = Object.entries(serviceParameters).map(([k, v]) => `${k}=${v}`).join(";")
   let s: string
-  if (lensParameterEntries) {
-    s = `${lensName}[${lensParameterEntries}]`
+  if (serviceParameterEntries) {
+    s = `${serviceName}[${serviceParameterEntries}]`
   } else {
-    s = lensName
+    s = serviceName
   }
 
   if (path) {
@@ -570,7 +570,7 @@ interface Membership {
 }
 
 function activityRequestToSubcommands(
-  lenses: Record<string, Lens>,
+  services: Record<string, Service>,
   schema: ResponseSchema | undefined,
   responseThunk: (rc: RunContext) => Promise<Record<string, unknown>>,
   ttl: number,
@@ -581,7 +581,7 @@ function activityRequestToSubcommands(
 
   const subcommands: Command[] = []
   for (const [k, out] of Object.entries(schema)) {
-    for (const command of matchingActivityCommandList(lenses,
+    for (const command of matchingActivityCommandList(services,
       [everyPossibleActivity],
       [activityHasLabel(), activityHasAnyPrefix("user:")],
       [everyPossibleActivityForSelections({
@@ -607,12 +607,12 @@ function activityRequestToCommandRequest(ac: ActivityCommand) {
 
   const viewspec = async (rc: RunContext, path: string, query: URLSearchParams) => {
     // TODO need to switch viewspec to a promise
-    const lensParameters: Record<string, string> = {}
-    for (const [k, v] of Object.entries(ac.lensParameters)) {
-      lensParameters[k] = await v(rc)
+    const serviceParameters: Record<string, string> = {}
+    for (const [k, v] of Object.entries(ac.serviceParameters)) {
+      serviceParameters[k] = await v(rc)
     }
 
-    return renderActivitySpecFor(ac.lensName, lensParameters, path, query)
+    return renderActivitySpecFor(ac.serviceName, serviceParameters, path, query)
   }
 
   const method = activityRequest.method
@@ -725,8 +725,8 @@ const defaultSpaceCollections: DefaultCollection[] = [
   },
 ]
 
-export function getCommandSet(lenses: Record<string, Lens>, { user, space, lens, collection, activity, optional }: CommandSelection): CommandSet {
-  console.log("getCommandSet({ user, space, lens, activity, collection }", { user, space, lens, activity, collection })
+export function getCommandSet(services: Record<string, Service>, { user, space, service, collection, activity, optional }: CommandSelection): CommandSet {
+  console.log("getCommandSet({ user, space, service, activity, collection }", { user, space, service, activity, collection })
 
   if (!user) {
     return {
@@ -787,11 +787,11 @@ export function getCommandSet(lenses: Record<string, Lens>, { user, space, lens,
   if (collection) {
     return {
       context: `Collection ${collection.label}`,
-      // Offer to remove any lens already attached
+      // Offer to remove any service already attached
       // Offer to add periodic
 
       commands: [
-        ...matchingActivityCommandList(lenses,
+        ...matchingActivityCommandList(services,
           [everyPossibleActivity],
           [activityHasLabel(), activityHasAnyPrefix("user:")],
           [
@@ -812,17 +812,17 @@ export function getCommandSet(lenses: Record<string, Lens>, { user, space, lens,
     }
   }
 
-  if (lens) {
+  if (service) {
     if (user) {
       collectionAttachments = {}
       includeDefaultMemberships(user, collectionAttachments, defaultSpaceCollections)
     }
 
-    if (collectionAttachments && lens.memberships) {
-      includeMemberships(user, collectionAttachments, lens.memberships)
+    if (collectionAttachments && service.memberships) {
+      includeMemberships(user, collectionAttachments, service.memberships)
     }
 
-    // Find all activities *for this lens* that accept a single `type: "spaces"` value.
+    // Find all activities *for this service* that accept a single `type: "spaces"` value.
     // These can get attached to a collection.
 
     
@@ -832,8 +832,8 @@ export function getCommandSet(lenses: Record<string, Lens>, { user, space, lens,
     // Mark a space as being used as a particular parameter.
 
     return {
-      context: `Lens ${lens}`,
-      // If lens can be run against N spaces
+      context: `Service ${service}`,
+      // If service can be run against N spaces
       commands: [
         ...(collectionAttachments
           ? Object.values(collectionAttachments).map(
@@ -845,7 +845,7 @@ export function getCommandSet(lenses: Record<string, Lens>, { user, space, lens,
                   async run(): Promise<unknown> {
                     return await fetchJSON(
                       fetch,
-                      urls.api.collectionLensMembership({ owner: user, name: collection.name, lensspec: lens.name }),
+                      urls.api.collectionServiceMembership({ owner: user, name: collection.name, servicespec: service.name }),
                       {
                         method: 'DELETE',
                       },
@@ -861,10 +861,10 @@ export function getCommandSet(lenses: Record<string, Lens>, { user, space, lens,
                 async run(): Promise<unknown> {
                   return await fetchJSON(
                     fetch,
-                    urls.api.collectionLensMembership({ owner: user, name: collection.name }),
+                    urls.api.collectionServiceMembership({ owner: user, name: collection.name }),
                     {
                       method: 'POST',
-                      body: { lensspec: lens.name },
+                      body: { servicespec: service.name },
                     },
                   )
                 },
@@ -882,7 +882,7 @@ export function getCommandSet(lenses: Record<string, Lens>, { user, space, lens,
     //   includeMemberships(user, collectionAttachments, activity.memberships)
     // }
 
-    // Find all activities *for this lens* that accept a single *additional* `type: "spaces"` value.
+    // Find all activities *for this service* that accept a single *additional* `type: "spaces"` value.
     // These can be attached to an existing collection.
     const freeSet = new Set(Object.keys(activity.schema?.spawn || {}))
     for (const set of Object.keys(activity.views)) {
@@ -891,28 +891,28 @@ export function getCommandSet(lenses: Record<string, Lens>, { user, space, lens,
 
     let activitySpec: string | undefined
     let freeKey: string | undefined
-    let lensParameters: Record<string, string> | undefined
-    let lensActivity: LensActivity | undefined
+    let serviceParameters: Record<string, string> | undefined
+    let serviceActivity: ServiceActivity | undefined
 
-    const lens = lenses[activity.lens]
-    if (lens && lens.spawn.schema && freeSet.size === 1) {
+    const service = services[activity.service]
+    if (service && service.spawn.schema && freeSet.size === 1) {
       freeKey = [...freeSet][0]
-      const freeSchema = lens.spawn.schema[freeKey]
+      const freeSchema = service.spawn.schema[freeKey]
       if (freeSchema.type === "spaces") {
-        lensParameters = renderLensParameters(activity.views)
-        lensParameters[freeKey] = "."
-        lensActivity = lens.activities[activity.id]
-        activitySpec = renderActivitySpecFor(activity.lens, lensParameters, null, null)
+        serviceParameters = renderServiceParameters(activity.views)
+        serviceParameters[freeKey] = "."
+        serviceActivity = service.activities[activity.id]
+        activitySpec = renderActivitySpecFor(activity.service, serviceParameters, null, null)
         includeDefaultMemberships(user, collectionAttachments, defaultSpaceCollections)
         // includeDefaultMemberships(user, collectionAttachments, defaultSpaceCollections)
       }
     }
 
-    console.log({ activitySpec, lensParameters, lensActivity })
+    console.log({ activitySpec, serviceParameters, serviceActivity })
 
     return {
-      context: `Activity ${lens}`,
-      // If lens can be run against N spaces
+      context: `Activity ${service}`,
+      // If service can be run against N spaces
       commands: [
         ...(collectionAttachments && activitySpec
           ? Object.values(collectionAttachments).map(
@@ -922,7 +922,7 @@ export function getCommandSet(lenses: Record<string, Lens>, { user, space, lens,
                 title: `Detach from ${collection.label}`,
                 request: {
                   async run(): Promise<unknown> {
-                    return await fetchJSON(fetch, urls.api.collectionLensMembership({ owner: user, name: collection.name, lensspec: activitySpec }), {
+                    return await fetchJSON(fetch, urls.api.collectionServiceMembership({ owner: user, name: collection.name, servicespec: activitySpec }), {
                       method: 'DELETE',
                     })
                   },
@@ -934,25 +934,25 @@ export function getCommandSet(lenses: Record<string, Lens>, { user, space, lens,
                 image: collection.image ? collection.image : svgImageURL(addToCollectionImage),
                 request: {
                   async run(): Promise<unknown> {
-                    return await fetchJSON(fetch, urls.api.collectionLensMembership({ owner: user, name: collection.name }), {
+                    return await fetchJSON(fetch, urls.api.collectionServiceMembership({ owner: user, name: collection.name }), {
                       method: 'POST',
-                      body: { lensspec: activitySpec },
+                      body: { servicespec: activitySpec },
                     })
                   },
                 },
               })
           : []),
 
-        ...((activitySpec && lensParameters && lensActivity)
+        ...((activitySpec && serviceParameters && serviceActivity)
           ? defaultSpaceCollections.map(c => activityRequestToCommandRequest({
             activity: {
-              ...lensActivity!,
+              ...serviceActivity!,
               label: `Launch with ${c.label} as ${freeKey}`,
             },
             freeParameterNames: [],
-            lensName: activity.lens,
-            lensParameters: {
-              ...Object.fromEntries(Object.entries(lensParameters!).map(([k, v]) => [k, async (rc: RunContext) => v])),
+            serviceName: activity.service,
+            serviceParameters: {
+              ...Object.fromEntries(Object.entries(serviceParameters!).map(([k, v]) => [k, async (rc: RunContext) => v])),
               [freeKey!]: async ({fetch}: RunContext) => {
                 const r = await fetchJSON(fetch, urls.api.collectionSpaceMembership({name: c.name, owner: c.name}))
                 console.log({ r, c })
@@ -960,12 +960,12 @@ export function getCommandSet(lenses: Record<string, Lens>, { user, space, lens,
                 return ","
               },
             },
-            spawn: lens.spawn,
+            spawn: service.spawn,
             requestParameters: {},
             unusedSelections: [],
           }))
           : []),
-        ...matchingActivityCommandList(lenses,
+        ...matchingActivityCommandList(services,
           [everyPossibleActivity],
           [activityHasLabel(), activityHasAnyPrefix("user:")],
           [
@@ -1026,7 +1026,7 @@ export function getCommandSet(lenses: Record<string, Lens>, { user, space, lens,
               },
               })
           : []),
-        ...matchingActivityCommandList(lenses,
+        ...matchingActivityCommandList(services,
           [everyPossibleActivity],
           [activityHasLabel(), activityHasAnyPrefix("user:")],
           [
@@ -1052,7 +1052,7 @@ export function getCommandSet(lenses: Record<string, Lens>, { user, space, lens,
 
   return {
     commands: [
-      ...matchingActivityCommandList(lenses,
+      ...matchingActivityCommandList(services,
         [everyPossibleActivity],
         [activityHasLabel(), activityHasAnyPrefix("user:")],
         [

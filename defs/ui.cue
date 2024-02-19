@@ -10,7 +10,7 @@ if live_edit["ui"] {
   imagespecs: "ui": build: target: "dev"
 }
 
-lenses: "ui": {
+services: "ui": {
   spawn: {
     url_prefix: "/ui"
 

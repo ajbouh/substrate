@@ -73,7 +73,7 @@ EXPOSE 5000
 package defs
 enable: "miniService": true
 imagespecs: "miniService": {}
-lenses: "miniService": {
+services: "miniService": {
     spawn: {
     }
 }
