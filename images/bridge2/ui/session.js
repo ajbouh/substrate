@@ -10,7 +10,7 @@ export var Session = {
           ),
         ]
       ),
-      m("div", {"class":""},
+      m("div", {"class":"entries", "id": "entries"},
         (attrs.entries||[]).map(entry => m(Entry, entry))
       )
     )
