@@ -89,6 +89,8 @@ type Main struct {
 	basePath string
 	port     int
 
+	sessionDir string
+
 	Daemon *daemon.Framework
 
 	mu sync.Mutex
@@ -134,6 +136,8 @@ func (m *Main) Initialize() {
 	// ensure the path starts and ends with a slash for setting <base href>
 	m.basePath = must(url.JoinPath("/", basePath, "/"))
 	m.port = parsePort(getEnv("PORT", "8080"))
+
+	m.sessionDir = getEnv("BRIDGE_SESSIONS_DIR", "./sessions")
 }
 
 func (m *Main) InitializeCLI(root *cli.Command) {
@@ -148,19 +152,19 @@ func (m *Main) InitializeCLI(root *cli.Command) {
 
 func (m *Main) TerminateDaemon(ctx context.Context) error {
 	for _, sess := range m.sessions {
-		if err := saveSession(sess); err != nil {
+		if err := m.saveSession(sess); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func saveSession(sess *Session) error {
+func (m *Main) saveSession(sess *Session) error {
 	b, err := cborenc.Marshal(sess)
 	if err != nil {
 		return err
 	}
-	filename := fmt.Sprintf("./sessions/%s/session", sess.ID)
+	filename := fmt.Sprintf("%s/%s/session", m.sessionDir, sess.ID)
 	if err := os.WriteFile(filename, b, 0644); err != nil {
 		return err
 	}
@@ -169,7 +173,7 @@ func saveSession(sess *Session) error {
 	// if err != nil {
 	// 	return err
 	// }
-	// filename = fmt.Sprintf("./sessions/%s/session.json", id)
+	// filename = fmt.Sprintf("%s/%s/session.json", m.sessionDir, id)
 	// if err := os.WriteFile(filename, b, 0644); err != nil {
 	// 	return err
 	// }
@@ -177,7 +181,7 @@ func saveSession(sess *Session) error {
 }
 
 func (m *Main) SavedSessions() (info []*tracks.SessionInfo, err error) {
-	root := "./sessions"
+	root := m.sessionDir
 	dir, err := os.ReadDir(root)
 	if err != nil {
 		return nil, err
@@ -210,7 +214,7 @@ func (m *Main) StartSession(sess *Session) {
 		if track.Kind() != webrtc.RTPCodecTypeAudio {
 			return
 		}
-		ogg, err := oggwriter.New(fmt.Sprintf("./sessions/%s/track-%s.ogg", sess.ID, track.ID()), uint32(m.format.SampleRate.N(time.Second)), uint16(m.format.NumChannels))
+		ogg, err := oggwriter.New(fmt.Sprintf("%s/%s/track-%s.ogg", m.sessionDir, sess.ID, track.ID()), uint32(m.format.SampleRate.N(time.Second)), uint16(m.format.NumChannels))
 		fatal(err)
 		defer ogg.Close()
 		rtp := trackstreamer.Tee(track, ogg)
@@ -263,7 +267,7 @@ func (m *Main) loadSession(ctx context.Context, id string) (*Session, error) {
 		return sess, nil
 	}
 	log.Println("loading session from disk", id)
-	trackSess, err := tracks.LoadSession("./sessions", id)
+	trackSess, err := tracks.LoadSession(m.sessionDir, id)
 	if err != nil {
 		// TODO handle not found error
 		return nil, err
@@ -291,11 +295,11 @@ func (m *Main) addSession(ctx context.Context, trackSess *tracks.Session) *Sessi
 	go func() {
 		for range sessionUpdateHandler(ctx, sess) {
 			log.Printf("saving session")
-			fatal(saveSession(sess))
+			fatal(m.saveSession(sess))
 		}
 	}()
 	m.sessions[string(sess.ID)] = sess
-	fatal(os.MkdirAll(fmt.Sprintf("./sessions/%s", sess.ID), 0744))
+	fatal(os.MkdirAll(fmt.Sprintf("%s/%s", m.sessionDir, sess.ID), 0744))
 	go m.StartSession(sess)
 	return sess
 }
