@@ -38,8 +38,8 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 	transcription, err := a.Transcribe(&Request{
 		Task:      "transcribe",
 		AudioData: &b,
-		AudioMetadata: AudioMetadata {
-			MimeType:   "audio/wav",
+		AudioMetadata: AudioMetadata{
+			MimeType: "audio/wav",
 		},
 	})
 	if err != nil {
@@ -77,7 +77,7 @@ func (a *Agent) Transcribe(request *Request) (*Transcription, error) {
 }
 
 type AudioMetadata struct {
-	MimeType   string `json:"mime_type,omitempty"`
+	MimeType string `json:"mime_type,omitempty"`
 }
 
 type Request struct {
