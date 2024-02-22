@@ -1,10 +1,11 @@
 import os
 import yaml
-import openai
-openai.api_base = "http://localhost:8091/v1"
-openai.api_key = "sx-xxx"
-OPENAI_API_KEY = "sx-xxx"
-os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="sx-xxx",
+    base_url=os.environ["URL"],
+)
 
 model = "airoboros-l2-13b-2.1.ggmlv3.Q2_K.bin"
 
@@ -60,7 +61,7 @@ funcyaml = {
 
 def prompt(content):
   print("\"{}\"".format(content))
-  print(openai.ChatCompletion.create(
+  print(client.chat.completions.create(
       model=model,
       messages=[
         {"role": "system", "content": "As an AI assistant, please select the single most suitable function and parameters from the list of available functions below, based on the user's input. Provide your response in JSON format."},
