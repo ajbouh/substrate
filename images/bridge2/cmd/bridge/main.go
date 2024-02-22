@@ -26,7 +26,6 @@ import (
 	"github.com/ajbouh/substrate/images/bridge2/webrtc/trackstreamer"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gopxl/beep"
-	"github.com/gopxl/beep/speaker"
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media/oggwriter"
@@ -41,7 +40,6 @@ func main() {
 		NumChannels: 1,
 		Precision:   4,
 	}
-	fatal(speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10)))
 
 	engine.Run(
 		Main{
@@ -227,7 +225,10 @@ func (m *Main) StartSession(sess *Session) {
 			// a smaller size we can append incrementally
 			chunk := beep.Take(chunkSize, s)
 			sessTrack.AddAudio(chunk)
-			fatal(chunk.Err())
+			if err := chunk.Err(); err != nil {
+				log.Printf("track %s: %s", track.ID(), err)
+				break
+			}
 		}
 	})
 	sess.peer.HandleSignals()
