@@ -166,6 +166,9 @@ for key, def in #out.services {
               id: string
               sha256: hex.Encode(cryptosha256.Sum256(id))
             }
+            // This is so we can turn services into JSON. It should really be done inside of
+            // substrate.go during boot so that nesting will work properly.
+            "environment": SUBSTRATE_URL_PREFIX: string | *"/\(key)"
           }
         }
       }

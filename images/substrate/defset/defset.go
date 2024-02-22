@@ -49,11 +49,15 @@ func (s *DefSet) AllServices(ctx context.Context) (map[string]*activityspec.Serv
 	defer s.CueMu.Unlock()
 
 	// use JSON encoding to defensively clone s.Services
-	var result map[string]*activityspec.ServiceDef
-	if err := deepCloneViaJSON(&result, s.Services); err != nil {
-		return nil, err
+	services := map[string]*activityspec.ServiceDef{}
+	for k, v := range s.Services {
+		service := &activityspec.ServiceDef{}
+		if err := v.Decode(service); err != nil {
+			return nil, err
+		}
+		services[k] = service
 	}
-	return result, nil
+	return services, nil
 }
 
 func (s *DefSet) ResolveSpaceView(v *activityspec.SpaceViewRequest, ownerIfCreation, aliasIfCreation string) (view *substratefs.SpaceView, err error) {
