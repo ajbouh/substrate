@@ -11,12 +11,12 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
   -o /app ./
 
 # FROM gcr.io/distroless/static AS dist
-FROM chromedp/headless-shell AS dist
+FROM docker.io/chromedp/headless-shell AS dist
 
 # USER nonroot:nonroot
 ENV PORT 8080
 
-COPY --from=build --chown=nonroot:nonroot /app /app
+COPY --from=build /app /app
 WORKDIR /data
 
 ENTRYPOINT ["/app"]
