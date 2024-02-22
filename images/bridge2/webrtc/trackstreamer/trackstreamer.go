@@ -28,6 +28,7 @@ type TrackStreamer struct {
 	decodeBuf []float32
 	pcm       []float32
 	reader    SampleReader
+	err       error
 }
 
 func New(track RTPReader, format beep.Format) (beep.Streamer, error) {
@@ -46,8 +47,8 @@ func New(track RTPReader, format beep.Format) (beep.Streamer, error) {
 
 var _ beep.Streamer = (*TrackStreamer)(nil)
 
-func (*TrackStreamer) Err() error {
-	return nil
+func (t *TrackStreamer) Err() error {
+	return t.err
 }
 
 func (t *TrackStreamer) Stream(samples [][2]float64) (n int, ok bool) {
@@ -73,6 +74,7 @@ func (t *TrackStreamer) nextPCM() (sample [2]float64, ok bool) {
 		n, err := t.decodeNextPacket(t.decodeBuf)
 		if err != nil {
 			if err == io.EOF {
+				t.err = err
 				return [2]float64{}, false
 			}
 			continue // if we have a bad packet, try to get another
