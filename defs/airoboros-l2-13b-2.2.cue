@@ -10,6 +10,13 @@ enable: "airoboros-l2-13b-2.2": true
 
 imagespecs: "llama-cpp-python": {}
 
+tests: "airoboros-l2-13b-2.2": assister: {
+  test_templates["assister"]
+
+  environment: URL: "http://substrate:8080/airoboros-l2-13b-2.2/v1"
+  depends_on: "substrate": true
+}
+
 services: "airoboros-l2-13b-2.2": {
   spawn: {
     image: imagespecs["llama-cpp-python"].image
