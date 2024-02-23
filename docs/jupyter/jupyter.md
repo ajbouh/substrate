@@ -18,4 +18,4 @@ Executing this creates a directory in the "space" for this session to store data
 
 6. Execute the `main()` cell. It'll fetch data and run training and displays the test result.
 
-7. The files are stored in `/var/lib/substraterefs/spaces/sp-.../tip/tree`, where `sp-...` is the key of the space shown in the URL when you access `https://substrate.home.arpa/jupyverse`.
+7. The files are stored in `/var/lib/substratefs/spaces/sp-.../tip/tree`, where `sp-...` is the key of the space shown in the URL when you access `https://substrate.home.arpa/jupyverse`.
