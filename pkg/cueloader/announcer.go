@@ -13,28 +13,48 @@ import (
 // where there are many new []byte values to announce, it prioritizes sending the latest value byte rather than every
 // update.
 type Announcer struct {
-	b  []byte
-	mu *sync.Mutex
+	b           []byte
+	mu          *sync.Mutex
 	contentType string
-	chs map[chan struct{}]struct{}
+	chs         map[chan []byte]struct{}
 }
 
 func NewAnnouncer(contentType string) *Announcer {
 	return &Announcer{
-		chs: map[chan struct{}]struct{}{},
-		mu:  &sync.Mutex{},
+		chs:         map[chan []byte]struct{}{},
+		mu:          &sync.Mutex{},
 		contentType: contentType,
 	}
 }
 
-func (a *Announcer) listen(l chan struct{}) ([]byte, func()) {
+func sendLatestOnly[T any](updates chan T, curr T) <-chan T {
+	var ok bool
+	ch := make(chan T)
+	go func() {
+		for {
+			select {
+			case ch <- curr:
+			case curr, ok = <-updates:
+				if !ok {
+					close(ch)
+					return
+				}
+			}
+		}
+	}()
+	return ch
+}
+
+func (a *Announcer) listen() (<-chan []byte, func()) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	l := make(chan []byte)
 	a.chs[l] = struct{}{}
 
-	return a.b, func() {
+	return sendLatestOnly(l, a.b), func() {
 		a.mu.Lock()
 		defer a.mu.Unlock()
+		close(l)
 		delete(a.chs, l)
 	}
 }
@@ -53,10 +73,7 @@ func (a *Announcer) Announce(b []byte) {
 	a.b = b
 
 	for l := range a.chs {
-		select {
-		case l <- struct{}{}:
-		default:
-		}
+		l <- b
 	}
 }
 
@@ -77,20 +94,15 @@ func (a *Announcer) serveEventStream(w http.ResponseWriter, r *http.Request) {
 	header.Set("Connection", "keep-alive")
 	header.Set("Access-Control-Allow-Origin", "*")
 
-	ch := make(chan struct{}, 1)
-	b, cancel := a.listen(ch)
+	ch, cancel := a.listen()
 	defer cancel()
-	if b != nil {
-		writeData(b)
-	}
 
 	for {
 		select {
 		case <-r.Context().Done():
 			return
-		default:
-			<-ch
-			if b := a.get(); b != nil {
+		case b := <-ch:
+			if b != nil {
 				writeData(b)
 			}
 		}
