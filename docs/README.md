@@ -8,4 +8,9 @@ This explains how to set up the Intel NUC computer, how to set up the OS with th
 
 This explains how to create a minimum service that runs on Substrate OS.
 
+- [Using Jupyter Notebook](./jupyter/jupyter.md)
+
+This explains how to use the Jupyter Notebook installation on Substrate OS.
+
+
 
