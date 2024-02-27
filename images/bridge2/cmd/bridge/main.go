@@ -133,6 +133,7 @@ func (m *Main) Initialize() {
 	basePath := os.Getenv("SUBSTRATE_URL_PREFIX")
 	// ensure the path starts and ends with a slash for setting <base href>
 	m.basePath = must(url.JoinPath("/", basePath, "/"))
+	log.Println("got basePath", m.basePath, "from SUBSTRATE_URL_PREFIX", basePath)
 	m.port = parsePort(getEnv("PORT", "8080"))
 
 	m.sessionDir = getEnv("BRIDGE_SESSIONS_DIR", "./sessions")
@@ -417,7 +418,9 @@ func (m *Main) Serve(ctx context.Context) {
 			http.NotFound(w, r)
 			return
 		}
-		http.Redirect(w, r, path.Join(m.basePath, "sessions"), http.StatusFound)
+		// We need the trailing slash in order to go directly to the /sessions/
+		// handler without an extra redirect, but path.Join strips it by default.
+		http.Redirect(w, r, path.Join(m.basePath, "sessions")+"/", http.StatusFound)
 	})
 
 	log.Printf("running on http://localhost:%d ...", m.port)
