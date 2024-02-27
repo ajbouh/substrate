@@ -18,6 +18,7 @@ import (
 
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 	"github.com/ajbouh/substrate/images/bridge2/transcribe"
+	"github.com/ajbouh/substrate/images/bridge2/translate"
 	"github.com/ajbouh/substrate/images/bridge2/ui"
 	"github.com/ajbouh/substrate/images/bridge2/vad"
 	"github.com/ajbouh/substrate/images/bridge2/webrtc/js"
@@ -51,6 +52,10 @@ func main() {
 		}),
 		transcribe.Agent{
 			Endpoint: getEnv("BRIDGE_TRANSCRIBE_URL", "http://localhost:8090/v1/transcribe"),
+		},
+		translate.Agent{
+			Endpoint:       getEnv("BRIDGE_TRANSLATE_URL", "http://localhost:8091/v1/transcribe"),
+			TargetLanguage: "en",
 		},
 		eventLogger{
 			exclude: []string{"audio"},

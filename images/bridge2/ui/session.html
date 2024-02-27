@@ -83,6 +83,21 @@ dataWS.onmessage = e => {
   const events = data.Session == null ? [] : data.Session.Tracks.map(t => t.Events).filter(e => e).flat();
   const sessionStart = data.Session && new Date(data.Session.Start).getTime();
 
+  const translations = {};
+  for (const e of events) {
+    if (e.Type !== "translation") {
+      continue
+    }
+    const src = e.Data.SourceEvent
+    if (!translations.hasOwnProperty(src)) {
+      translations[src] = []
+    }
+    translations[src].push({
+      lang: e.Data.Translation.target_language,
+      text: e.Data.Translation.segments.map(s => s.text).join(),
+    });
+  }
+
   viewModel = {
     sessions: data.Sessions,
     activeSession: data.Session,
@@ -91,8 +106,11 @@ dataWS.onmessage = e => {
     }).map(t => {
       return {
         speakerLabel: "user",
-        start: new Date(sessionStart + (t.Start / 1000000)), // todo: convert
-        text: t.Data.segments.map(s => s.text).join()
+        lang: t.Data.source_language,
+        start: new Date(sessionStart + (t.Start / 1000000)),
+        text: t.Data.segments.map(s => s.text).join(),
+        final: true,
+        translations: translations[t.ID] || [],
       }
     })
   }
