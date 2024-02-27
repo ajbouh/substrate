@@ -21,7 +21,7 @@ Burn it to a USB memory. On Mac use `dd`:
 
 (make sure that your `of` device is the correct device)
 
-    # sudo dd if=substrateos-39.20240124.dev.2-live.x86_64.iso of=/dev/rdisk5 status=progress bs=4k
+    # sudo dd if=substrateos-39.20240124.dev.2-live.x86_64.iso of=/dev/rdisk5 status=progress bs=4m
 
 on Linux, it'd typically be:
 
