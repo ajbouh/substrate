@@ -120,16 +120,17 @@ func main() {
 		chromedp.Flag("ignore-certificate-errors", "1"),
 	)
 
-	substrateOrigin, substrateOriginAddress, err := resolve(os.Getenv("INTERNAL_SUBSTRATE_HOST"), os.Getenv("SUBSTRATE_ORIGIN_RESOLVER"))
-	if err != nil {
-		log.Printf("invalid URL for SUBSTRATE_ORIGIN err=%v", err)
-	}
-	if substrateOriginAddress != "" && err == nil {
-		// Chrome fails to resolve MagicDNS names sometimes... here's some discussion:
-		// https://github.com/tailscale/tailscale/issues/3614
-		// Which links to https://bugs.chromium.org/p/chromium/issues/detail?id=530482#c52
-		opts = append(opts, chromedp.Flag("host-resolver-rules", fmt.Sprintf("MAP %s %s", substrateOrigin, substrateOriginAddress)))
-	}
+	// This code can be used to hardcode address resolutions that chrome might have trouble with. Consider re-enabling it if we're using tailscale.
+	// substrateOrigin, substrateOriginAddress, err := resolve(os.Getenv("INTERNAL_SUBSTRATE_HOST"), os.Getenv("SUBSTRATE_ORIGIN_RESOLVER"))
+	// if err != nil {
+	// 	log.Printf("invalid URL for SUBSTRATE_ORIGIN err=%v", err)
+	// }
+	// if substrateOriginAddress != "" && err == nil {
+	// 	// Chrome fails to resolve MagicDNS names sometimes... here's some discussion:
+	// 	// https://github.com/tailscale/tailscale/issues/3614
+	// 	// Which links to https://bugs.chromium.org/p/chromium/issues/detail?id=530482#c52
+	// 	opts = append(opts, chromedp.Flag("host-resolver-rules", fmt.Sprintf("MAP %s %s", substrateOrigin, substrateOriginAddress)))
+	// }
 
 	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	defer cancel()

@@ -6,15 +6,12 @@ toolchain go1.21.1
 
 require (
 	cuelang.org/go v0.7.0
-	github.com/ajbouh/substrate/pkg/cueloader v0.0.0-00010101000000-000000000000
 	github.com/NVIDIA/go-nvml v0.12.0-2
-	github.com/cloudfoundry/gosigar v1.3.36
+	github.com/ajbouh/substrate/pkg/cueloader v0.0.0-00010101000000-000000000000
 	github.com/containers/common v0.57.1
 	github.com/containers/podman/v4 v4.8.2
 	github.com/docker/docker v24.0.7+incompatible
 	github.com/docker/go-connections v0.4.1-0.20231031175723-0b8c1f4e07a0
-	github.com/elnormous/contenttype v1.0.4
-	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-playground/form/v4 v4.2.1
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/mattn/go-sqlite3 v1.14.18
@@ -22,7 +19,8 @@ require (
 	github.com/opencontainers/runtime-spec v1.1.1-0.20230922153023-c0e90434df2a
 	github.com/rs/cors v1.10.1
 	github.com/sirupsen/logrus v1.9.3
-	github.com/stretchr/testify v1.8.4
+	github.com/urfave/cli v1.22.14
+	tractor.dev/toolkit-go v0.0.0-20240111035846-6a7f40f8500e
 )
 
 require (
@@ -50,15 +48,17 @@ require (
 	github.com/containers/psgo v1.8.0 // indirect
 	github.com/containers/storage v1.51.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.1-0.20231103132048-7d375ecc2b09 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/cyberphone/json-canonicalization v0.0.0-20231011164504-785e29786b46 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/disiqueira/gotree/v3 v3.0.2 // indirect
 	github.com/distribution/reference v0.5.0 // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
+	github.com/elnormous/contenttype v1.0.4 // indirect
 	github.com/emicklei/proto v1.10.0 // indirect
+	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.1 // indirect
 	github.com/go-openapi/analysis v0.21.4 // indirect
 	github.com/go-openapi/errors v0.20.4 // indirect
@@ -76,6 +76,7 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-containerregistry v0.16.1 // indirect
 	github.com/google/go-intervals v0.0.2 // indirect
+	github.com/google/pprof v0.0.0-20231101202521-4ca4178f5c7a // indirect
 	github.com/google/uuid v1.4.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gorilla/schema v1.2.0 // indirect
@@ -112,10 +113,10 @@ require (
 	github.com/ostreedev/ostree-go v0.0.0-20210805093236-719684c64e4f // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/sftp v1.13.6 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/proglottis/gpgme v0.1.3 // indirect
 	github.com/protocolbuffers/txtpbfmt v0.0.0-20230328191034-3462fbc510c0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
+	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.7.0 // indirect
 	github.com/sigstore/fulcio v1.4.3 // indirect
 	github.com/sigstore/rekor v1.2.2 // indirect

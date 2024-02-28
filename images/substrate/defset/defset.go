@@ -3,30 +3,31 @@ package defset
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	"cuelang.org/go/cue"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
-	"github.com/ajbouh/substrate/images/substrate/fs"
+	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 )
 
-type ServiceSpawnedFunc func(
-	ctx context.Context,
-	driver activityspec.ProvisionDriver,
-	req *activityspec.ServiceSpawnRequest,
-	res *activityspec.ServiceSpawnResponse,
-)
+type ServiceSpawned interface {
+	ServiceSpawned(
+		ctx context.Context,
+		driver activityspec.ProvisionDriver,
+		req *activityspec.ServiceSpawnRequest,
+		res *activityspec.ServiceSpawnResponse,
+	) error
+}
 
 type DefSet struct {
 	Services   map[string]cue.Value
-	CueMu      *sync.Mutex
+	CueMu      *CueMutex
 	CueContext *cue.Context
 	Err        error
 
 	Layout *substratefs.Layout
 
-	ServiceSpawned ServiceSpawnedFunc
+	ServiceSpawned []ServiceSpawned
 }
 
 func (s *DefSet) ResolveService(ctx context.Context, serviceName string) (*activityspec.ServiceDef, error) {

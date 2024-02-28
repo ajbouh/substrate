@@ -10,12 +10,12 @@ import (
 	ulid "github.com/oklog/ulid/v2"
 )
 
-func (s *DB) WriteSpawn(
+func (s *DB) ServiceSpawned(
 	ctx context.Context,
+	driver activityspec.ProvisionDriver,
 	req *activityspec.ServiceSpawnRequest,
 	res *activityspec.ServiceSpawnResponse,
 ) error {
-
 	views := &res.ServiceSpawnResolution
 	usesSpaces := false
 loop:

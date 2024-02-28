@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -23,13 +24,11 @@ func eachLine(r io.Reader, cb func(line []byte) error) error {
 			return err
 		}
 	}
-
-	return nil
 }
 
 func eachLineGroup(r io.Reader, cb func(lines [][]byte) error) error {
 	var lines [][]byte
-	return eachLine(r, func (line []byte) error {
+	return eachLine(r, func(line []byte) error {
 		if len(line) == 0 {
 			if len(lines) > 0 {
 				err := cb(lines)
@@ -47,7 +46,7 @@ func eachLineGroup(r io.Reader, cb func(lines [][]byte) error) error {
 
 type Event struct {
 	Event string
-	Data []byte
+	Data  []byte
 }
 
 func eachEvent(r io.Reader, cb func(event *Event) error) error {
@@ -73,7 +72,7 @@ func eachEvent(r io.Reader, cb func(event *Event) error) error {
 	})
 }
 
-func ReadStreamEvents(client *http.Client, req *http.Request, cb func (event *Event) error) error {
+func ReadStreamEvents(client *http.Client, req *http.Request, cb func(event *Event) error) error {
 	req.Header.Set("Accept", "text/event-stream")
 
 	res, err := client.Do(req)
@@ -82,5 +81,12 @@ func ReadStreamEvents(client *http.Client, req *http.Request, cb func (event *Ev
 	}
 
 	defer res.Body.Close()
+
+	if res.StatusCode != 200 {
+		body, _ := io.ReadAll(res.Body)
+		return fmt.Errorf(
+			"received a %d error in http response for: %s; body=%s", res.StatusCode, req.URL, body)
+	}
+
 	return eachEvent(res.Body, cb)
 }
