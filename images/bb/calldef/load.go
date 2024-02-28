@@ -27,14 +27,14 @@ type CallDefLoad struct {
 	Err        error
 }
 
-func NewLoader(cueLoader cueloader.Loader) CallDefLoader {
+func NewLoader(cueLoader *cueloader.Loader) CallDefLoader {
 	return func(
 		cueMu *sync.Mutex,
 		cc *cue.Context,
 		config *load.Config,
 		adapter CallDefRefinmentAdapter,
 	) *CallDefLoad {
-		load := cueLoader(cueMu, cc, config)
+		load := cueLoader.LoadCue(cueMu, cc, config)
 
 		l := &CallDefLoad{
 			Blackboard: blackboard.New(cc, cueMu),

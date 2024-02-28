@@ -23,7 +23,7 @@ export function handleFetch({ event, request, fetch }) {
     request = new Request(
       request.url.replace(
         publicEnv.PUBLIC_EXTERNAL_ORIGIN,
-        `${privateEnv.INTERNAL_SUBSTRATE_PROTOCOL}//${privateEnv.INTERNAL_SUBSTRATE_HOST}`,
+        `${privateEnv.INTERNAL_SUBSTRATE_ORIGIN}`,
       )
     )
   }

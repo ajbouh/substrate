@@ -89,7 +89,7 @@ func (r *ProvisionerCache) ProvisionReverseProxy(asr *ServiceSpawnRequest) http.
 	r.mu.Lock()
 	fn := r.provisionerFuncs[cacheKey]
 	if fn == nil {
-		fn = r.makeProvisionFunc(asr)
+		fn = r.MakeProvisionFunc.MakeProvisionFunc(asr)
 		r.provisionerFuncs[cacheKey] = fn
 	}
 	r.mu.Unlock()

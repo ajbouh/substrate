@@ -61,17 +61,20 @@ func newBadGatewayHandler(err error) http.Handler {
 }
 
 type ProvisionerCache struct {
-	mu                *sync.Mutex
-	makeProvisionFunc func(req *ServiceSpawnRequest) ProvisionFunc
-	provisionerFuncs  map[string]ProvisionFunc
+	mu               *sync.Mutex
+	provisionerFuncs map[string]ProvisionFunc
+
+	MakeProvisionFunc MakeProvisionFunc
 }
 
-func NewProvisionerCache(makeProvisionFunc func(req *ServiceSpawnRequest) ProvisionFunc) *ProvisionerCache {
-	return &ProvisionerCache{
-		mu: &sync.Mutex{},
+type MakeProvisionFunc interface {
+	MakeProvisionFunc(req *ServiceSpawnRequest) ProvisionFunc
+}
 
-		makeProvisionFunc: makeProvisionFunc,
-		provisionerFuncs:  map[string]ProvisionFunc{},
+func NewProvisionerCache() *ProvisionerCache {
+	return &ProvisionerCache{
+		mu:               &sync.Mutex{},
+		provisionerFuncs: map[string]ProvisionFunc{},
 	}
 }
 

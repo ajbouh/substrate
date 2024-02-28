@@ -5,29 +5,39 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 
-	"github.com/NVIDIA/go-nvml/pkg/dl"
 	"github.com/containers/podman/v4/pkg/bindings"
 	"github.com/containers/podman/v4/pkg/specgen"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
+	"tractor.dev/toolkit-go/engine"
+	"tractor.dev/toolkit-go/engine/cli"
+	"tractor.dev/toolkit-go/engine/daemon"
 
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/load"
 	"github.com/sirupsen/logrus"
 
+	cueerrors "cuelang.org/go/cue/errors"
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
-	"github.com/ajbouh/substrate/images/substrate/http"
+	substratedb "github.com/ajbouh/substrate/images/substrate/db"
+	"github.com/ajbouh/substrate/images/substrate/defset"
+	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
+	substratehttp "github.com/ajbouh/substrate/images/substrate/http"
 	dockerprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/docker"
 	podmanprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/podman"
-	"github.com/ajbouh/substrate/images/substrate/substrate"
+	"github.com/ajbouh/substrate/pkg/cueloader"
 )
 
 func mustGetenv(name string) string {
@@ -36,17 +46,6 @@ func mustGetenv(name string) string {
 		log.Fatalf("%s not set", name)
 	}
 	return value
-}
-
-func testLoad() {
-	l := dl.New("libnvidia-ml.so.1", dl.RTLD_LAZY|dl.RTLD_GLOBAL)
-
-	err := l.Open()
-	if err == nil {
-		defer l.Close()
-	}
-
-	fmt.Printf("testLoad: %s\n", err)
 }
 
 func newProvisioner(cudaAllowed bool) activityspec.ProvisionDriver {
@@ -91,7 +90,7 @@ func newDockerProvisioner(cudaAllowed bool) *dockerprovisioner.P {
 		}
 	}
 
-	return dockerprovisioner.New(
+	p := dockerprovisioner.New(
 		cli,
 		mustGetenv("SUBSTRATE_NAMESPACE"),
 		mustGetenv("SUBSTRATE_INTERNAL_NETWORK"),
@@ -100,6 +99,13 @@ func newDockerProvisioner(cudaAllowed bool) *dockerprovisioner.P {
 		strings.Split(os.Getenv("SUBSTRATE_RESOURCEDIRS_PATH"), ":"),
 		prep,
 	)
+	ctx := context.Background()
+	go func() {
+		log.Printf("cleaning up...")
+		p.Cleanup(ctx)
+		log.Printf("clean up done")
+	}()
+	return p
 }
 
 func newPodmanProvisioner(cudaAllowed bool) *podmanprovisioner.P {
@@ -116,7 +122,7 @@ func newPodmanProvisioner(cudaAllowed bool) *podmanprovisioner.P {
 		}
 	}
 
-	return podmanprovisioner.New(
+	p := podmanprovisioner.New(
 		func(ctx context.Context) (context.Context, error) {
 			return bindings.NewConnection(ctx, os.Getenv("DOCKER_HOST"))
 		},
@@ -127,42 +133,31 @@ func newPodmanProvisioner(cudaAllowed bool) *podmanprovisioner.P {
 		strings.Split(os.Getenv("SUBSTRATE_RESOURCEDIRS_PATH"), ":"),
 		prep,
 	)
+	ctx := context.Background()
+	go func() {
+		log.Printf("cleaning up...")
+		p.Cleanup(ctx)
+		log.Printf("clean up done")
+	}()
+	return p
 }
 
-func main() {
-	debug := os.Getenv("DEBUG")
-	if ok, _ := strconv.ParseBool(debug); ok {
-		logrus.SetLevel(logrus.DebugLevel)
+func cueDefsLoadTags() []string {
+	cueDefsLoadTags := []string{
+		// Include enough config to interpret things again
+		"namespace=" + mustGetenv("SUBSTRATE_NAMESPACE"),
+		"use_varset=" + mustGetenv("SUBSTRATE_USE_VARSET"),
+		"cue_defs=" + mustGetenv("SUBSTRATE_CUE_DEFS"),
 	}
 
-	for _, env := range os.Environ() {
-		fmt.Println(env)
+	if os.Getenv("SUBSTRATE_SOURCE_DIRECTORY") != "" {
+		cueDefsLoadTags = append(cueDefsLoadTags, "build_source_directory="+os.Getenv("SUBSTRATE_SOURCE_DIRECTORY"))
 	}
 
-	testLoad()
+	return cueDefsLoadTags
+}
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	var err error
-
-	cpuMemoryTotalMB, err := substrate.MeasureCPUMemoryTotalMB()
-	if err != nil {
-		fmt.Printf("error measuring total cpu memory: %s\n", err)
-	}
-	fmt.Printf("cpuMemoryTotalMB %d\n", cpuMemoryTotalMB)
-
-	cudaMemoryTotalMB, err := substrate.MeasureCUDAMemoryTotalMB()
-	if err != nil {
-		fmt.Printf("error measuring total cuda memory: %s\n", err)
-	}
-	fmt.Printf("cudaMemoryTotalMB %d\n", cudaMemoryTotalMB)
-
-	cudaAllowed := cudaMemoryTotalMB > 0
-	p := newProvisioner(cudaAllowed)
-
+func initialCueLoadConfig() *load.Config {
 	cueDefsDir := mustGetenv("SUBSTRATE_CUE_DEFS")
 
 	cueDefsLiveDir := os.Getenv("SUBSTRATE_CUE_DEFS_LIVE")
@@ -186,48 +181,188 @@ func main() {
 		fmt.Printf("SUBSTRATE_CUE_DEFS_LIVE not set; loading from SUBSTRATE_CUE_DEFS (%s) instead\n", cueDefsDir)
 	}
 
-	ctx := context.Background()
-	go func() {
-		log.Printf("cleaning up...")
-		p.Cleanup(ctx)
-		log.Printf("clean up done")
-	}()
-
-	cueDefsLoadTags := []string{
-		// Include enough config to interpret things again
-		"namespace=" + mustGetenv("SUBSTRATE_NAMESPACE"),
-		"use_varset=" + mustGetenv("SUBSTRATE_USE_VARSET"),
-		"cue_defs=" + mustGetenv("SUBSTRATE_CUE_DEFS"),
-	}
-
-	if os.Getenv("SUBSTRATE_SOURCE_DIRECTORY") != "" {
-		cueDefsLoadTags = append(cueDefsLoadTags, "build_source_directory="+os.Getenv("SUBSTRATE_SOURCE_DIRECTORY"))
-	}
-
-	cueLoadConfig := &load.Config{
+	return &load.Config{
 		Dir:  cueDefsDir,
-		Tags: cueDefsLoadTags,
+		Tags: cueDefsLoadTags(),
+	}
+}
+
+func newCueLoader(internalSubstrateOrigin string) []engine.Unit {
+	origin := mustGetenv("ORIGIN")
+
+	// TODO stop hardcoding these
+	sigarLoader := cueloader.NewStreamLoader(context.Background(), internalSubstrateOrigin+"/sigar")
+	nvmlLoader := cueloader.NewStreamLoader(context.Background(), internalSubstrateOrigin+"/nvml")
+
+	return []engine.Unit{
+		sigarLoader,
+		nvmlLoader,
+		cueloader.NewCueLoader(
+			":defs",
+			cueloader.FillPathEncodeTransformCurrent(
+				cue.MakePath(cue.Str("system"), cue.Str("metrics"), cue.Str("sigar")),
+				sigarLoader.Get,
+			),
+			cueloader.FillPathEncodeTransformCurrent(
+				cue.MakePath(cue.Str("system"), cue.Str("metrics"), cue.Str("nvml")),
+				nvmlLoader.Get,
+			),
+			cueloader.LookupPathTransform(cue.MakePath(cue.Def("#out"), cue.Str("services"))),
+			cueloader.FillPathEncodeTransform(
+				cue.MakePath(cue.AnyString, cue.Str("spawn").Optional(), cue.Str("environment")),
+				map[string]string{
+					"JAMSOCKET_IFRAME_DOMAIN":   origin,
+					"SUBSTRATE_ORIGIN":          origin,
+					"PUBLIC_EXTERNAL_ORIGIN":    origin,
+					"ORIGIN":                    origin,
+					"INTERNAL_SUBSTRATE_ORIGIN": internalSubstrateOrigin,
+				},
+			),
+		),
+	}
+}
+
+type Main struct {
+	listen        net.Listener
+	listenAddress string
+
+	Daemon  *daemon.Framework
+	Handler *substratehttp.Handler
+}
+
+func (m *Main) InitializeCLI(root *cli.Command) {
+	// a workaround for an unresolved issue in toolkit-go/engine
+	// for figuring out if its a CLI or a daemon program...
+	root.Run = func(ctx *cli.Context, args []string) {
+		if err := m.Daemon.Run(ctx); err != nil {
+			log.Fatal(err)
+		}
+	}
+}
+
+func main() {
+	debug := os.Getenv("DEBUG")
+	if ok, _ := strconv.ParseBool(debug); ok {
+		logrus.SetLevel(logrus.DebugLevel)
 	}
 
-	sub, err := substrate.New(
-		ctx,
-		mustGetenv("SUBSTRATE_DB"),
-		mustGetenv("SUBSTRATEFS_ROOT"),
-		cueLoadConfig,
-		p,
-		os.Getenv("ORIGIN"),
-		cpuMemoryTotalMB,
-		cudaMemoryTotalMB,
-	)
+	for _, env := range os.Environ() {
+		fmt.Println(env)
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	var err error
+
+	cudaAllowed := false
+	if _, err := exec.LookPath("nvidia-smi"); err == nil {
+		cudaAllowed = true
+	}
+
+	db, err := substratedb.New(mustGetenv("SUBSTRATE_DB"))
 	if err != nil {
-		log.Fatalf("error creating substrate: %s", err)
+		log.Fatalf("couldn't open db: %s", err)
 	}
 
+	// TODO stop hardcoding these
+	internalSubstrateOrigin := "http://substrate:8080"
+
+	listenAddress := ":" + os.Getenv("PORT")
+	ln, err := net.Listen("tcp", listenAddress)
+	if err != nil {
+		log.Fatalf("couldn't listen: %s", err)
+	}
+
+	units := []engine.Unit{
+		Main{
+			listen:        ln,
+			listenAddress: listenAddress,
+		},
+		newProvisioner(cudaAllowed),
+		db,
+		&defset.CueMutex{},
+		activityspec.NewProvisionerCache(),
+		cuecontext.New(),
+		initialCueLoadConfig(),
+		&AnnounceDefsOnSourcesLoaded{},
+		cueloader.NewAnnouncer("application/json"),
+		substratefs.NewLayout(mustGetenv("SUBSTRATEFS_ROOT")),
+		&substratehttp.Handler{
+			User:                    "user",
+			InternalSubstrateOrigin: internalSubstrateOrigin,
+		},
+		&ProvisionWithCurrentDefSet{},
+		&cueloader.CueConfigWatcher{},
+		&LoadDefSetOnCueModuleChanged{},
+		&defset.Loader{},
+		&RefreshCurrentDefSetOnStreamUpdate{},
+	}
+	units = append(units, newCueLoader(internalSubstrateOrigin)...)
+	engine.Run(units...)
+}
+
+type LoadDefSetOnCueModuleChanged struct {
+	DefSetLoader *defset.Loader
+}
+
+func (c *LoadDefSetOnCueModuleChanged) CueModuleChanged(err error, files map[string]string, cueLoadConfigWithFiles *load.Config) {
+	c.DefSetLoader.LoadDefSet()
+}
+
+type RefreshCurrentDefSetOnStreamUpdate struct {
+	StreamLoader []*cueloader.StreamLoader
+	DefSetLoader *defset.Loader
+}
+
+func (o *RefreshCurrentDefSetOnStreamUpdate) Serve(ctx context.Context) {
+	for _, l := range o.StreamLoader {
+		l.Listen(ctx, func(v any) { o.DefSetLoader.LoadDefSet() })
+	}
+}
+
+type ProvisionWithCurrentDefSet struct {
+	CurrentDefSet   defset.CurrentDefSet
+	ProvisionDriver activityspec.ProvisionDriver
+}
+
+func (l *ProvisionWithCurrentDefSet) MakeProvisionFunc(req *activityspec.ServiceSpawnRequest) activityspec.ProvisionFunc {
+	return l.CurrentDefSet.CurrentDefSet().NewProvisionFunc(l.ProvisionDriver, req)
+}
+
+type AnnounceDefsOnSourcesLoaded struct {
+	DefsAnnouncer *cueloader.Announcer
+}
+
+func (l *AnnounceDefsOnSourcesLoaded) SourcesLoaded(err error, files map[string]string, cueLoadConfigWithFiles *load.Config) {
+	if err != nil {
+		log.Printf("err on update: %s", fmtErr(err))
+		return
+	}
+
+	if b, err := cueloader.Marshal(files, cueLoadConfigWithFiles); err == nil {
+		l.DefsAnnouncer.Announce(b)
+	} else {
+		log.Printf("error encoding cue defs for announce: %s", err)
+	}
+}
+
+func fmtErr(err error) string {
+	errs := cueerrors.Errors(err)
+	messages := make([]string, 0, len(errs))
+	for _, err := range errs {
+		messages = append(messages, err.Error())
+	}
+	return strings.Join(messages, "\n")
+}
+
+func (m *Main) Serve(ctx context.Context) {
 	server := &http.Server{
-		Addr: ":" + port,
+		Addr:    m.listenAddress,
+		Handler: m.Handler,
 	}
-
-	server.Handler = substratehttp.NewHTTPHandler(sub)
 
 	binaryPath, _ := os.Executable()
 	if binaryPath == "" {
@@ -236,8 +371,8 @@ func main() {
 	log.Printf("%s listening on %q", filepath.Base(binaryPath), server.Addr)
 
 	if server.TLSConfig == nil {
-		log.Fatal(server.ListenAndServe())
+		log.Fatal(server.Serve(m.listen))
 	} else {
-		log.Fatal(server.ListenAndServeTLS("", ""))
+		log.Fatal(server.ServeTLS(m.listen, "", ""))
 	}
 }

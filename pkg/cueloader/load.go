@@ -3,10 +3,8 @@ package cueloader
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
-	"sync"
 	"time"
 
 	"cuelang.org/go/cue"
@@ -30,104 +28,110 @@ type Load struct {
 	Err            error
 }
 
-type Loader func(mu *sync.Mutex, cc *cue.Context, config *load.Config) *Load
+type Lock interface {
+	Lock()
+	Unlock()
+}
+
+type Loader struct {
+	arg        string
+	transforms []Transform
+}
 
 type Transform func(v cue.Value) cue.Value
 
-func NewCueLoader(arg string, transforms ...Transform) Loader {
-	return func(mu *sync.Mutex, cc *cue.Context, config *load.Config) *Load {
-		l := &Load{}
-		fmt.Println("LoadStart")
-		l.LoadStart = time.Now()
-		instance := load.Instances([]string{arg}, config)[0]
-		l.LoadEnd = time.Now()
-		fmt.Println("LoadEnd")
-		if err := instance.Err; err != nil {
-			l.Err = errors.Join(l.Err, instance.Err)
-			return l
-		}
-		if l.Err != nil {
-			return l
-		}
+func NewCueLoader(arg string, transforms ...Transform) *Loader {
+	return &Loader{
+		arg:        arg,
+		transforms: transforms,
+	}
+}
 
-		if mu != nil {
-			mu.Lock()
-			defer mu.Unlock()
-		}
-		fmt.Println("BuildStart")
-		l.BuildStart = time.Now()
-		l.BuildValue = cc.BuildInstance(instance)
-		l.BuildEnd = time.Now()
-		fmt.Println("BuildEnd")
-
-		if l.BuildValue.Err() != nil {
-			fmt.Println("BuildErr")
-			l.Err = l.BuildValue.Err()
-			return l
-		}
-
-		l.Value = l.BuildValue
-		fmt.Println("TransformStart")
-		l.TransformStart = time.Now()
-		for _, transform := range transforms {
-			// fmt.Println("->", l.Value)
-			l.Value = transform(l.Value)
-			if l.Value.Err() != nil {
-				fmt.Println("TransformErr")
-				l.Err = l.Value.Err()
-				return l
-			}
-		}
-		// fmt.Println("->", l.Value)
-		l.TransformEnd = time.Now()
-		fmt.Println("TransformEnd")
-
+func (r *Loader) LoadCue(mu Lock, cc *cue.Context, config *load.Config) *Load {
+	l := &Load{}
+	// log.Println("LoadStart")
+	l.LoadStart = time.Now()
+	instance := load.Instances([]string{r.arg}, config)[0]
+	l.LoadEnd = time.Now()
+	// log.Println("LoadEnd")
+	if err := instance.Err; err != nil {
+		l.Err = errors.Join(l.Err, instance.Err)
 		return l
 	}
+	if l.Err != nil {
+		return l
+	}
+
+	if mu != nil {
+		mu.Lock()
+		defer mu.Unlock()
+	}
+	// log.Println("BuildStart")
+	l.BuildStart = time.Now()
+	l.BuildValue = cc.BuildInstance(instance)
+	l.BuildEnd = time.Now()
+	// log.Println("BuildEnd")
+
+	if l.BuildValue.Err() != nil {
+		// log.Println("BuildErr")
+		l.Err = l.BuildValue.Err()
+		return l
+	}
+
+	l.Value = l.BuildValue
+	// log.Println("TransformStart")
+	l.TransformStart = time.Now()
+	for _, transform := range r.transforms {
+		// log.Println("->", l.Value)
+		l.Value = transform(l.Value)
+		if l.Value.Err() != nil {
+			log.Println("TransformErr")
+			l.Err = l.Value.Err()
+			return l
+		}
+	}
+	// log.Println("->", l.Value)
+	l.TransformEnd = time.Now()
+	// log.Println("TransformEnd")
+
+	log.Printf("load=%s build=%s transform=%s", l.LoadEnd.Sub(l.LoadStart), l.BuildEnd.Sub(l.BuildStart), l.TransformEnd.Sub(l.TransformStart))
+
+	return l
 }
 
-func CopyConfigAndReadFilesIntoOverrides(config *load.Config) (map[string]string, *load.Config, error) {
-	copy := *config
-	files := map[string]string{}
-	err := AddCueFiles(files, copy.Dir, "", false)
-	if err != nil {
-		return files, &copy, err
-	}
-	// Reset the overlay
-	overlay := map[string]load.Source{}
-	for k, v := range files {
-		overlay[k] = load.FromString(v)
-	}
-	copy.Overlay = overlay
-	copy.Tags = append([]string{}, copy.Tags...)
-	return files, &copy, err
+type CueModuleChanged interface {
+	CueModuleChanged(err error, files map[string]string, cueLoadConfigWithFiles *load.Config)
 }
 
-func NewCueConfigWatcher(ctx context.Context, config *load.Config, cb func(err error, files map[string]string, config *load.Config)) error {
+type CueConfigWatcher struct {
+	Config           *load.Config
+	CueModuleChanged CueModuleChanged
+}
+
+func (w *CueConfigWatcher) Serve(ctx context.Context) {
+	log.Printf("CueConfigWatcher serve %#v", w)
 	watcher, err := NewWatcher(ctx, func(err error) {
 		if err != nil {
-			cb(err, nil, nil)
+			w.CueModuleChanged.CueModuleChanged(err, nil, nil)
 			return
 		}
-		files, copy, err := CopyConfigAndReadFilesIntoOverrides(config)
-		cb(err, files, copy)
+		files, copy, err := CopyConfigAndReadFilesIntoOverrides(w.Config)
+		w.CueModuleChanged.CueModuleChanged(err, files, copy)
 	})
 	if err != nil {
-		return err
+		log.Printf("error starting cue module watcher: %s", err)
+		return
 	}
-	watcher.Add(config.Dir)
-
-	return nil
+	watcher.Add(w.Config.Dir)
 }
 
-
-func NewCueConfigWatcherFromURL(ctx context.Context, url string, cb func (err error, files map[string]string, config *load.Config)) error {
+func NewCueConfigWatcherFromURL(ctx context.Context, url string, cb func(err error, files map[string]string, config *load.Config)) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return err
 	}
 	log.Printf("making request of %s", url)
-	return ReadStreamEvents(http.DefaultClient, req, func (event *Event) error {
+	return ReadStreamEvents(http.DefaultClient, req, func(event *Event) error {
 		files, config, err := Unmarshal(event.Data)
 		log.Printf("%d files dir=%s tags=%#v", len(files), config.Dir, config.Tags)
 		cb(err, files, config)
@@ -138,7 +142,7 @@ func NewCueConfigWatcherFromURL(ctx context.Context, url string, cb func (err er
 func NewWatcher(ctx context.Context, cb func(err error)) (*fsnotify.Watcher, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		fmt.Printf("WARN: error starting fsnotify, live editing disabled!\n")
+		log.Printf("WARN: error starting fsnotify, live editing disabled!\n")
 		return nil, err
 	}
 
@@ -193,5 +197,12 @@ func FillPathEncodeTransform(p cue.Path, o any) Transform {
 	return func(v cue.Value) cue.Value {
 		cc := v.Context()
 		return v.FillPath(p, cc.Encode(o))
+	}
+}
+
+func FillPathEncodeTransformCurrent(p cue.Path, f func() any) Transform {
+	return func(v cue.Value) cue.Value {
+		cc := v.Context()
+		return v.FillPath(p, cc.Encode(f()))
 	}
 }

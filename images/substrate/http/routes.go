@@ -3,7 +3,10 @@ package substratehttp
 import (
 	"net/http"
 
-	"github.com/ajbouh/substrate/images/substrate/substrate"
+	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	substratedb "github.com/ajbouh/substrate/images/substrate/db"
+	"github.com/ajbouh/substrate/images/substrate/defset"
+	"github.com/ajbouh/substrate/pkg/cueloader"
 	"github.com/julienschmidt/httprouter"
 	"github.com/rs/cors"
 )
@@ -20,7 +23,21 @@ var methods []string = []string{
 	"OPTIONS",
 }
 
-func NewHTTPHandler(s *substrate.Substrate) http.Handler {
+type Handler struct {
+	router http.Handler
+
+	InternalSubstrateOrigin string
+	User                    string
+
+	DefsAnnouncer *cueloader.Announcer
+	DB            *substratedb.DB
+
+	CurrentDefSet    defset.CurrentDefSet
+	Driver           activityspec.ProvisionDriver
+	ProvisionerCache *activityspec.ProvisionerCache
+}
+
+func (h *Handler) Initialize() {
 	router := httprouter.New()
 
 	apiHandler0 := cors.New(cors.Options{
@@ -32,13 +49,12 @@ func NewHTTPHandler(s *substrate.Substrate) http.Handler {
 		},
 		// Enable Debugging for testing, consider disabling in production
 		Debug: true,
-	}).Handler(newApiHandler(s))
+	}).Handler(h.newApiHandler())
 
-	apiHandler := func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
-		apiHandler0.ServeHTTP(rw, req)
-	}
 	for _, method := range methods {
-		router.Handle(method, "/substrate/*rest", apiHandler)
+		router.Handle(method, "/substrate/*rest", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
+			apiHandler0.ServeHTTP(rw, req)
+		})
 	}
 
 	// HACK For temporary backwards compatibility.... redirect /gw/* to just /*.
@@ -69,14 +85,15 @@ func NewHTTPHandler(s *substrate.Substrate) http.Handler {
 		})
 	}
 
-	routes, handler := newLazyProxyHandler(s, apiHandler0)
-	for _, route := range routes {
-		for _, method := range methods {
-			gwRouter.Handle(method, route, handler)
-		}
+	for _, method := range methods {
+		gwRouter.Handle(method, "/:viewspec/*rest", h.serveProxyRequest)
 	}
 
 	router.NotFound = gwRouter
 
-	return router
+	h.router = router
+}
+
+func (m *Handler) ServeHTTP(rw http.ResponseWriter, rq *http.Request) {
+	m.router.ServeHTTP(rw, rq)
 }

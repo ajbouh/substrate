@@ -10,7 +10,7 @@ import (
 	"cuelang.org/go/cue"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
-	"github.com/ajbouh/substrate/images/substrate/fs"
+	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 )
 
 func (s *DefSet) SpawnService(ctx context.Context, driver activityspec.ProvisionDriver, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResponse, error) {
@@ -29,8 +29,11 @@ func (s *DefSet) SpawnService(ctx context.Context, driver activityspec.Provision
 		return nil, err
 	}
 
-	if s.ServiceSpawned != nil {
-		s.ServiceSpawned(ctx, driver, req, serviceSpawnResponse)
+	for _, fn := range s.ServiceSpawned {
+		if err := fn.ServiceSpawned(ctx, driver, req, serviceSpawnResponse); err != nil {
+			log.Printf("error notifying ServiceSpawned listener: %s", err)
+		}
+
 	}
 
 	return serviceSpawnResponse, nil
