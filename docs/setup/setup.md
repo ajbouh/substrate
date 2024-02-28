@@ -5,13 +5,13 @@
 Follow this video from Intel: https://www.youtube.com/watch?v=xDIaPWgUiqI
 The SSD slot shown in the video is slot #3 (out of #1-#3).
 
-The 8-pin cable for the card needs to be connected, but not before you open the BIOS by hitting F2 while the unit powers up.
+The 3 8-pin cables for the card needs to be connected for 450W, but not before you open the BIOS by hitting F2 while the unit powers up.
 
 Go to the "Boot" section of the BIOS menu, and "disable" the Secure Boot flag. This presumably allow the driver to access the video card.
 
 Go to "Advanced" setion of the BIOS menu, choose "Video" and then change "Primary Display" to IGFX so that the system won't bother using GPU card as display.
 
-Then, connect the 8-pin cable.
+Then, connect the 8-pin cables. The card should light up when the machine starts if it has enough power.
 
 ## Installing OS
 
@@ -31,7 +31,7 @@ again make sure that the `of` is your USB memory.
 
 Plug the network cable (either port should work), USB keyboard and the OS USB image and power on.
 
-You should see a command prompt if it properly booted from the USB. if not, turn off and on the computer, and hitting F10 on keyboard to get the BIOS boot menu.
+You should see a command prompt if it properly booted from the USB. if not, turn off and on the computer, and hitting F2 on keyboard to get the BIOS boot menu.
 
 Run
 
