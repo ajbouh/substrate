@@ -5,10 +5,7 @@ import (
   "github.com/ajbouh/substrate/defs/chat:chat_completion"
 )
 
-enable: "llama-cpp-python": true
 enable: "airoboros-l2-13b-2.2": true
-
-imagespecs: "llama-cpp-python": {}
 
 tests: "airoboros-l2-13b-2.2": assister: {
   test_templates["assister"]
@@ -19,7 +16,7 @@ tests: "airoboros-l2-13b-2.2": assister: {
 
 services: "airoboros-l2-13b-2.2": {
   spawn: {
-    image: imagespecs["llama-cpp-python"].image
+    image: images["llama-cpp-python"]
     environment: {
       USE_MLOCK: "0"
       CUDA_DEVICE_ORDER: "PCI_BUS_ID"

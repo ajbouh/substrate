@@ -57,11 +57,7 @@ services: "faster-whisper": {
       }
     }
 
-    parameters: _
-
-    // HACK need this let in order for cue to properly resolve "parameters" field
-    let p = parameters
-    if p.cuda_memory_total.resource.quantity > 0 {
+    if system.#cuda_memory_total_mb > 0 {
       environment: {
         MODEL_REPO: "/res/large-v3/huggingface/local"
         MODEL_DEVICE: "cuda"
@@ -70,7 +66,7 @@ services: "faster-whisper": {
         CUDA_VISIBLE_DEVICES: "0"
       }
     }
-    if p.cuda_memory_total.resource.quantity == 0 {
+    if system.#cuda_memory_total_mb == 0 {
       environment: {
         MODEL_REPO: "/res/tiny/huggingface/local"
         MODEL_DEVICE: "cpu"

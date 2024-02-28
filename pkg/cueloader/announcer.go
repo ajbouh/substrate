@@ -1,6 +1,7 @@
 package cueloader
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"net/http"
@@ -13,16 +14,16 @@ import (
 // where there are many new []byte values to announce, it prioritizes sending the latest value byte rather than every
 // update.
 type Announcer struct {
-	b  []byte
-	mu *sync.Mutex
+	b           []byte
+	mu          *sync.Mutex
 	contentType string
-	chs map[chan struct{}]struct{}
+	chs         map[chan struct{}]struct{}
 }
 
 func NewAnnouncer(contentType string) *Announcer {
 	return &Announcer{
-		chs: map[chan struct{}]struct{}{},
-		mu:  &sync.Mutex{},
+		chs:         map[chan struct{}]struct{}{},
+		mu:          &sync.Mutex{},
 		contentType: contentType,
 	}
 }
@@ -49,6 +50,11 @@ func (a *Announcer) get() []byte {
 func (a *Announcer) Announce(b []byte) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+
+	// Do nothing if we're about to announce exactly what we already have
+	if bytes.Equal(a.b, b) {
+		return
+	}
 
 	a.b = b
 
@@ -108,6 +114,7 @@ func (a *Announcer) serveBuffer(w http.ResponseWriter, r *http.Request) {
 func (a *Announcer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	availableMediaTypes := []contenttype.MediaType{
 		contenttype.NewMediaType("text/event-stream"),
+		contenttype.NewMediaType(a.contentType),
 	}
 	accepted, _, err := contenttype.GetAcceptableMediaType(r, availableMediaTypes)
 	if err != nil {

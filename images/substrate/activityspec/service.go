@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ajbouh/substrate/images/substrate/fs"
+	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 )
 
 type ServiceDef struct {
@@ -51,7 +51,6 @@ type ServiceSpawnParameterType string
 const ServiceSpawnParameterTypeString ServiceSpawnParameterType = "string"
 const ServiceSpawnParameterTypeSpace ServiceSpawnParameterType = "space"
 const ServiceSpawnParameterTypeSpaces ServiceSpawnParameterType = "spaces"
-const ServiceSpawnParameterTypeResource ServiceSpawnParameterType = "resource"
 
 type ServiceSpawnParameterSchema struct {
 	Type        ServiceSpawnParameterType `json:"type"`

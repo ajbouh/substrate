@@ -80,7 +80,9 @@ func (m *Main) Serve(ctx context.Context) {
 			}
 
 			keys := []string{}
-			for k := range files { keys = append(keys, k) }
+			for k := range files {
+				keys = append(keys, k)
+			}
 			log.Printf("again ... %d files keys=%#v dir=%s tags=%#v", len(files), keys, config.Dir, config.Tags)
 
 			callDefLoad := callDefLoader(cueMu, cc, config, func(serviceName string, serviceDef, callDef cue.Value) blackboard.Refinement {

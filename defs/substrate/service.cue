@@ -22,7 +22,7 @@ package service
 }
 
 #ServiceDefSpawnParameter: {
-  type: "space" | "spaces" | "string" | "resource"
+  type: "space" | "spaces" | "string"
   // if type == "spaces" {
   //   // Default attributes to be used if we use a collection
   //   collection: attributes: {[string]: _}
@@ -36,15 +36,6 @@ package service
   }
   if type == "spaces" {
     spaces: [...string]
-  }
-  if type == "resource" {
-    resource: {
-      unit: string
-      quantity: number
-    }
-
-    value: =~"^([0-9]+)\(resource.unit)$"
-    value: "\(resource.quantity)\(resource.unit)"
   }
 
   value: string
@@ -103,17 +94,6 @@ package service
   name: string
   spawn?: {
     parameters: [string]: #ServiceDefSpawnParameter
-    parameters: {
-      cuda_memory_total: {
-        type: "resource"
-        resource: {unit: "MB", quantity: number | *0}
-      }
-
-      cpu_memory_total: {
-        type: "resource"
-        resource: {unit: "MB", quantity: number | *0}
-      }
-    }
     ephemeral ?: bool | *false
     image: string
     environment: [string]: string

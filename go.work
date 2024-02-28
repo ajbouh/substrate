@@ -3,6 +3,8 @@ go 1.21.1
 use (
 	./pkg/cueloader
 	./images/bb
+	./images/sigar
+	./images/nvml
 	./images/bridge
 	./images/bridge2
 	./images/files

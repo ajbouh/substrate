@@ -1,18 +1,18 @@
 FROM docker.io/library/golang:1.21-bookworm as source
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/cueloader/
-COPY pkg/cueloader/go.mod pkg/cueloader/go.sum .
+COPY pkg/cueloader/go.mod pkg/cueloader/go.sum ./
 RUN go mod download
 
-WORKDIR /go/src/github.com/ajbouh/substrate/images/substrate
-ADD images/substrate/go.mod images/substrate/go.sum ./
+WORKDIR /go/src/github.com/ajbouh/substrate/images/nvml
+ADD images/nvml/go.mod images/nvml/go.sum ./
 RUN go mod download
 
 WORKDIR /go/src/
 COPY pkg/cueloader/. github.com/ajbouh/substrate/pkg/cueloader/
-COPY images/substrate/. github.com/ajbouh/substrate/images/substrate/
+COPY images/nvml/. github.com/ajbouh/substrate/images/nvml/
 
-WORKDIR /go/src/github.com/ajbouh/substrate/images/substrate/
+WORKDIR /go/src/github.com/ajbouh/substrate/images/nvml/
 
 FROM source as build
 RUN apt update \
@@ -28,7 +28,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
   go build \
   -tags "remote exclude_graphdriver_btrfs btrfs_noversion exclude_graphdriver_devicemapper containers_image_openpgp"\
   -v \
-  -o /substrate ./cmd
+  -o /substrated-defs-nvml ./cmd/nvml
 
 FROM source as test
 
@@ -37,13 +37,11 @@ FROM docker.io/tianon/toybox:latest as toybox
 
 FROM gcr.io/distroless/base-nossl-debian12 as dist
 
-ARG CUE_DEFS_SOURCE
-ARG CUE_DEFS_TARGET
-
-COPY --from=build /substrate /app/substrate
-# Enable when we want to debug
-# COPY --from=toybox /usr/bin/. /usr/bin/
-COPY $CUE_DEFS_SOURCE $CUE_DEFS_TARGET
-WORKDIR /data
-
-ENTRYPOINT ["/app/substrate"]
+# HACK use run-with-ldcache-hack.sh to run ldconfig before substrate starts. delete this when
+# we can figure out how to get the nvidia-container-toolkit logic to do it properly for this container
+# HACK this is needed because both this script and nvidia-container-toolkit rely on it
+COPY --from=build /sbin/ldconfig /sbin/ldconfig
+COPY --from=build /bin/dash /bin/sh
+COPY images/nvml/run-with-ldcache-hack.sh /app/
+COPY --from=build /substrated-defs-nvml /app/substrated-defs-nvml
+ENTRYPOINT ["/app/run-with-ldcache-hack.sh", "/app/substrated-defs-nvml"]

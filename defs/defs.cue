@@ -78,6 +78,8 @@ enable: [string]: bool
 
 live_edit: [string]: bool | *false
 
+system: [string]: _
+
 #TestDef: {
   imagespec
   containerspec.#ContainerSpec
@@ -94,12 +96,18 @@ imagespecs: [key=string]: imagespec & {
   build: dockerfile: string | *"images/\(key)/Dockerfile"
 }
 
+// a way to reuse image names
+images: [key=string]: string
+
 resourcedirs: [id=string]: {
   #containerspec: containerspec.#ContainerSpec
   #imagespec: imagespec
 }
 
-services: [key=string]: service & {"name": key}
+services: [key=string]: service & {
+  "name": key
+  spawn ?: image: string | *#out.imagespecs[key].image
+}
 
 daemons: [key=string]: containerspec.#ContainerSpec
 
@@ -127,8 +135,10 @@ daemons: [key=string]: containerspec.#ContainerSpec
 
 #out: "imagespecs": {
   for key, def in imagespecs {
-    if (enable[key]) {
-      (key): def
+    if (enable[key] != _|_) {
+      if (enable[key]) {
+        (key): def
+      }
     }
   }
 }
@@ -161,7 +171,7 @@ for key, def in #out.services {
       (key): def & {
         if def.spawn != _|_ {
           spawn: {
-            "image": string | *#out.imagespecs[key].image
+            "image": def.spawn.image
             "resourcedirs": [alias=string]: {
               id: string
               sha256: hex.Encode(cryptosha256.Sum256(id))
