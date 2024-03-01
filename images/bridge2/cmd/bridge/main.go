@@ -10,9 +10,9 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -133,6 +133,7 @@ func (m *Main) Initialize() {
 	basePath := os.Getenv("SUBSTRATE_URL_PREFIX")
 	// ensure the path starts and ends with a slash for setting <base href>
 	m.basePath = must(url.JoinPath("/", basePath, "/"))
+	log.Println("got basePath", m.basePath, "from SUBSTRATE_URL_PREFIX", basePath)
 	m.port = parsePort(getEnv("PORT", "8080"))
 
 	m.sessionDir = getEnv("BRIDGE_SESSIONS_DIR", "./sessions")
@@ -238,7 +239,7 @@ func (m *Main) StartSession(sess *Session) {
 // event. Designed to debounce handling for one update at a time. The channel
 // will be closed when the context is cancelled to allow "range" loops over
 // the updates.
-func sessionUpdateHandler(ctx context.Context, sess *Session) chan struct{} {
+func sessionUpdateHandler(ctx context.Context, sess *Session) <-chan struct{} {
 	ch := make(chan struct{}, 1)
 	h := tracks.HandlerFunc(func(e tracks.Event) {
 		if e.Type == "audio" {
@@ -257,6 +258,26 @@ func sessionUpdateHandler(ctx context.Context, sess *Session) chan struct{} {
 	}()
 	sess.Listen(h)
 	return ch
+}
+
+func timeoutUpdateCh(in <-chan struct{}, timeout time.Duration) <-chan struct{} {
+	out := make(chan struct{})
+	go func() {
+		out <- struct{}{} // trigger initial update
+		for {
+			select {
+			case <-time.After(timeout):
+				out <- struct{}{}
+			case _, ok := <-in:
+				if !ok {
+					close(out)
+					return
+				}
+				out <- struct{}{}
+			}
+		}
+	}()
+	return out
 }
 
 func (m *Main) loadSession(ctx context.Context, id string) (*Session, error) {
@@ -312,35 +333,43 @@ func (m *Main) Serve(ctx context.Context) {
 		CheckOrigin: func(r *http.Request) bool { return true },
 	}
 
-	http.HandleFunc("/sessions", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/sessions/new", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.addSession(ctx, tracks.NewSession())
 		http.Redirect(w, r, path.Join(m.basePath, "sessions", string(sess.ID)), http.StatusFound)
 	})
 
 	http.HandleFunc("/sessions/", func(w http.ResponseWriter, r *http.Request) {
-		sessID := filepath.Base(r.URL.Path)
-		sess, err := m.loadSession(ctx, sessID)
-		if err != nil {
-			// TODO different error if we failed to load vs not found
-			log.Printf("error loading session %s: %s", sessID, err)
-			http.Error(w, "not found", http.StatusNotFound)
-			return
-		}
-		updateCtx, cancel := context.WithCancel(ctx)
-		defer cancel()
-		updateCh := sessionUpdateHandler(updateCtx, sess)
-		select {
-		case updateCh <- struct{}{}: // trigger initial update
-		default:
-		}
-
 		if websocket.IsWebSocketUpgrade(r) {
+			var sess *Session
+			// by default, send updates until the context is cancelled
+			ctx, cancel := context.WithCancel(ctx)
+			defer cancel()
+			updateCh := ctx.Done()
+			if sessID := strings.TrimPrefix(r.URL.Path, "/sessions/"); sessID != "" {
+				var err error
+				sess, err = m.loadSession(ctx, sessID)
+				if err != nil {
+					// TODO different error if we failed to load vs not found
+					log.Printf("error loading session %s: %s", sessID, err)
+					http.Error(w, "not found", http.StatusNotFound)
+					return
+				}
+				// with an active session, send updates when new events arrive
+				updateCh = sessionUpdateHandler(ctx, sess)
+			}
+			// if there are no updates, refresh the list of sessions periodically
+			updateCh = timeoutUpdateCh(updateCh, 10*time.Second)
+
 			conn, err := upgrader.Upgrade(w, r, nil)
 			if err != nil {
 				log.Print("upgrade:", err)
 				return
 			}
 			if r.URL.RawQuery == "sfu" {
+				if sess == nil {
+					http.Error(w, "not found", http.StatusNotFound)
+					return
+				}
 				peer, err := sess.sfu.AddPeer(conn)
 				if err != nil {
 					log.Print("peer:", err)
@@ -389,7 +418,9 @@ func (m *Main) Serve(ctx context.Context) {
 			http.NotFound(w, r)
 			return
 		}
-		http.Redirect(w, r, path.Join(m.basePath, "sessions"), http.StatusFound)
+		// We need the trailing slash in order to go directly to the /sessions/
+		// handler without an extra redirect, but path.Join strips it by default.
+		http.Redirect(w, r, path.Join(m.basePath, "sessions")+"/", http.StatusFound)
 	})
 
 	log.Printf("running on http://localhost:%d ...", m.port)

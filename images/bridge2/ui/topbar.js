@@ -4,7 +4,7 @@ export var Topbar = {
     return m("div", {"class":"flex flex-wrap px-6 py-4","id":"topbar"},
       [
         m("h1", {"class":"py-1 text-xl font-bold"},
-          "session1"
+          new Date(attrs.activeSession.Start).toLocaleString()
         ),
         m("div", {"class":"grow"},
           m.trust("&nbsp;")

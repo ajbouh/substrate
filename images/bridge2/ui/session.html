@@ -38,16 +38,22 @@ const initSession = () => {
   return sess;
 };
 
-const localMedia = new LocalMedia({
-  videoSource: false,
-  ondevicechange: () => m.redraw(),
-  onstreamchange: (stream) => {
-    if (micSess == null) {
-      micSess = initSession();
-    }
-    micSess.setStream(stream);
-  },
-});
+let localMedia = null;
+const initLocalMedia = () => {
+  if (!localMedia) {
+    localMedia = new LocalMedia({
+      videoSource: false,
+      ondevicechange: () => m.redraw(),
+      onstreamchange: (stream) => {
+        if (micSess == null) {
+          micSess = initSession();
+        }
+        micSess.setStream(stream);
+      },
+    });
+  }
+  return localMedia;
+}
 
 let screenMedia = null;
 
@@ -74,11 +80,12 @@ dataWS.binaryType = 'arraybuffer';
 dataWS.onmessage = e => {
   const data = CBOR.decode((new Uint8Array(e.data)).buffer);
 
-  const events = data.Session.Tracks.map(t => t.Events).filter(e => e).flat();
-  const sessionStart = new Date(data.Session.Start).getTime();
+  const events = data.Session == null ? [] : data.Session.Tracks.map(t => t.Events).filter(e => e).flat();
+  const sessionStart = data.Session && new Date(data.Session.Start).getTime();
 
   viewModel = {
     sessions: data.Sessions,
+    activeSession: data.Session,
     entries: events.filter(e => e.Type === "transcription").sort((a, b) => {
       return a.Start - b.Start;
     }).map(t => {
@@ -91,20 +98,28 @@ dataWS.onmessage = e => {
   }
   m.redraw()
   setTimeout(() => {
-    let elt = document.getElementById("entries");
-    elt.lastChild.scrollIntoView({ block: "end", behavior: 'smooth' })
+    const elt = document.getElementById("entries");
+    if (elt && elt.lastChild) {
+      elt.lastChild.scrollIntoView({ block: "end", behavior: 'smooth' })
+    }
   }, 0);
 }
 
 m.mount(document.body, {
   view: () => [
-    m(Sidebar, {sessions: viewModel.sessions}),
+    m(Sidebar, {activeSession: viewModel.activeSession, sessions: viewModel.sessions}),
     m("div", {"class":"flex flex-col mx-auto grow"},
-      [
-        m(Topbar, {localMedia, shareScreen}),
-        m("div", {"class":"grow px-6 mt-4 overflow-auto","id":"session"},
-          m(Session, {summary: "Summary", entries: viewModel.entries})
-        )
+      viewModel.activeSession ?
+        [
+          m(Topbar, {localMedia: initLocalMedia(), shareScreen, activeSession: viewModel.activeSession}),
+          m("div", {"class":"grow px-6 mt-4 overflow-auto","id":"session"},
+            m(Session, {summary: "Summary", entries: viewModel.entries})
+          )
+        ]
+      : [
+        m("div", {"class": "grow px-6 mt-4"}, [
+          m("a", {"href": "./sessions/new", "class": "rounded border border-2 px-3 py-2"}, "New session")
+        ])
       ]
     )
   ],
