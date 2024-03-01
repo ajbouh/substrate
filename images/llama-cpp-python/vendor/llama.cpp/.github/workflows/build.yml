@@ -37,6 +37,8 @@ jobs:
 
       - name: Build
         id: make_build
+        env:
+            LLAMA_FATAL_WARNINGS: 1
         run: |
           CC=gcc-8 make -j $(nproc)
 
@@ -65,7 +67,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake ..
+          cmake .. -DLLAMA_FATAL_WARNINGS=ON
           cmake --build . --config Release -j $(nproc)
 
       - name: Test
@@ -100,7 +102,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake .. -DLLAMA_SANITIZE_${{ matrix.sanitizer }}=ON -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          cmake .. -DLLAMA_FATAL_WARNINGS=ON -DLLAMA_SANITIZE_${{ matrix.sanitizer }}=ON -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           cmake --build . --config ${{ matrix.build_type }} -j $(nproc)
 
       - name: Test
@@ -184,6 +186,47 @@ jobs:
           cmake -DLLAMA_SYCL=ON -DCMAKE_C_COMPILER=icx -DCMAKE_CXX_COMPILER=icpx ..
           cmake --build . --config Release -j $(nproc)
 
+  ubuntu-22-cmake-sycl-fp16:
+    runs-on: ubuntu-22.04
+
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: add oneAPI to apt
+        shell: bash
+        run: |
+          cd /tmp
+          wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+          sudo apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+          rm GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+          sudo add-apt-repository "deb https://apt.repos.intel.com/oneapi all main"
+
+      - name: install oneAPI dpcpp compiler
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install intel-oneapi-compiler-dpcpp-cpp
+
+      - name: install oneAPI MKL library
+        shell: bash
+        run: |
+          sudo apt install intel-oneapi-mkl-devel
+
+      - name: Clone
+        id: checkout
+        uses: actions/checkout@v3
+
+      - name: Build
+        id: cmake_build
+        run: |
+          source /opt/intel/oneapi/setvars.sh
+          mkdir build
+          cd build
+          cmake -DLLAMA_SYCL=ON -DCMAKE_C_COMPILER=icx -DCMAKE_CXX_COMPILER=icpx -DLLAMA_SYCL_F16=ON ..
+          cmake --build . --config Release -j $(nproc)
+
   # TODO: build with LLAMA_NO_METAL because test-backend-ops fail on "Apple Paravirtual device" and I don't know
   #       how to debug it.
   #       ref: https://github.com/ggerganov/llama.cpp/actions/runs/7131777249/job/19420981052#step:5:1124
@@ -203,6 +246,8 @@ jobs:
 
       - name: Build
         id: make_build
+        env:
+            LLAMA_FATAL_WARNINGS: 1
         run: |
           LLAMA_NO_METAL=1 make -j $(sysctl -n hw.logicalcpu)
 
@@ -236,7 +281,7 @@ jobs:
           sysctl -a
           mkdir build
           cd build
-          cmake -DLLAMA_METAL=OFF ..
+          cmake -DLLAMA_FATAL_WARNINGS=ON -DLLAMA_METAL=OFF ..
           cmake --build . --config Release -j $(sysctl -n hw.logicalcpu)
 
       - name: Test
@@ -624,8 +669,7 @@ jobs:
         run: |
           cd examples/llama.android
 
-          # Skip armeabi-v7a for now (https://github.com/llvm/llvm-project/issues/65820).
-          ./gradlew build --no-daemon -Pskip-armeabi-v7a
+          ./gradlew build --no-daemon
 
 #  freeBSD-latest:
 #    runs-on: macos-12

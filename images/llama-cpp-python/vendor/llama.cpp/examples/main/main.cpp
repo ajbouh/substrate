@@ -98,7 +98,7 @@ static void write_logfile(
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__)) || defined (_WIN32)
 static void sigint_handler(int signo) {
     if (signo == SIGINT) {
-        if (!is_interacting) {
+        if (!is_interacting && g_params->interactive) {
             is_interacting = true;
         } else {
             console::cleanup();
@@ -185,7 +185,8 @@ int main(int argc, char ** argv) {
     }
 
     LOG("%s: llama backend init\n", __func__);
-    llama_backend_init(params.numa);
+    llama_backend_init();
+    llama_numa_init(params.numa);
 
     llama_model * model;
     llama_context * ctx;
@@ -333,6 +334,8 @@ int main(int argc, char ** argv) {
     // number of tokens to keep when resetting context
     if (params.n_keep < 0 || params.n_keep > (int) embd_inp.size() || params.instruct || params.chatml) {
         params.n_keep = (int)embd_inp.size();
+    } else {
+        params.n_keep += add_bos; // always keep the BOS token
     }
 
     // prefix & suffix for instruct mode
@@ -352,12 +355,12 @@ int main(int argc, char ** argv) {
     // in instruct mode, we inject a prefix and a suffix to each input by the user
     if (params.instruct) {
         params.interactive_first = true;
-        params.antiprompt.push_back("### Instruction:\n\n");
+        params.antiprompt.emplace_back("### Instruction:\n\n");
     }
     // similar for chatml mode
     else if (params.chatml) {
         params.interactive_first = true;
-        params.antiprompt.push_back("<|im_start|>user\n");
+        params.antiprompt.emplace_back("<|im_start|>user\n");
     }
 
     // enable interactive mode if interactive start is specified
@@ -382,8 +385,8 @@ int main(int argc, char ** argv) {
             }
         }
 
-        if (params.n_keep > 0) {
-        LOG_TEE("%s: static prompt based on n_keep: '", __func__);
+        if (params.n_keep > add_bos) {
+            LOG_TEE("%s: static prompt based on n_keep: '", __func__);
             for (int i = 0; i < params.n_keep; i++) {
                 LOG_TEE("%s", llama_token_to_piece(ctx, embd_inp[i]).c_str());
             }
@@ -392,7 +395,8 @@ int main(int argc, char ** argv) {
         LOG_TEE("\n");
     }
 
-    if (params.interactive) {
+    // ctrl+C handling
+    {
 #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
         struct sigaction sigint_action;
         sigint_action.sa_handler = sigint_handler;
@@ -405,7 +409,9 @@ int main(int argc, char ** argv) {
         };
         SetConsoleCtrlHandler(reinterpret_cast<PHANDLER_ROUTINE>(console_ctrl_handler), true);
 #endif
+    }
 
+    if (params.interactive) {
         LOG_TEE("%s: interactive mode on.\n", __func__);
 
         if (!params.antiprompt.empty()) {
@@ -536,14 +542,14 @@ int main(int argc, char ** argv) {
                         break;
                     }
 
-                    const int n_left    = n_past - params.n_keep - 1;
+                    const int n_left    = n_past - params.n_keep;
                     const int n_discard = n_left/2;
 
                     LOG("context full, swapping: n_past = %d, n_left = %d, n_ctx = %d, n_keep = %d, n_discard = %d\n",
                             n_past, n_left, n_ctx, params.n_keep, n_discard);
 
-                    llama_kv_cache_seq_rm   (ctx, 0, params.n_keep + 1            , params.n_keep + n_discard + 1);
-                    llama_kv_cache_seq_shift(ctx, 0, params.n_keep + 1 + n_discard, n_past, -n_discard);
+                    llama_kv_cache_seq_rm (ctx, 0, params.n_keep            , params.n_keep + n_discard);
+                    llama_kv_cache_seq_add(ctx, 0, params.n_keep + n_discard, n_past, -n_discard);
 
                     n_past -= n_discard;
 
@@ -570,9 +576,9 @@ int main(int argc, char ** argv) {
                     LOG("div:   [%6d, %6d] / %6d -> [%6d, %6d]\n", ga_i + ib*bd, ga_i + ib*bd + ga_w, ga_n, (ga_i + ib*bd)/ga_n, (ga_i + ib*bd + ga_w)/ga_n);
                     LOG("shift: [%6d, %6d] + %6d -> [%6d, %6d]\n", ga_i + ib*bd + ga_w, n_past + ib*bd, dd, ga_i + ib*bd + ga_w + dd, n_past + ib*bd + dd);
 
-                    llama_kv_cache_seq_shift(ctx, 0, ga_i,                n_past,              ib*bd);
-                    llama_kv_cache_seq_div  (ctx, 0, ga_i + ib*bd,        ga_i + ib*bd + ga_w, ga_n);
-                    llama_kv_cache_seq_shift(ctx, 0, ga_i + ib*bd + ga_w, n_past + ib*bd,      dd);
+                    llama_kv_cache_seq_add(ctx, 0, ga_i,                n_past,              ib*bd);
+                    llama_kv_cache_seq_div(ctx, 0, ga_i + ib*bd,        ga_i + ib*bd + ga_w, ga_n);
+                    llama_kv_cache_seq_add(ctx, 0, ga_i + ib*bd + ga_w, n_past + ib*bd,      dd);
 
                     n_past -= bd;
 
