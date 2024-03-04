@@ -112,7 +112,7 @@ dataWS.onmessage = e => {
         final: true,
         translations: translations[t.ID] || [],
       }
-    })
+    }).filter(e => e.text.length > 0),
   }
   m.redraw()
   setTimeout(() => {

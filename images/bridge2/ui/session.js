@@ -21,25 +21,20 @@ export var Entry = {
   view: ({attrs}) => {
     return m("div", {"class":"entry"}, [
       m("div", {"class":"left"},
-        [
-          m("div", {"class":"time"}, formatTime(attrs.start)),
-          // m("div", {"class":"session-time"}, formatSessionTime(attrs.sessionTime))
-        ]
+        m("div", {"class":"time"}, formatTime(attrs.start)),
+        // m("div", {"class":"session-time"}, formatSessionTime(attrs.sessionTime))
       ),
       m("div", {"class":"line","style":{"background-color":attrs.lineColor}},
         m("div", {"class":`right ${attrs.isAssistant ? "assistant": ""}`},
-          [
-            // m("div", {"class":"name"}, attrs.speakerLabel),
-            m("div", {"class":`text ${!attrs.final ? "text-gray-400": ""}`},
-              `(${attrs.lang})`,
-              attrs.text
+          // m("div", {"class":"name"}, attrs.speakerLabel),
+          m("div", {"class": `text ${!attrs.final ? "text-gray-400": ""}`, lang: attrs.lang},
+            attrs.text,
+          ),
+          attrs.translations.map(translation =>
+            m("div", {"class": "text text-cyan-500", lang: translation.lang},
+              translation.text,
             )
-          ].concat(
-            attrs.translations.map(translation => m("div", {"class": "text"},
-              `(${translation.lang})`,
-              translation.text
-            ))
-          )
+          ),
         )
       )
     ])
