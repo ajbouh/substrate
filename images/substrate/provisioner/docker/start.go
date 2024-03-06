@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
-	"github.com/ajbouh/substrate/images/substrate/fs"
+	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -183,12 +183,16 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	}
 
 	for _, m := range as.ServiceDefSpawn.Mounts {
+		readOnly := true
+		if m.Mode == "rw" {
+			readOnly = false
+		}
 		h.Mounts = append(h.Mounts,
 			mount.Mount{
 				Type:     mount.TypeBind,
 				Source:   m.Source,
 				Target:   m.Destination,
-				ReadOnly: true,
+				ReadOnly: readOnly,
 			},
 		)
 	}

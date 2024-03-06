@@ -1,0 +1,84 @@
+diff --git a/node_modules/@observablehq/framework/dist/client/preview.js b/node_modules/@observablehq/framework/dist/client/preview.js
+index a87626a..9b93109 100644
+--- a/node_modules/@observablehq/framework/dist/client/preview.js
++++ b/node_modules/@observablehq/framework/dist/client/preview.js
+@@ -3,15 +3,15 @@ import { FileAttachment, registerFile } from "npm:@observablehq/stdlib";
+ import { main, runtime, undefine } from "./main.js";
+ import { enableCopyButtons } from "./pre.js";
+ export * from "./index.js";
+-function open({ hash, eval: compile } = {}) {
++function open({ hash, base, eval: compile } = {}) {
+   const socket = new WebSocket(
+-    Object.assign(new URL("/_observablehq", location.href), {
++    Object.assign(new URL(`${base}_observablehq`, location.href), {
+       protocol: location.protocol === "https:" ? "wss" : "ws"
+     })
+   );
+   socket.onopen = () => {
+     console.info("socket open");
+-    send({ type: "hello", path: location.pathname, hash });
++    send({type: "hello", path: location.pathname.substring(base.length-1), hash});
+   };
+   socket.onmessage = (event) => {
+     const message = JSON.parse(event.data);
+diff --git a/node_modules/@observablehq/framework/dist/files.js b/node_modules/@observablehq/framework/dist/files.js
+index f204a27..e200391 100644
+--- a/node_modules/@observablehq/framework/dist/files.js
++++ b/node_modules/@observablehq/framework/dist/files.js
+@@ -56,6 +56,7 @@ async function maybeStat(path) {
+   }
+ }
+ async function prepareOutput(outputPath) {
++  console.log("prepareOutput", outputPath)
+   const outputDir = op.dirname(outputPath);
+   if (outputDir === ".")
+     return;
+diff --git a/node_modules/@observablehq/framework/dist/npm.js b/node_modules/@observablehq/framework/dist/npm.js
+index 695d242..8a639bd 100644
+--- a/node_modules/@observablehq/framework/dist/npm.js
++++ b/node_modules/@observablehq/framework/dist/npm.js
+@@ -53,9 +53,11 @@ function rewriteNpmImports(input, resolve = String) {
+ }
+ const npmRequests = /* @__PURE__ */ new Map();
+ async function populateNpmCache(root, path) {
++  console.log("populateNpmCache", {root, path})
+   if (!path.startsWith("/_npm/"))
+     throw new Error(`invalid npm path: ${path}`);
+   const filePath = join(root, ".observablehq", "cache", path);
++  console.log("populateNpmCache", {root, path, filePath})
+   if (existsSync(filePath))
+     return filePath;
+   let promise = npmRequests.get(path);
+@@ -199,6 +201,7 @@ async function resolveNpmVersion(root, specifier) {
+     const spec = formatNpmSpecifier({ name, range: version });
+     process.stdout.write(`npm:${spec}
+ `);
++    console.log("resolveNpmVersion", {root, specifier})
+     cache.set(specifier.name, versions ? rsort(versions.concat(version)) : [version]);
+     mkdir(join(root, ".observablehq", "cache", "_npm", spec), { recursive: true });
+     return version;
+diff --git a/node_modules/@observablehq/framework/dist/observableApiConfig.js b/node_modules/@observablehq/framework/dist/observableApiConfig.js
+index de5960e..3749552 100644
+--- a/node_modules/@observablehq/framework/dist/observableApiConfig.js
++++ b/node_modules/@observablehq/framework/dist/observableApiConfig.js
+@@ -55,6 +55,7 @@ async function getDeployConfig(sourceRoot, effects = defaultEffects) {
+   return { projectId, projectSlug, workspaceLogin };
+ }
+ async function setDeployConfig(sourceRoot, newConfig, effects = defaultEffects) {
++  console.log("setDeployConfig", {sourceRoot, newConfig})
+   const dir = op.join(effects.cwd(), sourceRoot, ".observablehq");
+   const deployConfigPath = op.join(dir, "deploy.json");
+   const oldConfig = await getDeployConfig(sourceRoot) || {};
+diff --git a/node_modules/@observablehq/framework/dist/render.js b/node_modules/@observablehq/framework/dist/render.js
+index 7f5d296..87fe860 100644
+--- a/node_modules/@observablehq/framework/dist/render.js
++++ b/node_modules/@observablehq/framework/dist/render.js
+@@ -39,7 +39,7 @@ import {registerTable} from ${JSON.stringify(resolveImport("npm:@observablehq/du
+ ${renderFiles(files, resolveFile)}` : ""}${data?.sql ? `
+ ${Object.entries(data.sql).map(([name, source]) => `registerTable(${JSON.stringify(name)}, FileAttachment(${JSON.stringify(source)}));`).join("\n")}` : ""}
+ ${preview ? `
+-open({hash: ${JSON.stringify(resolvers.hash)}, eval: (body) => eval(body)});
++open({hash: ${JSON.stringify(resolvers.hash)}, base: ${JSON.stringify(base)}, eval: (body) => eval(body)});
+ ` : ""}${page.code.map(({ node, id }) => `
+ ${transpileJavaScript(node, { id, resolveImport })}`).join("")}`)}
+ </script>${sidebar ? html`\n${await renderSidebar(title, pages, root, path, search, normalizeLink)}` : ""}${toc.show ? html`\n${renderToc(findHeaders(page), toc.label)}` : ""}
