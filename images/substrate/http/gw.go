@@ -43,7 +43,20 @@ func (h *Handler) serveProxyRequest(rw http.ResponseWriter, req *http.Request, p
 	}
 	req.URL.RawPath = ""
 
-	views, _, err := activityspec.ParseServiceSpawnRequest(viewspec, false, "/"+viewspec)
+	// Redirect to spec without ()s.
+	if activityspec.IsLegacyServiceSpawnRequestFormat(viewspec) {
+		views, path, err := activityspec.ParseLegacyServiceSpawnRequest(viewspec, false, "/"+viewspec)
+		if err != nil {
+			jsonrw := httputil.NewJSONResponseWriter(rw)
+			jsonrw(nil, http.StatusBadRequest, err)
+			return
+		}
+		modern, _ := views.Format()
+		http.RedirectHandler("/"+modern+path+rest, http.StatusFound).ServeHTTP(rw, req)
+		return
+	}
+
+	views, path, err := activityspec.ParseServiceSpawnRequest(viewspec, false, "/"+viewspec)
 	if err != nil {
 		jsonrw := httputil.NewJSONResponseWriter(rw)
 		jsonrw(nil, http.StatusBadRequest, err)
@@ -71,7 +84,7 @@ func (h *Handler) serveProxyRequest(rw http.ResponseWriter, req *http.Request, p
 		}
 
 		concretized, _ := serviceSpawnResponse.ServiceSpawnResolution.Format()
-		http.RedirectHandler("/"+concretized+"/", http.StatusFound).ServeHTTP(rw, req)
+		http.RedirectHandler("/"+concretized+path+rest, http.StatusFound).ServeHTTP(rw, req)
 		return
 	}
 

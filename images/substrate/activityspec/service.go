@@ -1,7 +1,6 @@
 package activityspec
 
 import (
-	"fmt"
 	"net/url"
 	"sort"
 	"strconv"
@@ -194,39 +193,23 @@ func (p *ServiceSpawnParameter) Format() string {
 const spaceViewCut = "="
 const spaceViewsSep = ";"
 const spaceViewMultiSep = ","
-const viewspecParameterStart = "("
-const viewspecParameterEnd = ")"
+const viewspecParameterStart = ";"
 
 func ParseServiceSpawnRequest(spec string, forceReadOnly bool, spawnPrefix string) (*ServiceSpawnRequest, string, error) {
 	var service string
 	var viewspec string
 	var path string
+
 	if strings.HasPrefix(spec, viewspecParameterStart) { // service is unknown!
 		viewspec = strings.TrimPrefix(spec, viewspecParameterStart)
-		if !strings.HasSuffix(viewspec, viewspecParameterEnd) {
-			split := strings.SplitN(viewspec, "/", 2)
-			if len(split) > 1 && !strings.HasSuffix(split[0], viewspecParameterEnd) {
-				return nil, "", fmt.Errorf("bad spec: %q; viewspec=%q split=%#v", spec, viewspec, split)
-			}
-
-			viewspec = split[0]
-			path = "/" + split[1]
-		}
-		viewspec = strings.TrimSuffix(viewspec, viewspecParameterEnd)
+		viewspec, path, _ = strings.Cut(viewspec, "/")
+		path = "/" + path
 	} else {
 		var found bool
 		service, viewspec, found = strings.Cut(spec, viewspecParameterStart)
 		if found {
-			if !strings.HasSuffix(viewspec, viewspecParameterEnd) {
-				split := strings.SplitN(viewspec, "/", 2)
-				if len(split) > 1 && !strings.HasSuffix(split[0], viewspecParameterEnd) {
-					return nil, "", fmt.Errorf("bad spec: %q; viewspec=%q split=%#v", spec, viewspec, split)
-				}
-
-				viewspec = split[0]
-				path = "/" + split[1]
-			}
-			viewspec = strings.TrimSuffix(viewspec, viewspecParameterEnd)
+			viewspec, path, _ = strings.Cut(viewspec, "/")
+			path = "/" + path
 		}
 	}
 
@@ -271,7 +254,7 @@ func (r *ServiceSpawnRequest) Format() (string, bool) {
 	viewspec := strings.Join(fragments, spaceViewsSep)
 	// fmt.Printf("ServiceSpawn() viewspec=%q fragments=%#v r=%#v\n", viewspec, fragments, r)
 
-	return r.ServiceName + viewspecParameterStart + viewspec + viewspecParameterEnd, concrete
+	return r.ServiceName + viewspecParameterStart + viewspec, concrete
 }
 
 func (r ServiceSpawnResolution) Format() (string, bool) {
@@ -288,5 +271,5 @@ func (r ServiceSpawnResolution) Format() (string, bool) {
 	viewspec := strings.Join(spaceFragments, spaceViewsSep)
 	// fmt.Printf("ServiceSpawnResolution() viewspec=%s r=%#v\n", viewspec, r)
 
-	return r.ServiceName + viewspecParameterStart + viewspec + viewspecParameterEnd, r.ServiceName != ""
+	return r.ServiceName + viewspecParameterStart + viewspec, r.ServiceName != ""
 }
