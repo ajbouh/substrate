@@ -68,7 +68,12 @@ func server(addr string) error {
 		allowDelete: allowDeletesFlag,
 	})
 
+	mux.Handle(prefix+"/assets/", http.StripPrefix(prefix+"/assets/", http.FileServer(http.FS(assets.Dir))))
 	mux.Handle(prefix+"/", http.RedirectHandler(prefix+"/raw/", http.StatusFound))
+
+	mux.Handle(prefix+"/edit/text/", http.StripPrefix(prefix+"/edit/text", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assets.ServeFileReplacingBasePath(prefix, "edit-text.html", w, r)
+	})))
 
 	binaryPath, _ := os.Executable()
 	if binaryPath == "" {
