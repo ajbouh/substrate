@@ -13,6 +13,9 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/elnormous/contenttype"
+	"gopkg.in/fsnotify.v1"
 )
 
 const (
@@ -199,7 +202,7 @@ func (f *fileHandler) serveDir(w http.ResponseWriter, r *http.Request, osPath st
 	})
 }
 
-func (f *fileHandler) serveUploadTo(w http.ResponseWriter, r *http.Request, osPath string) error {
+func (f *fileHandler) serveFormUploadTo(w http.ResponseWriter, r *http.Request, osPath string) error {
 	if err := r.ParseForm(); err != nil {
 		return err
 	}
@@ -226,6 +229,64 @@ func (f *fileHandler) serveUploadTo(w http.ResponseWriter, r *http.Request, osPa
 	return nil
 }
 
+func (f *fileHandler) serveRawUploadTo(w http.ResponseWriter, r *http.Request, osPath string) error {
+	defer r.Body.Close()
+	fw, err := os.Create(osPath)
+	if err != nil {
+		return err
+	}
+	defer fw.Close()
+	_, err = io.Copy(fw, r.Body)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (f *fileHandler) serveFileEvents(w http.ResponseWriter, r *http.Request, osPath string) error {
+	h := w.Header()
+	h.Set("Content-Type", "text/event-stream")
+	h.Set("Cache-Control", "no-store")
+
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return err
+	}
+
+	watcher.Add(osPath)
+
+	go func() {
+		defer watcher.Close()
+		<-r.Context().Done()
+	}()
+
+	for {
+		select {
+		case _, ok := <-watcher.Events:
+			if !ok {
+				return nil
+			}
+			w.Write([]byte("data: update\n\n"))
+			w.(http.Flusher).Flush()
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return err
+			}
+		}
+	}
+}
+
+func acceptsTextEventStream(r *http.Request) bool {
+	availableMediaTypes := []contenttype.MediaType{
+		contenttype.NewMediaType("text/plain"), // A dummy value so matching doesn't assume text/event-stream
+		contenttype.NewMediaType("text/event-stream"),
+	}
+	if accepted, _, err := contenttype.GetAcceptableMediaType(r, availableMediaTypes); err == nil && accepted.Type == "text" && accepted.Subtype == "event-stream" {
+		return true
+	}
+	return false
+}
+
 // ServeHTTP is http.Handler.ServeHTTP
 func (f *fileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[%s] %s %s %s", f.path, r.RemoteAddr, r.Method, r.URL.String())
@@ -240,6 +301,7 @@ func (f *fileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	osPath = filepath.Clean(osPath)
 	osPath = filepath.Join(f.path, osPath)
 	info, err := os.Stat(osPath)
+
 	switch {
 	case os.IsNotExist(err):
 		_ = f.serveStatus(w, r, http.StatusNotFound)
@@ -254,26 +316,43 @@ func (f *fileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Query().Get(zipKey) != "":
 		err := f.serveZip(w, r, osPath)
 		if err != nil {
+			log.Printf("error: %s", err.Error())
 			_ = f.serveStatus(w, r, http.StatusInternalServerError)
 		}
 	case r.URL.Query().Get(tarGzKey) != "":
 		err := f.serveTarGz(w, r, osPath)
 		if err != nil {
+			log.Printf("error: %s", err.Error())
 			_ = f.serveStatus(w, r, http.StatusInternalServerError)
 		}
 	case f.allowUpload && info.IsDir() && r.Method == http.MethodPost:
-		err := f.serveUploadTo(w, r, osPath)
+		err := f.serveFormUploadTo(w, r, osPath)
 		if err != nil {
+			log.Printf("error: %s", err.Error())
+			_ = f.serveStatus(w, r, http.StatusInternalServerError)
+		}
+	case f.allowUpload && !info.IsDir() && r.Method == http.MethodPut:
+		err := f.serveRawUploadTo(w, r, osPath)
+		if err != nil {
+			log.Printf("error: %s", err.Error())
 			_ = f.serveStatus(w, r, http.StatusInternalServerError)
 		}
 	case f.allowDelete && !info.IsDir() && r.Method == http.MethodDelete:
 		err := os.Remove(osPath)
 		if err != nil {
+			log.Printf("error: %s", err.Error())
 			_ = f.serveStatus(w, r, http.StatusInternalServerError)
 		}
 	case info.IsDir():
 		err := f.serveDir(w, r, osPath)
 		if err != nil {
+			log.Printf("error: %s", err.Error())
+			_ = f.serveStatus(w, r, http.StatusInternalServerError)
+		}
+	case acceptsTextEventStream(r):
+		err := f.serveFileEvents(w, r, osPath)
+		if err != nil {
+			log.Printf("error: %s", err.Error())
 			_ = f.serveStatus(w, r, http.StatusInternalServerError)
 		}
 	default:
