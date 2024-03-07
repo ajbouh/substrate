@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -30,7 +29,6 @@ var (
 	allowDeletesFlag = os.Getenv(allowDeletesEnvVarName) == "true"
 	portFlag64, _    = strconv.ParseInt(os.Getenv(portEnvVarName), 10, 64)
 	portFlag         = int(portFlag64)
-	quietFlag        = os.Getenv(quietEnvVarName) == "true"
 )
 
 func init() {
@@ -41,13 +39,9 @@ func init() {
 	}
 	flag.StringVar(&addrFlag, "addr", addrFlag, fmt.Sprintf("address to listen on (environment variable %q)", addrEnvVarName))
 	flag.IntVar(&portFlag, "port", portFlag, fmt.Sprintf("port to listen on (overrides -addr port) (environment variable %q)", portEnvVarName))
-	flag.BoolVar(&quietFlag, "quiet", quietFlag, fmt.Sprintf("disable all log output (environment variable %q)", quietEnvVarName))
 	flag.BoolVar(&allowUploadsFlag, "uploads", allowUploadsFlag, fmt.Sprintf("allow uploads (environment variable %q)", allowUploadsEnvVarName))
 	flag.BoolVar(&allowDeletesFlag, "deletes", allowDeletesFlag, fmt.Sprintf("allow deletes (environment variable %q)", allowDeletesEnvVarName))
 	flag.Parse()
-	if quietFlag {
-		log.SetOutput(ioutil.Discard)
-	}
 }
 
 func main() {
@@ -70,38 +64,12 @@ func server(addr string) error {
 	prefix := os.Getenv("SUBSTRATE_URL_PREFIX")
 
 	mux.Handle(prefix+"/raw/", &fileHandler{
-		route:       prefix+"/raw/",
+		route:       prefix + "/raw/",
 		path:        "/spaces/data/tree",
 		allowUpload: allowUploadsFlag,
 		allowDelete: allowDeletesFlag,
 	})
 
-	mux.Handle(prefix+"/assets/", http.StripPrefix(prefix+"/assets/", http.FileServer(http.FS(assets.Content))))
-
-	nbpreviewHandler := func(rw http.ResponseWriter, req *http.Request) {
-		var buf = newBufferedResponseWriter()
-		rawReq := req.Clone(req.Context())
-		rawReq.URL.Path = prefix+"/raw" + rawReq.URL.Path
-
-		// assume 404
-		buf.statusCode = 404
-		mux.ServeHTTP(buf, rawReq)
-		if buf.statusCode != 200 {
-			header := rw.Header()
-			for k, v := range buf.Header() {
-				header[k] = v
-			}
-			rw.WriteHeader(buf.statusCode)
-			return
-		}
-
-		rw.Write(assets.RenderNBPreview(
-			[]byte(os.Getenv("SPAWNER_URL")),
-			[]byte(strconv.Quote(buf.b.String())),
-		))
-	}
-	mux.Handle(prefix+"/nbpreview/retro/notebooks/", http.StripPrefix(prefix+"/nbpreview/retro/notebooks", http.HandlerFunc(nbpreviewHandler)))
-	mux.Handle(prefix+"/nbpreview/", http.StripPrefix(prefix+"/nbpreview", http.HandlerFunc(nbpreviewHandler)))
 	mux.Handle(prefix+"/", http.RedirectHandler(prefix+"/raw/", http.StatusFound))
 
 	binaryPath, _ := os.Executable()
