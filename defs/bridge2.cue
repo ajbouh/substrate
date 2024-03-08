@@ -20,6 +20,7 @@ services: "bridge2": {
     ]
     environment: {
       BRIDGE_TRANSCRIBE_URL: "http://substrate:8080/faster-whisper/v1/transcribe",
+      BRIDGE_TRANSLATE_URL: "http://substrate:8080/seamlessm4t/v1/transcribe",
       BRIDGE_SESSIONS_DIR: "/spaces/sessions/tree"
     }
   }
