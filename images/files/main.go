@@ -9,8 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-
-	"github.com/ajbouh/substrate/images/files/assets"
 )
 
 const (

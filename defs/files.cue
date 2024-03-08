@@ -13,6 +13,4 @@ services: "files": {
     url_prefix: environment.SUBSTRATE_URL_PREFIX
   }
   spawn: parameters: data: type: "space"
-
-  }
 }
