@@ -28,6 +28,15 @@ var cborenc = func() cbor.EncMode {
 }()
 
 type Timestamp time.Duration // relative to stream start
+
+func (t Timestamp) String() string {
+	return time.Duration(t).String()
+}
+
+func (t Timestamp) Sub(o Timestamp) time.Duration {
+	return time.Duration(t) - (time.Duration(o))
+}
+
 type ID string
 
 type Span interface {
@@ -164,14 +173,14 @@ func (s *Session) Tracks() []*Track {
 	return out
 }
 
-type sessionSnapshot struct {
+type SessionSnapshot struct {
 	ID     ID
 	Start  time.Time
 	Tracks []*trackSnapshot
 }
 
-func (s *Session) snapshot() *sessionSnapshot {
-	snap := &sessionSnapshot{
+func (s *Session) Snapshot() *SessionSnapshot {
+	snap := &SessionSnapshot{
 		ID:     s.ID,
 		Start:  s.Start,
 		Tracks: []*trackSnapshot{}, // empty slice to ensure it doesn't serialize as "null"
@@ -187,11 +196,11 @@ func (s *Session) snapshot() *sessionSnapshot {
 }
 
 func (s *Session) MarshalCBOR() ([]byte, error) {
-	return cborenc.Marshal(s.snapshot())
+	return cborenc.Marshal(s.Snapshot())
 }
 
 func (s *Session) UnmarshalCBOR(data []byte) error {
-	var s2 sessionSnapshot
+	var s2 SessionSnapshot
 	if err := cbor.Unmarshal(data, &s2); err != nil {
 		return err
 	}

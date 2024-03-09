@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"log"
@@ -13,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
@@ -351,6 +353,34 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
+func (m *Main) serveSessionText(ctx context.Context, w http.ResponseWriter, r *http.Request, sess *Session) {
+	snapshot := sess.Snapshot()
+	tmpl, err := template.New("session.tmpl.txt").
+		Funcs(template.FuncMap{
+			"json": func(v any) (string, error) {
+				b, err := json.Marshal(v)
+				return string(b), err
+			},
+			"duration": func(s string) (time.Duration, error) {
+				return time.ParseDuration(s)
+			},
+		}).
+		ParseFS(ui.Dir, "session.tmpl.txt")
+	if err != nil {
+		log.Printf("error parsing template for session %s: %s", snapshot.ID, err)
+		http.Error(w, fmt.Sprintf("template parse error: %s", err), http.StatusInternalServerError)
+		return
+	}
+
+	err = tmpl.Execute(w, map[string]any{
+		"Session":         snapshot,
+		"NativeLanguages": map[string]bool{"en": true},
+	})
+	if err != nil {
+		log.Printf("error executing template for session %s: %s", snapshot.ID, err)
+	}
+}
+
 func (m *Main) serveSessionUpdates(ctx context.Context, w http.ResponseWriter, r *http.Request, sess *Session) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -430,6 +460,10 @@ func (m *Main) Serve(ctx context.Context) {
 	http.HandleFunc("/sessions/{sessID}/data", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)
 		m.serveSessionUpdates(ctx, w, r, sess)
+	})
+	http.HandleFunc("/sessions/{sessID}/text", func(w http.ResponseWriter, r *http.Request) {
+		sess := m.loadRequestSession(ctx, w, r)
+		m.serveSessionText(ctx, w, r, sess)
 	})
 
 	http.Handle("/webrtc/", http.StripPrefix("/webrtc", http.FileServer(http.FS(js.Dir))))
