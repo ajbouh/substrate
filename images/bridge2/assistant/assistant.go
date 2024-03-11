@@ -2,7 +2,6 @@ package assistant
 
 import (
 	"strings"
-	"unicode"
 
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 	"github.com/ajbouh/substrate/images/bridge2/transcribe"
@@ -29,23 +28,25 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 	if len(in.Segments) == 0 || len(in.Segments[0].Words) == 0 {
 		return
 	}
-	name := in.Segments[0].Words[0].Word
-	name = strings.ToLower(name)
-	name = strings.TrimFunc(name, func(r rune) bool {
-		return !unicode.IsLetter(r)
-	})
-	_, ok := a.Assistants[name]
-	if !ok {
-		return
-	}
-
 	text := strings.TrimSpace(in.Text())
-	_, prompt, _ := strings.Cut(text, " ")
-	out := AssistantEvent{
-		SourceEvent: annot.ID,
-		Name:        name,
-		Prompt:      prompt,
+	names := a.matchAssistant(text)
+	for _, name := range names {
+		out := AssistantEvent{
+			SourceEvent: annot.ID,
+			Name:        name,
+			Prompt:      text,
+		}
+		recordAssistant(annot.Span(), &out)
 	}
+}
 
-	recordAssistant(annot.Span(), &out)
+func (a *Agent) matchAssistant(text string) []string {
+	var matched []string
+	text = strings.ToLower(text)
+	for name := range a.Assistants {
+		if strings.Contains(text, name) {
+			matched = append(matched, name)
+		}
+	}
+	return matched
 }

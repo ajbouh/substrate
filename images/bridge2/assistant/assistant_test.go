@@ -1,6 +1,8 @@
 package assistant
 
 import (
+	"cmp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -35,6 +37,7 @@ func TestAssistant(t *testing.T) {
 	a := Agent{
 		Assistants: map[string]struct{}{
 			"bridge": {},
+			"hal":    {},
 		},
 	}
 
@@ -66,7 +69,7 @@ func TestAssistant(t *testing.T) {
 			Data: &AssistantEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
-				Prompt:      "bar",
+				Prompt:      "bridge bar",
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -86,7 +89,7 @@ func TestAssistant(t *testing.T) {
 			Data: &AssistantEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
-				Prompt:      "bar",
+				Prompt:      "Bridge bar",
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -106,10 +109,69 @@ func TestAssistant(t *testing.T) {
 			Data: &AssistantEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
-				Prompt:      "bar",
+				Prompt:      "Bridge, bar",
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
+	})
+
+	t.Run("matches assistant name in middle of message", func(t *testing.T) {
+		tevt := transcribe.RecordTranscription(track, &transcribe.Transcription{
+			Segments: makeSegments("hey Bridge, bar"),
+		})
+		events := es.FetchFor(10 * time.Millisecond)
+		expected := tracks.Event{
+			EventMeta: tracks.EventMeta{
+				Type:  "assistant",
+				Start: tevt.Start,
+				End:   tevt.End,
+			},
+			Data: &AssistantEvent{
+				SourceEvent: tevt.ID,
+				Name:        "bridge",
+				Prompt:      "hey Bridge, bar",
+			},
+		}
+		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
+	})
+
+	t.Run("matches multiple assistant names", func(t *testing.T) {
+		tevt := transcribe.RecordTranscription(track, &transcribe.Transcription{
+			Segments: makeSegments("hey Bridge and HAL, open the pod bay doors"),
+		})
+		events := es.FetchFor(10 * time.Millisecond)
+		expected := []tracks.Event{
+			{
+				EventMeta: tracks.EventMeta{
+					Type:  "assistant",
+					Start: tevt.Start,
+					End:   tevt.End,
+				},
+				Data: &AssistantEvent{
+					SourceEvent: tevt.ID,
+					Name:        "bridge",
+					Prompt:      "hey Bridge and HAL, open the pod bay doors",
+				},
+			},
+			{
+				EventMeta: tracks.EventMeta{
+					Type:  "assistant",
+					Start: tevt.Start,
+					End:   tevt.End,
+				},
+				Data: &AssistantEvent{
+					SourceEvent: tevt.ID,
+					Name:        "hal",
+					Prompt:      "hey Bridge and HAL, open the pod bay doors",
+				},
+			},
+		}
+		assert.DeepEqual(t, tevt, events[0], cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
+		assistantEvents := events[1:]
+		slices.SortFunc(assistantEvents, func(a, b tracks.Event) int {
+			return cmp.Compare(a.Data.(*AssistantEvent).Name, b.Data.(*AssistantEvent).Name)
+		})
+		assert.DeepEqual(t, expected, events[1:], cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
 	})
 
 }
