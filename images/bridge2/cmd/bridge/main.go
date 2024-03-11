@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ajbouh/substrate/images/bridge2/assistant"
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 	"github.com/ajbouh/substrate/images/bridge2/transcribe"
 	"github.com/ajbouh/substrate/images/bridge2/translate"
@@ -56,6 +57,11 @@ func main() {
 		translate.Agent{
 			Endpoint:       getEnv("BRIDGE_TRANSLATE_URL", "http://localhost:8091/v1/transcribe"),
 			TargetLanguage: "en",
+		},
+		assistant.Agent{
+			Assistants: map[string]struct{}{
+				"bridge": {},
+			},
 		},
 		eventLogger{
 			exclude: []string{"audio"},

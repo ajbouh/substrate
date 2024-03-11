@@ -13,7 +13,7 @@ import (
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 )
 
-var recordTranscription = tracks.EventRecorder[*Transcription]("transcription")
+var RecordTranscription = tracks.EventRecorder[*Transcription]("transcription")
 
 type Agent struct {
 	Endpoint string
@@ -47,7 +47,7 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		return
 	}
 
-	recordTranscription(annot.Span(), transcription)
+	RecordTranscription(annot.Span(), transcription)
 }
 
 func (a *Agent) Transcribe(request *Request) (*Transcription, error) {
