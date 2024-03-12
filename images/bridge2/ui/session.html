@@ -28,7 +28,7 @@ let webSocketURL = (() => {
 let micSess = null;
 let screenSess = null;
 const initSession = () => {
-  let sess = new SFU(`${webSocketURL}?sfu`);
+  let sess = new SFU(`${webSocketURL}/sfu`);
   sess.onclose = (evt) => console.log("Websocket has closed");
   sess.onerror = (evt) => console.log("ERROR: " + evt.data);
   sess.ontrack = ({ streams: [stream], track }) => {
@@ -75,7 +75,7 @@ const shareScreen = () => {
 };
 
 let viewModel = {};
-let dataWS = new WebSocket(`${webSocketURL}?data`);
+let dataWS = new WebSocket(`${webSocketURL}/data`);
 dataWS.binaryType = 'arraybuffer';
 dataWS.onmessage = e => {
   const data = CBOR.decode((new Uint8Array(e.data)).buffer);
