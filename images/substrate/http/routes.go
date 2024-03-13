@@ -1,7 +1,10 @@
 package substratehttp
 
 import (
+	"log"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	substratedb "github.com/ajbouh/substrate/images/substrate/db"
@@ -66,6 +69,32 @@ func (h *Handler) Initialize() {
 
 	router.Handle("GET", "/", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
 		http.Redirect(rw, req, "/ui/", http.StatusTemporaryRedirect)
+	})
+
+	router.Handle("GET", "/favicon.ico", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
+		if req.Header.Get("Referer") == "" {
+			log.Printf("no referer for %s request; returning 404", req.URL)
+			http.Error(rw, "not found", http.StatusNotFound)
+			return
+		}
+		referer, err := url.Parse(req.Header.Get("Referer"))
+		if err != nil {
+			log.Printf("malformed url referer for %s request; returning 404: %s", req.URL, err)
+			http.Error(rw, "not found", http.StatusNotFound)
+			return
+		}
+		service, _, ok := strings.Cut(referer.Path[1:], "/")
+		if ok {
+			location := "/" + service + req.URL.Path
+			if req.URL.RawQuery != "" {
+				location += "?" + req.URL.RawQuery
+			}
+			http.Redirect(rw, req, location, http.StatusTemporaryRedirect)
+			return
+		}
+
+		log.Printf("no obvious service in referer %q for %s request; returning 404: %s", referer, req.URL, err)
+		http.Error(rw, "not found", http.StatusNotFound)
 	})
 
 	gwRouter := httprouter.New()
