@@ -35,6 +35,12 @@ export var Entry = {
               translation.text,
             )
           ),
+          attrs.assistants.map(asst =>
+            m("div", {"class": "text text-fuchsia-500"},
+              m("b", asst.name),
+              asst.text,
+            )
+          ),
         )
       )
     ])

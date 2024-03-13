@@ -59,8 +59,8 @@ func main() {
 			TargetLanguage: "en",
 		},
 		assistant.Agent{
-			Assistants: map[string]struct{}{
-				"bridge": {},
+			Assistants: map[string]string{
+				"bridge": getEnv("BRIDGE_ASSISTANT_URL", "http://localhost:8092/v1/assistant"),
 			},
 		},
 		eventLogger{
@@ -87,7 +87,7 @@ func (l eventLogger) HandleEvent(e tracks.Event) {
 			return
 		}
 	}
-	log.Printf("event: %s %s %s-%s", e.Type, e.ID, time.Duration(e.Start), time.Duration(e.End))
+	log.Printf("event: %s %s %s-%s %#v", e.Type, e.ID, time.Duration(e.Start), time.Duration(e.End), e.Data)
 }
 
 type Main struct {
