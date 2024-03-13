@@ -1,10 +1,10 @@
-FROM docker.io/library/golang:1.21 as builder
+FROM docker.io/library/golang:1.22 as builder
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    pkg-config \
-    libopus-dev \
-    libopusfile-dev \
-    libasound2-dev \
+  pkg-config \
+  libopus-dev \
+  libopusfile-dev \
+  libasound2-dev \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge2
 COPY images/bridge2/go.mod images/bridge2/go.sum .

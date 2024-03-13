@@ -1,6 +1,6 @@
 module github.com/ajbouh/substrate/images/bridge2
 
-go 1.21.1
+go 1.22
 
 require (
 	github.com/fxamacker/cbor/v2 v2.5.0
