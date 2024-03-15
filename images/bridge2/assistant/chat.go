@@ -1,3 +1,6 @@
+// JSON model forked from `go-openai` under the Apache 2.0 license
+// https://github.com/sashabaranov/go-openai
+// http://www.apache.org/licenses/LICENSE-2.0
 package assistant
 
 import "encoding/json"

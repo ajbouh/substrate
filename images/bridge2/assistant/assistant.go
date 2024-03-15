@@ -18,7 +18,7 @@ var recordAssistant = tracks.EventRecorder[*AssistantEvent]("assistant")
 type AssistantEvent struct {
 	SourceEvent tracks.ID
 	Name        string
-	Prompt      string
+	Input       string
 	Response    string
 	Error       string
 }
@@ -56,15 +56,15 @@ func (a *Agent) matchAssistants(text string) []string {
 	return matched
 }
 
-func (a *Agent) respond(annot tracks.Event, name, prompt string) {
+func (a *Agent) respond(annot tracks.Event, name, input string) {
 	out := AssistantEvent{
 		SourceEvent: annot.ID,
 		Name:        name,
-		Prompt:      prompt,
+		Input:       input,
 	}
 	// TODO get speaker name from transcription
 	log.Printf("assistant: about to call %s", name)
-	resp, err := a.call(name, "user", prompt)
+	resp, err := a.call(name, "user", input)
 	if err != nil {
 		log.Printf("assistant: %s error: %v", name, err)
 		out.Error = "error calling assistant"
@@ -73,6 +73,12 @@ func (a *Agent) respond(annot tracks.Event, name, prompt string) {
 		out.Response = resp
 	}
 	recordAssistant(annot.Span(), &out)
+}
+
+// TODO replace this with an accurate count of tokens, e.g.:
+// https://github.com/pkoukk/tiktoken-go#counting-tokens-for-chat-api-calls
+func tokenCount(msg string) int {
+	return len(msg)
 }
 
 func (a *Agent) call(name, speaker, prompt string) (string, error) {
@@ -92,7 +98,7 @@ Overall {} is a powerful system that can help humans with a wide range of tasks 
 `, "{}", name)
 
 	req := ChatCompletionRequest{
-		MaxTokens: maxTokens - len(systemMessage),
+		MaxTokens: maxTokens - tokenCount(systemMessage),
 		Messages: []ChatCompletionMessage{
 			{
 				Role:    ChatMessageRoleSystem,

@@ -69,7 +69,7 @@ func TestAssistant(t *testing.T) {
 			Data: &AssistantEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
-				Prompt:      "bridge bar",
+				Input:       "bridge bar",
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -89,7 +89,7 @@ func TestAssistant(t *testing.T) {
 			Data: &AssistantEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
-				Prompt:      "Bridge bar",
+				Input:       "Bridge bar",
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -109,7 +109,7 @@ func TestAssistant(t *testing.T) {
 			Data: &AssistantEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
-				Prompt:      "Bridge, bar",
+				Input:       "Bridge, bar",
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -129,7 +129,7 @@ func TestAssistant(t *testing.T) {
 			Data: &AssistantEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
-				Prompt:      "hey Bridge, bar",
+				Input:       "hey Bridge, bar",
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -150,7 +150,7 @@ func TestAssistant(t *testing.T) {
 				Data: &AssistantEvent{
 					SourceEvent: tevt.ID,
 					Name:        "bridge",
-					Prompt:      "hey Bridge and HAL, open the pod bay doors",
+					Input:       "hey Bridge and HAL, open the pod bay doors",
 				},
 			},
 			{
@@ -162,7 +162,7 @@ func TestAssistant(t *testing.T) {
 				Data: &AssistantEvent{
 					SourceEvent: tevt.ID,
 					Name:        "hal",
-					Prompt:      "hey Bridge and HAL, open the pod bay doors",
+					Input:       "hey Bridge and HAL, open the pod bay doors",
 				},
 			},
 		}
