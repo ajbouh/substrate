@@ -15,11 +15,6 @@ COPY images/substrate/. github.com/ajbouh/substrate/images/substrate/
 WORKDIR /go/src/github.com/ajbouh/substrate/images/substrate/
 
 FROM source as build
-RUN apt update \
-  && apt install -y --no-install-recommends \
-    dash \
-  && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
-	&& rm -rf /var/lib/apt/lists/*;
 
 # With the trick below, Go's build cache is kept between builds.
 # https://github.com/golang/go/issues/27719#issuecomment-514747274
