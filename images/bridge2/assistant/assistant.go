@@ -23,8 +23,12 @@ type AssistantEvent struct {
 	Error       string
 }
 
+type Client interface {
+	Call(speaker, prompt string) (string, error)
+}
+
 type Agent struct {
-	Assistants map[string]string
+	Assistants map[string]Client
 }
 
 func (a *Agent) HandleEvent(annot tracks.Event) {
@@ -75,17 +79,24 @@ func (a *Agent) respond(annot tracks.Event, name, input string) {
 	recordAssistant(annot.Span(), &out)
 }
 
+func (a *Agent) call(name, speaker, prompt string) (string, error) {
+	client := a.Assistants[name]
+	return client.Call(speaker, prompt)
+}
+
+type OpenAIClient struct {
+	Endpoint      string
+	SystemMessage string
+}
+
 // TODO replace this with an accurate count of tokens, e.g.:
 // https://github.com/pkoukk/tiktoken-go#counting-tokens-for-chat-api-calls
 func tokenCount(msg string) int {
 	return len(msg)
 }
 
-func (a *Agent) call(name, speaker, prompt string) (string, error) {
-	endpoint := a.Assistants[name]
-
-	maxTokens := 4096
-	systemMessage := strings.ReplaceAll(`
+func DefaultSystemMessageForName(name string) string {
+	return strings.ReplaceAll(`
 A chat between ASSISTANT (named {}) and a USER.
 
 {} is a conversational, vocal, artificial intelligence assistant.
@@ -96,7 +107,11 @@ A chat between ASSISTANT (named {}) and a USER.
 
 Overall {} is a powerful system that can help humans with a wide range of tasks and provide valuable insights as well as taking actions for the human.
 `, "{}", name)
+}
 
+func (a *OpenAIClient) Call(speaker, prompt string) (string, error) {
+	maxTokens := 4096
+	systemMessage := a.SystemMessage
 	req := ChatCompletionRequest{
 		MaxTokens: maxTokens - tokenCount(systemMessage),
 		Messages: []ChatCompletionMessage{
@@ -111,7 +126,7 @@ Overall {} is a powerful system that can help humans with a wide range of tasks 
 			},
 		},
 	}
-	resp, err := a.doRequest(endpoint, &req)
+	resp, err := doRequest(a.Endpoint, &req)
 	if err != nil {
 		return "", err
 	}
@@ -124,7 +139,7 @@ Overall {} is a powerful system that can help humans with a wide range of tasks 
 	return resp.Choices[0].Message.Content, nil
 }
 
-func (a *Agent) doRequest(endpoint string, request *ChatCompletionRequest) (*ChatCompletionResponse, error) {
+func doRequest(endpoint string, request *ChatCompletionRequest) (*ChatCompletionResponse, error) {
 	payloadBytes, err := json.Marshal(request)
 	if err != nil {
 		return nil, err

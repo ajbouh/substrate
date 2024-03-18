@@ -33,11 +33,17 @@ func makeSegments(text string) []transcribe.Segment {
 	return []transcribe.Segment{s}
 }
 
+type echoClient struct{}
+
+func (e echoClient) Call(speaker, prompt string) (string, error) {
+	return "echo: " + prompt, nil
+}
+
 func TestAssistant(t *testing.T) {
 	a := Agent{
-		Assistants: map[string]struct{}{
-			"bridge": {},
-			"hal":    {},
+		Assistants: map[string]Client{
+			"bridge": echoClient{},
+			"hal":    echoClient{},
 		},
 	}
 
@@ -70,6 +76,7 @@ func TestAssistant(t *testing.T) {
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
 				Input:       "bridge bar",
+				Response:    "echo: bridge bar",
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -90,6 +97,7 @@ func TestAssistant(t *testing.T) {
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
 				Input:       "Bridge bar",
+				Response:    "echo: Bridge bar",
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -110,6 +118,7 @@ func TestAssistant(t *testing.T) {
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
 				Input:       "Bridge, bar",
+				Response:    "echo: Bridge, bar",
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -130,6 +139,7 @@ func TestAssistant(t *testing.T) {
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
 				Input:       "hey Bridge, bar",
+				Response:    "echo: hey Bridge, bar",
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -151,6 +161,7 @@ func TestAssistant(t *testing.T) {
 					SourceEvent: tevt.ID,
 					Name:        "bridge",
 					Input:       "hey Bridge and HAL, open the pod bay doors",
+					Response:    "echo: hey Bridge and HAL, open the pod bay doors",
 				},
 			},
 			{
@@ -163,6 +174,7 @@ func TestAssistant(t *testing.T) {
 					SourceEvent: tevt.ID,
 					Name:        "hal",
 					Input:       "hey Bridge and HAL, open the pod bay doors",
+					Response:    "echo: hey Bridge and HAL, open the pod bay doors",
 				},
 			},
 		}
