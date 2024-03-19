@@ -98,7 +98,7 @@ dataWS.onmessage = e => {
         text: e.Data.Translation.segments.map(s => s.text).join(),
       });
       break;
-    case "assistant":
+    case "assistant-text":
       src = e.Data.SourceEvent
       if (!assistants.hasOwnProperty(src)) {
         assistants[src] = []
