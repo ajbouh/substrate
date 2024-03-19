@@ -68,11 +68,11 @@ func TestAssistant(t *testing.T) {
 		events := es.FetchFor(10 * time.Millisecond)
 		expected := tracks.Event{
 			EventMeta: tracks.EventMeta{
-				Type:  "assistant",
+				Type:  "assistant-text",
 				Start: tevt.Start,
 				End:   tevt.End,
 			},
-			Data: &AssistantEvent{
+			Data: &AssistantTextEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
 				Input:       "bridge bar",
@@ -89,11 +89,11 @@ func TestAssistant(t *testing.T) {
 		events := es.FetchFor(10 * time.Millisecond)
 		expected := tracks.Event{
 			EventMeta: tracks.EventMeta{
-				Type:  "assistant",
+				Type:  "assistant-text",
 				Start: tevt.Start,
 				End:   tevt.End,
 			},
-			Data: &AssistantEvent{
+			Data: &AssistantTextEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
 				Input:       "Bridge bar",
@@ -110,11 +110,11 @@ func TestAssistant(t *testing.T) {
 		events := es.FetchFor(10 * time.Millisecond)
 		expected := tracks.Event{
 			EventMeta: tracks.EventMeta{
-				Type:  "assistant",
+				Type:  "assistant-text",
 				Start: tevt.Start,
 				End:   tevt.End,
 			},
-			Data: &AssistantEvent{
+			Data: &AssistantTextEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
 				Input:       "Bridge, bar",
@@ -131,11 +131,11 @@ func TestAssistant(t *testing.T) {
 		events := es.FetchFor(10 * time.Millisecond)
 		expected := tracks.Event{
 			EventMeta: tracks.EventMeta{
-				Type:  "assistant",
+				Type:  "assistant-text",
 				Start: tevt.Start,
 				End:   tevt.End,
 			},
-			Data: &AssistantEvent{
+			Data: &AssistantTextEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
 				Input:       "hey Bridge, bar",
@@ -153,11 +153,11 @@ func TestAssistant(t *testing.T) {
 		expected := []tracks.Event{
 			{
 				EventMeta: tracks.EventMeta{
-					Type:  "assistant",
+					Type:  "assistant-text",
 					Start: tevt.Start,
 					End:   tevt.End,
 				},
-				Data: &AssistantEvent{
+				Data: &AssistantTextEvent{
 					SourceEvent: tevt.ID,
 					Name:        "bridge",
 					Input:       "hey Bridge and HAL, open the pod bay doors",
@@ -166,11 +166,11 @@ func TestAssistant(t *testing.T) {
 			},
 			{
 				EventMeta: tracks.EventMeta{
-					Type:  "assistant",
+					Type:  "assistant-text",
 					Start: tevt.Start,
 					End:   tevt.End,
 				},
-				Data: &AssistantEvent{
+				Data: &AssistantTextEvent{
 					SourceEvent: tevt.ID,
 					Name:        "hal",
 					Input:       "hey Bridge and HAL, open the pod bay doors",
@@ -181,7 +181,7 @@ func TestAssistant(t *testing.T) {
 		assert.DeepEqual(t, tevt, events[0], cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
 		assistantEvents := events[1:]
 		slices.SortFunc(assistantEvents, func(a, b tracks.Event) int {
-			return cmp.Compare(a.Data.(*AssistantEvent).Name, b.Data.(*AssistantEvent).Name)
+			return cmp.Compare(a.Data.(*AssistantTextEvent).Name, b.Data.(*AssistantTextEvent).Name)
 		})
 		assert.DeepEqual(t, expected, events[1:], cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
 	})

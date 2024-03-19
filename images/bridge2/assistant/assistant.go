@@ -13,9 +13,9 @@ import (
 	"github.com/ajbouh/substrate/images/bridge2/transcribe"
 )
 
-var recordAssistant = tracks.EventRecorder[*AssistantEvent]("assistant")
+var recordAssistantText = tracks.EventRecorder[*AssistantTextEvent]("assistant-text")
 
-type AssistantEvent struct {
+type AssistantTextEvent struct {
 	SourceEvent tracks.ID
 	Name        string
 	Input       string
@@ -61,7 +61,7 @@ func (a *Agent) matchAssistants(text string) []string {
 }
 
 func (a *Agent) respond(annot tracks.Event, name, input string) {
-	out := AssistantEvent{
+	out := AssistantTextEvent{
 		SourceEvent: annot.ID,
 		Name:        name,
 		Input:       input,
@@ -76,7 +76,7 @@ func (a *Agent) respond(annot tracks.Event, name, input string) {
 		log.Printf("assistant: %s response: %s", name, resp)
 		out.Response = resp
 	}
-	recordAssistant(annot.Span(), &out)
+	recordAssistantText(annot.Span(), &out)
 }
 
 func (a *Agent) call(name, speaker, prompt string) (string, error) {
