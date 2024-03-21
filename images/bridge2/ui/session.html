@@ -84,18 +84,32 @@ dataWS.onmessage = e => {
   const sessionStart = data.Session && new Date(data.Session.Start).getTime();
 
   const translations = {};
+  const assistants = {};
   for (const e of events) {
-    if (e.Type !== "translation") {
-      continue
+    let src;
+    switch (e.Type) {
+    case "translation":
+      src = e.Data.SourceEvent
+      if (!translations.hasOwnProperty(src)) {
+        translations[src] = []
+      }
+      translations[src].push({
+        lang: e.Data.Translation.target_language,
+        text: e.Data.Translation.segments.map(s => s.text).join(),
+      });
+      break;
+    case "assistant-text":
+      src = e.Data.SourceEvent
+      if (!assistants.hasOwnProperty(src)) {
+        assistants[src] = []
+      }
+      assistants[src].push({
+        name: e.Data.Name,
+        text: e.Data.Response,
+        error: e.Data.Error,
+      });
+      break;
     }
-    const src = e.Data.SourceEvent
-    if (!translations.hasOwnProperty(src)) {
-      translations[src] = []
-    }
-    translations[src].push({
-      lang: e.Data.Translation.target_language,
-      text: e.Data.Translation.segments.map(s => s.text).join(),
-    });
   }
 
   viewModel = {
@@ -111,6 +125,9 @@ dataWS.onmessage = e => {
         text: t.Data.segments.map(s => s.text).join(),
         final: true,
         translations: translations[t.ID] || [],
+        // right now these are in response to a single message, though in the
+        // future we may have some entries that are out of band
+        assistants: assistants[t.ID] || [],
       }
     }).filter(e => e.text.length > 0),
   }

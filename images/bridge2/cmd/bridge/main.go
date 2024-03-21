@@ -17,6 +17,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/ajbouh/substrate/images/bridge2/assistant"
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 	"github.com/ajbouh/substrate/images/bridge2/transcribe"
 	"github.com/ajbouh/substrate/images/bridge2/translate"
@@ -58,6 +59,14 @@ func main() {
 			Endpoint:       getEnv("BRIDGE_TRANSLATE_URL", "http://localhost:8091/v1/transcribe"),
 			TargetLanguage: "en",
 		},
+		assistant.Agent{
+			Assistants: map[string]assistant.Client{
+				"bridge": &assistant.OpenAIClient{
+					Endpoint:      getEnv("BRIDGE_ASSISTANT_URL", "http://localhost:8092/v1/assistant"),
+					SystemMessage: assistant.DefaultSystemMessageForName("bridge"),
+				},
+			},
+		},
 		eventLogger{
 			exclude: []string{"audio"},
 		},
@@ -82,7 +91,7 @@ func (l eventLogger) HandleEvent(e tracks.Event) {
 			return
 		}
 	}
-	log.Printf("event: %s %s %s-%s", e.Type, e.ID, time.Duration(e.Start), time.Duration(e.End))
+	log.Printf("event: %s %s %s-%s %#v", e.Type, e.ID, time.Duration(e.Start), time.Duration(e.End), e.Data)
 }
 
 type Main struct {
