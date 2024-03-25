@@ -259,6 +259,95 @@ export function newView({angles, surfaceDefs, aspectRatio}) {
 
 let ID = 0
 
+export function defineAudioSurface({}) {
+  return function createSurface() {
+    const audio = new Audio()
+    // track the last step we were on and don't mess with the current time if we're on the same step we were last time.
+    let lastAgoStep
+    return {
+      async update({getAgo, running}) {
+        const get = (...a) => getAgo(...a)[0]
+        const nowPlaying = running && get('playing')
+        const wasPlaying = !audio.paused && !audio.ended && (audio.readyState > 2) && (audio.currentTime > 0)
+        let [currentTime, ago, agoStep] = getAgo('currentTime')
+        currentTime += (ago / 1000.0)
+        const src = get('src')
+        if (audio.src !== src) {
+          audio.src = src
+        }
+        if (nowPlaying !== wasPlaying || lastAgoStep != agoStep) {
+          audio.currentTime = currentTime
+        }
+        if (nowPlaying !== wasPlaying) {
+          if (nowPlaying && currentTime < audio.duration) {
+            await audio.play()
+          } else {
+            audio.pause()
+          }
+        }
+
+        lastAgoStep = agoStep
+      },
+    }
+  }
+}
+
+export function defineVoiceSurface({url}) {
+  async function speak({text}) {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        "input": text,
+      }),
+    })
+
+    if (r.status !== 200) {
+      const t = await r.text()
+      throw new Error(`non-200 http status: ${t}`)
+    }
+
+    return {
+      src: URL.createObjectURL(await r.blob()),
+    }
+  }
+  
+  return function createSurface() {
+    const audio = new Audio()
+    // track the last step we were on and don't mess with the current time if we're on the same step we were last time.
+    let lastAgoStep
+    let lastText
+    return {
+      async update({getAgo, running}) {
+        const get = (...a) => getAgo(...a)[0]
+        const nowPlaying = running && get('playing')
+        const wasPlaying = !audio.paused && !audio.ended && (audio.readyState > 2) && (audio.currentTime > 0)
+        let [currentTime, ago, agoStep] = getAgo('currentTime')
+        currentTime += (ago / 1000.0)
+        const text = get('text')
+        if (lastText !== text) {
+          lastText = text
+          audio.src = (await speak({text})).src
+        }
+        if (nowPlaying !== wasPlaying || lastAgoStep != agoStep) {
+          audio.currentTime = currentTime
+        }
+        if (nowPlaying !== wasPlaying) {
+          if (nowPlaying && currentTime < audio.duration) {
+            await audio.play()
+          } else {
+            audio.pause()
+          }
+        }
+
+        lastAgoStep = agoStep
+      },
+    }
+  }
+}
+
 export function defineDOMSurface({width, height, useChromestage}) {
   // TODO useChromestage
   return function createSurface() {
