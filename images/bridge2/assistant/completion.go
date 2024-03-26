@@ -140,6 +140,13 @@ type LogprobResult struct {
 	TextOffset    []int                `json:"text_offset"`
 }
 
+// Usage Represents the total token usage per request to OpenAI.
+type Usage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
 // CompletionResponse represents a response structure for completion API.
 type CompletionResponse struct {
 	ID      string             `json:"id"`

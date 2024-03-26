@@ -139,10 +139,6 @@ func (a *OpenAIClient) Call(assistant, speaker, input string) (string, error) {
 	return resp.Choices[0].Text, nil
 }
 
-func doChatRequest(endpoint string, request *ChatCompletionRequest) (*ChatCompletionResponse, error) {
-	return doRequest[ChatCompletionResponse](endpoint, request)
-}
-
 func indentJSONString(b []byte) string {
 	var buf bytes.Buffer
 	json.Indent(&buf, b, "", "  ")
