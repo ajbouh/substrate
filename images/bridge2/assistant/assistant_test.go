@@ -35,7 +35,7 @@ func makeSegments(text string) []transcribe.Segment {
 
 type echoClient struct{}
 
-func (e echoClient) Call(speaker, prompt string) (string, error) {
+func (e echoClient) Call(assistant, speaker, prompt string) (string, error) {
 	return "echo: " + prompt, nil
 }
 

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ajbouh/substrate/images/bridge2/assistant/prompts"
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 	"github.com/ajbouh/substrate/images/bridge2/transcribe"
 )
@@ -24,7 +25,7 @@ type AssistantTextEvent struct {
 }
 
 type Client interface {
-	Call(speaker, prompt string) (string, error)
+	Call(assistant, speaker, prompt string) (string, error)
 }
 
 type Agent struct {
@@ -81,7 +82,7 @@ func (a *Agent) respond(annot tracks.Event, name, input string) {
 
 func (a *Agent) call(name, speaker, prompt string) (string, error) {
 	client := a.Assistants[name]
-	return client.Call(speaker, prompt)
+	return client.Call(name, speaker, prompt)
 }
 
 type OpenAIClient struct {
@@ -109,24 +110,23 @@ Overall {} is a powerful system that can help humans with a wide range of tasks 
 `, "{}", name)
 }
 
-func (a *OpenAIClient) Call(speaker, prompt string) (string, error) {
+func (a *OpenAIClient) Call(assistant, speaker, input string) (string, error) {
 	maxTokens := 4096
 	systemMessage := a.SystemMessage
-	req := ChatCompletionRequest{
-		MaxTokens: maxTokens - tokenCount(systemMessage),
-		Messages: []ChatCompletionMessage{
-			{
-				Role:    ChatMessageRoleSystem,
-				Content: systemMessage,
-			},
-			{
-				Role:    ChatMessageRoleUser,
-				Name:    speaker,
-				Content: prompt,
-			},
-		},
+	prompt, err := prompts.Render("complete", map[string]any{
+		"SystemMessage": systemMessage,
+		"UserInput":     input,
+		"AssistantName": assistant,
+		"SpeakerName":   speaker,
+	})
+	if err != nil {
+		return "", err
 	}
-	resp, err := doRequest(a.Endpoint, &req)
+	req := CompletionRequest{
+		MaxTokens: maxTokens - tokenCount(systemMessage),
+		Prompt:    prompt,
+	}
+	resp, err := doCompletion(a.Endpoint, &req)
 	if err != nil {
 		return "", err
 	}
@@ -136,14 +136,21 @@ func (a *OpenAIClient) Call(speaker, prompt string) (string, error) {
 	if r, err := json.MarshalIndent(resp, "", " "); err == nil {
 		log.Printf("assistant: response: %s", r)
 	}
-	return resp.Choices[0].Message.Content, nil
+	return resp.Choices[0].Text, nil
 }
 
-func doRequest(endpoint string, request *ChatCompletionRequest) (*ChatCompletionResponse, error) {
+func indentJSONString(b []byte) string {
+	var buf bytes.Buffer
+	json.Indent(&buf, b, "", "  ")
+	return buf.String()
+}
+
+func doRequest[Resp, Req any](endpoint string, request Req) (*Resp, error) {
 	payloadBytes, err := json.Marshal(request)
 	if err != nil {
 		return nil, err
 	}
+	log.Println("assistant: request:", indentJSONString(payloadBytes))
 
 	resp, err := http.Post(endpoint, "application/json", bytes.NewBuffer(payloadBytes))
 	if err != nil {
@@ -159,7 +166,8 @@ func doRequest(endpoint string, request *ChatCompletionRequest) (*ChatCompletion
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("assistant: unexpected status %d: %s", resp.StatusCode, body)
 	}
-	var response ChatCompletionResponse
+	var response Resp
 	err = json.Unmarshal(body, &response)
+	log.Println("assistant: response:", indentJSONString(body))
 	return &response, err
 }
