@@ -275,6 +275,24 @@ func sessionUpdateHandler(ctx context.Context, sess *Session) <-chan struct{} {
 	return ch
 }
 
+func sessionEventStream(ctx context.Context, sess *Session) <-chan tracks.Event {
+	ch := make(chan tracks.Event)
+	h := tracks.HandlerFunc(func(e tracks.Event) {
+		if e.Type == "audio" {
+			// if this is a transient event like "audio" we don't want to send
+			return
+		}
+		ch <- e
+	})
+	go func() {
+		<-ctx.Done()
+		sess.Unlisten(h)
+		close(ch)
+	}()
+	sess.Listen(h)
+	return ch
+}
+
 func timeoutUpdateCh(in <-chan struct{}, timeout time.Duration) <-chan struct{} {
 	out := make(chan struct{})
 	go func() {
@@ -473,6 +491,22 @@ func (m *Main) Serve(ctx context.Context) {
 	http.HandleFunc("/sessions/{sessID}/text", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)
 		m.serveSessionText(ctx, w, r, sess)
+	})
+	http.HandleFunc("/sessions/{sessID}/events", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		sess := m.loadRequestSession(ctx, w, r)
+		events := sessionEventStream(ctx, sess)
+		m.serveSessionUpdates(ctx, w, r, sess)
+
+		h := w.Header()
+		h.Set("Content-Type", "text/event-stream")
+		h.Set("Cache-Control", "no-store")
+
+		for e := range events {
+			fmt.Fprintf(w, "event: %s\nid: %s\n\n", e.Type, e.ID)
+			w.(http.Flusher).Flush()
+		}
 	})
 
 	http.Handle("/webrtc/", http.StripPrefix("/webrtc", http.FileServer(http.FS(js.Dir))))
