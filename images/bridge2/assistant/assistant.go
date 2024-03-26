@@ -25,7 +25,7 @@ type AssistantTextEvent struct {
 }
 
 type Client interface {
-	Call(speaker, prompt string) (string, error)
+	Call(assistant, speaker, prompt string) (string, error)
 }
 
 type Agent struct {
@@ -82,7 +82,7 @@ func (a *Agent) respond(annot tracks.Event, name, input string) {
 
 func (a *Agent) call(name, speaker, prompt string) (string, error) {
 	client := a.Assistants[name]
-	return client.Call(speaker, prompt)
+	return client.Call(name, speaker, prompt)
 }
 
 type OpenAIClient struct {
@@ -110,18 +110,19 @@ Overall {} is a powerful system that can help humans with a wide range of tasks 
 `, "{}", name)
 }
 
-func (a *OpenAIClient) Call(speaker, input string) (string, error) {
+func (a *OpenAIClient) Call(assistant, speaker, input string) (string, error) {
 	maxTokens := 4096
 	systemMessage := a.SystemMessage
 	prompt, err := prompts.Render("complete", map[string]any{
 		"SystemMessage": systemMessage,
 		"UserInput":     input,
+		"AssistantName": assistant,
+		"SpeakerName":   speaker,
 	})
 	if err != nil {
 		return "", err
 	}
 	req := CompletionRequest{
-		// Model:
 		MaxTokens: maxTokens - tokenCount(systemMessage),
 		Prompt:    prompt,
 	}

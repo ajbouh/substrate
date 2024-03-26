@@ -1,6 +1,7 @@
 package prompts
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,9 @@ func TestRender(t *testing.T) {
 	s, err := Render("complete", map[string]interface{}{
 		"SystemMessage": "test",
 		"UserInput":     "test",
+		"AssistantName": "bridge",
 	})
 	require.NoError(t, err)
 	t.Log(s)
+	assert.Assert(t, strings.HasSuffix(s, "BRIDGE:"), "the rendered output should end with the assistant name without a trailing newline")
 }

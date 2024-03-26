@@ -17,7 +17,9 @@ var dir = fs.LiveDir(dirEmbed)
 func loadTemplates() (*template.Template, error) {
 	// TODO if we're reading from the embed.FS the contents won't change, so we
 	// should cache this forever
-	return template.New("").ParseFS(dir, "*.tmpl")
+	return template.New("").Funcs(template.FuncMap{
+		"upper": strings.ToUpper,
+	}).ParseFS(dir, "*.tmpl")
 }
 
 func Execute(w io.Writer, name string, data any) error {
