@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/ajbouh/substrate/images/bridge2/assistant/prompts"
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
@@ -29,7 +30,23 @@ type Client interface {
 }
 
 type Agent struct {
-	Assistants map[string]Client
+	DefaultAssistants map[string]Client
+	sessionAssistants sync.Map
+}
+
+func (a *Agent) AddAssistant(session tracks.ID, name string, client Client) {
+	m := a.sessionAssistantMap(session)
+	m.Store(name, client)
+}
+
+func (a *Agent) RemoveAssistant(session tracks.ID, name string) {
+	m := a.sessionAssistantMap(session)
+	m.Delete(name)
+}
+
+func (a *Agent) sessionAssistantMap(session tracks.ID) *sync.Map {
+	m, _ := a.sessionAssistants.LoadOrStore(session, &sync.Map{})
+	return m.(*sync.Map)
 }
 
 func (a *Agent) HandleEvent(annot tracks.Event) {
@@ -43,25 +60,32 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		return
 	}
 	text := strings.TrimSpace(in.Text())
-	names := a.matchAssistants(text)
+	names := a.matchAssistants(annot.Track().Session.ID, text)
 	log.Printf("assistant: matched %v for: %s", names, text)
-	for _, name := range names {
-		go a.respond(annot, name, text)
+	for name, client := range names {
+		go a.respond(client, annot, name, text)
 	}
 }
 
-func (a *Agent) matchAssistants(text string) []string {
-	var matched []string
+func (a *Agent) matchAssistants(session tracks.ID, text string) map[string]Client {
+	matched := make(map[string]Client)
 	text = strings.ToLower(text)
-	for name := range a.Assistants {
+	for name, client := range a.DefaultAssistants {
 		if strings.Contains(text, name) {
-			matched = append(matched, name)
+			matched[name] = client
 		}
 	}
+	a.sessionAssistantMap(session).Range(func(key, value any) bool {
+		name := key.(string)
+		if strings.Contains(text, name) {
+			matched[name] = value.(Client)
+		}
+		return true
+	})
 	return matched
 }
 
-func (a *Agent) respond(annot tracks.Event, name, input string) {
+func (a *Agent) respond(client Client, annot tracks.Event, name, input string) {
 	out := AssistantTextEvent{
 		SourceEvent: annot.ID,
 		Name:        name,
@@ -69,7 +93,7 @@ func (a *Agent) respond(annot tracks.Event, name, input string) {
 	}
 	// TODO get speaker name from transcription
 	log.Printf("assistant: about to call %s", name)
-	resp, err := a.call(name, "user", input)
+	resp, err := client.Call(name, "user", input)
 	if err != nil {
 		log.Printf("assistant: %s error: %v", name, err)
 		out.Error = "error calling assistant"
@@ -78,11 +102,6 @@ func (a *Agent) respond(annot tracks.Event, name, input string) {
 		out.Response = resp
 	}
 	recordAssistantText(annot.Span(), &out)
-}
-
-func (a *Agent) call(name, speaker, prompt string) (string, error) {
-	client := a.Assistants[name]
-	return client.Call(name, speaker, prompt)
 }
 
 type OpenAIClient struct {

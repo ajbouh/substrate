@@ -41,7 +41,7 @@ func (e echoClient) Call(assistant, speaker, prompt string) (string, error) {
 
 func TestAssistant(t *testing.T) {
 	a := Agent{
-		Assistants: map[string]Client{
+		DefaultAssistants: map[string]Client{
 			"bridge": echoClient{},
 			"hal":    echoClient{},
 		},
@@ -186,4 +186,59 @@ func TestAssistant(t *testing.T) {
 		assert.DeepEqual(t, expected, events[1:], cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
 	})
 
+}
+
+func TestAssistantAdd(t *testing.T) {
+	a := Agent{
+		DefaultAssistants: map[string]Client{
+			"bridge": echoClient{},
+		},
+	}
+
+	session := tracks.NewSession()
+	track := bridgetest.NewTrackWithSilence(session, 10*time.Millisecond)
+
+	session.Listen(&a)
+	es := bridgetest.AddEventStreamer(session)
+
+	t.Run("does not match assistant name", func(t *testing.T) {
+		tevt := transcribe.RecordTranscription(track, &transcribe.Transcription{
+			Segments: makeSegments("hello hal"),
+		})
+		events := es.FetchFor(10 * time.Millisecond)
+		assert.DeepEqual(t, []tracks.Event{tevt}, events, cmpopts.IgnoreFields(tracks.Event{}, "track"))
+	})
+
+	a.AddAssistant(session.ID, "hal", echoClient{})
+
+	t.Run("matches assistant name after it's added", func(t *testing.T) {
+		tevt := transcribe.RecordTranscription(track, &transcribe.Transcription{
+			Segments: makeSegments("hello hal"),
+		})
+		events := es.FetchFor(10 * time.Millisecond)
+		expected := tracks.Event{
+			EventMeta: tracks.EventMeta{
+				Type:  "assistant-text",
+				Start: tevt.Start,
+				End:   tevt.End,
+			},
+			Data: &AssistantTextEvent{
+				SourceEvent: tevt.ID,
+				Name:        "hal",
+				Input:       "hello hal",
+				Response:    "echo: hello hal",
+			},
+		}
+		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
+	})
+
+	a.RemoveAssistant(session.ID, "hal")
+
+	t.Run("does not match again after assistant is removed", func(t *testing.T) {
+		tevt := transcribe.RecordTranscription(track, &transcribe.Transcription{
+			Segments: makeSegments("hello hal"),
+		})
+		events := es.FetchFor(10 * time.Millisecond)
+		assert.DeepEqual(t, []tracks.Event{tevt}, events, cmpopts.IgnoreFields(tracks.Event{}, "track"))
+	})
 }

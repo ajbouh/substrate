@@ -60,7 +60,7 @@ func main() {
 			TargetLanguage: "en",
 		},
 		assistant.Agent{
-			Assistants: map[string]assistant.Client{
+			DefaultAssistants: map[string]assistant.Client{
 				"bridge": &assistant.OpenAIClient{
 					Endpoint:      getEnv("BRIDGE_ASSISTANT_URL", "http://localhost:8092/v1/assistant"),
 					SystemMessage: assistant.DefaultSystemMessageForName("bridge"),
