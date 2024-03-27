@@ -72,7 +72,7 @@ type ServiceDefSpawn struct {
 type ServiceDefSpawnMount struct {
 	Source      string `json:"source"`
 	Destination string `json:"destination"`
-	Mode        string `json:"mode",omitempty`
+	Mode        string `json:"mode,omitempty"`
 }
 
 type ResourceDirDef struct {
