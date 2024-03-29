@@ -1,10 +1,12 @@
 package tracks
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -38,6 +40,11 @@ func (t Timestamp) Sub(o Timestamp) time.Duration {
 }
 
 type ID string
+
+func (id ID) Compare(other ID) int {
+	// since these are based on xid, we can compare bytes to get time-based ordering
+	return bytes.Compare([]byte(id), []byte(other))
+}
 
 type Span interface {
 	Track() *Track
@@ -149,8 +156,11 @@ func NewSession() *Session {
 }
 
 func (s *Session) NewTrack(format beep.Format) *Track {
-	start := time.Now().UTC().Sub(s.Start)
-	return s.NewTrackAt(Timestamp(start), format)
+	return s.NewTrackAt(s.now(), format)
+}
+
+func (s *Session) now() Timestamp {
+	return Timestamp(time.Now().UTC().Sub(s.Start))
 }
 
 func (s *Session) NewTrackAt(start Timestamp, format beep.Format) *Track {
@@ -171,6 +181,26 @@ func (s *Session) Tracks() []*Track {
 		return true
 	})
 	return out
+}
+
+func (s *Session) SpanNow() Span {
+	tracks := s.Tracks()
+	if len(tracks) == 0 {
+		return nil
+	}
+	// since we don't have "global" events for the session right now, find the
+	// track with the most recent data to add this span to
+	latestTrack := slices.MaxFunc(tracks, func(a, b *Track) int {
+		if a.End() > b.End() {
+			return 1
+		}
+		if a.End() < b.End() {
+			return -1
+		}
+		return a.ID.Compare(b.ID)
+	})
+	now := s.now()
+	return latestTrack.Span(now, now)
 }
 
 type SessionSnapshot struct {

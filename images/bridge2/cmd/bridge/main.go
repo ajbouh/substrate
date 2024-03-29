@@ -44,6 +44,8 @@ func main() {
 		Precision:   4,
 	}
 
+	newAssistantClient := assistant.OpenAIClientGenerator(getEnv("BRIDGE_ASSISTANT_URL", "http://localhost:8092/v1/assistant"))
+
 	engine.Run(
 		Main{
 			format: format,
@@ -60,12 +62,10 @@ func main() {
 			TargetLanguage: "en",
 		},
 		assistant.Agent{
-			DefaultAssistants: map[string]assistant.Client{
-				"bridge": &assistant.OpenAIClient{
-					Endpoint:      getEnv("BRIDGE_ASSISTANT_URL", "http://localhost:8092/v1/assistant"),
-					SystemMessage: assistant.DefaultSystemMessageForName("bridge"),
-				},
+			DefaultAssistants: []assistant.Client{
+				newAssistantClient("bridge", assistant.DefaultSystemMessageForName("bridge")),
 			},
+			NewClient: newAssistantClient,
 		},
 		eventLogger{
 			exclude: []string{"audio"},
@@ -94,8 +94,13 @@ func (l eventLogger) HandleEvent(e tracks.Event) {
 	log.Printf("event: %s %s %s-%s %#v", e.Type, e.ID, time.Duration(e.Start), time.Duration(e.End), e.Data)
 }
 
+type SessionInitHandler interface {
+	HandleSessionInit(*tracks.Session)
+}
+
 type Main struct {
-	EventHandlers []tracks.Handler
+	SessionInitHandlers []SessionInitHandler
+	EventHandlers       []tracks.Handler
 
 	sessions map[string]*Session
 	format   beep.Format
@@ -323,6 +328,9 @@ func (m *Main) addSession(ctx context.Context, trackSess *tracks.Session) *Sessi
 		sfu:     sfu.NewSession(),
 		Session: trackSess,
 	}
+	for _, h := range m.SessionInitHandlers {
+		h.HandleSessionInit(sess.Session)
+	}
 	// For older sessions we may want to leave them read-only, at least by
 	// default. We could give them the option to start recording again, but they
 	// may not want new audio to be automatically recorded when they look it up.
@@ -469,6 +477,19 @@ func (m *Main) Serve(ctx context.Context) {
 	http.HandleFunc("/sessions/{sessID}/data", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)
 		m.serveSessionUpdates(ctx, w, r, sess)
+	})
+	http.HandleFunc("POST /sessions/{sessID}/assistants/{name}", func(w http.ResponseWriter, r *http.Request) {
+		sess := m.loadRequestSession(ctx, w, r)
+		name := r.PathValue("name")
+		prompt := r.FormValue("system_prompt")
+		assistant.AddAssistant(sess.SpanNow(), name, prompt)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	http.HandleFunc("DELETE /sessions/{sessID}/assistants/{name}", func(w http.ResponseWriter, r *http.Request) {
+		sess := m.loadRequestSession(ctx, w, r)
+		name := r.PathValue("name")
+		assistant.RemoveAssistant(sess.SpanNow(), name)
+		w.WriteHeader(http.StatusNoContent)
 	})
 	http.HandleFunc("/sessions/{sessID}/text", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)

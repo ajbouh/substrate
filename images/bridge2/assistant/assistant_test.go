@@ -2,6 +2,7 @@ package assistant
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -33,17 +34,21 @@ func makeSegments(text string) []transcribe.Segment {
 	return []transcribe.Segment{s}
 }
 
-type echoClient struct{}
+type echoClient string
 
-func (e echoClient) Call(assistant, speaker, prompt string) (string, error) {
+func (e echoClient) AssistantName() string {
+	return string(e)
+}
+
+func (e echoClient) Complete(speaker, prompt string) (string, error) {
 	return "echo: " + prompt, nil
 }
 
 func TestAssistant(t *testing.T) {
 	a := Agent{
-		DefaultAssistants: map[string]Client{
-			"bridge": echoClient{},
-			"hal":    echoClient{},
+		DefaultAssistants: []Client{
+			echoClient("bridge"),
+			echoClient("hal"),
 		},
 	}
 
@@ -188,20 +193,39 @@ func TestAssistant(t *testing.T) {
 
 }
 
+type simpleClient struct {
+	Name         string
+	SystemPrompt string
+}
+
+func (s simpleClient) AssistantName() string {
+	return s.Name
+}
+
+func (s simpleClient) Complete(speaker, prompt string) (string, error) {
+	return fmt.Sprintf("%s\n\n%s", s.SystemPrompt, prompt), nil
+}
+
 func TestAssistantAdd(t *testing.T) {
 	a := Agent{
-		DefaultAssistants: map[string]Client{
-			"bridge": echoClient{},
+		NewClient: func(name, prompt string) Client {
+			return simpleClient{name, prompt}
 		},
 	}
 
 	session := tracks.NewSession()
 	track := bridgetest.NewTrackWithSilence(session, 10*time.Millisecond)
 
-	session.Listen(&a)
 	es := bridgetest.AddEventStreamer(session)
 
-	t.Run("does not match assistant name", func(t *testing.T) {
+	pevt := AddAssistant(track.Span(track.Start(), track.Start()),
+		"hal",
+		"you are HAL 9000, a sentient computer",
+	)
+	events := es.FetchFor(10 * time.Millisecond)
+	assert.DeepEqual(t, []tracks.Event{pevt}, events, cmpopts.IgnoreFields(tracks.Event{}, "track"))
+
+	t.Run("does not match assistant name before initialization", func(t *testing.T) {
 		tevt := transcribe.RecordTranscription(track, &transcribe.Transcription{
 			Segments: makeSegments("hello hal"),
 		})
@@ -209,9 +233,9 @@ func TestAssistantAdd(t *testing.T) {
 		assert.DeepEqual(t, []tracks.Event{tevt}, events, cmpopts.IgnoreFields(tracks.Event{}, "track"))
 	})
 
-	a.AddAssistant(session.ID, "hal", echoClient{})
+	t.Run("matches assistant name added via initialization", func(t *testing.T) {
+		a.HandleSessionInit(session)
 
-	t.Run("matches assistant name after it's added", func(t *testing.T) {
 		tevt := transcribe.RecordTranscription(track, &transcribe.Transcription{
 			Segments: makeSegments("hello hal"),
 		})
@@ -226,19 +250,78 @@ func TestAssistantAdd(t *testing.T) {
 				SourceEvent: tevt.ID,
 				Name:        "hal",
 				Input:       "hello hal",
-				Response:    "echo: hello hal",
+				Response:    "you are HAL 9000, a sentient computer\n\nhello hal",
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
 	})
 
-	a.RemoveAssistant(session.ID, "hal")
+	t.Run("changes assistant prompt", func(t *testing.T) {
+		pevt := AddAssistant(track.Span(track.End(), track.End()),
+			"hal",
+			"you are HAL 9001",
+		)
+		events := es.FetchFor(10 * time.Millisecond)
+		assert.DeepEqual(t, []tracks.Event{pevt}, events, cmpopts.IgnoreFields(tracks.Event{}, "track"))
 
-	t.Run("does not match again after assistant is removed", func(t *testing.T) {
 		tevt := transcribe.RecordTranscription(track, &transcribe.Transcription{
 			Segments: makeSegments("hello hal"),
 		})
+		events = es.FetchFor(10 * time.Millisecond)
+		expected := tracks.Event{
+			EventMeta: tracks.EventMeta{
+				Type:  "assistant-text",
+				Start: tevt.Start,
+				End:   tevt.End,
+			},
+			Data: &AssistantTextEvent{
+				SourceEvent: tevt.ID,
+				Name:        "hal",
+				Input:       "hello hal",
+				Response:    "you are HAL 9001\n\nhello hal",
+			},
+		}
+		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
+	})
+
+	t.Run("older event does not changes system prompt", func(t *testing.T) {
+		ts := track.Start() + tracks.Timestamp(5*time.Millisecond)
+		pevt := AddAssistant(track.Span(ts, ts),
+			"hal",
+			"you are HAL 42",
+		)
 		events := es.FetchFor(10 * time.Millisecond)
+		assert.DeepEqual(t, []tracks.Event{pevt}, events, cmpopts.IgnoreFields(tracks.Event{}, "track"))
+
+		tevt := transcribe.RecordTranscription(track, &transcribe.Transcription{
+			Segments: makeSegments("hello hal"),
+		})
+		events = es.FetchFor(10 * time.Millisecond)
+		expected := tracks.Event{
+			EventMeta: tracks.EventMeta{
+				Type:  "assistant-text",
+				Start: tevt.Start,
+				End:   tevt.End,
+			},
+			Data: &AssistantTextEvent{
+				SourceEvent: tevt.ID,
+				Name:        "hal",
+				Input:       "hello hal",
+				Response:    "you are HAL 9001\n\nhello hal",
+			},
+		}
+		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
+	})
+
+	t.Run("does not match again after assistant is removed", func(t *testing.T) {
+		pevt := RemoveAssistant(track.Span(track.End(), track.End()), "hal")
+		events := es.FetchFor(10 * time.Millisecond)
+		assert.DeepEqual(t, []tracks.Event{pevt}, events, cmpopts.IgnoreFields(tracks.Event{}, "track"))
+
+		tevt := transcribe.RecordTranscription(track, &transcribe.Transcription{
+			Segments: makeSegments("hello hal"),
+		})
+		events = es.FetchFor(10 * time.Millisecond)
 		assert.DeepEqual(t, []tracks.Event{tevt}, events, cmpopts.IgnoreFields(tracks.Event{}, "track"))
 	})
 }
