@@ -29,7 +29,7 @@ CUE_DEV_EXPR_PATH=.gen/cue/$NAMESPACE-dev.cue
 CUE_DEV_PACKAGE=github.com/ajbouh/substrate/defs
 
 COREOS_ASSEMBLER_GIT=$HERE/images/coreos-assembler
-COREOS_ASSEMBLER_CONTAINER="quay.io/coreos-assembler/coreos-assembler@sha256:91c3bf7db0db496f9c007e6189edd21ecc0ecfe9dec7bfcde497a2c4c4a13442"
+COREOS_ASSEMBLER_CONTAINER="quay.io/coreos-assembler/coreos-assembler@sha256:4efbb019b571bfcf7ca5eeaf5444e9b7ba64f283e01247d105f36c13ca0813d9"
 
 # See also https://www.itix.fr/blog/build-your-own-distribution-on-fedora-coreos/
 cosa() {
