@@ -155,7 +155,8 @@ func (s *Session) Sync() {
 		for i := range s.peers {
 			if s.peers[i].ConnectionState() == webrtc.PeerConnectionStateClosed {
 				s.peers = append(s.peers[:i], s.peers[i+1:]...)
-				return true // We modified the slice, start from the beginning
+				log.Println("sync: we removed a peer, try again")
+				return true // We modified the slice, try again
 			}
 
 			// map of sender we already are seanding, so we don't double send
@@ -171,6 +172,7 @@ func (s *Session) Sync() {
 				// If we have a RTPSender that doesn't map to a existing track remove and signal
 				if _, ok := s.tracks[sender.Track().ID()]; !ok {
 					if err := s.peers[i].RemoveTrack(sender); err != nil {
+						log.Printf("sync: error removing a track, try again; %s", err)
 						return true
 					}
 				}
@@ -190,6 +192,7 @@ func (s *Session) Sync() {
 				if _, ok := existingSenders[trackID]; !ok {
 					log.Println("sync: adding track to peer:", i, trackID)
 					if _, err := s.peers[i].AddTrack(s.tracks[trackID]); err != nil {
+						log.Printf("sync: error adding a track, try again; %s", err)
 						return true
 					}
 				}
@@ -197,14 +200,17 @@ func (s *Session) Sync() {
 
 			offer, err := s.peers[i].CreateOffer(nil)
 			if err != nil {
+				log.Printf("sync: error creating an offer, try again; %s", err)
 				return true
 			}
 
 			if err = s.peers[i].SetLocalDescription(offer); err != nil {
+				log.Printf("sync: error setting local description, try again; %s", err)
 				return true
 			}
 
 			if err = s.peers[i].Signal("offer", offer); err != nil {
+				log.Printf("sync: error trying to signal offer, try again; %s", err)
 				return true
 			}
 		}
@@ -212,7 +218,7 @@ func (s *Session) Sync() {
 		return
 	}
 
-	log.Println("sync start")
+	log.Println("sync: start")
 	for syncAttempt := 0; ; syncAttempt++ {
 		if syncAttempt == 25 {
 			// Release the lock and attempt a sync in 1s. We might be blocking a RemoveTrack or AddTrack
@@ -220,11 +226,12 @@ func (s *Session) Sync() {
 				time.Sleep(time.Second * 1)
 				s.Sync()
 			}()
+			log.Printf("sync: yielding early")
 			return
 		}
 		if !attemptSync() {
 			break
 		}
 	}
-	log.Println("sync finished")
+	log.Println("sync: finished")
 }
