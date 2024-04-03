@@ -10,7 +10,8 @@ include:
   - networking-tools.yaml
   - user-experience.yaml
   - shared-workarounds.yaml
-
+  # See https://github.com/coreos/bootupd
+  - bootupd.yaml
 ostree-layers:
   - overlay/05core
   - overlay/08nouveau
@@ -18,6 +19,7 @@ ostree-layers:
   - overlay/20platform-chrony
   - overlay/25azure-udev-rules
   - overlay/30lvmdevices
+  - overlay/40grub
 
 # Be minimal
 recommends: false
@@ -102,11 +104,10 @@ packages:
   # Containers
   - systemd-container catatonit
   - fuse-overlayfs slirp4netns
-  # support for old style CNI networks and name resolution for
-  # podman containers with CNI networks
+  # Some host applications(i.e. NetworkManager) use dnsmasq
+  # as the binary for some various utility operations.
   # https://github.com/coreos/fedora-coreos-tracker/issues/519
-  # https://github.com/coreos/fedora-coreos-tracker/issues/1128#issuecomment-1071338097
-  - containernetworking-plugins podman-plugins dnsmasq
+  - dnsmasq
   # For podman v4 netavark gets pulled in but it only recommends
   # aardvark-dns (which provides name resolution based on container
   # names). This functionality was previously provided by dnsname from
@@ -174,14 +175,20 @@ packages:
 #   - Include this on non-x86_64 FCOS images to allow access to the large
 #     inventory of containers only built for x86_64.
 #     https://github.com/coreos/fedora-coreos-tracker/issues/1237
-#
 # - google-compute-engine-guest-configs-udev
 #   - Add this package on x86_64 and aarch64 (the two architectures
 #     GCP supports. https://github.com/coreos/fedora-coreos-tracker/issues/1494
 #     This should be moved to a shared manifest when RHEL has this package.
+# - crun-wasm wasmedge-rt
+#   - Support for wasm runtime: https://github.com/coreos/fedora-coreos-tracker/issues/1375
 packages-x86_64:
   - irqbalance
   - google-compute-engine-guest-configs-udev
+  - crun-wasm wasmedge-rt
+  # Include AMD microcode updates, see https://github.com/coreos/fedora-coreos-tracker/issues/1618.
+  # This normally should belong in bootable-rpm-ostree.yaml (alongside
+  # `microcode_ctl`), but this change hasn't hit RHCOS yet.
+  - amd-ucode-firmware
 packages-ppc64le:
   - irqbalance
   - librtas
@@ -192,13 +199,9 @@ packages-aarch64:
   - irqbalance
   - qemu-user-static-x86
   - google-compute-engine-guest-configs-udev
+  - crun-wasm wasmedge-rt
 packages-s390x:
   - qemu-user-static-x86
-
-# See https://github.com/coreos/bootupd
-arch-include:
-  x86_64: bootupd.yaml
-  aarch64: bootupd.yaml
 
 remove-from-packages:
   # Hopefully short-term hack -- see https://github.com/coreos/fedora-coreos-config/pull/1206#discussion_r705425869.
