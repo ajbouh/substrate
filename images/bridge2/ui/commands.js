@@ -8,8 +8,8 @@ export const commands = {
 			return fetch(
 				window.location.href + "/assistants/" + encodeURIComponent(name), {
 				method: "POST",
-				headers: {"Content-Type": "application/x-www-form-urlencoded",},
-				body: new URLSearchParams({"system_prompt": prompt}).toString(),
+				headers: {"Content-Type": "application/x-www-form-urlencoded"},
+				body: new URLSearchParams({system_prompt}).toString(),
 			});
 		},
 	},

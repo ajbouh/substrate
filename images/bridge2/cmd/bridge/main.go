@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"sync"
@@ -197,6 +198,13 @@ func (m *Main) saveSession(sess *Session) error {
 	// 	return err
 	// }
 	return nil
+}
+
+func (m *Main) SessionStoragePath(sess *tracks.Session, scope string) string {
+	dir := filepath.Join(m.sessionDir, string(sess.ID), scope)
+	err := os.MkdirAll(dir, 0744)
+	fatal(err)
+	return dir
 }
 
 func (m *Main) SavedSessions() (info []*tracks.SessionInfo, err error) {

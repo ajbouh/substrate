@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ajbouh/substrate/images/bridge2/assistant/prompts"
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
@@ -52,32 +53,41 @@ type Client interface {
 	Complete(speaker, input string) (string, error)
 }
 
+type SessionStorage interface {
+	SessionStoragePath(*tracks.Session, string) string
+}
+
 type Agent struct {
+	SessionStorage    SessionStorage
 	DefaultAssistants []Client
 	NewClient         func(name, prompt string) Client
 }
 
 func (a *Agent) HandleSessionInit(sess *tracks.Session) {
-	if a.NewClient == nil {
-		return
+	if a.NewClient != nil {
+		var promptEvents []tracks.Event
+		for _, t := range sess.Tracks() {
+			promptEvents = append(promptEvents, t.Events("assistant-set-prompt")...)
+		}
+		// sort in reverse order to create clients based on the latest prompt first
+		// then we'll skip initializing clients for older prompts
+		slices.SortFunc(promptEvents, func(a, b tracks.Event) int {
+			return -cmp.Compare(a.Start, b.Start)
+		})
+		agent := &sessionAgent{
+			NewClient:  a.NewClient,
+			assistants: make(map[string]eventClient),
+		}
+		for _, e := range promptEvents {
+			agent.handleSetPrompt(e)
+		}
+		sess.Listen(agent)
 	}
-	var promptEvents []tracks.Event
-	for _, t := range sess.Tracks() {
-		promptEvents = append(promptEvents, t.Events("assistant-set-prompt")...)
+
+	if a.SessionStorage != nil {
+		sync := newFSSync(sess, a.SessionStorage.SessionStoragePath(sess, "assistant"), 500*time.Millisecond)
+		sess.Listen(sync)
 	}
-	// sort in reverse order to create clients based on the latest prompt first
-	// then we'll skip initializing clients for older prompts
-	slices.SortFunc(promptEvents, func(a, b tracks.Event) int {
-		return -cmp.Compare(a.Start, b.Start)
-	})
-	agent := &sessionAgent{
-		NewClient:  a.NewClient,
-		assistants: make(map[string]eventClient),
-	}
-	for _, e := range promptEvents {
-		agent.handleSetPrompt(e)
-	}
-	sess.Listen(agent)
 }
 
 func (a *Agent) HandleEvent(annot tracks.Event) {
