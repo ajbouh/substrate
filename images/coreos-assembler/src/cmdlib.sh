@@ -196,7 +196,16 @@ prepare_build() {
     manifest_lock_arch_overrides=$(pick_yaml_or_else_json "${configdir}/manifest-lock.overrides.${basearch}")
     fetch_stamp="${workdir}"/cache/fetched-stamp
 
-    export image_json="${workdir}/tmp/image.json"
+    # We also need the platform.yaml as JSON
+    platforms_yaml="${configdir}/platforms.yaml"
+    platforms_json="${tmp_builddir}/platforms.json"
+    yaml2json "${platforms_yaml}" "${platforms_json}.all"
+    # Copy platforms table if it's non-empty for this arch
+    if jq -e ".$basearch" < "$platforms_json.all" > /dev/null; then
+        jq ".$basearch" < "$platforms_json.all" > "${platforms_json}"
+    fi
+
+    export image_json="${tmp_builddir}/image.json"
     write_image_json "${image}" "${image_json}"
     # These need to be absolute paths right now for rpm-ostree
     composejson="$(readlink -f "${workdir}"/tmp/compose.json)"
@@ -417,15 +426,18 @@ EOF
         done
     fi
 
-    # Store the fully rendered disk image config (image.json) inside
+    # Store the fully rendered disk image config (image.json)
+    # and the platform (platforms.json) if it exists inside
     # the ostree commit, so it can later be extracted by disk image
     # builds.
-    local imagejsondir="${tmp_overridesdir}/imagejson"
-    export ostree_image_json="/usr/share/coreos-assembler/image.json"
-    mkdir -p "${imagejsondir}/usr/share/coreos-assembler/"
-    cp "${image_json}" "${imagejsondir}${ostree_image_json}"
-    commit_overlay cosa-image-json "${imagejsondir}"
-    layers="${layers} overlay/cosa-image-json"
+    local jsondir="${tmp_overridesdir}/jsons"
+    mkdir -p "${jsondir}/usr/share/coreos-assembler/"
+    cp "${image_json}" "${jsondir}/usr/share/coreos-assembler/"
+    if [ -f "${platforms_json}" ]; then
+        cp "${platforms_json}" "${jsondir}/usr/share/coreos-assembler/"
+    fi
+    commit_overlay cosa-json "${jsondir}"
+    layers="${layers} overlay/cosa-json"
 
     local_overrides_lockfile="${tmp_overridesdir}/local-overrides.json"
     if [ -n "${with_cosa_overrides}" ] && [[ -n $(ls "${overridesdir}/rpm/"*.rpm 2> /dev/null) ]]; then
@@ -577,14 +589,22 @@ runcompose_extensions() {
         (umask 0022 && sudo -E "$@")
         sudo chown -R -h "${USER}":"${USER}" "${outputdir}"
     else
-        runvm_with_cache -- "$@"
+        # Use a snapshot version of the cache qcow2 to allow multiple users
+        # of the cache at the same time. This is needed because the extensions
+        # and other artifacts are built in parallel.
+        local snapshot='on'
+        runvm_with_cache_snapshot "${snapshot}" -- "$@"
     fi
 }
 
-runvm_with_cache() {
+# Run with cache disk with optional snapshot=on, which means no changes get written back to
+# the cache disk. `runvm_with_cache_snapshot on` will set snapshotting to on.
+runvm_with_cache_snapshot() {
+    local snapshot=$1; shift
+    local cache_size=${RUNVM_CACHE_SIZE:-16G}
     # "cache2" has an explicit label so we can find it in qemu easily
     if [ ! -f "${workdir}"/cache/cache2.qcow2 ]; then
-        qemu-img create -f qcow2 cache2.qcow2.tmp 10G
+        qemu-img create -f qcow2 cache2.qcow2.tmp "$cache_size"
         (
          # shellcheck source=src/libguestfish.sh
          source /usr/lib/coreos-assembler/libguestfish.sh
@@ -593,10 +613,14 @@ runvm_with_cache() {
     fi
     # And remove the old one
     rm -vf "${workdir}"/cache/cache.qcow2
-    local cachedriveargs="discard=unmap"
-    cache_args+=("-drive" "if=none,id=cache,$cachedriveargs,file=${workdir}/cache/cache2.qcow2" \
+    cache_args+=("-drive" "if=none,id=cache,discard=unmap,snapshot=${snapshot},file=${workdir}/cache/cache2.qcow2" \
                         "-device" "virtio-blk,drive=cache")
     runvm "${cache_args[@]}" "$@"
+}
+
+runvm_with_cache() {
+    local snapshot='off'
+    runvm_with_cache_snapshot $snapshot "$@"
 }
 
 # Strips out the digest field from lockfiles since they subtly conflict with
@@ -706,11 +730,6 @@ runvm() {
     # include COSA in the image
     find /usr/lib/coreos-assembler/ -type f > "${vmpreparedir}/hostfiles"
 
-    # include new patched in osbuild stage in the image.
-    # can drop this once osbuild v100 is out.
-    # https://github.com/osbuild/osbuild/pull/1429
-    echo /usr/lib/osbuild/stages/org.osbuild.kernel-cmdline.bls-append >> "${vmpreparedir}/hostfiles"
-
     # and include all GPG keys
     find /etc/pki/rpm-gpg/ -type f >> "${vmpreparedir}/hostfiles"
 
@@ -728,17 +747,24 @@ export USER=$(id -u)
 export RUNVM_NONET=${RUNVM_NONET:-}
 $(cat "${DIR}"/supermin-init-prelude.sh)
 rc=0
-# tee to the virtio port so its output is also part of the supermin output in
-# case e.g. a key msg happens in dmesg when the command does a specific operation
+# - tee to the virtio port so its output is also part of the supermin output in
+#   case e.g. a key msg happens in dmesg when the command does a specific operation.
+# - Use a subshell because otherwise init will use workdir as its cwd and we won't
+#   be able to unmount the virtiofs mount cleanly. This leads to consistency issues.
 if [ -z "${RUNVM_SHELL:-}" ]; then
-  bash ${tmp_builddir}/cmd.sh |& tee /dev/virtio-ports/cosa-cmdout || rc=\$?
+  (cd ${workdir}; bash ${tmp_builddir}/cmd.sh |& tee /dev/virtio-ports/cosa-cmdout) || rc=\$?
 else
-  bash; poweroff -f -f; sleep infinity
+  (cd ${workdir}; bash)
 fi
 echo \$rc > ${rc_file}
 if [ -n "\${cachedev}" ]; then
     /sbin/fstrim -v ${workdir}/cache
+    mount -o remount,ro ${workdir}/cache
+    fsfreeze -f ${workdir}/cache
+    fsfreeze -u ${workdir}/cache
+    umount ${workdir}/cache
 fi
+umount ${workdir}
 /sbin/reboot -f
 EOF
     chmod a+x "${vmpreparedir}"/init

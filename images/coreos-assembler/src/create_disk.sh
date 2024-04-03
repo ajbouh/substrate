@@ -29,7 +29,6 @@ Fedora CoreOS style disk image from an OSTree.
 Options:
     --config: JSON-formatted image.yaml
     --help: show this help
-    --kargs: kernel CLI args
     --platform: Ignition platform ID
     --platforms-json: platforms.yaml in JSON format
     --no-x86-bios-bootloader: don't install BIOS bootloader on x86_64
@@ -47,7 +46,6 @@ platforms_json=
 secure_execution=0
 ignition_pubkey=
 x86_bios_bootloader=1
-extrakargs=""
 
 while [ $# -gt 0 ];
 do
@@ -55,7 +53,6 @@ do
     case "${flag}" in
         --config)                   config="${1}"; shift;;
         --help)                     usage; exit;;
-        --kargs)                    extrakargs="${extrakargs} ${1}"; shift;;
         --no-x86-bios-bootloader)   x86_bios_bootloader=0;;
         --platform)                 platform="${1}"; shift;;
         --platforms-json)           platforms_json="${1}"; shift;;
@@ -82,9 +79,6 @@ cp "${platforms_json}" /tmp/platforms.json
 platforms_json=/tmp/platforms.json
 platform_grub_cmds=$(jq -r ".${arch}.${platform}.grub_commands // [] | join(\"\\\\n\")" < "${platforms_json}")
 platform_kargs=$(jq -r ".${arch}.${platform}.kernel_arguments // [] | join(\" \")" < "${platforms_json}")
-if [ -n "${platform_kargs}" ]; then
-    extrakargs="${extrakargs} ${platform_kargs}"
-fi
 
 disk=$(realpath /dev/disk/by-id/virtio-target)
 
@@ -121,6 +115,7 @@ bootfs=$(getconfig "bootfs")
 composefs=$(getconfig_def "composefs" "")
 grub_script=$(getconfig "grub-script")
 ostree_container=$(getconfig "ostree-container")
+ostree_container_spec="ostree-unverified-image:oci-archive:${ostree_container}"
 commit=$(getconfig "ostree-commit")
 ref=$(getconfig "ostree-ref")
 # We support not setting a remote name (used by RHCOS)
@@ -128,10 +123,15 @@ remote_name=$(getconfig_def "ostree-remote" "")
 deploy_via_container=$(getconfig "deploy-via-container" "")
 container_imgref=$(getconfig "container-imgref" "")
 os_name=$(getconfig "osname")
-rootfs_size=$(getconfig "rootfs-size")
 buildid=$(getconfig "buildid")
 imgid=$(getconfig "imgid")
-bootfs_metadata_csum_seed=$(getconfig_def "bootfs_metadata_csum_seed" "false")
+extra_kargs=$(getconfig "extra-kargs-string" "")
+
+# populate remaining kargs
+extra_kargs+=" ignition.platform.id=${platform}"
+if [ -n "${platform_kargs}" ]; then
+    extra_kargs+=" ${platform_kargs}"
+fi
 
 set -x
 
@@ -149,13 +149,8 @@ if [[ ${secure_execution} -eq 1 ]]; then
     SDPART=1
     BOOTVERITYHASHPN=5
     ROOTVERITYHASHPN=6
-    extrakargs="${extrakargs} swiotlb=262144"
+    extra_kargs="${extra_kargs} swiotlb=262144"
 fi
-# Make the size relative
-if [ "${rootfs_size}" != "0" ]; then
-    rootfs_size="+${rootfs_size}"
-fi
-
 # shellcheck disable=SC2031
 case "$arch" in
     x86_64)
@@ -165,7 +160,7 @@ case "$arch" in
         -n 1:0:+1M -c 1:BIOS-BOOT -t 1:21686148-6449-6E6F-744E-656564454649 \
         -n ${EFIPN}:0:+127M -c ${EFIPN}:EFI-SYSTEM -t ${EFIPN}:C12A7328-F81F-11D2-BA4B-00A0C93EC93B \
         -n ${BOOTPN}:0:+384M -c ${BOOTPN}:boot \
-        -n ${ROOTPN}:0:"${rootfs_size}" -c ${ROOTPN}:root -t ${ROOTPN}:0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        -n ${ROOTPN}:0:0 -c ${ROOTPN}:root -t ${ROOTPN}:0FC63DAF-8483-4772-8E79-3D69D8477DE4
         ;;
     aarch64)
         RESERVEDPN=1
@@ -175,18 +170,23 @@ case "$arch" in
         -n ${RESERVEDPN}:0:+1M -c ${RESERVEDPN}:reserved -t ${RESERVEDPN}:8DA63339-0007-60C0-C436-083AC8230908 \
         -n ${EFIPN}:0:+127M -c ${EFIPN}:EFI-SYSTEM -t ${EFIPN}:C12A7328-F81F-11D2-BA4B-00A0C93EC93B \
         -n ${BOOTPN}:0:+384M -c ${BOOTPN}:boot \
-        -n ${ROOTPN}:0:"${rootfs_size}" -c ${ROOTPN}:root -t ${ROOTPN}:0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        -n ${ROOTPN}:0:0 -c ${ROOTPN}:root -t ${ROOTPN}:0FC63DAF-8483-4772-8E79-3D69D8477DE4
         ;;
     s390x)
         sgdisk_args=()
+        rootp_end=0
         if [[ ${secure_execution} -eq 1 ]]; then
             # shellcheck disable=SC2206
             sgdisk_args+=(-n ${SDPART}:0:+200M -c ${SDPART}:se -t ${SDPART}:0FC63DAF-8483-4772-8E79-3D69D8477DE4)
+            # we need to leave space for the verity hash partitions (and add 1MB otherwise sgdisk can't fit them for some reason)
+            rootp_end=-$((128+256+1))M
         fi
+
         # shellcheck disable=SC2206
         sgdisk_args+=(-n ${BOOTPN}:0:+384M -c ${BOOTPN}:boot \
-                      -n ${ROOTPN}:0:"${rootfs_size}" -c ${ROOTPN}:root -t ${ROOTPN}:0FC63DAF-8483-4772-8E79-3D69D8477DE4)
+                      -n ${ROOTPN}:0:${rootp_end} -c ${ROOTPN}:root -t ${ROOTPN}:0FC63DAF-8483-4772-8E79-3D69D8477DE4)
         if [[ ${secure_execution} -eq 1 ]]; then
+            # note these length values are hardcoded in both rootp_end above and in `cmd-buildextend-metal`
             # shellcheck disable=SC2206
             sgdisk_args+=(-n ${BOOTVERITYHASHPN}:0:+128M -c ${BOOTVERITYHASHPN}:boothash \
                           -n ${ROOTVERITYHASHPN}:0:+256M -c ${ROOTVERITYHASHPN}:roothash)
@@ -206,7 +206,7 @@ case "$arch" in
         -n ${PREPPN}:0:+4M -c ${PREPPN}:PowerPC-PReP-boot -t ${PREPPN}:9E1A2D38-C612-4316-AA26-8B49521E5A8B \
         -n ${RESERVEDPN}:0:+1M -c ${RESERVEDPN}:reserved -t ${RESERVEDPN}:8DA63339-0007-60C0-C436-083AC8230908 \
         -n ${BOOTPN}:0:+384M -c ${BOOTPN}:boot \
-        -n ${ROOTPN}:0:"${rootfs_size}" -c ${ROOTPN}:root -t ${ROOTPN}:0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        -n ${ROOTPN}:0:0 -c ${ROOTPN}:root -t ${ROOTPN}:0FC63DAF-8483-4772-8E79-3D69D8477DE4
         ;;
 esac
 
@@ -217,15 +217,6 @@ boot_dev="${disk}${BOOTPN}"
 root_dev="${disk}${ROOTPN}"
 
 bootargs=
-# If the bootfs_metadata_csum_seed image.yaml knob is set to true then
-# we'll enable the metadata_csum_seed filesystem feature. This is
-# gated behind an image.yaml knob because support for this feature
-# flag was only recently added to grub.
-# https://lists.gnu.org/archive/html/grub-devel/2021-06/msg00031.html
-if [ "${bootfs_metadata_csum_seed}" == "true" ]; then
-    bootargs+=" -O metadata_csum_seed"
-fi
-
 # Detect if the target system supports orphan_file.
 # https://github.com/coreos/coreos-assembler/pull/3653#issuecomment-1813181723
 # Ideally, we'd do feature detection here but there's no clean way to do that.
@@ -338,7 +329,7 @@ if [ "${rootfs_type}" = "ext4verity" ] && [ -z "${composefs}" ]; then
 fi
 
 # Compute kargs
-allkargs="$extrakargs"
+allkargs="$extra_kargs"
 # shellcheck disable=SC2031
 if [ "$arch" != s390x ]; then
     # Note that $ignition_firstboot is interpreted by grub at boot time,
@@ -353,7 +344,7 @@ if test -n "${deploy_via_container}"; then
         kargsargs+="--karg=$karg "
     done
     # shellcheck disable=SC2086
-    ostree container image deploy --imgref "${ostree_container}" \
+    ostree container image deploy --imgref "${ostree_container_spec}" \
         ${container_imgref:+--target-imgref $container_imgref} \
         --write-commitid-to /tmp/commit.txt \
         --stateroot "$os_name" --sysroot $rootfs $kargsargs
@@ -361,7 +352,7 @@ if test -n "${deploy_via_container}"; then
     rm /tmp/commit.txt
 else
     # Pull the container image...
-    time ostree container image pull $rootfs/ostree/repo "${ostree_container}"
+    time ostree container image pull $rootfs/ostree/repo "${ostree_container_spec}"
     # But we default to not leaving a ref for the image around, so the
     # layers will get GC'd on the first update if the
     # user doesn't switch to a container image.
@@ -414,8 +405,7 @@ EOF
 install_uefi() {
     # https://github.com/coreos/fedora-coreos-tracker/issues/510
     # See also https://github.com/ostreedev/ostree/pull/1873#issuecomment-524439883
-    # Unshare mount ns to work around https://github.com/coreos/bootupd/issues/367
-    unshare -m /usr/bin/bootupctl backend install --src-root="${deploy_root}" "${rootfs}"
+    chroot_run bootupctl backend install --src-root="/" "/sysroot"
     # We have a "static" grub config file that basically configures grub to look
     # in the RAID called "md-boot", if it exists, or the partition labeled "boot".
     local target_efi="$rootfs/boot/efi"
@@ -470,7 +460,9 @@ chroot_run() {
     for mnt in dev proc sys run var tmp; do
         mount --rbind "/$mnt" "${deploy_root}/$mnt"
     done
+    mount --rbind "${rootfs}" "${deploy_root}/sysroot"
     chroot "${deploy_root}" "$@"
+    umount --recursive "${deploy_root}/sysroot"
     for mnt in dev proc sys run var tmp; do
         umount --recursive "${deploy_root}/$mnt"
     done
@@ -540,15 +532,6 @@ if [[ ${secure_execution} -eq 1 ]] && [[ ! -e /dev/disk/by-id/virtio-genprotimg 
     touch "${deploy_root}/usr/lib/coreos/ignition.asc"
 fi
 touch $rootfs/boot/ignition.firstboot
-
-# Finally, add the immutable bit to the physical root; we don't
-# expect people to be creating anything there.  A use case for
-# OSTree in general is to support installing *inside* the existing
-# root of a deployed OS, so OSTree doesn't do this by default, but
-# we have no reason not to enable it here.  Administrators should
-# generally expect that state data is in /etc and /var; if anything
-# else is in /sysroot it's probably by accident.
-chattr +i $rootfs
 
 fstrim -a -v
 # Ensure the filesystem journals are flushed

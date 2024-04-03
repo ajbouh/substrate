@@ -47,7 +47,6 @@ for maybe_symlink in "${workdir}"/{src/config,src/yumrepos}; do
     fi
 done
 
-mkdir -p "${workdir}"/cache
 cachedev=$(blkid -lt LABEL=cosa-cache -o device || true)
 if [ -n "${cachedev}" ]; then
     mount "${cachedev}" "${workdir}"/cache
@@ -69,6 +68,3 @@ touch /etc/cosa-supermin
 # the missing link.  Hehe.
 update-alternatives --install /etc/alternatives/iptables iptables /usr/sbin/iptables-legacy 1
 update-alternatives --install /etc/alternatives/ip6tables ip6tables /usr/sbin/ip6tables-legacy 1
-
-# https://github.com/koalaman/shellcheck/wiki/SC2164
-cd "${workdir}" || exit
