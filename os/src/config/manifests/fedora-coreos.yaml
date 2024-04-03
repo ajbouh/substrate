@@ -17,50 +17,25 @@ conditional-include:
   - if: prod == false
     # long-term, would be good to support specifying a nested TreeComposeConfig
     include: disable-zincati.yaml
-  - if: basearch == "aarch64"
-    # Fixup for kdump on aarch64 AWS instances
-    include: kdump-aarch64-aws-workaround.yaml
   - if: basearch != "s390x"
     # And remove some cruft from grub2
     include: grub2-removals.yaml
-  - if: basearch == "ppc64le"
-    # Need OSTree autopruning on ppc64le (because kernels aren't compressed)
-    # until we increase the size of /boot.
-    # https://github.com/coreos/fedora-coreos-tracker/issues/1247#issuecomment-1355314761
-    # https://github.com/coreos/fedora-coreos-tracker/issues/1495#issuecomment-1561765705
-    include: ostree-autoprune.yaml
   - if:
-      - basearch == "aarch64"
-      - releasever >= 39
-    # In F39+ we will stop removing the qcom dtb files and thus we'll leverage OSTree autopruning
-    # so that we don't run into https://github.com/coreos/fedora-coreos-tracker/issues/1464
-    # again. OSTree autopruning is new so we're selectively enabling it before making it the default.
-    include: ostree-autoprune.yaml
-  - if:
-      - basearch == "aarch64"
-      - releasever == 38
-    # Remove qcom dtb on F38 files since autopruning isn't in place yet
-    include: aarch64-drop-qcom-dtb-files.yaml
-  - if:
-      - releasever == 38
-    # Modularity is going away in F39+ so we'll only include
-    # the fedora-repos-modular package in <39.
-    include: fedora-modularity.yaml
-  - if: releasever >= 39
-    # https://fedoraproject.org/wiki/Changes/EnableFwupdRefreshByDefault
-    # Merge with overlay.d/15fcos/usr/lib/systemd/system-preset/45-fcos.preset
-    # once Fedora 39 is released to all streams
-    include: enable-fwupd-refresh-timer.yaml
-  - if: releasever >= 39
-    # https://github.com/coreos/fedora-coreos-tracker/issues/1362
-    # Merge with manifests/system-configuration.yaml once Fedora 39 is released
-    # to all streams
-    include: audit.yaml
-  - if: releasever >= 39
-    # https://github.com/coreos/fedora-coreos-tracker/issues/1567
-    # Merge with manifests/fedora-coreos.yaml once Fedora 39 is released
-    # to all streams
-    include: bash-color-prompt.yaml
+      - releasever >= 40
+    include: ostree-bls.yaml
+  - if: releasever == 39
+    # passwd RPM was obsoleted by shadow-utils in F40+, but we need to keep
+    # including it in F39. Remove this when we are on F40+ on all streams.
+    include: passwd.yaml
+  - if: releasever == 39
+    # No longer need CNI plugins in f40 since Podman dropped
+    # support for CNI networking entirely in Podmanv5
+    # Remove this once we have Podman v5 in f39.
+    # xref: https://github.com/coreos/fedora-coreos-tracker/issues/1629
+    include: cni-plugins.yaml
+  - if: releasever == 39
+    # Checks for breaking changes that came with Podman v5.
+    include: podman-v5.yaml
 
 ostree-layers:
   - overlay/15fcos
@@ -86,6 +61,9 @@ packages:
   - zincati
   # Include and set the default editor
   - nano nano-default-editor
+  # Introduce a default colored prompt for Fedora's default shell bash.
+  # https://github.com/coreos/fedora-coreos-tracker/issues/1567
+  - bash-color-prompt
 
 etc-group-members:
   # Add the docker group to /etc/group

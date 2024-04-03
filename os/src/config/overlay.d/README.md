@@ -24,6 +24,14 @@ https://bugzilla.redhat.com/show_bug.cgi?id=1700056
 
 Warning about `/etc/sysconfig`.
 
+14podman-v5
+------
+
+Warn about breaking changes [1] with Podman v5 and link the
+users to how they can adapt their existing nodes.
+
+[1] https://github.com/coreos/fedora-coreos-tracker/issues/1629
+
 15fcos
 ------
 
@@ -41,23 +49,6 @@ Things that are more closely "Fedora CoreOS":
 
 Disable Zincati on non-production streams:
 https://github.com/coreos/fedora-coreos-tracker/issues/163
-
-17fedora-modularity
--------------------
-
-Check for layered modularity RPMs to warn users of the retirement in Fedora 39
-via Console Login Helper Messages.
-
-Remove once Fedora 39 lands in all streams.
-
-18fwupd-refresh-timer
----------------------
-
-Enable fwupd-refresh.timer on Fedora 39:
-https://fedoraproject.org/wiki/Changes/EnableFwupdRefreshByDefault
-
-Move to overlay.d/15fcos/usr/lib/systemd/system-preset/45-fcos.preset once
-Fedora 39 lands in all streams.
 
 20platform-chrony
 -----------------
@@ -93,3 +84,9 @@ pre-existing LVM devices attached. See the tracker issue [1] for more
 information.
 
 [1] https://github.com/coreos/fedora-coreos-tracker/issues/1517
+
+40grub
+------
+
+Add in static grub configs that will be leveraged by bootupd when
+managing bootloaders. See https://github.com/coreos/bootupd/pull/543
