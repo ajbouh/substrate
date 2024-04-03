@@ -46,7 +46,6 @@ other platforms or cloud providers:
 | [buildextend-{aliyun,aws,azure,digitalocean,exoscale,gcp,vultr}](https://github.com/coreos/coreos-assembler/blob/main/src/cmd-ore-wrapper) | Generate artifacts for the given platforms
 | [buildextend-{azurestack,ibmcloud,openstack,vmware}](https://github.com/coreos/coreos-assembler/blob/main/src/cmd-artifact-disk) | Generate artifacts for the given platforms
 | [{aliyun,aws}-replicate](https://github.com/coreos/coreos-assembler/blob/main/src/cmd-ore-wrapper) | Replicate images on the platforms (AMIs for AWS)
-| [buildextend-legacy-oscontainer](https://github.com/coreos/coreos-assembler/blob/main/src/cmd-buildextend-legacy-oscontainer) | Create an oscontainer in legacy format (i.e. not OSTree-native)
 
 ## Misc commands
 
@@ -59,7 +58,6 @@ Those less commonly used commands are listed here:
 | [buildfetch](https://github.com/coreos/coreos-assembler/blob/main/src/cmd-buildfetch) | Fetches the bare minimum from external servers to create the next build
 | [buildupload](https://github.com/coreos/coreos-assembler/blob/main/src/cmd-buildupload) | Upload a build which later can be partially re-downloaded with cmd-buildfetch
 | [compress](https://github.com/coreos/coreos-assembler/blob/main/src/cmd-compress) | Compresses all images in a build
-| [dev-overlay](https://github.com/coreos/coreos-assembler/blob/main/src/cmd-dev-overlay) | Add content on top of a commit, handling SELinux labeling etc.
 | [dev-synthesize-osupdate](https://github.com/coreos/coreos-assembler/blob/main/src/cmd-dev-synthesize-osupdate) | Synthesize an OS update by modifying ELF files in a "benign" way (adding an ELF note)
 | [dev-synthesize-osupdatecontainer](https://github.com/coreos/coreos-assembler/blob/main/src/cmd-dev-synthesize-osupdatecontainer) | Wrapper for dev-synthesize-osupdate that operates on an oscontainer for OpenShift
 | [koji-upload](https://github.com/coreos/coreos-assembler/blob/main/src/cmd-koji-upload) | Performs the required steps to make COSA a Koji Content Generator
@@ -72,4 +70,3 @@ Those less commonly used commands are listed here:
 | [supermin-shell](https://github.com/coreos/coreos-assembler/blob/main/src/cmd-supermin-shell) | Get a supermin shell
 | [tag](https://github.com/coreos/coreos-assembler/blob/main/src/cmd-tag) | Operate on the tags in `builds.json`
 | [test-coreos-installer](https://github.com/coreos/coreos-assembler/blob/main/src/cmd-test-coreos-installer) | Automate an end-to-end run of coreos-installer with the metal image
-| [upload-oscontainer](https://github.com/coreos/coreos-assembler/blob/main/src/cmd-upload-oscontainer) | Upload an oscontainer (historical wrapper for `cosa oscontainer`)

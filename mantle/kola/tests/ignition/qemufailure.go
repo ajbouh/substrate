@@ -101,7 +101,7 @@ func verifyError(builder *platform.QemuBuilder, searchPattern string) error {
 		return err
 	}
 	defer inst.Destroy()
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 
 	defer cancel()
 
@@ -154,10 +154,7 @@ func ignitionFailure(c cluster.TestCluster) error {
 	builder := platform.NewQemuBuilder()
 	defer builder.Close()
 	// Create a temporary log file
-	consoleFile, err := builder.TempFile("console.log")
-	if err != nil {
-		return err
-	}
+	consoleFile := c.H.TempFile("console-")
 	// Instruct builder to use it
 	builder.ConsoleFile = consoleFile.Name()
 	builder.SetConfig(failConfig)
@@ -182,11 +179,8 @@ func ignitionFailure(c cluster.TestCluster) error {
 func dualBootfsFailure(c cluster.TestCluster) error {
 	builder := platform.NewQemuBuilder()
 	defer builder.Close()
-	// Create a temporary log file
-	consoleFile, err := builder.TempFile("console.log")
-	if err != nil {
-		return err
-	}
+	// Create a temporary log file allocated in the output dir of the test
+	consoleFile := c.H.TempFile("console-")
 	// Instruct builder to use it
 	builder.ConsoleFile = consoleFile.Name()
 	// get current path and create tmp dir
@@ -239,10 +233,7 @@ func dualBootfsIgnitionFailure(c cluster.TestCluster) error {
 	builder := platform.NewQemuBuilder()
 	defer builder.Close()
 	// Create a temporary log file
-	consoleFile, err := builder.TempFile("console.log")
-	if err != nil {
-		return err
-	}
+	consoleFile := c.H.TempFile("console-")
 	// Instruct builder to use it
 	builder.ConsoleFile = consoleFile.Name()
 	failConfig, err := conf.EmptyIgnition().Render(conf.FailWarnings)
