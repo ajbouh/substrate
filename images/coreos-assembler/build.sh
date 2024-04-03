@@ -44,6 +44,9 @@ install_rpms() {
 
     frozendeps=""
 
+    # We freeze the version for now since we're carrying patches.
+    frozendeps+=" $(echo osbuild{,-ostree,-selinux,-tools}-114-1.fc39.noarch)"
+
     # First, a general update; this is best practice.  We also hit an issue recently
     # where qemu implicitly depended on an updated libusbx but didn't have a versioned
     # requires https://bugzilla.redhat.com/show_bug.cgi?id=1625641
@@ -64,7 +67,7 @@ install_rpms() {
 
     # Add fast-tracked packages here.  We don't want to wait on bodhi for rpm-ostree
     # as we want to enable fast iteration there.
-    yum -y --enablerepo=updates-testing upgrade rpm-ostree
+    yum -y --enablerepo=updates-testing upgrade rpm-ostree ostree
 
     # Delete file that only exists on ppc64le because it is causing
     # sudo to not work.
@@ -162,12 +165,26 @@ write_archive_info() {
 }
 
 patch_osbuild() {
-    # A few patches that either haven't made it into a release or
+    # Add a few patches that either haven't made it into a release or
     # that will be obsoleted with other work that will be done soon.
-    cat /usr/lib/coreos-assembler/0001-Mount-boot-from-host-in-host-builder-case.patch           \
-        /usr/lib/coreos-assembler/0001-osbuild-util-fscache-calculate-actual-size-of-files.patch \
-        /usr/lib/coreos-assembler/0002-util-tweak-_calculate_size-to-_calculate_space.patch      \
-            | patch -p1 -d /usr/lib/python3.12/site-packages/
+
+    # To make it easier to apply patches we'll move around the osbuild
+    # code on the system first:
+    rmdir /usr/lib/osbuild/osbuild
+    mv /usr/lib/python3.12/site-packages/osbuild /usr/lib/osbuild/
+    mkdir /usr/lib/osbuild/tools
+    mv /usr/bin/osbuild-mpp /usr/lib/osbuild/tools/
+
+    # Now all the software is under the /usr/lib/osbuild dir and we can patch
+    cat /usr/lib/coreos-assembler/0004-fscache-add-eviction-log-statement.patch                   \
+        /usr/lib/coreos-assembler/0001-stages-qemu-sanity-check-created-image.patch               \
+            | patch -d /usr/lib/osbuild -p1
+
+    # And then move the files back; supermin appliance creation will need it back
+    # in the places delivered by the RPM.
+    mv /usr/lib/osbuild/tools/osbuild-mpp /usr/bin/osbuild-mpp
+    mv /usr/lib/osbuild/osbuild /usr/lib/python3.12/site-packages/osbuild
+    mkdir /usr/lib/osbuild/osbuild
 }
 
 if [ $# -ne 0 ]; then

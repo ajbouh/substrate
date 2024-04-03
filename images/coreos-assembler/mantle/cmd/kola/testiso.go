@@ -22,6 +22,7 @@ package main
 import (
 	"bufio"
 	"context"
+	_ "embed"
 	"fmt"
 	"io"
 	"os"
@@ -30,6 +31,8 @@ import (
 	"time"
 
 	"github.com/coreos/coreos-assembler/mantle/harness"
+	"github.com/coreos/coreos-assembler/mantle/harness/reporters"
+	"github.com/coreos/coreos-assembler/mantle/harness/testresult"
 	"github.com/coreos/coreos-assembler/mantle/platform/conf"
 	"github.com/coreos/coreos-assembler/mantle/util"
 	coreosarch "github.com/coreos/stream-metadata-go/arch"
@@ -86,6 +89,7 @@ var (
 		"iso-offline-install.bios",
 		"iso-offline-install.mpath.bios",
 		"iso-offline-install-fromram.4k.uefi",
+		"iso-offline-install-iscsi.bios",
 		"miniso-install.bios",
 		"miniso-install.nm.bios",
 		"miniso-install.4k.uefi",
@@ -107,6 +111,8 @@ var (
 		"miniso-install.s390fw",
 		"miniso-install.nm.s390fw",
 		"miniso-install.4k.nm.s390fw",
+		// FIXME https://github.com/coreos/fedora-coreos-tracker/issues/1657
+		//"iso-offline-install-iscsi.bios",
 	}
 	tests_ppc64le = []string{
 		"iso-live-login.ppcfw",
@@ -119,6 +125,8 @@ var (
 		"miniso-install.4k.nm.ppcfw",
 		"pxe-online-install.ppcfw",
 		"pxe-offline-install.4k.ppcfw",
+		// FIXME https://github.com/coreos/fedora-coreos-tracker/issues/1657
+		//"iso-offline-install-iscsi.bios",
 	}
 	tests_aarch64 = []string{
 		"iso-live-login.uefi",
@@ -134,6 +142,8 @@ var (
 		"pxe-offline-install.4k.uefi",
 		"pxe-online-install.uefi",
 		"pxe-online-install.4k.uefi",
+		// FIXME https://github.com/coreos/fedora-coreos-tracker/issues/1657
+		//"iso-offline-install-iscsi.bios",
 	}
 )
 
@@ -172,7 +182,7 @@ StandardError=kmsg+console
 ExecStart=/bin/sh -c "journalctl -t coreos-installer-service | /usr/bin/awk '/[Dd]ownload/ {exit 1}'"
 ExecStart=/bin/sh -c "/usr/bin/udevadm settle"
 ExecStart=/bin/sh -c "/usr/bin/mount /dev/disk/by-label/root /mnt"
-ExecStart=/bin/sh -c "/usr/bin/jq -er '.[\"build\"] == \"%s\"' /mnt/.coreos-aleph-version.json"
+ExecStart=/bin/sh -c "/usr/bin/jq -er '.[\"build\"]? + .[\"version\"]? == \"%s\"' /mnt/.coreos-aleph-version.json"
 ExecStart=/bin/sh -c "/usr/bin/jq -er '.[\"ostree-commit\"] == \"%s\"' /mnt/.coreos-aleph-version.json"
 [Install]
 RequiredBy=coreos-installer.target
@@ -317,6 +327,9 @@ RequiredBy=coreos-installer.target
 # for target system
 RequiredBy=multi-user.target`, nmConnectionId, nmConnectionFile)
 
+//go:embed resources/iscsi_butane_setup.yaml
+var iscsi_butane_config string
+
 func init() {
 	cmdTestIso.Flags().BoolVarP(&instInsecure, "inst-insecure", "S", false, "Do not verify signature on metal image")
 	cmdTestIso.Flags().BoolVar(&console, "console", false, "Connect qemu console to terminal, turn off automatic initramfs failure checking")
@@ -383,13 +396,23 @@ func newQemuBuilder(outdir string) (*platform.QemuBuilder, *conf.Conf, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	journalPipe, err := builder.VirtioJournal(config, "")
+
+	err = forwardJournal(outdir, builder, config)
 	if err != nil {
 		return nil, nil, err
 	}
+
+	return builder, config, nil
+}
+
+func forwardJournal(outdir string, builder *platform.QemuBuilder, config *conf.Conf) error {
+	journalPipe, err := builder.VirtioJournal(config, "")
+	if err != nil {
+		return err
+	}
 	journalOut, err := os.OpenFile(filepath.Join(outdir, "journal.txt"), os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	go func() {
@@ -399,7 +422,7 @@ func newQemuBuilder(outdir string) (*platform.QemuBuilder, *conf.Conf, error) {
 		}
 	}()
 
-	return builder, config, nil
+	return nil
 }
 
 func newQemuBuilderWithDisk(outdir string) (*platform.QemuBuilder, *conf.Conf, error) {
@@ -448,8 +471,7 @@ func filterTests(tests []string, patterns []string) ([]string, error) {
 	return r, nil
 }
 
-func runTestIso(cmd *cobra.Command, args []string) error {
-	var err error
+func runTestIso(cmd *cobra.Command, args []string) (err error) {
 	if kola.CosaBuild == nil {
 		return fmt.Errorf("Must provide --build")
 	}
@@ -490,6 +512,19 @@ func runTestIso(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
+	// see similar code in suite.go
+	reportDir := filepath.Join(outputDir, "reports")
+	if err := os.Mkdir(reportDir, 0777); err != nil {
+		return err
+	}
+
+	reporter := reporters.NewJSONReporter("report.json", "testiso", "")
+	defer func() {
+		if reportErr := reporter.Output(reportDir); reportErr != nil && err != nil {
+			err = reportErr
+		}
+	}()
 
 	baseInst := platform.Install{
 		CosaBuild:       kola.CosaBuild,
@@ -573,15 +608,27 @@ func runTestIso(cmd *cobra.Command, args []string) error {
 			duration, err = testLiveIso(ctx, inst, filepath.Join(outputDir, test), false)
 		case "miniso-install":
 			duration, err = testLiveIso(ctx, inst, filepath.Join(outputDir, test), true)
+		case "iso-offline-install-iscsi":
+			duration, err = testLiveInstalliscsi(ctx, inst, filepath.Join(outputDir, test))
 		default:
 			plog.Fatalf("Unknown test name:%s", test)
 		}
+
+		result := testresult.Pass
+		output := []byte{}
+		if err != nil {
+			result = testresult.Fail
+			output = []byte(err.Error())
+		}
+		reporter.ReportTest(test, []string{}, result, duration, output)
 		if printResult(test, duration, err) {
 			atLeastOneFailed = true
 		}
 	}
 
+	reporter.SetResult(testresult.Pass)
 	if atLeastOneFailed {
+		reporter.SetResult(testresult.Fail)
 		return harness.SuiteFailed
 	}
 
@@ -930,4 +977,105 @@ func testAsDisk(ctx context.Context, outdir string) (time.Duration, error) {
 	defer mach.Destroy()
 
 	return awaitCompletion(ctx, mach, outdir, completionChannel, nil, []string{liveOKSignal})
+}
+
+// iscsi_butane_setup.yaml contain the full butane config but here is an overview of the setup
+// 1 - Boot a live ISO with two extra 10G disks with labels "target" and "var"
+//   - Format and mount `virtio-var` to var
+//
+// 2 - target.container -> start an iscsi target, using quay.io/jbtrystram/targetcli
+// 3 - setup-targetcli.service calls /usr/local/bin/targetcli_script:
+//   - instructs targetcli to serve /dev/disk/by-id/virtio-target as an iscsi target
+//   - disables authentication
+//   - verifies the iscsi service is active and reachable
+//
+// 4 - install-coreos-to-iscsi-target.service calls /usr/local/bin/install-coreos-iscsi:
+//   - mount iscsi target
+//   - run coreos-installer on the mounted block device
+//   - unmount iscsi
+//
+// 5 - coreos-iscsi-vm.container start a coreos-assemble:
+//   - launch cosa qemuexec instructing it to boot from an iPXE script
+//     wich in turns mount the iscsi target and load kernel
+//   - note the virtserial port device: we pass through the serial port that was created by kola for test completion
+//
+// 6 - /mnt/workdir-tmp/nested-ign.json contains an ignition config:
+//   - when the system is booted, write a success string to /dev/virtio-ports/testisocompletion
+//   - As this serial device is mapped to the host serial device, the test concludes
+func testLiveInstalliscsi(ctx context.Context, inst platform.Install, outdir string) (time.Duration, error) {
+
+	builddir := kola.CosaBuild.Dir
+	isopath := filepath.Join(builddir, kola.CosaBuild.Meta.BuildArtifacts.LiveIso.Path)
+	builder, err := newBaseQemuBuilder(outdir)
+	if err != nil {
+		return 0, err
+	}
+	defer builder.Close()
+	if err := builder.AddIso(isopath, "", false); err != nil {
+		return 0, err
+	}
+
+	completionChannel, err := builder.VirtioChannelRead("testisocompletion")
+	if err != nil {
+		return 0, err
+	}
+
+	// Create a serial channel to read the logs from the nested VM
+	nestedVmLogsChannel, err := builder.VirtioChannelRead("nestedvmlogs")
+	if err != nil {
+		return 0, err
+	}
+
+	// Create a file to write the contents of the serial channel into
+	nestedVMConsole, err := os.OpenFile(filepath.Join(outdir, "nested_vm_console.txt"), os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return 0, err
+	}
+
+	go func() {
+		_, err := io.Copy(nestedVMConsole, nestedVmLogsChannel)
+		if err != nil && err != io.EOF {
+			panic(err)
+		}
+	}()
+
+	// empty disk to use as an iscsi target to install coreOS on and subseqently boot
+	// Also add a 10G disk that we will mount on /var, to increase space available when pulling containers
+	err = builder.AddDisksFromSpecs([]string{"10G:serial=target", "10G:serial=var"})
+	if err != nil {
+		return 0, err
+	}
+
+	// We need more memory to start another VM within !
+	builder.MemoryMiB = 2048
+
+	var iscsiTargetConfig = conf.Butane(iscsi_butane_config)
+
+	config, err := iscsiTargetConfig.Render(conf.FailWarnings)
+	if err != nil {
+		return 0, err
+	}
+	err = forwardJournal(outdir, builder, config)
+	if err != nil {
+		return 0, err
+	}
+
+	// Add a failure target to stop the test if something go wrong rather than waiting for the 10min timeout
+	config.AddSystemdUnit("coreos-test-entered-emergency-target.service", signalFailureUnit, conf.Enable)
+
+	// enable network
+	builder.EnableUsermodeNetworking([]platform.HostForwardPort{}, "")
+
+	// keep auto-login enabled for easier debug when running console
+	config.AddAutoLogin()
+
+	builder.SetConfig(config)
+
+	mach, err := builder.Exec()
+	if err != nil {
+		return 0, errors.Wrapf(err, "running iso")
+	}
+	defer mach.Destroy()
+
+	return awaitCompletion(ctx, mach, outdir, completionChannel, nil, []string{"iscsi-boot-ok"})
 }

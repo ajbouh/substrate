@@ -13,7 +13,7 @@ sudo
 dumb-init
 
 # For composes
-rpm-ostree createrepo_c openssh-clients python3-createrepo_c
+rpm-ostree createrepo_c openssh-clients python3-createrepo_c composefs
 dnf-utils
 
 # For generating ISO images
@@ -72,6 +72,9 @@ python3-resultsdb_api
 python3-resultsdb_conventions
 python3-resultsdb_conventions-fedora
 python3-fedfind
+
+# For creating JUnit test results for Jenkins
+python3-junit_xml
 
 # For debugging running processes in the pipelines
 strace

@@ -58,7 +58,6 @@ import (
 	"github.com/coreos/coreos-assembler/mantle/platform/machine/qemuiso"
 	"github.com/coreos/coreos-assembler/mantle/system"
 	"github.com/coreos/coreos-assembler/mantle/util"
-	coreosarch "github.com/coreos/stream-metadata-go/arch"
 )
 
 // InstalledTestsDir is a directory where "installed" external
@@ -540,8 +539,10 @@ func filterTests(tests map[string]*register.Test, patterns []string, pltfrm stri
 		}
 
 		if t.RequiredTag != "" && // if the test has a required tag...
-			!HasString(t.RequiredTag, positiveTags) && // and that tag was not provided by the user...
-			(!userTypedPattern || !nameMatch) { // and the user didn't request it by name...
+			!HasString(t.RequiredTag, positiveTags) { // and that tag was not provided by the user
+			if userTypedPattern && nameMatch {
+				fmt.Printf("⏭️  Skipping kola test \"%s\" with required tag \"%s\"\n", t.Name, t.RequiredTag)
+			}
 			continue // then skip it
 		}
 
@@ -599,7 +600,7 @@ func filterTests(tests map[string]*register.Test, patterns []string, pltfrm stri
 				isExcluded = true
 				break
 			}
-			allowedArchitecture, _ := isAllowed(coreosarch.CurrentRpmArch(), t.Architectures, t.ExcludeArchitectures)
+			allowedArchitecture, _ := isAllowed(Options.CosaBuildArch, t.Architectures, t.ExcludeArchitectures)
 			allowed = allowed || (allowedPlatform && allowedArchitecture)
 		}
 		if isExcluded || !allowed {
@@ -622,7 +623,7 @@ func filterTests(tests map[string]*register.Test, patterns []string, pltfrm stri
 				delete(t.NativeFuncs, k)
 				continue
 			}
-			_, excluded = isAllowed(coreosarch.CurrentRpmArch(), nil, NativeFuncWrap.Exclusions)
+			_, excluded = isAllowed(Options.CosaBuildArch, nil, NativeFuncWrap.Exclusions)
 			if excluded {
 				delete(t.NativeFuncs, k)
 			}
@@ -717,7 +718,7 @@ func runProvidedTests(testsBank map[string]*register.Test, patterns []string, mu
 	}
 
 	if len(tests) == 0 {
-		plog.Fatalf("There are no matching tests to run on this architecture/platform: %s %s", coreosarch.CurrentRpmArch(), pltfrm)
+		plog.Fatalf("There are no matching tests to run on this architecture/platform: %s %s", Options.CosaBuildArch, pltfrm)
 	}
 
 	tests, err = filterDenylistedTests(tests)
@@ -1216,7 +1217,7 @@ ExecStart=%s
 	// Architectures using 64k pages use slightly more memory, ask for more than requested
 	// to make sure that we don't run out of it. Currently, only ppc64le uses 64k pages by default.
 	// See similar logic in boot-mirror.go and luks.go.
-	switch coreosarch.CurrentRpmArch() {
+	switch Options.CosaBuildArch {
 	case "ppc64le":
 		if targetMeta.MinMemory <= 4096 {
 			targetMeta.MinMemory = targetMeta.MinMemory * 2
@@ -1835,6 +1836,30 @@ func runTest(h *harness.H, t *register.Test, pltfrm string, flight platform.Flig
 		ostreeContainerPath := filepath.Join(CosaBuild.Dir, ostreeContainer.Path)
 		if err := cluster.DropFile(tcluster.Machines(), ostreeContainerPath); err != nil {
 			h.Fatal(err)
+		}
+	}
+
+	if Options.OSContainer != "" {
+		rebase_arg := Options.OSContainer
+		// if it looks like a path to an OCI archive, then copy it into the system
+		if strings.HasSuffix(Options.OSContainer, ".ociarchive") {
+			if err := cluster.DropFile(tcluster.Machines(), Options.OSContainer); err != nil {
+				h.Fatalf("dropping oscontainer file: %v", err)
+			}
+			// put it someplace rpm-ostree can access it; ideally we'd generalize DropFile
+			// to take a destination path instead
+			remote_file := filepath.Base(Options.OSContainer)
+			for _, m := range tcluster.Machines() {
+				tcluster.RunCmdSyncf(m, "mv -Z /home/core/%s /var/tmp/", remote_file)
+			}
+			rebase_arg = fmt.Sprintf("ostree-unverified-image:oci-archive:/var/tmp/%s", remote_file)
+		}
+		for _, m := range tcluster.Machines() {
+			tcluster.RunCmdSyncf(m, "sudo rpm-ostree rebase --experimental %s", rebase_arg)
+			err = m.Reboot()
+			if err != nil {
+				h.Fatalf("failed to reboot machine: %v", err)
+			}
 		}
 	}
 
