@@ -40,12 +40,11 @@ func (e echoClient) AssistantName() string {
 	return string(e)
 }
 
-func (e echoClient) MatchInput(speaker, input string) bool {
-	return matchesAssistantName(e, input)
-}
-
-func (e echoClient) Complete(speaker, prompt string) (string, error) {
-	return "echo: " + prompt, nil
+func (e echoClient) Complete(speaker, prompt string) (string, string, error) {
+	if !matchesAssistantName(e, prompt) {
+		return "", "", ErrNoMatch
+	}
+	return prompt, "echo: " + prompt, nil
 }
 
 func TestAssistant(t *testing.T) {
@@ -84,8 +83,8 @@ func TestAssistant(t *testing.T) {
 			Data: &AssistantTextEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
-				Input:       "bridge bar",
-				Response:    "echo: bridge bar",
+				Prompt:      "bridge bar",
+				Response:    stringPtr("echo: bridge bar"),
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -105,8 +104,8 @@ func TestAssistant(t *testing.T) {
 			Data: &AssistantTextEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
-				Input:       "Bridge bar",
-				Response:    "echo: Bridge bar",
+				Prompt:      "Bridge bar",
+				Response:    stringPtr("echo: Bridge bar"),
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -126,8 +125,8 @@ func TestAssistant(t *testing.T) {
 			Data: &AssistantTextEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
-				Input:       "Bridge, bar",
-				Response:    "echo: Bridge, bar",
+				Prompt:      "Bridge, bar",
+				Response:    stringPtr("echo: Bridge, bar"),
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -147,8 +146,8 @@ func TestAssistant(t *testing.T) {
 			Data: &AssistantTextEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
-				Input:       "hey Bridge, bar",
-				Response:    "echo: hey Bridge, bar",
+				Prompt:      "hey Bridge, bar",
+				Response:    stringPtr("echo: hey Bridge, bar"),
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -169,8 +168,8 @@ func TestAssistant(t *testing.T) {
 				Data: &AssistantTextEvent{
 					SourceEvent: tevt.ID,
 					Name:        "bridge",
-					Input:       "hey Bridge and HAL, open the pod bay doors",
-					Response:    "echo: hey Bridge and HAL, open the pod bay doors",
+					Prompt:      "hey Bridge and HAL, open the pod bay doors",
+					Response:    stringPtr("echo: hey Bridge and HAL, open the pod bay doors"),
 				},
 			},
 			{
@@ -182,8 +181,8 @@ func TestAssistant(t *testing.T) {
 				Data: &AssistantTextEvent{
 					SourceEvent: tevt.ID,
 					Name:        "hal",
-					Input:       "hey Bridge and HAL, open the pod bay doors",
-					Response:    "echo: hey Bridge and HAL, open the pod bay doors",
+					Prompt:      "hey Bridge and HAL, open the pod bay doors",
+					Response:    stringPtr("echo: hey Bridge and HAL, open the pod bay doors"),
 				},
 			},
 		}
@@ -206,12 +205,11 @@ func (s simpleClient) AssistantName() string {
 	return s.Name
 }
 
-func (s simpleClient) MatchInput(speaker, input string) bool {
-	return matchesAssistantName(s, input)
-}
-
-func (s simpleClient) Complete(speaker, prompt string) (string, error) {
-	return fmt.Sprintf("%s\n\n%s", s.SystemPrompt, prompt), nil
+func (s simpleClient) Complete(speaker, prompt string) (string, string, error) {
+	if !matchesAssistantName(s, prompt) {
+		return "", "", ErrNoMatch
+	}
+	return prompt, fmt.Sprintf("%s\n\n%s", s.SystemPrompt, prompt), nil
 }
 
 func TestAssistantAdd(t *testing.T) {
@@ -257,8 +255,8 @@ func TestAssistantAdd(t *testing.T) {
 			Data: &AssistantTextEvent{
 				SourceEvent: tevt.ID,
 				Name:        "hal",
-				Input:       "hello hal",
-				Response:    "you are HAL 9000, a sentient computer\n\nhello hal",
+				Prompt:      "hello hal",
+				Response:    stringPtr("you are HAL 9000, a sentient computer\n\nhello hal"),
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -285,8 +283,8 @@ func TestAssistantAdd(t *testing.T) {
 			Data: &AssistantTextEvent{
 				SourceEvent: tevt.ID,
 				Name:        "hal",
-				Input:       "hello hal",
-				Response:    "you are HAL 9001\n\nhello hal",
+				Prompt:      "hello hal",
+				Response:    stringPtr("you are HAL 9001\n\nhello hal"),
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -314,8 +312,8 @@ func TestAssistantAdd(t *testing.T) {
 			Data: &AssistantTextEvent{
 				SourceEvent: tevt.ID,
 				Name:        "hal",
-				Input:       "hello hal",
-				Response:    "you are HAL 9001\n\nhello hal",
+				Prompt:      "hello hal",
+				Response:    stringPtr("you are HAL 9001\n\nhello hal"),
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))

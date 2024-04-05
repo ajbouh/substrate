@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -29,9 +30,9 @@ type AssistantPromptEvent struct {
 type AssistantTextEvent struct {
 	SourceEvent tracks.ID
 	Name        string
-	Input       string
-	Response    string
-	Error       string
+	Prompt      string
+	Response    *string
+	Error       *string
 }
 
 func AddAssistant(span tracks.Span, name, systemMessage string) tracks.Event {
@@ -48,10 +49,11 @@ func RemoveAssistant(span tracks.Span, name string) tracks.Event {
 	})
 }
 
+var ErrNoMatch = fmt.Errorf("input does not match assistant")
+
 type Client interface {
 	AssistantName() string
-	MatchInput(speaker, input string) bool
-	Complete(speaker, input string) (string, error)
+	Complete(speaker, input string) (prompt, response string, err error)
 }
 
 type SessionStorage interface {
@@ -180,27 +182,30 @@ func matchesAssistantName(client Client, text string) bool {
 	return strings.Contains(strings.ToLower(text), client.AssistantName())
 }
 
+func stringPtr(s string) *string {
+	return &s
+}
+
 func respond(client Client, annot tracks.Event, input string) {
 	name := client.AssistantName()
 	// TODO get speaker name from transcription
 	speaker := "user"
-	if !client.MatchInput(speaker, input) {
-		log.Printf("assistant: client %q did not match: %s", name, input)
-		return
-	}
+	prompt, response, err := client.Complete(speaker, input)
 	out := AssistantTextEvent{
 		SourceEvent: annot.ID,
 		Name:        name,
-		Input:       input,
+		Prompt:      prompt,
 	}
-	log.Printf("assistant: about to call %s", name)
-	resp, err := client.Complete(speaker, input)
+	if errors.Is(err, ErrNoMatch) {
+		log.Printf("assistant: client %q did not match: %s", name, input)
+		return
+	}
 	if err != nil {
 		log.Printf("assistant: %s error: %v", name, err)
-		out.Error = "error calling assistant"
+		out.Error = stringPtr("error calling assistant")
 	} else {
-		log.Printf("assistant: %s response: %s", name, resp)
-		out.Response = resp
+		log.Printf("assistant: %s response: %s", name, response)
+		out.Response = &response
 	}
 	recordAssistantText(annot.Span(), &out)
 }
@@ -245,11 +250,10 @@ func (a OpenAIClient) AssistantName() string {
 	return a.Name
 }
 
-func (a OpenAIClient) MatchInput(speaker, input string) bool {
-	return matchesAssistantName(a, input)
-}
-
-func (a OpenAIClient) Complete(speaker, input string) (string, error) {
+func (a OpenAIClient) Complete(speaker, input string) (string, string, error) {
+	if !matchesAssistantName(a, input) {
+		return "", "", ErrNoMatch
+	}
 	maxTokens := 4096
 	systemMessage := a.SystemMessage
 	prompt, err := prompts.Render("complete", map[string]any{
@@ -259,7 +263,7 @@ func (a OpenAIClient) Complete(speaker, input string) (string, error) {
 		"SpeakerName":   speaker,
 	})
 	if err != nil {
-		return "", err
+		return prompt, "", err
 	}
 	req := CompletionRequest{
 		MaxTokens: maxTokens - tokenCount(systemMessage),
@@ -267,15 +271,15 @@ func (a OpenAIClient) Complete(speaker, input string) (string, error) {
 	}
 	resp, err := doCompletion(a.Endpoint, &req)
 	if err != nil {
-		return "", err
+		return prompt, "", err
 	}
 	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("choices was empty")
+		return prompt, "", fmt.Errorf("choices was empty")
 	}
 	if r, err := json.MarshalIndent(resp, "", " "); err == nil {
 		log.Printf("assistant: response: %s", r)
 	}
-	return resp.Choices[0].Text, nil
+	return prompt, resp.Choices[0].Text, nil
 }
 
 func indentJSONString(b []byte) string {
