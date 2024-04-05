@@ -50,6 +50,7 @@ func RemoveAssistant(span tracks.Span, name string) tracks.Event {
 
 type Client interface {
 	AssistantName() string
+	MatchInput(speaker, input string) bool
 	Complete(speaker, input string) (string, error)
 }
 
@@ -170,33 +171,30 @@ func handleTranscription(clients []Client, annot tracks.Event) {
 		return
 	}
 	text := strings.TrimSpace(in.Text())
-	names := matchAssistants(clients, text)
-	log.Printf("assistant: matched %v for: %s", names, text)
-	for name, client := range names {
-		go respond(client, annot, name, text)
-	}
-}
-
-func matchAssistants(clients []Client, text string) map[string]Client {
-	matched := make(map[string]Client)
-	text = strings.ToLower(text)
 	for _, client := range clients {
-		if strings.Contains(text, client.AssistantName()) {
-			matched[client.AssistantName()] = client
-		}
+		go respond(client, annot, text)
 	}
-	return matched
 }
 
-func respond(client Client, annot tracks.Event, name, input string) {
+func matchesAssistantName(client Client, text string) bool {
+	return strings.Contains(strings.ToLower(text), client.AssistantName())
+}
+
+func respond(client Client, annot tracks.Event, input string) {
+	name := client.AssistantName()
+	// TODO get speaker name from transcription
+	speaker := "user"
+	if !client.MatchInput(speaker, input) {
+		log.Printf("assistant: client %q did not match: %s", name, input)
+		return
+	}
 	out := AssistantTextEvent{
 		SourceEvent: annot.ID,
 		Name:        name,
 		Input:       input,
 	}
-	// TODO get speaker name from transcription
 	log.Printf("assistant: about to call %s", name)
-	resp, err := client.Complete("user", input)
+	resp, err := client.Complete(speaker, input)
 	if err != nil {
 		log.Printf("assistant: %s error: %v", name, err)
 		out.Error = "error calling assistant"
@@ -245,6 +243,10 @@ func OpenAIClientGenerator(endpoint string) func(name, systemMessage string) Cli
 
 func (a OpenAIClient) AssistantName() string {
 	return a.Name
+}
+
+func (a OpenAIClient) MatchInput(speaker, input string) bool {
+	return matchesAssistantName(a, input)
 }
 
 func (a OpenAIClient) Complete(speaker, input string) (string, error) {

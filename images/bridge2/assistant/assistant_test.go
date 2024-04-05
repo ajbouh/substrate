@@ -40,6 +40,10 @@ func (e echoClient) AssistantName() string {
 	return string(e)
 }
 
+func (e echoClient) MatchInput(speaker, input string) bool {
+	return matchesAssistantName(e, input)
+}
+
 func (e echoClient) Complete(speaker, prompt string) (string, error) {
 	return "echo: " + prompt, nil
 }
@@ -200,6 +204,10 @@ type simpleClient struct {
 
 func (s simpleClient) AssistantName() string {
 	return s.Name
+}
+
+func (s simpleClient) MatchInput(speaker, input string) bool {
+	return matchesAssistantName(s, input)
 }
 
 func (s simpleClient) Complete(speaker, prompt string) (string, error) {
