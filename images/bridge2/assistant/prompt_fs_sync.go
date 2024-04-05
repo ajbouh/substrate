@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"time"
 
-	// fsutil "fs"
-
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 )
 
@@ -18,6 +16,21 @@ type fsSync struct {
 	prompts  chan tracks.Event
 }
 
+// Syncs assistant prompts with plain-text files in the given directory.
+//
+// On receiving an "assistant-set-prompt" event, the prompt contents are written
+// to `{path}/{assistant-name}`. Or if the prompt is empty, the file is removed.
+//
+// The path contents are polled at the `pollRate` for changes. When a file
+// change is detected, its contents will be recorded as the new prompt for that
+// assistant.
+//
+// De-duping: this avoids duplicate syncing back-and-forth by:
+//  1. When it generates an "assistant-set-prompt" event it stores the ID to skip
+//     when the handler is called for that event.
+//  2. When writing the prompt to a file, it fetches the new `Stat` result and
+//     records that with the new modification time so that the next poll will
+//     not trigger a duplicate event.
 func newFSSync(sess *tracks.Session, path string, pollRate time.Duration) *fsSync {
 	f := &fsSync{
 		sess:     sess,
@@ -65,20 +78,20 @@ func (a *fsSync) sync() {
 		case asstEvent := <-a.prompts:
 			if _, ok := inFlight[asstEvent.ID]; ok {
 				delete(inFlight, asstEvent.ID)
+				continue
+			}
+			in := asstEvent.Data.(*AssistantPromptEvent)
+			stat, err := a.savePrompt(in)
+			if err != nil {
+				log.Printf("error saving prompt %s: %v", asstEvent.Data.(*AssistantPromptEvent).Name, err)
+				continue
+			}
+			// update the current entry for this file based on what we just wrote
+			// to avoid triggering a duplicate change when polling the file
+			if stat == nil {
+				delete(knownFiles, in.Name)
 			} else {
-				in := asstEvent.Data.(*AssistantPromptEvent)
-				stat, err := a.savePrompt(in)
-				if err != nil {
-					log.Printf("error saving prompt %s: %v", asstEvent.Data.(*AssistantPromptEvent).Name, err)
-					continue
-				}
-				// update the current entry for this file based on what we just wrote
-				// to avoid triggering a duplicate change when polling the file
-				if stat == nil {
-					delete(knownFiles, in.Name)
-				} else {
-					knownFiles[in.Name] = stat
-				}
+				knownFiles[in.Name] = stat
 			}
 		}
 	}
