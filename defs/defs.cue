@@ -76,7 +76,8 @@ import (
 
 enable: [string]: bool
 
-live_edit: [string]: bool | *false
+#live_edit_default: bool @tag(live_edit,type=bool)
+live_edit: [string]: bool | *#live_edit_default
 
 system: [string]: _
 

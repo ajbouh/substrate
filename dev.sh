@@ -97,6 +97,12 @@ detect_dev_cue_tag_args() {
   fi
   CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t namespace=$NAMESPACE"
 
+  if [ -z "$SUBSTRATE_LIVE_EDIT" ]; then
+    echo >&2 "SUBSTRATE_LIVE_EDIT not set"
+    exit 2
+  fi
+  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t live_edit=$SUBSTRATE_LIVE_EDIT"
+
   if [ -z "$USE_VARSET" ]; then
     echo >&2 "USE_VARSET not set"
     exit 2
@@ -293,12 +299,18 @@ set_os_vars() {
   CUE_DEV_DEFS="defs"
   USE_VARSET="substrateos"
   BUILD_SOURCE_DIRECTORY="$HERE"
+  SUBSTRATE_LIVE_EDIT=false
+}
+
+set_live_edit_vars() {
+  SUBSTRATE_LIVE_EDIT=true
 }
 
 set_docker_vars() {
   CUE_DEV_DEFS="defs"
   USE_VARSET="docker_compose"
   BUILD_SOURCE_DIRECTORY="$HERE"
+  SUBSTRATE_LIVE_EDIT=false
 }
 
 systemd_logs() {
@@ -429,16 +441,19 @@ case "$1" in
   reload|systemd-reload)
     shift
     set_os_vars
+    set_live_edit_vars
     systemd_reload "$@"
     ;;
   systemd-logs)
     shift
     set_os_vars
+    set_live_edit_vars
     systemd_logs
     ;;
   systemd-reload-follow|srf)
     shift
     set_os_vars
+    set_live_edit_vars
     systemd_reload "$@"
     systemd_logs
     ;;
