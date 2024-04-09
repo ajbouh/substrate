@@ -196,8 +196,8 @@ for key, def in #out.imagespecs {
 }
 
 for key, def in #out.services {
-  if def.spawn != _|_ {
-    for alias, rddef in def.spawn.resourcedirs {
+  if ((def.instances & {"":_})[""] != _|_) {
+    for alias, rddef in (def.instances & {"":_})[""].resourcedirs {
       resourcedirs: (rddef.id): _
       #out: resourcedir_fetches: (rddef.id): {
         sha256: rddef.sha256
@@ -223,16 +223,17 @@ for key, def in services if (enable[key]) {
   #out: "services": (key): def & { "name": key }
 }
 
-for key, def in services if (enable[key]) && def.spawn != _|_ {
+#out: service_image_tags: [string]: string
+for key, def in services if (enable[key]) && ((def.instances & {"":_})[""] != _|_) {
   let image_tag = image_tags[key] | *#out.imagespecs[key].image
   image_ids: (image_tag): string
   #out: service_image_tags: (key): image_tag
 }
 
-for key, def in services if (enable[key]) && def.spawn != _|_ {
+for key, def in services if (enable[key]) && ((def.instances & {"":_})[""] != _|_) {
   #out: "services": (key): def & {
     "name": key 
-    spawn: {
+    instances: [string]: {
       image: image_ids[#out.service_image_tags[key]]
 
       "resourcedirs": [alias=string]: {

@@ -7,7 +7,7 @@ live_edit: "styletts2": bool
 imagespecs: "styletts2": {}
 
 services: "styletts2": {
-  spawn: {
+  instances: [string]: {
     resourcedirs: {
       model: {
         id: "huggingface:model:yl4579/StyleTTS2-LibriTTS:d2ca3f14cf019cd2da653c74564e04f8e1f5c5ab"

@@ -12,7 +12,7 @@ tests: "llama-3-8b-instruct-awq": assister: {
 image_tags: "llama-3-8b-instruct-awq": image_tags["vllm"]
 
 services: "llama-3-8b-instruct-awq": {
-  spawn: {
+  instances: [string]: {
     environment: {
       CUDA_DEVICE_ORDER: "PCI_BUS_ID"
     }

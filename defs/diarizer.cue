@@ -5,12 +5,10 @@ enable: "diarizer": true
 imagespecs: "diarizer": {}
 
 services: "diarizer": {
-  spawn: {
+  instances: [string]: {
     environment: {
       CUDA_DEVICE_ORDER: "PCI_BUS_ID"
       PORT: string
-    }
-    resourcedirs: {
     }
   }
 }

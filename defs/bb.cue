@@ -32,5 +32,5 @@ tests: "bb": go: {
 imagespecs: "bb": {}
 
 services: "bb": {
-  spawn: {}
+  instances: [string]: {}
 }

@@ -110,8 +110,8 @@ func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error) {
 }
 
 func (p *P) prepareResourceDirsMounts(as *activityspec.ServiceSpawnResolution) ([]mount.Mount, error) {
-	mounts := make([]mount.Mount, 0, len(as.ServiceDefSpawn.ResourceDirs))
-	for alias, rd := range as.ServiceDefSpawn.ResourceDirs {
+	mounts := make([]mount.Mount, 0, len(as.ServiceInstanceSpawnDef.ResourceDirs))
+	for alias, rd := range as.ServiceInstanceSpawnDef.ResourceDirs {
 		rdPath, err := p.findResourceDir(rd)
 		if err != nil {
 			return nil, err
@@ -137,8 +137,10 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		LabelSubstrateActivity:   spec,
 	}
 
+	imageID := as.ServiceInstanceSpawnDef.Image
+
 	c := &container.Config{
-		Image:        as.ServiceDefSpawn.Image,
+		Image:        imageID,
 		ExposedPorts: nat.PortSet{},
 		Labels:       labels,
 	}
@@ -183,7 +185,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		)
 	}
 
-	for _, m := range as.ServiceDefSpawn.Mounts {
+	for _, m := range as.ServiceInstanceSpawnDef.Mounts {
 		readOnly := true
 		if m.Mode == "rw" {
 			readOnly = false
@@ -207,7 +209,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 
 	// Pull PORT out of env, so it can be used for port forwarding.
 	// TODO consider using configured portmappings instead of this weird approach.
-	portStr := as.ServiceDefSpawn.Environment["PORT"]
+	portStr := as.ServiceInstanceSpawnDef.Environment["PORT"]
 
 	natPort, err := nat.NewPort("tcp", portStr)
 	if err != nil {
@@ -215,9 +217,9 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	}
 	c.ExposedPorts[natPort] = struct{}{}
 
-	c.Cmd = append([]string{}, as.ServiceDefSpawn.Command...)
+	c.Cmd = append([]string{}, as.ServiceInstanceSpawnDef.Command...)
 
-	for k, v := range as.ServiceDefSpawn.Environment {
+	for k, v := range as.ServiceInstanceSpawnDef.Environment {
 		c.Env = append(c.Env, k+"="+v)
 	}
 	// TODO need to check schema before we know how to interpret a given parameter...
@@ -267,7 +269,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 
 		PID: inspect.State.Pid,
 
-		BackendURL:  backendURL + as.ServiceDefSpawn.URLPrefix,
+		BackendURL:  backendURL + as.ServiceInstanceSpawnDef.URLPrefix,
 		BearerToken: bearerToken,
 
 		ServiceSpawnResolution: *as,

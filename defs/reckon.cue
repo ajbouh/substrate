@@ -7,7 +7,7 @@ enable: "reckon": true
 imagespecs: "reckon": {}
 
 services: "reckon": {
-  spawn: {
+  instances: [string]: {
     if live_edit["reckon"] {
       mounts: [
         { source: "\(#var.host_source_directory)/images/reckon/docs", destination: "/app/docs", mode: "rw" },

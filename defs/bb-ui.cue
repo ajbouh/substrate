@@ -7,7 +7,7 @@ enable: "bb-ui": true
 imagespecs: "bb-ui": {}
 
 services: "bb-ui": {
-  spawn: {
+  instances: [string]: {
     if live_edit["bb-ui"] {
       mounts: [
         { source: "\(#var.host_source_directory)/images/bb-ui/docs", destination: "/app/docs", mode: "rw" },

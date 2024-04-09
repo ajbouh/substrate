@@ -29,33 +29,35 @@ type DefSet struct {
 	ServiceSpawned []ServiceSpawned
 }
 
-func (s *DefSet) ResolveServiceByName(ctx context.Context, serviceName string) (*activityspec.ServiceDef, error) {
+func decodeServiceInstanceSpawnDef(service cue.Value) (*activityspec.ServiceInstanceSpawnDef, error) {
+	v := service.LookupPath(cue.MakePath(cue.Str("instances"), cue.AnyString))
+	var result activityspec.ServiceInstanceSpawnDef
+	return &result, v.Decode(&result)
+}
+
+func (s *DefSet) ResolveServiceByName(ctx context.Context, serviceName string) (*activityspec.ServiceInstanceSpawnDef, error) {
 	s.CueMu.Lock()
 	defer s.CueMu.Unlock()
 
-	service, ok := s.Services[serviceName]
+	v, ok := s.Services[serviceName]
 	if !ok {
 		return nil, nil
 	}
-	var result *activityspec.ServiceDef
-	if err := service.Decode(&result); err != nil {
-		return nil, err
-	}
-	return result, nil
+	return decodeServiceInstanceSpawnDef(v)
 }
 
-func (s *DefSet) AllServices(ctx context.Context) (map[string]*activityspec.ServiceDef, error) {
+func (s *DefSet) AllServices(ctx context.Context) (map[string]*activityspec.ServiceInstanceSpawnDef, error) {
 	s.CueMu.Lock()
 	defer s.CueMu.Unlock()
 
 	// use JSON encoding to defensively clone s.Services
-	services := map[string]*activityspec.ServiceDef{}
+	services := map[string]*activityspec.ServiceInstanceSpawnDef{}
 	for k, v := range s.Services {
-		service := &activityspec.ServiceDef{}
-		if err := v.Decode(service); err != nil {
+		def, err := decodeServiceInstanceSpawnDef(v)
+		if err != nil {
 			return nil, err
 		}
-		services[k] = service
+		services[k] = def
 	}
 	return services, nil
 }

@@ -5,7 +5,7 @@ enable: "jupyverse": true
 imagespecs: "jupyverse": {}
 
 services: "jupyverse": {
-  spawn: parameters: data: type: "space"
+  instance: parameters: data: type: "space"
 
   space: {
     preview: "index.ipynb"

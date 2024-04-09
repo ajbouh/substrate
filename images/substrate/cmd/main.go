@@ -220,7 +220,7 @@ func newCueLoader(
 			),
 			cueloader.LookupPathTransform(cue.MakePath(cue.Def("#out"), cue.Str("services"))),
 			cueloader.FillPathEncodeTransform(
-				cue.MakePath(cue.AnyString, cue.Str("spawn").Optional(), cue.Str("environment")),
+				cue.MakePath(cue.AnyString, cue.Str("instances").Optional(), cue.AnyString, cue.Str("environment")),
 				map[string]string{
 					"JAMSOCKET_IFRAME_DOMAIN":   origin,
 					"SUBSTRATE_ORIGIN":          origin,

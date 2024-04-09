@@ -93,7 +93,7 @@ loop:
 		}
 	}
 
-	if res.ServiceSpawnResolution.ServiceDefSpawn.Ephemeral {
+	if res.ServiceSpawnResolution.ServiceInstanceSpawnDef.Ephemeral {
 		return nil
 	}
 
@@ -123,7 +123,7 @@ loop:
 
 	viewspec, _ := views.Format()
 
-	if !res.ServiceSpawnResolution.ServiceDefSpawn.Ephemeral && len(spaces) > 0 {
+	if !res.ServiceSpawnResolution.ServiceInstanceSpawnDef.Ephemeral && len(spaces) > 0 {
 		err = s.WriteActivity(ctx, &Activity{
 			ActivitySpec: viewspec,
 			CreatedAt:    now,

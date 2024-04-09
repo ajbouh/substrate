@@ -108,8 +108,8 @@ func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error) {
 }
 
 func (p *P) prepareResourceDirsMounts(as *activityspec.ServiceSpawnResolution) ([]specs.Mount, error) {
-	mounts := make([]specs.Mount, 0, len(as.ServiceDefSpawn.ResourceDirs))
-	for alias, rd := range as.ServiceDefSpawn.ResourceDirs {
+	mounts := make([]specs.Mount, 0, len(as.ServiceInstanceSpawnDef.ResourceDirs))
+	for alias, rd := range as.ServiceInstanceSpawnDef.ResourceDirs {
 		rdPath, err := p.findResourceDir(rd)
 		if err != nil {
 			return nil, err
@@ -131,6 +131,8 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		return nil, err
 	}
 
+	imageID := as.ServiceInstanceSpawnDef.Image
+
 	spec, _ := as.Format()
 	labels := map[string]string{
 		LabelSubstrateNamespace:  p.namespace,
@@ -138,11 +140,11 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		LabelSubstrateActivity:   spec,
 	}
 
-	s := specgen.NewSpecGenerator(as.ServiceDefSpawn.Image, false)
+	s := specgen.NewSpecGenerator(imageID, false)
 	s.Remove = true
 	s.Env = map[string]string{}
 	s.Labels = labels
-	s.Command = append([]string{}, as.ServiceDefSpawn.Command...)
+	s.Command = append([]string{}, as.ServiceInstanceSpawnDef.Command...)
 
 	// Recognized resource types include:
 	// - "core": maximum core dump size (ulimit -c)
@@ -213,7 +215,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		return nil, err
 	}
 
-	for _, m := range as.ServiceDefSpawn.Mounts {
+	for _, m := range as.ServiceInstanceSpawnDef.Mounts {
 		s.Mounts = append(s.Mounts,
 			specs.Mount{
 				Type:        m.Type,
@@ -226,7 +228,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 
 	s.Mounts = append(s.Mounts, resourcedirMounts...)
 
-	for k, v := range as.ServiceDefSpawn.Environment {
+	for k, v := range as.ServiceInstanceSpawnDef.Environment {
 		s.Env[k] = v
 	}
 
@@ -287,7 +289,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 
 		PID: inspect.State.Pid,
 
-		BackendURL:  backendURL + as.ServiceDefSpawn.URLPrefix,
+		BackendURL:  backendURL + as.ServiceInstanceSpawnDef.URLPrefix,
 		BearerToken: bearerToken,
 
 		ServiceSpawnResolution: *as,

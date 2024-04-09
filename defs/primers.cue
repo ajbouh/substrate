@@ -7,7 +7,7 @@ enable: "primers": true
 imagespecs: "primers": {}
 
 services: "primers": {
-  spawn: {
+  instances: [string]: {
     if live_edit["primers"] {
       mounts: [
         { source: "\(#var.host_source_directory)/images/primers/docs", destination: "/app/docs", mode: "rw" },

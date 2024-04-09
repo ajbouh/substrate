@@ -29,8 +29,7 @@ tests: "faster-whisper": transcribe: {
 imagespecs: "faster-whisper": {}
 
 services: "faster-whisper": {
-  spawn: {}
-  spawn: {
+  instances: [string]: {
     environment: {
       MODEL_REPO: string
       PORT: string

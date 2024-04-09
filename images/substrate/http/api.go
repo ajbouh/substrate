@@ -14,6 +14,7 @@ import (
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	substratedb "github.com/ajbouh/substrate/images/substrate/db"
 	"github.com/ajbouh/substrate/images/substrate/httputil"
+	"github.com/ajbouh/substrate/images/substrate/provisioner"
 )
 
 func stringPtr(s string) *string {

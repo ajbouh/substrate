@@ -25,7 +25,7 @@ daemons: "mediamtx": {
   }
 }
 
-services: [key=string]: instance: {
+services: [key=string]: instances: [string]: {
   environment: {
     ORIGIN_HOSTNAME: string
     SUBSTRATE_PARAMETERS_DIGEST: string

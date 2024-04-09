@@ -5,10 +5,10 @@ enable: "visualizer": true
 imagespecs: "visualizer": {}
 
 services: "visualizer": {
-  spawn: {
+  instances: [string]: {
     ephemeral: true
+    parameters: data: type: "space"
   }
-  spawn: parameters: data: type: "space"
 
   activities: {
     previewFiles: {

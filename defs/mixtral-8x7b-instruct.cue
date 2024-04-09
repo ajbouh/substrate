@@ -12,7 +12,7 @@ tests: "mixtral-8x7b-instruct": assister: {
 image_tags: "mixtral-8x7b-instruct": image_tags["vllm"]
 
 services: "mixtral-8x7b-instruct": {
-  spawn: {
+  instances: [string]: {
     environment: {
       CUDA_DEVICE_ORDER: "PCI_BUS_ID"
     }

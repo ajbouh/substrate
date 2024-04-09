@@ -5,7 +5,7 @@ enable: "chromestage": true
 imagespecs: "chromestage": {}
 
 services: "chromestage": {
-  spawn: {
+  instances: [string]: {
     parameters: {
       w: {
         type: "string"

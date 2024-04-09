@@ -13,11 +13,6 @@ import (
 	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 )
 
-type ServiceDef struct {
-	Name  string          `json:"name"`
-	Spawn ServiceDefSpawn `json:"spawn"`
-}
-
 type ServiceSpawnRequest struct {
 	ServiceName string
 	Parameters  ServiceSpawnParameterRequests
@@ -34,7 +29,7 @@ type ServiceSpawnResolution struct {
 	Parameters         ServiceSpawnParameters `json:"parameters"`
 	GracePeriodSeconds *int                   `json:"grace_period_seconds,omitempty"`
 
-	ServiceDefSpawn ServiceDefSpawn `json:"spawn"`
+	ServiceInstanceSpawnDef ServiceInstanceSpawnDef `json:"spawn"`
 }
 
 func (r *ServiceSpawnResolution) Digest() string {
@@ -73,18 +68,18 @@ type ServiceSpawnParameterSchema struct {
 	Optional    bool                      `json:"optional,omitempty"`
 }
 
-type ServiceDefSpawn struct {
-	Image        string                    `json:"image"`
-	Environment  map[string]string         `json:"environment,omitempty"`
-	Command      []string                  `json:"command,omitempty"`
-	ResourceDirs map[string]ResourceDirDef `json:"resourcedirs,omitempty"`
-	Mounts       []ServiceDefSpawnMount    `json:"mounts,omitempty"`
+type ServiceInstanceSpawnDef struct {
+	Image        string                         `json:"image"`
+	Environment  map[string]string              `json:"environment,omitempty"`
+	Command      []string                       `json:"command,omitempty"`
+	ResourceDirs map[string]ResourceDirDef      `json:"resourcedirs,omitempty"`
+	Mounts       []ServiceInstanceDefSpawnMount `json:"mounts,omitempty"`
 
-	URLPrefix string `json:"url_prefix,omitempty"`
-	Ephemeral bool   `json:"ephemeral,omitempty"`
+	URLPrefix  string `json:"url_prefix,omitempty"`
+	Ephemeral  bool   `json:"ephemeral,omitempty"`
 }
 
-type ServiceDefSpawnMount struct {
+type ServiceInstanceDefSpawnMount struct {
 	Type        string `json:"type"`
 	Source      string `json:"source"`
 	Destination string `json:"destination"`

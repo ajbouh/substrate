@@ -8,7 +8,7 @@ enable: "bridge2": true
 imagespecs: "bridge2": {}
 
 services: "bridge2": {
-  spawn: {
+  instances: [string]: {
     parameters: sessions: type: "space"
     environment: {
       BRIDGE_TRANSCRIBE_URL: "http://substrate:8080/faster-whisper/v1/transcribe"
@@ -22,7 +22,7 @@ services: "bridge2": {
 live_edit: "bridge2": bool
 
 if live_edit["bridge2"] {
-  services: "bridge2": spawn: {
+  services: "bridge2": instances: [string]: {
     mounts: [
       { source: "\(#var.host_source_directory)/images/bridge2/ui", destination: "/go/src/github.com/ajbouh/substrate/images/bridge2/ui", mode: "ro" },
       { source: "\(#var.host_source_directory)/images/bridge2/assistant/prompts", destination: "/go/src/github.com/ajbouh/substrate/images/bridge2/assistant/prompts", mode: "ro" },

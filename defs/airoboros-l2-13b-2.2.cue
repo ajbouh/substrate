@@ -17,7 +17,7 @@ tests: "airoboros-l2-13b-2.2": assister: {
 image_tags: "airoboros-l2-13b-2.2": image_tags["vllm"]
 
 services: "airoboros-l2-13b-2.2": {
-  spawn: {
+  instances: [string]: {
     environment: {
       // USE_MLOCK: "0"
       CUDA_DEVICE_ORDER: "PCI_BUS_ID"

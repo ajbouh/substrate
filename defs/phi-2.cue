@@ -12,7 +12,7 @@ tests: "phi-2": assister: {
 image_tags: "phi-2": image_tags["vllm"]
 
 services: "phi-2": {
-  spawn: {
+  instances: [string]: {
     environment: {
       CUDA_DEVICE_ORDER: "PCI_BUS_ID"
     }

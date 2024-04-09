@@ -7,7 +7,7 @@ imagespecs: "gotty": {
 }
 
 services: "gotty": {
-  spawn: {
+  instances: [string]: {
     url_prefix: "/gotty"
     environment: {
       PORT: string

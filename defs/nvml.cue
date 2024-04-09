@@ -7,11 +7,11 @@ import (
 enable: "nvml": true
 
 imagespecs: "nvml": {
-    build: dockerfile: "images/nvml/Dockerfile"
+  build: dockerfile: "images/nvml/Dockerfile"
 }
 
 services: "nvml": {
-  spawn: {
+  instances: [string]: {
     ephemeral: true
   }
 }

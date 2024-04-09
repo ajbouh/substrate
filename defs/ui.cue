@@ -11,7 +11,7 @@ if live_edit["ui"] {
 }
 
 services: "ui": {
-  spawn: {
+  instances: [string]: {
     url_prefix: "/ui"
 
     if live_edit["ui"] {

@@ -25,7 +25,7 @@ tests: "seamlessm4t": transcribe: {
 imagespecs: "seamlessm4t": {}
 
 services: "seamlessm4t": {
-  spawn: {
+  instances: [string]: {
     environment: {
       MODEL: "/res/model/huggingface/local"
       PORT: string

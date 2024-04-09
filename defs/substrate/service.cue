@@ -77,7 +77,8 @@ import (
 
 {
   name: string
-  spawn?: {
+
+  instances: [string]: {
     parameters: [string]: #ServiceDefSpawnParameter
     parameters_digest: string | *"unknown"
     parameters_digest: hex.Encode(cryptosha256.Sum256(json.Marshal(parameters)))

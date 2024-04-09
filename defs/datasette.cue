@@ -7,6 +7,6 @@ imagespecs: "datasette": {
 }
 
 services: "datasette": {
-  spawn: {}
-  spawn: schema: data: type: "space"
+  instances: [string]: {}
+  instance: schema: data: type: "space"
 }

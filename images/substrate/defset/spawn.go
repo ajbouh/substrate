@@ -92,7 +92,7 @@ func (s *DefSet) resolveServiceDefSpawn(req *activityspec.ServiceSpawnRequest) (
 	s.CueMu.Lock()
 	defer s.CueMu.Unlock()
 
-	serviceDefSpawnValue := serviceDefValue.LookupPath(cue.MakePath(cue.Str("spawn")))
+	serviceDefSpawnValue := serviceDefValue.LookupPath(cue.MakePath(cue.Str("instances"), cue.AnyString))
 	serviceDefSpawnValue = serviceDefSpawnValue.FillPath(
 		cue.MakePath(cue.Str("environment"), cue.Str("SUBSTRATE_URL_PREFIX")),
 		req.URLPrefix,
@@ -170,15 +170,15 @@ func (s *DefSet) resolveServiceSpawn(req *activityspec.ServiceSpawnRequest, serv
 		}
 	}
 
-	serviceDefSpawn := &activityspec.ServiceDefSpawn{}
-	err = serviceDefSpawnValue.Decode(serviceDefSpawn)
+	spawnDef := &activityspec.ServiceInstanceSpawnDef{}
+	err = serviceDefSpawnValue.Decode(spawnDef)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error decoding ServiceDefSpawn: %w", err)
 	}
 
 	return &activityspec.ServiceSpawnResolution{
-		ServiceName:     req.ServiceName,
-		Parameters:      parameters,
-		ServiceDefSpawn: *serviceDefSpawn,
+		ServiceName:             req.ServiceName,
+		Parameters:              parameters,
+		ServiceInstanceSpawnDef: *spawnDef,
 	}, nil
 }

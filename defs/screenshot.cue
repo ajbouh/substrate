@@ -5,5 +5,5 @@ enable: "screenshot": true
 imagespecs: "screenshot": {}
 
 services: "screenshot": {
-  spawn: {}
+  instances: [string]: {}
 }
