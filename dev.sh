@@ -217,14 +217,18 @@ write_os_resourcedirs_overlay() {
   RESOURCEDIR_KEYS=$(print_rendered_cue_dev_expr_as text -e '#out.resourcedir_keys')
   echo RESOURCEDIR_KEYS=$RESOURCEDIR_KEYS
   for resourcedir_key in $RESOURCEDIR_KEYS; do
-    PODMAN_BUILD_OPTIONS=$(print_rendered_cue_dev_expr_as text -e "#out.resourcedir_fetch_podman_build_options[\"$resourcedir_key\"]")
-    PODMAN_RUN_OPTIONS=$(print_rendered_cue_dev_expr_as text -e "#out.resourcedir_fetch_podman_run_options[\"$resourcedir_key\"]")
-    RESOURCEDIR_MKDIRS=$(print_rendered_cue_dev_expr_as text -e "#out.resourcedir_fetch_dirs[\"$resourcedir_key\"]")
-    $PODMAN build $PODMAN_BUILD_OPTIONS
+    RESOURCEDIR_TARGET_DIR=$(print_rendered_cue_dev_expr_as text -e "#out.resourcedir_fetches[\"$resourcedir_key\"].target")
+    if [ ! -e $RESOURCEDIR_TARGET_DIR ]; then
+      RESOURCEDIR_BUILD_DIR=$(print_rendered_cue_dev_expr_as text -e "#out.resourcedir_fetch_dirs[\"$resourcedir_key\"]")
+      PODMAN_BUILD_OPTIONS=$(print_rendered_cue_dev_expr_as text -e "#out.resourcedir_fetch_podman_build_options[\"$resourcedir_key\"]")
+      PODMAN_RUN_OPTIONS=$(print_rendered_cue_dev_expr_as text -e "#out.resourcedir_fetch_podman_run_options[\"$resourcedir_key\"]")
+      $PODMAN build $PODMAN_BUILD_OPTIONS
 
-    # podman won't automatically make these directories, so do it now.
-    mkdir -p $RESOURCEDIR_MKDIRS
-    $PODMAN run --rm $PODMAN_RUN_OPTIONS
+      # podman won't automatically make these directories, so do it now.
+      mkdir -p $RESOURCEDIR_BUILD_DIR
+      $PODMAN run --rm $PODMAN_RUN_OPTIONS
+      mv $RESOURCEDIR_BUILD_DIR $RESOURCEDIR_TARGET_DIR
+    fi
   done
 }
 

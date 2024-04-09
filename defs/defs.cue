@@ -152,9 +152,11 @@ for key, def in #out.services {
       resourcedirs: (rddef.id): _
       #out: resourcedir_fetches: (rddef.id): {
         sha256: rddef.sha256
+        target: "\(#var.build_resourcedirs_root)/\(rddef.sha256)"
         #containerspec: (resourcedirs[rddef.id].#containerspec & {
           image: resourcedirs[rddef.id].#imagespec.image
-          mounts: [{source: "\(#var.build_resourcedirs_root)/\(rddef.sha256)", "destination": "/res", "mode": "Z"}]
+          // write to .build directory first
+          mounts: [{source: "\(#var.build_resourcedirs_root)/\(rddef.sha256).build", "destination": "/res", "mode": "Z"}]
         })
         #imagespec: resourcedirs[rddef.id].#imagespec
       }
