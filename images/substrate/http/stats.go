@@ -10,7 +10,6 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
 )
 
@@ -37,7 +36,7 @@ func getStats(ctx context.Context, h http.Handler, url string) (any, error) {
 	return v, nil
 }
 
-func sampleServicesWithStats(ctx context.Context, h http.Handler, c *provisioner.Cache, statsServices []string) (map[string]*activityspec.ServiceSpawnResponse, map[string]any, error) {
+func sampleServicesWithStats(ctx context.Context, h http.Handler, c *provisioner.Cache, statsServices []string) (map[string]*provisioner.Sample, map[string]any, error) {
 	var wg sync.WaitGroup
 	results := make([]any, len(statsServices))
 	errs := make([]error, len(statsServices))

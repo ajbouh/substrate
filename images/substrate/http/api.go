@@ -1,6 +1,7 @@
 package substratehttp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -184,6 +185,62 @@ func (h *Handler) newApiHandler() http.Handler {
 
 			flusher.Flush()
 		}
+	})
+
+	modifyExports := func(ctx context.Context, viewspec, digest string, cb func(f provisioner.ExportedFields) provisioner.ExportedFields) (interface{}, int, error) {
+		views, _, err := activityspec.ParseServiceSpawnRequest(viewspec, false, "/"+viewspec)
+		if err != nil {
+			return nil, http.StatusBadRequest, err
+		}
+
+		err = h.ProvisionerCache.UpdateExports(
+			ctx,
+			views,
+			digest,
+			cb,
+		)
+		if err != nil {
+			return nil, http.StatusInternalServerError, err
+		}
+
+		return nil, http.StatusOK, nil
+	}
+
+	handle("PATCH", "/substrate/v1/activities/:viewspec/:digest/exports", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+		var fields provisioner.ExportedFields
+		defer req.Body.Close()
+		err := json.NewDecoder(req.Body).Decode(&fields)
+		if err != nil {
+			return nil, http.StatusBadRequest, err
+		}
+
+		return modifyExports(
+			req.Context(),
+			p.ByName("viewspec"),
+			p.ByName("digest"),
+			func(f provisioner.ExportedFields) provisioner.ExportedFields {
+				for k, v := range fields {
+					f[k] = v
+				}
+				return f
+			},
+		)
+	})
+
+	handle("PUT", "/substrate/v1/activities/:viewspec/:digest/exports", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+		var fields provisioner.ExportedFields
+		defer req.Body.Close()
+		err := json.NewDecoder(req.Body).Decode(&fields)
+		if err != nil {
+			return nil, http.StatusBadRequest, err
+		}
+
+		return modifyExports(
+			req.Context(),
+			p.ByName("viewspec"),
+			p.ByName("digest"),
+			func(f provisioner.ExportedFields) provisioner.ExportedFields { return fields },
+		)
 	})
 
 	handle("GET", "/substrate/v1/services/:service", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {

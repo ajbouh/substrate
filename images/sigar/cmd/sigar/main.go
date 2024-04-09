@@ -1,12 +1,9 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
-	"os"
 	"time"
 
 	"github.com/ajbouh/substrate/images/sigar"
@@ -16,6 +13,8 @@ import (
 	"tractor.dev/toolkit-go/engine/daemon"
 
 	"github.com/ajbouh/substrate/pkg/cueloader"
+	"github.com/ajbouh/substrate/pkg/exports"
+	"github.com/ajbouh/substrate/pkg/httpframework"
 )
 
 type Main struct {
@@ -27,9 +26,32 @@ type Main struct {
 func main() {
 	sigar.SetProcd("/hostproc")
 
+	announcer := &cueloader.Announcer{
+		ContentType: "application/json",
+		Route:       "/",
+	}
+
 	engine.Run(
-		Main{
-			listenAddr: ":" + os.Getenv("PORT"),
+		Main{},
+		announcer,
+		&httpframework.Framework{},
+		&exports.PublishingSink{},
+		&exports.Sampler[*sigar.Sample]{
+			Interval: time.Second * 60,
+			SampleFunc: func() (*sigar.Sample, error) {
+				value, err := sigar.GetSample()
+				if err != nil {
+					announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
+				} else {
+					if b, err := json.Marshal(&value); err != nil {
+						announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
+					} else {
+						announcer.Announce(b)
+					}
+				}
+
+				return value, nil
+			},
 		},
 	)
 }
@@ -42,43 +64,4 @@ func (m *Main) InitializeCLI(root *cli.Command) {
 			log.Fatal(err)
 		}
 	}
-}
-
-func doSample(announcer *cueloader.Announcer) {
-	sample, err := sigar.GetSample()
-	if err != nil {
-		announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
-		return
-	}
-
-	if b, err := json.Marshal(&sample); err != nil {
-		announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
-	} else {
-		announcer.Announce(b)
-	}
-
-}
-
-func poll(announcer *cueloader.Announcer, ctx context.Context, interval time.Duration) {
-	doSample(announcer)
-
-	tick := time.Tick(interval)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-tick:
-			doSample(announcer)
-		}
-	}
-}
-
-func (m *Main) Serve(ctx context.Context) {
-	announcer := cueloader.NewAnnouncer("application/json")
-
-	go poll(announcer, context.Background(), time.Second*60)
-
-	log.Printf("running on http://%s ...", m.listenAddr)
-	log.Fatal(http.ListenAndServe(m.listenAddr, announcer))
 }

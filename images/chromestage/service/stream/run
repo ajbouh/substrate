@@ -1,0 +1,5 @@
+#!/bin/sh
+exec ffmpeg -re \
+    -f x11grab -video_size $XVNC_GEOMETRY -framerate 30 -i $DISPLAY \
+    -vcodec libvpx -cpu-used 5 -deadline 1 -g 10 -error-resilient 1 -auto-alt-ref 1 \
+    -f rtsp "$MTX_RTSP_INTERNAL_ADDRESS_PREFIX"

@@ -2,8 +2,10 @@ package sigar
 
 import (
 	"errors"
+	"os"
 	"slices"
 	"syscall"
+	"time"
 
 	sigar "github.com/cloudfoundry/gosigar"
 )
@@ -16,12 +18,81 @@ func uint64Ptr(i uint64) *uint64 {
 	return &i
 }
 
+type Swap struct {
+	Total uint64 `json:"total"`
+	Used  uint64 `json:"used"`
+	Free  uint64 `json:"free"`
+}
+
 type Memory struct {
 	TotalMB      uint32 `json:"total_mb"`
 	UsedMB       uint32 `json:"used_mb"`
 	FreeMB       uint32 `json:"free_mb"`
 	ActualFreeMB uint32 `json:"actual_free_mb"`
 	ActualUsedMB uint32 `json:"actual_used_mb"`
+}
+
+func GetUptime() (*float64, error) {
+	up := sigar.Uptime{}
+	err := up.Get()
+	if err != nil {
+		return nil, err
+	}
+
+	return &up.Length, nil
+}
+
+func GetLoadAverage() (map[int]float64, error) {
+	la := sigar.LoadAverage{}
+	err := la.Get()
+	if err != nil {
+		return nil, err
+	}
+
+	return map[int]float64{
+		1:  la.One,
+		5:  la.Five,
+		15: la.Fifteen,
+	}, nil
+}
+
+func GetCPUs() (map[int]*CPU, error) {
+	cpuList := sigar.CpuList{}
+	err := cpuList.Get()
+	if err != nil {
+		return nil, err
+	}
+
+	r := map[int]*CPU{}
+	for i, cpu := range cpuList.List {
+		r[i] = &CPU{
+			User:    cpu.User,
+			Nice:    cpu.Nice,
+			Sys:     cpu.Sys,
+			Idle:    cpu.Idle,
+			Wait:    cpu.Wait,
+			Irq:     cpu.Irq,
+			SoftIrq: cpu.SoftIrq,
+			Stolen:  cpu.Stolen,
+			Total:   cpu.Total(),
+		}
+	}
+
+	return r, nil
+}
+
+func GetSwap() (*Swap, error) {
+	swap := sigar.Swap{}
+	err := swap.Get()
+	if err != nil {
+		return nil, err
+	}
+
+	return &Swap{
+		Total: swap.Total,
+		Used:  swap.Used,
+		Free:  swap.Free,
+	}, nil
 }
 
 func GetMemory() (*Memory, error) {
@@ -40,18 +111,43 @@ func GetMemory() (*Memory, error) {
 	}, nil
 }
 
+type CPU struct {
+	User    uint64 `json:"user"`
+	Nice    uint64 `json:"nice"`
+	Sys     uint64 `json:"sys"`
+	Idle    uint64 `json:"idle"`
+	Wait    uint64 `json:"wait"`
+	Irq     uint64 `json:"irq"`
+	SoftIrq uint64 `json:"soft_irq"`
+	Stolen  uint64 `json:"stolen"`
+	Total   uint64 `json:"total"`
+}
+
 type System struct {
-	Memory *Memory `json:"memory,omitempty"`
+	Memory      *Memory         `json:"memory,omitempty"`
+	CPUs        map[int]*CPU    `json:"cpus,omitempty"`
+	LoadAverage map[int]float64 `json:"load,omitempty"`
+	Uptime      *float64        `json:"uptime,omitempty"`
+	Swap        *Swap           `json:"swap,omitempty"`
 }
 
 type Sample struct {
+	MachineID            string `json:"machine_id"`
+	StartMicros          int64  `json:"start_us"`
+	SampleDurationMicros int64  `json:"sample_duration_us"`
+
 	System    *System               `json:"system,omitempty"`
 	Processes map[int]*ProcessStats `json:"processes,omitempty"`
 	Errors    []string              `json:"errors,omitempty"`
 }
 
 func GetSample() (*Sample, error) {
+	start := time.Now().UTC()
+
 	sample := &Sample{
+		MachineID:   os.Getenv("SUBSTRATE_MACHINE_ID"),
+		StartMicros: start.UnixMicro(),
+
 		System:    &System{},
 		Processes: map[int]*ProcessStats{},
 	}
@@ -60,6 +156,26 @@ func GetSample() (*Sample, error) {
 
 	var err error
 	sample.System.Memory, err = GetMemory()
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	sample.System.Swap, err = GetSwap()
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	sample.System.Uptime, err = GetUptime()
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	sample.System.CPUs, err = GetCPUs()
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	sample.System.LoadAverage, err = GetLoadAverage()
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -75,6 +191,8 @@ func GetSample() (*Sample, error) {
 			sample.Errors = append(sample.Errors, err.Error())
 		}
 	}
+
+	sample.SampleDurationMicros = time.Now().UTC().Sub(start).Microseconds()
 
 	return sample, nil
 }

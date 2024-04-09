@@ -1,11 +1,9 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"time"
 
@@ -16,14 +14,12 @@ import (
 	"github.com/NVIDIA/go-nvml/pkg/dl"
 	"github.com/ajbouh/substrate/images/nvml"
 	"github.com/ajbouh/substrate/pkg/cueloader"
+	"github.com/ajbouh/substrate/pkg/exports"
+	"github.com/ajbouh/substrate/pkg/httpframework"
 )
 
 type Main struct {
-	listenAddr string
-
 	Daemon *daemon.Framework
-
-	Sampler *nvml.Sampler
 }
 
 func testLoad() {
@@ -40,11 +36,37 @@ func testLoad() {
 func main() {
 	testLoad()
 
+	announcer := &cueloader.Announcer{
+		ContentType: "application/json",
+		Route:       "/",
+	}
+
+	sampler := &nvml.Sampler{
+		MachineID: os.Getenv("SUBSTRATE_MACHINE_ID"),
+	}
+
 	engine.Run(
-		Main{
-			listenAddr: ":" + os.Getenv("PORT"),
+		Main{},
+		announcer,
+		sampler,
+		&httpframework.Framework{},
+		&exports.PublishingSink{},
+		&exports.Sampler[*nvml.Sample]{
+			Interval: time.Second * 60,
+			SampleFunc: func() (*nvml.Sample, error) {
+				value, err := sampler.Get()
+				if err != nil {
+					announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
+				} else {
+					if b, err := json.Marshal(&value); err != nil {
+						announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
+					} else {
+						announcer.Announce(b)
+					}
+				}
+				return value, err
+			},
 		},
-		&nvml.Sampler{},
 	)
 }
 
@@ -56,41 +78,4 @@ func (m *Main) InitializeCLI(root *cli.Command) {
 			log.Fatal(err)
 		}
 	}
-}
-
-func (m *Main) doSample(announcer *cueloader.Announcer) {
-	if sample, err := m.Sampler.Get(); err != nil {
-		announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
-	} else {
-		if b, err := json.Marshal(&sample); err != nil {
-			announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
-		} else {
-			announcer.Announce(b)
-		}
-	}
-
-}
-
-func (m *Main) poll(announcer *cueloader.Announcer, ctx context.Context, interval time.Duration) {
-	m.doSample(announcer)
-
-	tick := time.Tick(interval)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-tick:
-			m.doSample(announcer)
-		}
-	}
-}
-
-func (m *Main) Serve(ctx context.Context) {
-	announcer := cueloader.NewAnnouncer("application/json")
-
-	go m.poll(announcer, context.Background(), time.Second*60)
-
-	log.Printf("running on http://%s ...", m.listenAddr)
-	log.Fatal(http.ListenAndServe(m.listenAddr, announcer))
 }

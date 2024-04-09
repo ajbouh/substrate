@@ -1,12 +1,14 @@
 package main
 
 import (
-	"context"
 	"log"
-	"net/http"
-	"net/http/httputil"
+	"log/slog"
 	"net/url"
 	"os"
+
+	"github.com/ajbouh/substrate/pkg/commands"
+	"github.com/ajbouh/substrate/pkg/exports"
+	"github.com/ajbouh/substrate/pkg/httpframework"
 
 	"tractor.dev/toolkit-go/engine"
 	"tractor.dev/toolkit-go/engine/cli"
@@ -14,19 +16,10 @@ import (
 )
 
 type Main struct {
-	prefix     string
-	listenAddr string
-
-	chromedpProxy             http.Handler
-	proxiedJSONVersionHandler http.Handler
-
-	CommandHandler *HTTPHandler
-
 	Daemon *daemon.Framework
 }
 
 func main() {
-	prefix := os.Getenv("SUBSTRATE_URL_PREFIX")
 
 	chromedpUrl, _ := url.Parse("http://127.0.0.1:9222")
 
@@ -40,23 +33,32 @@ func main() {
 		}
 	}
 
+	substrateOriginURL, err := url.Parse(os.Getenv("SUBSTRATE_ORIGIN"))
+	if err != nil {
+		log.Fatalf("could not parse substrate origin: %#v", err)
+	}
+
 	engine.Run(
-		Main{
-			listenAddr: ":" + os.Getenv("PORT"),
-			prefix:     prefix,
-
-			chromedpProxy: &httputil.ReverseProxy{
-				Rewrite: func(r *httputil.ProxyRequest) {
-					r.SetURL(chromedpUrl)
-					r.Out.Host = "localhost"
-				},
-			},
-
-			proxiedJSONVersionHandler: &proxiedJSONVersionHandler{
-				OriginURL: originURL,
-				Prefix:    prefix,
-				Upstream:  "http://localhost:9222/json/version",
-			},
+		Main{},
+		&httpframework.Framework{
+			Log: slog.Default(),
+		},
+		&httpframework.StripPrefix{
+			Prefix: os.Getenv("SUBSTRATE_URL_PREFIX"),
+		},
+		&exports.Handler{},
+		&exports.PublishingSink{},
+		&InitialExports{
+			OriginScheme: substrateOriginURL.Scheme,
+			OriginHost:   substrateOriginURL.Host,
+		},
+		&ExportChromeDPFields{},
+		&commands.ExportCommands{},
+		&NoVNCHandler{},
+		&ChromeDPProxy{
+			OriginURL:   originURL,
+			Upstream:    chromedpUrl.String(),
+			UpstreamURL: chromedpUrl,
 		},
 		&RemoteCDP{
 			Endpoint: chromedpUrl.String(),
@@ -65,8 +67,12 @@ func main() {
 			Prefix: "page:",
 		},
 		&TabCommands{},
-		&HTTPHandler{
+		&commands.Aggregate{},
+		&commands.HTTPHandler{
 			Debug: true,
+			Route: "/commands",
+			// TODO switch to REFLECT and delete this field
+			GetEnabled: true,
 		},
 	)
 }
@@ -79,18 +85,4 @@ func (m *Main) InitializeCLI(root *cli.Command) {
 			log.Fatal(err)
 		}
 	}
-}
-
-func (m *Main) Serve(ctx context.Context) {
-	mux := http.NewServeMux()
-	mux.HandleFunc(m.prefix+"/vnc/ws", novncHandler)
-	mux.Handle(m.prefix+"/vnc/", http.StripPrefix(m.prefix+"/vnc", http.FileServer(http.Dir("/vnc"))))
-
-	// The chromedp package uses this URL path to complete its initial handshake.
-	mux.Handle(m.prefix+"/json/version", m.proxiedJSONVersionHandler)
-	mux.Handle(m.prefix+"/commands", m.CommandHandler)
-	mux.Handle(m.prefix+"/", http.StripPrefix(m.prefix, m.chromedpProxy))
-
-	log.Printf("running on http://%s ...", m.listenAddr)
-	log.Fatal(http.ListenAndServe(m.listenAddr, mux))
 }

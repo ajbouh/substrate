@@ -1,7 +1,22 @@
+FROM docker.io/library/golang:1.22-bookworm as dinit-builder
+RUN go install gitlab.com/tozd/dinit/cmd/dinit@latest
+
 FROM docker.io/library/golang:1.22-bookworm as builder
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/commands/
 COPY pkg/commands/go.mod pkg/commands/go.sum ./
+RUN go mod download
+
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg/exports/
+COPY pkg/exports/go.mod pkg/exports/go.sum ./
+RUN go mod download
+
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg/httpframework/
+COPY pkg/httpframework/go.mod pkg/httpframework/go.sum ./
+RUN go mod download
+
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg/exports/
+COPY pkg/exports/go.mod pkg/exports/go.sum ./
 RUN go mod download
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/chromestage/
@@ -10,6 +25,9 @@ RUN go mod download
 
 WORKDIR /go/src/
 COPY pkg/commands/. github.com/ajbouh/substrate/pkg/commands/
+COPY pkg/exports/. github.com/ajbouh/substrate/pkg/exports/
+COPY pkg/httpframework/. github.com/ajbouh/substrate/pkg/httpframework/
+COPY pkg/exports/. github.com/ajbouh/substrate/pkg/exports/
 COPY images/chromestage/. github.com/ajbouh/substrate/images/chromestage/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/chromestage/
@@ -28,6 +46,7 @@ RUN apt update \
     xorg tigervnc-standalone-server tigervnc-tools xterm dbus-x11 xfonts-100dpi xfonts-75dpi fonts-liberation2 fonts-noto-color-emoji \
     pulseaudio ffmpeg \
     ca-certificates tzdata \
+    runit \
   && apt clean \
   && rm -rf /var/lib/apt/lists/*
 
@@ -49,10 +68,13 @@ ENV CHROMIUM_WINDOW_SIZE=1280,720
 
 COPY images/chromestage/vnc /vnc
 COPY --from=builder /chromestage /bin/chromestage
-COPY images/chromestage/start.sh /home/chromium/start.sh
-RUN chmod +x /home/chromium/start.sh
+COPY --from=dinit-builder /go/bin/dinit /bin/dinit
+COPY images/chromestage/service /etc/service
+
+ENV DINIT_JSON_STDOUT 0
+ENV DINIT_DIR /etc/service
 
 # Run as non privileged user
 USER chromium
 WORKDIR /home/chromium
-ENTRYPOINT ["/home/chromium/start.sh"]
+ENTRYPOINT ["/bin/dinit"]

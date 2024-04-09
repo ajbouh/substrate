@@ -174,7 +174,7 @@ func (a *AssistantCommands) HandleSessionInit(sess *tracks.Session) {
 	agent := tools.NewAgent(
 		"bridge",
 		&commandSourceRegistry{Source: lazySource(func() commands.Source {
-			return sessionCommandSource(a.SessionCommandSources, sess)
+			return sessionCommandSource(a.SessionCommandSources, sess).AsDynamicSource(context.Background())
 		})},
 	)
 	sess.Listen(agent)
@@ -539,8 +539,8 @@ func (m *Main) loadRequestSession(ctx context.Context, w http.ResponseWriter, r 
 	return sess
 }
 
-func sessionCommandSource(m []SessionCommandSource, sess *tracks.Session) commands.Source {
-	src := &commands.DynamicSource{}
+func sessionCommandSource(m []SessionCommandSource, sess *tracks.Session) *commands.Aggregate {
+	src := &commands.Aggregate{}
 	for _, p := range m {
 		src.Sources = append(src.Sources, p.CommandsSource(sess))
 	}
@@ -549,7 +549,7 @@ func sessionCommandSource(m []SessionCommandSource, sess *tracks.Session) comman
 
 func (m *Main) SessionCommandHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) *commands.HTTPHandler {
 	sess := m.loadRequestSession(ctx, w, r)
-	return &commands.HTTPHandler{Source: sessionCommandSource(m.SessionCommandSources, sess.Session)}
+	return &commands.HTTPHandler{Aggregate: sessionCommandSource(m.SessionCommandSources, sess.Session)}
 }
 
 func (m *Main) Serve(ctx context.Context) {

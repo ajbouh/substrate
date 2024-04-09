@@ -2,6 +2,8 @@ go 1.22.2
 
 use (
 	./pkg/cueloader
+	./pkg/httpframework
+	./pkg/exports
 	./pkg/commands
 	./images/bb
 	./images/sigar

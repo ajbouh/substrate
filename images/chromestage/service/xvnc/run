@@ -1,0 +1,11 @@
+#!/bin/sh
+exec Xvnc $DISPLAY \
+  -AlwaysShared \
+  -geometry $XVNC_GEOMETRY \
+  -depth 24 \
+  -PasswordFile=./vncpassword \
+  -rfbauth ./vncpassword \
+  -rfbport 5900 \
+  -AcceptPointerEvents=on \
+  -AcceptKeyEvents=on \
+  -SecurityTypes=None,Plain,VncAuth

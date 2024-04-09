@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 )
@@ -14,6 +16,19 @@ type Spawner interface {
 	Spawn(ctx context.Context, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResponse, <-chan Event, error)
 	Shutdown(ctx context.Context, name string, reason error) error
 	Peek(ctx context.Context, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResolution, error)
+}
+
+type ExportedFields map[string]any
+
+type RequestEntry struct {
+	RequestID string    `json:"request_id"`
+	Time      time.Time `json:"ts"`
+}
+
+type Sample struct {
+	ServiceSpawnResponse *activityspec.ServiceSpawnResponse `json:"spawn,omitempty"`
+	RecentRequest        RequestEntry                       `json:"recent_request,omitempty"`
+	ExportedFields       ExportedFields                     `json:"exports,omitempty"`
 }
 
 type CachingSingleServiceProvisioner struct {
@@ -26,21 +41,26 @@ type CachingSingleServiceProvisioner struct {
 	provisioned                 *activityspec.ServiceSpawnResponse
 	provisionedResolutionDigest string
 
+	lastRequestEntry   *RequestEntry
+	exportedFields     ExportedFields
+	exportedFieldsFunc func(f ExportedFields)
+
 	spawner Spawner
 	req     *activityspec.ServiceSpawnRequest
 
 	logf func(fmt string, values ...any)
 }
 
-func NewCachingSingleServiceProvisioner(spawner Spawner, req *activityspec.ServiceSpawnRequest) *CachingSingleServiceProvisioner {
+func NewCachingSingleServiceProvisioner(spawner Spawner, req *activityspec.ServiceSpawnRequest, exportedFieldsFunc func(f ExportedFields)) *CachingSingleServiceProvisioner {
 	return &CachingSingleServiceProvisioner{
 		peekMu:  &sync.Mutex{},
 		spawnMu: &sync.Mutex{},
 		logf: func(fmt string, values ...any) {
 			log.Printf(fmt, values...)
 		},
-		spawner: spawner,
-		req:     req,
+		spawner:            spawner,
+		req:                req,
+		exportedFieldsFunc: exportedFieldsFunc,
 	}
 }
 
@@ -93,11 +113,52 @@ func (e *CachingSingleServiceProvisioner) makeCleanup() func(error) {
 	}
 }
 
-func (e *CachingSingleServiceProvisioner) Peek() *activityspec.ServiceSpawnResponse {
+func (e *CachingSingleServiceProvisioner) Generation() int {
 	e.peekMu.Lock()
 	defer e.peekMu.Unlock()
 
-	return e.provisioned
+	return e.gen
+}
+
+func (e *CachingSingleServiceProvisioner) Peek() *Sample {
+	e.peekMu.Lock()
+	defer e.peekMu.Unlock()
+
+	return &Sample{
+		ServiceSpawnResponse: e.provisioned,
+		ExportedFields:       e.exportedFields,
+		RecentRequest:        *e.lastRequestEntry,
+	}
+}
+
+func (c *CachingSingleServiceProvisioner) UpdateExports(ctx context.Context, digest string, cb func(fields ExportedFields) ExportedFields) error {
+	log.Printf("UpdateExports %s", digest)
+	defer log.Printf("UpdateExports %s done", digest)
+	c.peekMu.Lock()
+	spawner := c.spawner
+	req := c.req
+	c.peekMu.Unlock()
+
+	res, err := spawner.Peek(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	now := res.ServiceInstanceSpawnDef.Environment["SUBSTRATE_PARAMETERS_DIGEST"]
+	if now != digest {
+		return fmt.Errorf("stale digest for SetExports; got %s, expected %s", digest, now)
+	}
+
+	c.exportedFields = cb(c.exportedFields)
+	c.exportedFieldsFunc(c.exportedFields)
+	return nil
+}
+
+func (c *CachingSingleServiceProvisioner) LogRequest(r *http.Request) {
+	c.peekMu.Lock()
+	defer c.peekMu.Unlock()
+
+	c.lastRequestEntry = &RequestEntry{RequestID: "", Time: time.Now()}
 }
 
 func (e *CachingSingleServiceProvisioner) PurgeIfChanged(ctx context.Context) (bool, int, error) {

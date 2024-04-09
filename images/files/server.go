@@ -1,9 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"html/template"
-	"io"
 	"log"
 	"math"
 	"net/http"
@@ -118,6 +118,10 @@ type fileHandler struct {
 	allowDelete bool
 }
 
+func (h *fileHandler) ContributeHTTP(mux *http.ServeMux) {
+	mux.Handle(h.route, h)
+}
+
 var (
 	directoryListingTemplate = template.Must(template.New("").Parse(directoryListingTemplateText))
 )
@@ -200,47 +204,6 @@ func (f *fileHandler) serveDir(w http.ResponseWriter, r *http.Request, osPath st
 			return out
 		}(),
 	})
-}
-
-func (f *fileHandler) serveFormUploadTo(w http.ResponseWriter, r *http.Request, osPath string) error {
-	if err := r.ParseForm(); err != nil {
-		return err
-	}
-	in, h, err := r.FormFile("file")
-	if err == http.ErrMissingFile {
-		w.Header().Set("Location", r.URL.String())
-		w.WriteHeader(303)
-	}
-	if err != nil {
-		return err
-	}
-	outPath := filepath.Join(osPath, filepath.Base(h.Filename))
-	out, err := os.OpenFile(outPath, os.O_CREATE|os.O_WRONLY, 0600)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	if _, err := io.Copy(out, in); err != nil {
-		return err
-	}
-	w.Header().Set("Location", r.URL.String())
-	w.WriteHeader(303)
-	return nil
-}
-
-func (f *fileHandler) serveRawUploadTo(w http.ResponseWriter, r *http.Request, osPath string) error {
-	defer r.Body.Close()
-	fw, err := os.Create(osPath)
-	if err != nil {
-		return err
-	}
-	defer fw.Close()
-	_, err = io.Copy(fw, r.Body)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (f *fileHandler) serveFileEvents(w http.ResponseWriter, r *http.Request, osPath string) error {
@@ -326,13 +289,41 @@ func (f *fileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			_ = f.serveStatus(w, r, http.StatusInternalServerError)
 		}
 	case f.allowUpload && info.IsDir() && r.Method == http.MethodPost:
-		err := f.serveFormUploadTo(w, r, osPath)
-		if err != nil {
-			log.Printf("error: %s", err.Error())
-			_ = f.serveStatus(w, r, http.StatusInternalServerError)
+		location, err := r.Response.Location()
+		if err == nil {
+			res, err := http.Get(location.String())
+			if err != nil {
+				log.Printf("error: bad Location header %s", err.Error())
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			err = f.serveTarUploadTo(res.Body, osPath)
+			if err != nil {
+				log.Printf("error: %s", err.Error())
+				_ = f.serveStatus(w, r, http.StatusInternalServerError)
+			}
+		} else if !errors.Is(err, http.ErrNoLocation) {
+			log.Printf("error: bad Location header %s", err.Error())
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		contentType := r.Header.Get("Content-Type")
+		switch contentType {
+		case "application/x-www-form-urlencoded", "multipart/form-data", "text/plain":
+			err := f.serveFormUploadTo(w, r, osPath)
+			if err != nil {
+				log.Printf("error: %s", err.Error())
+				_ = f.serveStatus(w, r, http.StatusInternalServerError)
+			}
+		case "application/tar", "application/x-tar", "applicaton/x-gtar", "multipart/x-tar":
+			err := f.serveTarUploadTo(r.Body, osPath)
+			if err != nil {
+				log.Printf("error: %s", err.Error())
+				_ = f.serveStatus(w, r, http.StatusInternalServerError)
+			}
 		}
 	case f.allowUpload && !info.IsDir() && r.Method == http.MethodPut:
-		err := f.serveRawUploadTo(w, r, osPath)
+		err := f.serveRawUploadTo(r.Body, osPath)
 		if err != nil {
 			log.Printf("error: %s", err.Error())
 			_ = f.serveStatus(w, r, http.StatusInternalServerError)

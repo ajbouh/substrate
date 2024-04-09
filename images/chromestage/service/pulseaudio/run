@@ -1,0 +1,2 @@
+#!/bin/sh
+exec pulseaudio --verbose --exit-idle-time=-1 --disallow-exit
