@@ -189,7 +189,7 @@ func (h *Handler) newApiHandler() http.Handler {
 	})
 
 	handle("GET", "/substrate/v1/services/:service", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		service, err := h.CurrentDefSet.CurrentDefSet().ResolveService(req.Context(), p.ByName("service"))
+		service, err := h.CurrentDefSet.CurrentDefSet().ResolveServiceByName(req.Context(), p.ByName("service"))
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}

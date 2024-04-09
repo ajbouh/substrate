@@ -9,7 +9,6 @@ import (
   service "github.com/ajbouh/substrate/defs/substrate:service"
   imagespec "github.com/ajbouh/substrate/defs/substrate:imagespec"
   containerspec "github.com/ajbouh/substrate/defs/substrate:containerspec"
-  docker_compose "github.com/ajbouh/substrate/defs/docker/compose:compose"
 )
 
 #Varset: {
@@ -98,7 +97,10 @@ imagespecs: [key=string]: imagespec & {
 }
 
 // a way to reuse image names
-images: [key=string]: string
+image_tags: [key=string]: string
+
+// for binding image_tags to image_ids
+image_ids: [ref=string]: string | *ref
 
 resourcedirs: [id=string]: {
   #containerspec: containerspec.#ContainerSpec
@@ -107,7 +109,6 @@ resourcedirs: [id=string]: {
 
 services: [key=string]: service & {
   "name": key
-  spawn ?: image: string | *#out.imagespecs[key].image
 }
 
 daemons: [key=string]: containerspec.#ContainerSpec
@@ -120,9 +121,7 @@ daemons: [key=string]: containerspec.#ContainerSpec
   systemd_containers: [string]: systemd.#Unit
   systemd_container_contents: [string]: string
   systemd_container_basenames: string
-  image_references: string
   image_podman_build_options: [string]: string
-  "docker_compose": docker_compose
 
   "resourcedir_fetches": [alias=string]: {
     sha256: string
@@ -133,6 +132,56 @@ daemons: [key=string]: containerspec.#ContainerSpec
   resourcedir_fetch_podman_build_options: [string]: string
   resourcedir_fetch_podman_run_options: [string]: string
 }
+
+#podman_build_imagespecs_raw: string @tag(podman_build_imagespecs)
+let podman_build_imagespecs = [for k in strings.Split(#podman_build_imagespecs_raw, " ") { #out.imagespecs[k] }] | *#out.imagespecs
+
+for key, def in #out.imagespecs {
+  #out: "image_podman_build_options": (def.image): def.#podman_build_options
+}
+
+#out: podman_build_imagespecs_parallel: [
+  for k, def in podman_build_imagespecs if k != "substrate" {
+    "echo >&2 podman build --layers --tag \(def.image) \(def.#podman_build_options)",
+  }
+]
+
+#out: podman_build_imagespecs_serial: [
+  for k, def in podman_build_imagespecs if k == "substrate" {
+    "echo >&2 podman build --layers --tag \(def.image) \(def.#podman_build_options)",
+  }
+]
+
+#out: podman_build_services: [
+  for k, tag in #out.service_image_tags {
+    tag,
+  }
+]
+
+#out: echo_image_commands: [
+  for k, def in podman_build_imagespecs {
+    "echo \(def.image)"
+  }
+]
+
+#out: bash_build_images_command: strings.Join([
+  "set -ex",
+  // build most images in parallel
+  "xargs >&2 --delimiter='\\n' -n 1 --max-procs=8 sh -c 'set -x; exec $0 $@' <<'EOF'",
+  strings.Join(#out.podman_build_imagespecs_parallel, "\n"),
+  "EOF",
+  // now generate image_ids.cue file so we can build substrate image
+  "",
+  "GEN_IMAGE_IDS=.gen/cue/image_ids.cue",
+  "mkdir -p $(dirname $GEN_IMAGE_IDS)",
+  "echo 'package defs' > $GEN_IMAGE_IDS",
+  "podman image inspect --format 'image_ids: \"{{index .RepoTags 0}}\": \"{{.ID}}\"' \(strings.Join(#out.podman_build_services, " ")) | tee >&2 -a $GEN_IMAGE_IDS",
+  "# use mv to make it atomic",
+  "mv $GEN_IMAGE_IDS defs/image_ids.cue",
+  // now we can build substrate image
+  strings.Join(#out.podman_build_imagespecs_serial, "\n"),
+  strings.Join(#out.echo_image_commands, "\n"),
+], "\n")
 
 #out: "imagespecs": {
   for key, def in imagespecs {
@@ -147,12 +196,14 @@ daemons: [key=string]: containerspec.#ContainerSpec
 for key, def in #out.services {
   if def.spawn != _|_ {
     for alias, rddef in def.spawn.resourcedirs {
-      resourcedirs: (rddef.id): _
+      "resourcedirs": (rddef.id): _
       #out: resourcedir_fetches: (rddef.id): {
         sha256: rddef.sha256
+        target: "\(#var.build_resourcedirs_root)/\(rddef.sha256)"
         #containerspec: (resourcedirs[rddef.id].#containerspec & {
           image: resourcedirs[rddef.id].#imagespec.image
-          mounts: [{source: "\(#var.build_resourcedirs_root)/\(rddef.sha256)", "destination": "/res", "mode": "Z"}]
+          // write to .build directory first
+          mounts: [{source: "\(#var.build_resourcedirs_root)/\(rddef.sha256).build", "destination": "/res", "mode": "Z"}]
         })
         #imagespec: resourcedirs[rddef.id].#imagespec
       }
@@ -166,23 +217,29 @@ for key, def in #out.services {
   }
 ], "\n")
 
-#out: "services": {
-  for key, def in services {
-    if (enable[key]) {
-      (key): def & {
-        if def.spawn != _|_ {
-          spawn: {
-            "image": def.spawn.image
-            "resourcedirs": [alias=string]: {
-              id: string
-              sha256: hex.Encode(cryptosha256.Sum256(id))
-            }
-            // This is so we can turn services into JSON. It should really be done inside of
-            // substrate.go during boot so that nesting will work properly.
-            "environment": SUBSTRATE_URL_PREFIX: string | *"/\(key)"
-          }
-        }
+for key, def in services if (enable[key]) {
+  #out: "services": (key): def & { "name": key }
+}
+
+for key, def in services if (enable[key]) && def.spawn != _|_ {
+  let image_tag = image_tags[key] | *#out.imagespecs[key].image
+  image_ids: (image_tag): string
+  #out: service_image_tags: (key): image_tag
+}
+
+for key, def in services if (enable[key]) && def.spawn != _|_ {
+  #out: "services": (key): def & {
+    "name": key 
+    spawn: {
+      image: image_ids[#out.service_image_tags[key]]
+
+      "resourcedirs": [alias=string]: {
+        id: string
+        sha256: hex.Encode(cryptosha256.Sum256(id))
       }
+      // This is so we can turn services into JSON. It should really be done inside of
+      // substrate.go during boot so that nesting will work properly.
+      "environment": SUBSTRATE_URL_PREFIX: string | *"/\(key)"
     }
   }
 }
@@ -206,10 +263,6 @@ for basename, unit in #out.systemd_containers {
   for key, def in #out.systemd_containers { key }
 ], "\n")
 
-#out: "image_references": strings.Join([
-  for key, def in #out.imagespecs { def.image }
-], "\n")
-
 for key, def in #out.imagespecs {
   #out: "image_podman_build_options": (def.image): def.#podman_build_options
 }
@@ -220,133 +273,4 @@ for key, def in #out.resourcedir_fetches {
   #out: "resourcedir_fetch_podman_run_options": (key): (containerspec.#PodmanRunOptions & {
     #containerspec: def.#containerspec
   }).#out
-}
-
-#out: docker_compose_profiles: {
-  // Everything is in default
-  [string]: "default": true
-
-  for key, def in #out.daemons {
-    (key): "daemons": true
-  }
-
-  for key, def in #out.imagespecs {
-    (key): {}
-  }
-
-  for key, def in #out.services {
-    (key): {}
-  }
-
-  for testkey, testsuites in tests {
-    for suitealias, suitedef in testsuites {
-      "tests.\(testkey).\(suitealias)": {
-        "tests": true
-        "tests.\(testkey)": true
-        "tests.\(testkey).\(suitealias)": true
-      }
-
-      for depkey, b in suitedef.depends_on {
-        (depkey): {
-          "tests": true
-          "tests.\(testkey)": true
-          "tests.\(testkey).\(suitealias)": true
-        }
-      }
-    }
-  }
-
-  for key, def in #out.resourcedir_fetches {
-    "resourcedir-\(def.sha256)": "resourcedirs": true
-  }
-}
-
-#out: "docker_compose": {
-  // Remap
-  services: [key=string]: profiles: [ for p, b in #out.docker_compose_profiles[key] { p } ]
-
-  for key, def in #out.resourcedir_fetches {
-    services: "resourcedir-\(def.sha256)": {
-      (containerspec.#DockerComposeService & {
-        #containerspec: def.#containerspec
-        #imagespec: def.#imagespec
-      }).#out
-    }
-
-    volumes: (containerspec.#DockerComposeVolumes & {
-      #containerspec: def.#containerspec
-    }).#out
-  }
-
-  for key, def in #out.imagespecs {
-    services: (key): (containerspec.#DockerComposeService & {
-      #imagespec: def
-    }).#out
-  }
-
-  for testkey, testsuites in tests {
-    for suitealias, suitedef in testsuites {
-      let key = "tests.\(testkey).\(suitealias)"
-      volumes: (containerspec.#DockerComposeVolumes & {#containerspec: suitedef}).#out
-      services: (key): {
-        // Use build platform instead of linux/amd64 default from elsewhere
-        platform: ""
-        (containerspec.#DockerComposeService & {#containerspec: suitedef, #imagespec: suitedef}).#out
-        if suitedef.depends_on != _|_ {
-          depends_on: [ for dep, b in suitedef.depends_on { dep } ]
-        }
-        networks: [
-          #var.substrate.internal_network_name,
-          #var.substrate.external_network_name,
-        ]
-      }
-    }
-  }
-
-  for key, def in #out.daemons {
-    services: (key): (containerspec.#DockerComposeService & {#containerspec: def}).#out
-    volumes: (containerspec.#DockerComposeVolumes & {#containerspec: def}).#out
-    networks: (containerspec.#DockerComposeNetworks & {#containerspec: def}).#out
-  }
-
-  for key, def in #out.services {
-    if def.spawn != _|_ {
-      services: (key): {
-        environment: PORT: "8080"
-        environment: SUBSTRATE_URL_PREFIX: ""
-        environment: ORIGIN: "localhost:8080"
-        ports: [
-          "127.0.0.1:8081:\(environment.PORT)",
-        ]
-        if def.spawn.#docker_compose_service != _|_ {
-          def.spawn.#docker_compose_service
-        }
-        (containerspec.#DockerComposeService & {
-          #containerspec: {
-            "environment": def.spawn.environment
-            "command": def.spawn.command
-            "image": def.spawn.image
-            mounts: [
-              for alias, rddef in def.spawn.resourcedirs {
-                {source: "\(#var.build_resourcedirs_root)/\(rddef.sha256)", "destination": "/res/\(alias)", "mode": "Z"}
-              }
-            ]
-          }
-        }).#out
-      }
-    }
-  }
-
-  services: {
-    "substrate": {
-      ports: [
-        "127.0.0.1:\(environment.PORT):\(environment.PORT)",
-      ]
-
-      environment: {
-        "PORT": "8080"
-        ...
-      }
-    }
-  }
 }
