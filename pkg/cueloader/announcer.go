@@ -14,29 +14,35 @@ import (
 // where there are many new []byte values to announce, it prioritizes sending the latest value byte rather than every
 // update.
 type Announcer struct {
-	b           []byte
-	mu          *sync.Mutex
-	contentType string
-	chs         map[chan struct{}]struct{}
+	Route string
+
+	ContentType string
+
+	b   []byte
+	mu  sync.Mutex
+	chs map[chan struct{}]struct{}
 }
 
-func NewAnnouncer(contentType string) *Announcer {
-	return &Announcer{
-		chs:         map[chan struct{}]struct{}{},
-		mu:          &sync.Mutex{},
-		contentType: contentType,
+func (a *Announcer) ContributeHTTP(mux *http.ServeMux) {
+	if a.Route != "" {
+		mux.Handle(a.Route, a)
 	}
 }
 
 func (a *Announcer) listen(l chan struct{}) ([]byte, func()) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	if a.chs == nil {
+		a.chs = map[chan struct{}]struct{}{}
+	}
 	a.chs[l] = struct{}{}
 
 	return a.b, func() {
 		a.mu.Lock()
 		defer a.mu.Unlock()
-		delete(a.chs, l)
+		if a.chs != nil {
+			delete(a.chs, l)
+		}
 	}
 }
 
@@ -58,6 +64,9 @@ func (a *Announcer) Announce(b []byte) {
 
 	a.b = b
 
+	if a.chs == nil {
+		return
+	}
 	for l := range a.chs {
 		select {
 		case l <- struct{}{}:
@@ -105,7 +114,7 @@ func (a *Announcer) serveEventStream(w http.ResponseWriter, r *http.Request) {
 
 func (a *Announcer) serveBuffer(w http.ResponseWriter, r *http.Request) {
 	header := w.Header()
-	header.Set("Content-Type", a.contentType)
+	header.Set("Content-Type", a.ContentType)
 
 	b := a.get()
 	w.Write(b)
@@ -114,7 +123,7 @@ func (a *Announcer) serveBuffer(w http.ResponseWriter, r *http.Request) {
 func (a *Announcer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	availableMediaTypes := []contenttype.MediaType{
 		contenttype.NewMediaType("text/event-stream"),
-		contenttype.NewMediaType(a.contentType),
+		contenttype.NewMediaType(a.ContentType),
 	}
 	accepted, _, err := contenttype.GetAcceptableMediaType(r, availableMediaTypes)
 	if err != nil {

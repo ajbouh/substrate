@@ -8,8 +8,12 @@ import (
 )
 
 type HTTPHandler struct {
-	Debug  bool
-	Source Source
+	Debug     bool
+	Aggregate *Aggregate
+
+	Route string
+	// Temporary feature until everything is using REFLECT
+	GetEnabled bool
 }
 
 func (c *HTTPHandler) serveError(w http.ResponseWriter, err error, code int, msg map[string]any) {
@@ -40,7 +44,7 @@ func (c *HTTPHandler) ServeHTTPReflect(w http.ResponseWriter, r *http.Request) {
 	// POST runs a command (accepts meta header including url, update timestamp, revision id; errors on meta mismatch)
 	h := w.Header()
 	h.Set("Content-Type", "application/json")
-	commands, err := c.Source.Reflect(r.Context())
+	commands, err := c.Aggregate.AsDynamicSource(r.Context()).Reflect(r.Context())
 	if err != nil {
 		c.serveError(w, err, http.StatusInternalServerError, nil)
 		return
@@ -51,6 +55,18 @@ func (c *HTTPHandler) ServeHTTPReflect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(b)
+}
+
+func (c *HTTPHandler) ContributeHTTP(mux *http.ServeMux) {
+	if c.Route != "" {
+		// mux.Handle("GET /json/version", c)
+		mux.HandleFunc("POST "+c.Route, c.ServeHTTPRun)
+
+		mux.HandleFunc("REFLECT "+c.Route, c.ServeHTTPReflect)
+		if c.GetEnabled {
+			mux.HandleFunc("GET "+c.Route, c.ServeHTTPRun)
+		}
+	}
 }
 
 func (c *HTTPHandler) ServeHTTPRun(w http.ResponseWriter, r *http.Request) {
@@ -69,9 +85,10 @@ func (c *HTTPHandler) ServeHTTPRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := c.Source.Run(r.Context(), commandRequest.Command, commandRequest.Parameters)
+	source := c.Aggregate.AsDynamicSource(r.Context())
+	res, err := source.Run(r.Context(), commandRequest.Command, commandRequest.Parameters)
 	if err != nil {
-		commands, commandsErr := c.Source.Reflect(r.Context())
+		commands, commandsErr := source.Reflect(r.Context())
 		if commandsErr == nil {
 			errMsg = map[string]any{"commands": commands}
 		}

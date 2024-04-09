@@ -4,6 +4,8 @@ go 1.22.2
 
 require (
 	github.com/ajbouh/substrate/pkg/commands v0.0.0-00010101000000-000000000000
+	github.com/ajbouh/substrate/pkg/exports v0.0.0-00010101000000-000000000000
+	github.com/ajbouh/substrate/pkg/httpframework v0.0.0-00010101000000-000000000000
 	github.com/chromedp/cdproto v0.0.0-20231011050154-1d073bb38998
 	github.com/chromedp/chromedp v0.9.3
 	github.com/gorilla/websocket v1.5.1
@@ -22,3 +24,5 @@ require (
 )
 
 replace github.com/ajbouh/substrate/pkg/commands => ../../pkg/commands
+replace github.com/ajbouh/substrate/pkg/exports => ../../pkg/exports
+replace github.com/ajbouh/substrate/pkg/httpframework => ../../pkg/httpframework

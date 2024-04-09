@@ -4,13 +4,15 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/ajbouh/substrate/images/files/assets"
+
+	"github.com/ajbouh/substrate/pkg/httpframework"
+
+	"tractor.dev/toolkit-go/engine"
 )
 
 const (
@@ -45,68 +47,24 @@ func init() {
 }
 
 func main() {
-	for _, env := range os.Environ() {
-		fmt.Println(env)
-	}
-
-	addr, err := addr()
-	if err != nil {
-		log.Fatalf("address/port: %v", err)
-	}
-	err = server(addr)
-	if err != nil {
-		log.Fatalf("start server: %v", err)
-	}
-}
-
-func server(addr string) error {
-	mux := http.NewServeMux()
-	prefix := os.Getenv("SUBSTRATE_URL_PREFIX")
-
-	mux.Handle(prefix+"/raw/", &fileHandler{
-		route:       prefix + "/raw/",
-		path:        "/spaces/data/tree",
-		allowUpload: allowUploadsFlag,
-		allowDelete: allowDeletesFlag,
-	})
-
-	mux.Handle(prefix+"/assets/", http.StripPrefix(prefix+"/assets/", http.FileServer(http.FS(assets.Dir))))
-	mux.Handle(prefix+"/", http.RedirectHandler(prefix+"/raw/", http.StatusFound))
-
-	mux.Handle(prefix+"/edit/text/", http.StripPrefix(prefix+"/edit/text", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assets.ServeFileReplacingBasePath(prefix+"/", "edit-text.html", w, r)
-	})))
-
-	binaryPath, _ := os.Executable()
-	if binaryPath == "" {
-		binaryPath = "server"
-	}
-	log.Printf("%s listening on %q", filepath.Base(binaryPath), addr)
-	return http.ListenAndServe(addr, mux)
-}
-
-func addr() (string, error) {
-	portSet := portFlag != 0
-	addrSet := addrFlag != ""
-	switch {
-	case portSet && addrSet:
-		a, err := net.ResolveTCPAddr("tcp", addrFlag)
-		if err != nil {
-			return "", err
-		}
-		a.Port = portFlag
-		return a.String(), nil
-	case !portSet && addrSet:
-		a, err := net.ResolveTCPAddr("tcp", addrFlag)
-		if err != nil {
-			return "", err
-		}
-		return a.String(), nil
-	case portSet && !addrSet:
-		return fmt.Sprintf(":%d", portFlag), nil
-	case !portSet && !addrSet:
-		fallthrough
-	default:
-		return defaultAddr, nil
-	}
+	engine.Run(
+		&httpframework.Framework{},
+		&httpframework.StripPrefix{
+			Prefix: os.Getenv("SUBSTRATE_URL_PREFIX"),
+		},
+		&fileHandler{
+			route:       "/raw/",
+			path:        "/spaces/data/tree",
+			allowUpload: allowUploadsFlag,
+			allowDelete: allowDeletesFlag,
+		},
+		httpframework.Route{
+			Route:   "/assets/",
+			Handler: http.StripPrefix("/assets/", http.FileServer(http.FS(assets.Dir))),
+		},
+		httpframework.Route{
+			Route:   "/edit/text/",
+			Handler: http.StripPrefix("/edit/text", assets.ServeFileReplacingBasePathHandler("/", "edit-text.html")),
+		},
+	)
 }

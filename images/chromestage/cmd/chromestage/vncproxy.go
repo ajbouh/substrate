@@ -16,7 +16,15 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-func novncHandler(w http.ResponseWriter, r *http.Request) {
+type NoVNCHandler struct {
+}
+
+func (h *NoVNCHandler) ContributeHTTP(mux *http.ServeMux) {
+	mux.Handle("/vnc/ws", h)
+	mux.Handle("/vnc/", http.StripPrefix("/vnc", http.FileServer(http.Dir("/vnc"))))
+}
+
+func (h *NoVNCHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Error upgrading to websocket:", err)

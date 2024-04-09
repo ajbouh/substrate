@@ -291,7 +291,7 @@ func main() {
 		provisioner.NewCache(),
 		initialCueLoadConfig(),
 		&AnnounceDefsOnSourcesLoaded{},
-		cueloader.NewAnnouncer("application/json"),
+		&cueloader.Announcer{ContentType: "application/json"},
 		substratefs.NewLayout(mustGetenv("SUBSTRATEFS_ROOT")),
 		&substratehttp.Handler{
 			User:                    "user",
