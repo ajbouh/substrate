@@ -21,12 +21,13 @@ Requires=network-online.target
 
 [Service]
 Type=notify
-DynamicUser=yes
+# we would prefer to enable DynamicUser, but we need to get TS_PERMIT_CERT_UID to work with it...
+# DynamicUser=yes
+# User=caddy
 StateDirectory=caddy
 Environment=XDG_CONFIG_DIR=/var/lib
 Environment=HOME=/var/lib/caddy
-Environment=HOSTNAME=substrate.home.arpa
-ExecStart=/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile
+ExecStart=sh -c 'export HOSTNAME=$(hostname); exec /usr/bin/caddy run --environ --config /etc/caddy/Caddyfile'
 ExecReload=/usr/bin/caddy reload --config /etc/caddy/Caddyfile --force
 TimeoutStopSec=5s
 LimitNOFILE=1048576

@@ -1,0 +1,21 @@
+[Unit]
+Description=Select hostname
+ConditionFirstBoot=true
+# All services which use ConditionFirstBoot=yes should use
+# Before=first-boot-complete.target, which is a target that
+# was introduced in https://github.com/systemd/systemd/issues/4511
+# and hasn't propagated everywhere yet. Once the target propagates
+# everywhere, we can drop the systemd-machine-id-commit.service
+# from the Before= line.
+Before=first-boot-complete.target systemd-machine-id-commit.service
+Wants=first-boot-complete.target
+After=local-fs.target
+Requires=local-fs.target
+
+[Service]
+ExecStart=/bin/sh -c 'echo "substrate-$(cat /etc/machine-id | head -c 4).home.arpa" > /etc/hostname'
+Type=oneshot
+RemainAfterExit=yes
+
+[Install]
+WantedBy=basic.target

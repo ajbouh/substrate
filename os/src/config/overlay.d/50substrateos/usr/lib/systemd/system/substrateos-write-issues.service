@@ -1,0 +1,15 @@
+# This service writes issue files describing status
+# information about the SubstrateOS configuration,
+# which includes the hostname and URL to visit.
+[Unit]
+Description=Create SubstrateOS Issue Files
+Before=systemd-user-sessions.service
+ConditionPathExists=/etc/hostname
+
+[Service]
+Type=oneshot
+ExecStart=sh -c 'printf "Visit: https://%s\n" "$(hostname)" > /etc/issue.d/50_substrateos.issue'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

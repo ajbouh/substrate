@@ -497,7 +497,10 @@ systemd_reload() {
 
   sudo systemctl start $(print_rendered_cue_dev_expr_as text -e "#out.systemd_units_to_start_text")
 
+  set +x
   write_ready_file
+
+  printf "Visit: https://%s\n" "$(hostname)"
 }
 
 os_oob_make() {

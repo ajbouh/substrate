@@ -1,7 +1,0 @@
-[Unit]
-ConditionPathExists=!/var/lib/substratefs
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-ExecStart=mkdir -m 0755 -p /var/lib/substratefs

@@ -79,6 +79,11 @@ func main() {
 	}
 	machineID := strings.Trim(string(machineIDData), "\n")
 
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Fatalf("couldn't get hostname: %s", err)
+	}
+
 	internalSubstrateOrigin := mustGetenv("INTERNAL_SUBSTRATE_ORIGIN")
 
 	// Informed by https://github.com/golang/go/issues/6785
@@ -86,7 +91,8 @@ func main() {
 	ht.MaxConnsPerHost = 32
 	ht.DisableCompression = true
 
-	origin := mustGetenv("ORIGIN")
+	// we expect caddy to terminate https and pick a hostname based on machine id
+	origin := "https://" + hostname
 	originURL, _ := url.Parse(origin)
 
 	provisionerCache := &provisioner.Cache{

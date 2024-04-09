@@ -14,9 +14,9 @@
   <script type="module">
   // Load commands in a separate module so that if this is unavailable during
   // local dev, the rest of the page still loads.
-import {ReflectCommands, provideCommandsToIFrameParent} from 'https://substrate.home.arpa/command-panel/@fs/app/.svelte-kit/__package__/index.js';
+import {ReflectCommands, provideCommandsToIFrameParent} from '/command-panel/@fs/app/.svelte-kit/__package__/index.js';
 
-let toolCall = new ReflectCommands('https://substrate.home.arpa/tool-call/');
+let toolCall = new ReflectCommands('/tool-call/');
 async function suggest(input, commands) {
   if (!input) {
     return Object.entries(commands).map(([key, def]) => [key, def, {}]);
@@ -34,7 +34,7 @@ window.substrate = {r0: {commands}};
 const panel = document.querySelector("command-panel");
 panel.commands = commands;
 panel.suggest = suggest;
-provideCommandsToIFrameParent('https://substrate.home.arpa', commands);
+provideCommandsToIFrameParent('/', commands);
   </script>
   <script type="module">
 import {Session} from "./ui/session.js";

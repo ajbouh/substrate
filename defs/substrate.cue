@@ -13,6 +13,7 @@ import (
   
   host_docker_socket: string
   host_machine_id_file: string
+  host_hostname_file: string
 
   substrate: network_name_prefix: string | *""
   substrate: internal_network_name: string
@@ -77,7 +78,6 @@ daemons: "substrate": {
     }
     "SUBSTRATE_SOURCE_DIRECTORY": string | *#var.host_source_directory
 
-    "ORIGIN": string
     // TODO pass in internal_host
     // TODO pass in internal_protocol
     "SUBSTRATE_NAMESPACE": #var.namespace
@@ -97,6 +97,7 @@ daemons: "substrate": {
     "/var/lib/containers/storage": {source: "/var/lib/containers/storage"}
     (#var.host_substratefs_root): {source: #var.host_substratefs_root}
     (#var.host_machine_id_file): {source: #var.host_machine_id_file}
+    "/etc/hostname": {source: #var.host_hostname_file}
     (environment.#docker_socket): {source: #var.host_docker_socket}
     if live_edit["substrate"] {
       (substrate_cue_defs_live): {source: "\(#var.host_source_directory)/\(#var.cue_defs)"}
@@ -143,7 +144,6 @@ daemons: "substrate": {
           "substrate-internal.network",
         ]
         Environment: {
-          ORIGIN: "https://substrate.home.arpa"
           INTERNAL_SUBSTRATE_ORIGIN: "http://substrate:8080"
           environment
         }

@@ -20,6 +20,7 @@ import (
   host_source_directory: string
   image_prefix: string | *"ghcr.io/ajbouh/substrate:substrate-"
   host_machine_id_file: "/etc/machine-id"
+  host_hostname_file: "/etc/hostname"
 
   host_docker_socket: string | *"/var/run/docker.sock"
   // host_docker_socket: "/var/run/podman/podman.sock"
