@@ -91,6 +91,7 @@ func (m *Sampler) Get() (*Sample, error) {
 	}
 
 	devices := map[string]*Device{}
+	processes := map[string]*ProcessInfo{}
 	for i := 0; i < count; i++ {
 		device, ret := nvml.DeviceGetHandleByIndex(i)
 		if ret != nvml.SUCCESS {
@@ -134,9 +135,17 @@ func (m *Sampler) Get() (*Sample, error) {
 		if running, ret := device.GetComputeRunningProcesses(); ret != nvml.SUCCESS {
 			return nil, fmt.Errorf("unable to get: running processes: %s", nvml.ErrorString(ret))
 		} else {
-			d.RunningProcesses = map[string]*ProcessInfo{}
+			d.Processes = map[string]*DeviceProcessInfo{}
 			for _, p := range running {
-				d.RunningProcesses[strconv.Itoa(int(p.Pid))] = &ProcessInfo{
+				pidKey := strconv.Itoa(int(p.Pid))
+				existing := processes[pidKey]
+				if existing == nil {
+					existing = &ProcessInfo{}
+					processes[pidKey] = existing
+				}
+				existing.Devices = append(existing.Devices, uuid)
+
+				d.Processes[pidKey] = &DeviceProcessInfo{
 					PID:               p.Pid,
 					UsedGPUMemoryMB:   uint32(p.UsedGpuMemory / (1 << 20)),
 					GPUInstanceID:     p.GpuInstanceId,
@@ -206,11 +215,12 @@ func (m *Sampler) Get() (*Sample, error) {
 		}
 	}
 
-	return &Sample{Devices: devices}, nil
+	return &Sample{Devices: devices, Processes: processes}, nil
 }
 
 type Sample struct {
-	Devices map[string]*Device `json:"devices"`
+	Devices   map[string]*Device      `json:"devices"`
+	Processes map[string]*ProcessInfo `json:"processes"`
 }
 
 type Device struct {
@@ -229,7 +239,7 @@ type Device struct {
 	CurrPCIeLinkGeneration int    `json:"curr_pcie_link_generation"`
 	CurrPCIeLinkWidth      int    `json:"curr_pcie_link_width"`
 
-	RunningProcesses map[string]*ProcessInfo
+	Processes map[string]*DeviceProcessInfo `json:"processes"`
 }
 
 type Fan struct {
@@ -248,9 +258,13 @@ type Memory struct {
 	UsedMB     uint32 `json:"used_mb"`
 }
 
-type ProcessInfo struct {
+type DeviceProcessInfo struct {
 	PID               uint32 `json:"pid"`
 	UsedGPUMemoryMB   uint32 `json:"use_gpu_memory_mb"`
 	GPUInstanceID     uint32 `json:"gpu_instance_id"`
 	ComputeInstanceID uint32 `json:"compute_instance_id"`
+}
+
+type ProcessInfo struct {
+	Devices []string `json:"devices"`
 }

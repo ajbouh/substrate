@@ -9,6 +9,9 @@ imagespecs: "sigar": {
 services: "sigar": {
   spawn: {
     ephemeral: true
+    mounts: [
+      { source: "/proc", destination: "/hostproc", mode: "ro" },
+    ]
   }
 }
 
