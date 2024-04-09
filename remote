@@ -9,26 +9,73 @@ HERE=$(cd $(dirname $0); pwd)
 #     User core
 #     IdentityFile ~/.ssh/id_substrate
 
+: ${REMOTE_USER:=core}
+
 # how we connect
-: ${REMOTE_HOST:=core@substrate.home.arpa}
+: ${REMOTE_HOST:=$REMOTE_USER@substrate.home.arpa}
 
 # where to put source code on remote machine
-: ${REMOTE_ROOT:=/var/home/core/source}
+: ${REMOTE_ROOT:=/var/home/$REMOTE_USER/source}
 
 # Remote branch to use
 : ${REMOTE_BRANCH:=main}
 
+: ${REMOTE_DIGEST_TOOL:='sha256sum | cut -d " " -f 1'}
+
+: ${REMOTE_DIGEST_BASEPATH:=$REMOTE_ROOT/.git}
+
+REMOTE_DIGEST_LAST_HEAD=$REMOTE_DIGEST_BASEPATH/substrate-last-head
+REMOTE_DIGEST_LAST_STAGED=$REMOTE_DIGEST_BASEPATH/substrate-last-staged-digest
+REMOTE_DIGEST_LAST_UNSTAGED=$REMOTE_DIGEST_BASEPATH/substrate-last-unstaged-digest
+
+fatal() {
+  echo "fatal: $0: $@"
+  exit 1
+}
+
+# use files on the remote machine to detect unexpected changes. abort if we detect any.
+remote_sanity_check() {
+  if ! ssh $REMOTE_HOST "! [ -e $REMOTE_DIGEST_LAST_HEAD ] || test \"\$(git -C $REMOTE_ROOT rev-parse HEAD)\" == \"\$(cat $REMOTE_DIGEST_LAST_HEAD)\""; then
+    fatal "remote checkout in unexpected state: unexpected HEAD; to force, run: $0 force-push"
+  fi
+  if ! ssh $REMOTE_HOST "! [ -e $REMOTE_DIGEST_LAST_STAGED ] || test \"\$(git -C $REMOTE_ROOT diff --cached -s | $REMOTE_DIGEST_TOOL)\" == \"\$(cat $REMOTE_DIGEST_LAST_STAGED)\""; then
+    fatal "remote checkout in unexpected state; unexpected staged changes; to force, run: $0 force-push"
+  fi
+  if ! ssh $REMOTE_HOST "! [ -e $REMOTE_DIGEST_LAST_UNSTAGED ] || test \"\$(git -C $REMOTE_ROOT diff | $REMOTE_DIGEST_TOOL)\" == \"\$(cat $REMOTE_DIGEST_LAST_UNSTAGED)\""; then
+    fatal "remote checkout in unexpected state; unexpected unstaged changes; to force, run: $0 force-push"
+  fi
+}
+
+remote_reset_check() {
+  ssh $REMOTE_HOST "rm -f $REMOTE_DIGEST_LAST_HEAD $REMOTE_DIGEST_LAST_STAGED $REMOTE_DIGEST_LAST_UNSTAGED"
+}
+
 push() {
+  # only move forward if remote files are unchanged.
+  remote_sanity_check
+
   ssh $REMOTE_HOST "mkdir -p $REMOTE_ROOT && git -C $REMOTE_ROOT init . && git -C $REMOTE_ROOT config receive.denyCurrentBranch ignore"
   ssh $REMOTE_HOST -t "[ ! -e /var/lib/resourcedirs ] || ((mount | grep -q $REMOTE_ROOT/os/gen/oob/resourcedirs) || (mkdir -p $REMOTE_ROOT/os/gen/oob/resourcedirs && sudo chown -R core:core /var/lib/resourcedirs && sudo mount --bind /var/lib/resourcedirs source/os/gen/oob/resourcedirs))"
+  ssh $REMOTE_HOST "sudo chown -R $REMOTE_USER:$REMOTE_USER $REMOTE_ROOT"
   git push --force ssh://${REMOTE_HOST}${REMOTE_ROOT}/.git +HEAD:$REMOTE_BRANCH
   ssh $REMOTE_HOST "cd $REMOTE_ROOT && git reset --hard $REMOTE_BRANCH && git clean -fd"
+  ssh $REMOTE_HOST "git -C $REMOTE_ROOT rev-parse HEAD > $REMOTE_DIGEST_LAST_HEAD"
+
   if ! git diff --cached -s --exit-code; then
-    git diff --cached | ssh $REMOTE_HOST "cd $REMOTE_ROOT && git apply"
+    git diff --cached | ssh $REMOTE_HOST "cd $REMOTE_ROOT && git apply --index"
+    ssh $REMOTE_HOST "git -C $REMOTE_ROOT diff --cached -s | $REMOTE_DIGEST_TOOL > $REMOTE_DIGEST_LAST_STAGED"
+  else
+    ssh $REMOTE_HOST "rm -f $REMOTE_DIGEST_LAST_STAGED"
   fi
   if ! git diff -s --exit-code; then
     git diff | ssh $REMOTE_HOST "cd $REMOTE_ROOT && git apply"
+    ssh $REMOTE_HOST "git -C $REMOTE_ROOT diff | $REMOTE_DIGEST_TOOL > $REMOTE_DIGEST_LAST_UNSTAGED"
+  else
+    ssh $REMOTE_HOST "rm -f $REMOTE_DIGEST_LAST_UNSTAGED"
   fi
+
+  # ensure we wrote reasonable files
+  remote_sanity_check
 
   # NB disable cache syncing for now because it seems to destroy xattrs
   # [ ! -e os/cache ] || rsync -aP --no-perms --no-times --no-owner --no-group os/cache/. ${REMOTE_HOST}:${REMOTE_ROOT}/os/cache/
@@ -54,6 +101,11 @@ case "$1" in
   ssh)
     shift
     exec ssh $REMOTE_HOST "$@"
+    ;;
+  force-push)
+    shift
+    remote_reset_check
+    push
     ;;
   push)
     shift
