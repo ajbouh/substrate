@@ -58,7 +58,22 @@ func (m *Main) InitializeCLI(root *cli.Command) {
 	}
 }
 
+func (m *Main) doSample(announcer *cueloader.Announcer) {
+	if sample, err := m.Sampler.Get(); err != nil {
+		announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
+	} else {
+		if b, err := json.Marshal(&sample); err != nil {
+			announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
+		} else {
+			announcer.Announce(b)
+		}
+	}
+
+}
+
 func (m *Main) poll(announcer *cueloader.Announcer, ctx context.Context, interval time.Duration) {
+	m.doSample(announcer)
+
 	tick := time.Tick(interval)
 
 	for {
@@ -66,15 +81,7 @@ func (m *Main) poll(announcer *cueloader.Announcer, ctx context.Context, interva
 		case <-ctx.Done():
 			return
 		case <-tick:
-			if sample, err := m.Sampler.Get(); err != nil {
-				announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
-			} else {
-				if b, err := json.Marshal(&sample); err != nil {
-					announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
-				} else {
-					announcer.Announce(b)
-				}
-			}
+			m.doSample(announcer)
 		}
 	}
 }

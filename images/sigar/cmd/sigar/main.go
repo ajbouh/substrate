@@ -25,6 +25,8 @@ type Main struct {
 }
 
 func main() {
+	sigar.SetProcd("/hostproc")
+
 	engine.Run(
 		Main{
 			listenAddr: ":" + os.Getenv("PORT"),
@@ -42,7 +44,24 @@ func (m *Main) InitializeCLI(root *cli.Command) {
 	}
 }
 
+func doSample(announcer *cueloader.Announcer) {
+	sample, err := sigar.GetSample()
+	if err != nil {
+		announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
+		return
+	}
+
+	if b, err := json.Marshal(&sample); err != nil {
+		announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
+	} else {
+		announcer.Announce(b)
+	}
+
+}
+
 func poll(announcer *cueloader.Announcer, ctx context.Context, interval time.Duration) {
+	doSample(announcer)
+
 	tick := time.Tick(interval)
 
 	for {
@@ -50,13 +69,7 @@ func poll(announcer *cueloader.Announcer, ctx context.Context, interval time.Dur
 		case <-ctx.Done():
 			return
 		case <-tick:
-			sample := sigar.GetSample()
-
-			if b, err := json.Marshal(&sample); err != nil {
-				announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
-			} else {
-				announcer.Announce(b)
-			}
+			doSample(announcer)
 		}
 	}
 }
