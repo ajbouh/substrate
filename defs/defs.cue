@@ -136,6 +136,54 @@ daemons: [key=string]: containerspec.#ContainerSpec
   resourcedir_fetch_podman_run_options: [string]: string
 }
 
+#podman_build_imagespecs_raw: string @tag(podman_build_imagespecs)
+let podman_build_imagespecs = [for k in strings.Split(#podman_build_imagespecs_raw, " ") { #out.imagespecs[k] }] | *#out.imagespecs
+
+for key, def in #out.imagespecs {
+  #out: "image_podman_build_options": (def.image): def.#podman_build_options
+}
+
+#out: podman_build_imagespecs_parallel: [
+  for k, def in podman_build_imagespecs if k != "substrate" {
+    "podman build --layers --tag \(def.image) \(def.#podman_build_options)",
+  }
+]
+
+#out: podman_build_imagespecs_serial: [
+  for k, def in podman_build_imagespecs if k == "substrate" {
+    "podman build --layers --tag \(def.image) \(def.#podman_build_options)",
+  }
+]
+
+#out: podman_build_services: [
+  for k, tag in #out.service_image_tags {
+    tag,
+  }
+]
+
+#out: bash_build_images_command: strings.Join([
+  "set -ex",
+  for k, def in podman_build_imagespecs { "echo \(def.image)", },
+  "exec >&2",
+  // build most images in parallel
+  "xargs --delimiter='\\n' -n 1 --max-procs=8 sh -c 'set -x; exec $0 $@' <<'EOF'",
+  strings.Join(#out.podman_build_imagespecs_parallel, "\n"),
+  "EOF",
+  // now generate image_ids.cue file so we can build substrate image
+  "",
+  // now we can build substrate image
+  strings.Join(#out.podman_build_imagespecs_serial, "\n"),
+], "\n")
+
+#out: bash_write_image_ids_command: strings.Join([
+  "GEN_IMAGE_IDS=.gen/cue/image_ids.cue",
+  "mkdir -p $(dirname $GEN_IMAGE_IDS)",
+  "echo 'package defs' > $GEN_IMAGE_IDS",
+  "podman image inspect --format 'image_ids: \"{{index .RepoTags 0}}\": \"{{.ID}}\"' \(strings.Join(#out.podman_build_services, " ")) | tee >&2 -a $GEN_IMAGE_IDS",
+  "# use mv to make it atomic",
+  "mv $GEN_IMAGE_IDS defs/image_ids.cue",
+], "\n")
+
 #out: "imagespecs": {
   for key, def in imagespecs {
     if (enable[key] != _|_) {
@@ -214,10 +262,6 @@ for basename, unit in #out.systemd_containers {
 
 #out: "systemd_container_basenames": strings.Join([
   for key, def in #out.systemd_containers { key }
-], "\n")
-
-#out: "image_references": strings.Join([
-  for key, def in #out.imagespecs { def.image }
 ], "\n")
 
 for key, def in #out.imagespecs {
