@@ -1,11 +1,6 @@
 jupyter-server-proxy
-jupyverse[jupyterlab,auth]==0.4.2
-jupyter_collaboration==2.0.2
+jupyverse[notebook,auth]==0.5.0
+jupyter_collaboration==2.0.11
 nbdev==2.3.13
 fastai
-
-# Pin bcrypt to avoid https://github.com/pyca/bcrypt/issues/684
-#     version = _bcrypt.__about__.__version__
-#              ^^^^^^^^^^^^^^^^^
-# AttributeError: module 'bcrypt' has no attribute '__about__'
-bcrypt==4.0.1
+bcrypt
