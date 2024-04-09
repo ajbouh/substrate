@@ -1,17 +1,17 @@
 package defs
 
-enable: "phi-2": true
+enable: "llama-3-8b-instruct": true
 
-tests: "phi-2": assister: {
+tests: "llama-3-8b-instruct": assister: {
   test_templates["assister"]
 
-  environment: URL: "http://substrate:8080/phi-2/v1"
+  environment: URL: "http://substrate:8080/llama-3-8b-instruct/v1"
   depends_on: "substrate": true
 }
 
-image_tags: "phi-2": image_tags["vllm"]
+image_tags: "llama-3-8b-instruct": image_tags["vllm"]
 
-services: "phi-2": {
+services: "llama-3-8b-instruct": {
   spawn: {
     environment: {
       CUDA_DEVICE_ORDER: "PCI_BUS_ID"
@@ -19,7 +19,7 @@ services: "phi-2": {
 
     resourcedirs: {
       model: {
-        id: "huggingface:model:microsoft/phi-2:b10c3eba545ad279e7208ee3a5d644566f001670"
+        id: "huggingface:model:unsloth/llama-3-8b-Instruct:67c72164837acade483ce50f80b7cc27e94c9668"
       }
     }
 

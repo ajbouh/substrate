@@ -1,17 +1,17 @@
 package defs
 
-enable: "mixtral-8x7b-instruct": true
+enable: "llama-3-70b-instruct-awq": true
 
-tests: "mixtral-8x7b-instruct": assister: {
+tests: "llama-3-70b-instruct-awq": assister: {
   test_templates["assister"]
 
-  environment: URL: "http://substrate:8080/mixtral-8x7b-instruct/v1"
+  environment: URL: "http://substrate:8080/llama-3-70b-instruct-awq/v1"
   depends_on: "substrate": true
 }
 
-image_tags: "mixtral-8x7b-instruct": image_tags["vllm"]
+image_tags: "llama-3-70b-instruct-awq": image_tags["vllm"]
 
-services: "mixtral-8x7b-instruct": {
+services: "llama-3-70b-instruct-awq": {
   spawn: {
     environment: {
       CUDA_DEVICE_ORDER: "PCI_BUS_ID"
@@ -19,7 +19,7 @@ services: "mixtral-8x7b-instruct": {
 
     resourcedirs: {
       model: {
-        id: "huggingface:model:casperhansen/mixtral-instruct-awq:0a898130957afe22021bbaf807f50f6bbce88201"
+        id: "huggingface:model:casperhansen/llama-3-70b-instruct-awq:e578178ea893ca5e3326afd15da5aefa37e84d69"
       }
     }
 
