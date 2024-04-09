@@ -5,6 +5,8 @@ go 1.22.2
 require (
 	github.com/adrg/frontmatter v0.2.0
 	github.com/ajbouh/substrate/pkg/commands v0.0.0-00010101000000-000000000000
+	github.com/ajbouh/substrate/pkg/exports v0.0.0-00010101000000-000000000000
+	github.com/ajbouh/substrate/pkg/httpframework v0.0.0-00010101000000-000000000000
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/go-audio/audio v1.0.0
 	github.com/go-audio/wav v1.1.0
@@ -51,3 +53,7 @@ require (
 )
 
 replace github.com/ajbouh/substrate/pkg/commands => ../../pkg/commands
+
+replace github.com/ajbouh/substrate/pkg/exports => ../../pkg/exports
+
+replace github.com/ajbouh/substrate/pkg/httpframework => ../../pkg/httpframework

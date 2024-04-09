@@ -10,9 +10,12 @@ import (
 	"github.com/ajbouh/substrate/pkg/commands"
 )
 
-type CommandProvider struct{}
+type CommandProvider struct {
+	Session *tracks.Session
+}
 
-func (c *CommandProvider) CommandsSource(sess *tracks.Session) commands.Source {
+func (c *CommandProvider) Commands(ctx context.Context) commands.Source {
+	sess := c.Session
 	src := &commands.DynamicSource{
 		Sources: []commands.Source{
 			commands.NewStaticSource([]commands.Entry{
@@ -92,6 +95,7 @@ func (c *CommandProvider) CommandsSource(sess *tracks.Session) commands.Source {
 			},
 		})
 	}
+
 	return &commands.PrefixedSource{
 		Prefix: "workingset:",
 		Source: src,

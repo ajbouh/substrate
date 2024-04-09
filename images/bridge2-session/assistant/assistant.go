@@ -56,17 +56,15 @@ type Client interface {
 	Complete(speaker, input string) (prompt, response string, err error)
 }
 
-type SessionStorage interface {
-	SessionStoragePath(*tracks.Session, string) string
-}
-
 type Agent struct {
-	SessionStorage    SessionStorage
+	Session           *tracks.Session
+	StoragePaths      *tracks.SessionStoragePaths
 	DefaultAssistants []Client
 	NewClient         func(name, promptTemplate string) (Client, error)
 }
 
-func (c *Agent) CommandsSource(sess *tracks.Session) commands.Source {
+func (a *Agent) Commands(ctx context.Context) commands.Source {
+	sess := a.Session
 	return &commands.PrefixedSource{
 		Prefix: "assistant:",
 		Source: commands.NewStaticSource([]commands.Entry{
@@ -140,8 +138,8 @@ func (c *Agent) CommandsSource(sess *tracks.Session) commands.Source {
 		}),
 	}
 }
-
-func (a *Agent) HandleSessionInit(sess *tracks.Session) {
+func (a *Agent) Initialize() {
+	sess := a.Session
 	if a.NewClient != nil {
 		var promptEvents []tracks.Event
 		for _, t := range sess.Tracks() {
@@ -162,8 +160,8 @@ func (a *Agent) HandleSessionInit(sess *tracks.Session) {
 		sess.Listen(agent)
 	}
 
-	if a.SessionStorage != nil {
-		sync := newFSSync(sess, a.SessionStorage.SessionStoragePath(sess, "assistant"), 500*time.Millisecond)
+	if a.StoragePaths != nil {
+		sync := newFSSync(sess, a.StoragePaths.Dir("assistant"), 500*time.Millisecond)
 		sess.Listen(sync)
 	}
 }

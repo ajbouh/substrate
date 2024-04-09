@@ -64,34 +64,6 @@ type CallEvent struct {
 // This was omitted for now and the JSON response is shown directly in the UI.
 // However an improvement would be to take the "tool-call", and pass the response
 // back to the OpenAI endpoint to generate a human-readable summary.
-func NewAgent(name string, registry Registry) tracks.Handler {
-	return handlers{
-		handlers: []tracks.Handler{
-			&OfferAgent{
-				Name:      name,
-				Registry:  registry,
-				Completer: openAICompleter("tool-select"),
-			},
-			AutoTriggerAgent{},
-			&CallAgent{
-				Name:   name,
-				Runner: registry,
-			},
-		},
-	}
-}
-
-type handlers struct {
-	// Tractor crashes if the component is not a struct, so wrap it in a struct
-	// instead of just using the slice as the type directly.
-	handlers []tracks.Handler
-}
-
-func (h handlers) HandleEvent(event tracks.Event) {
-	for _, handler := range h.handlers {
-		handler.HandleEvent(event)
-	}
-}
 
 type OfferAgent struct {
 	Name      string
@@ -195,7 +167,7 @@ func (a *CallAgent) HandleEvent(event tracks.Event) {
 	}
 }
 
-func openAICompleter(template string) func(map[string]any) (string, string, error) {
+func OpenAICompleter(template string) func(map[string]any) (string, string, error) {
 	return func(templateArgs map[string]any) (string, string, error) {
 		prompt, err := prompts.Render(template, templateArgs)
 		if err != nil {

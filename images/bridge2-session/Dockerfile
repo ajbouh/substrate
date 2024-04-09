@@ -11,12 +11,22 @@ WORKDIR /go/src/github.com/ajbouh/substrate/pkg/commands/
 COPY pkg/commands/go.mod pkg/commands/go.sum ./
 RUN go mod download
 
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg/exports/
+COPY pkg/exports/go.mod pkg/exports/go.sum ./
+RUN go mod download
+
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg/httpframework/
+COPY pkg/httpframework/go.mod pkg/httpframework/go.sum ./
+RUN go mod download
+
 WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge2-session/
 COPY images/bridge2-session/go.mod images/bridge2-session/go.sum ./
 RUN go mod download
 
 WORKDIR /go/src/
 COPY pkg/commands/. github.com/ajbouh/substrate/pkg/commands/
+COPY pkg/exports/. github.com/ajbouh/substrate/pkg/exports/
+COPY pkg/httpframework/. github.com/ajbouh/substrate/pkg/httpframework/
 COPY images/bridge2-session/. github.com/ajbouh/substrate/images/bridge2-session/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge2-session/

@@ -2,7 +2,9 @@ package tracks
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -154,6 +156,9 @@ type Session struct {
 	ID     ID
 	Start  time.Time
 	tracks sync.Map
+
+	// TODO should we move this logic directly into EventEmitter?
+	EventHandlers []Handler
 }
 
 func NewSession() *Session {
@@ -162,6 +167,42 @@ func NewSession() *Session {
 		ID:    newIDWithTime(start),
 		Start: start,
 	}
+}
+
+func (s *Session) Initialize() {
+	for _, handler := range s.EventHandlers {
+		s.Listen(handler)
+	}
+}
+
+// Return a channel which will be notified when the session receives a new
+// event. Designed to debounce handling for one update at a time. The channel
+// will be closed when the context is cancelled to allow "range" loops over
+// the updates.
+func (sess *Session) UpdateHandler(ctx context.Context) <-chan struct{} {
+	log.Printf("UpdateHandler...")
+	defer log.Printf("UpdateHandler... done")
+
+	ch := make(chan struct{}, 1)
+	// start with a message in order to send an update right away
+	ch <- struct{}{}
+	h := HandlerFunc(func(e Event) {
+		if e.Type == "audio" {
+			// if this is a transient event like "audio" we don't need to save
+			return
+		}
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
+	})
+	go func() {
+		<-ctx.Done()
+		sess.Unlisten(h)
+		close(ch)
+	}()
+	sess.Listen(h)
+	return ch
 }
 
 func (s *Session) NewTrack(format beep.Format) *Track {
