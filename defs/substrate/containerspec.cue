@@ -3,8 +3,6 @@ package containerspec
 import (
   "strings"
 
-  docker_compose_service "github.com/ajbouh/substrate/defs/docker/compose:service"
-  imagespec "github.com/ajbouh/substrate/defs/substrate:imagespec"
   systemd "github.com/ajbouh/substrate/defs/systemd"
   quadlet "github.com/ajbouh/substrate/defs/podman:quadlet"
 )
@@ -20,7 +18,7 @@ import (
 
   image: string
 
-  environment ?: [string]: string
+  environment: [string]: string
 
   mounts ?: [...#Mount]
 }
@@ -62,14 +60,12 @@ import (
   #containerspec: #ContainerSpec
 
   #out: strings.Join([
-    if #containerspec.environment != _|_ {
-      for k, v in #containerspec.environment {
-        "--env=\(k)=\(v)",
-      }
+    for k, v in #containerspec.environment {
+      "--env=\(k)=\(v)",
     }
     if #containerspec.mounts != _|_ {
       for mount in #containerspec.mounts {
-        "--volume=\(mount.source):\(mount.destination):\(mount.mode)"
+        "--volume=\(mount.source):\(mount.destination):\(mount.mode)",
       }
     }
     #containerspec.image,
@@ -77,60 +73,4 @@ import (
       e,
     }
   ], " ")
-}
-
-#DockerComposeService: {
-  #containerspec: #ContainerSpec
-  #imagespec: imagespec
-
-  #out: {
-    docker_compose_service
-
-    if #containerspec.command != _|_ { "command": #containerspec.command }
-    if #containerspec.image != _|_ { "image": #containerspec.image }
-    if #containerspec.environment != _|_ { "environment": #containerspec.environment }
-
-    if #containerspec.mounts != _|_ {
-      volumes: [
-        for mount in #containerspec.mounts {
-          "\(mount.source):\(mount.destination):\(mount.mode)"
-        }
-      ]
-    }
-
-    if #containerspec.#docker_compose_service != _|_ {
-      #containerspec.#docker_compose_service
-    }
-
-    if #imagespec.build != _|_ { "build": #imagespec.build }
-    if #imagespec.image != _|_ { "image": #imagespec.image }
-  }
-}
-
-#DockerComposeVolumes: {
-  #containerspec: #ContainerSpec
-
-  #out: {
-    [string]: _
-  }
-
-  if #containerspec.mounts != _|_ {
-    for mount in #containerspec.mounts {
-      if !strings.HasPrefix(mount.source, "/") && !strings.HasPrefix(mount.source, ".") {
-        #out: "\(mount.source)": {}
-      }
-    }
-  }
-}
-
-#DockerComposeNetworks: {
-  #containerspec: #ContainerSpec
-
-  #out: {
-    [string]: _
-  }
-
-  if #containerspec.#docker_compose_networks != _|_ {
-    #out: #containerspec.#docker_compose_networks
-  }
 }
