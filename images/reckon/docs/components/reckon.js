@@ -34,7 +34,7 @@ export const removeRegion = StateEffect.define({
 })
 
 function operationButtons(view) {
-  return Decoration.set(mapField(view.state, underlineField, (iter) => iter.value.spec.attributes['data-role'] == 'dst' ? Decoration.widget({
+  return Decoration.set(mapField(view.state, regionField, (iter) => iter.value.spec.attributes['data-role'] == 'dst' ? Decoration.widget({
     widget: new OperationWidget({
       id: iter.value.spec.attributes['data-id'],
       operationText: iter.value.spec.attributes['data-operation-text'],
@@ -69,7 +69,7 @@ const operationPlugin = ViewPlugin.fromClass(class {
 
   update(update) {
     if (update.docChanged || update.viewportChanged ||
-      update.startState.field(underlineField, false) !== update.state.field(underlineField, false)) {
+      update.startState.field(regionField, false) !== update.state.field(regionField, false)) {
       this.decorations = operationButtons(update.view)
     }
   }
@@ -92,12 +92,12 @@ const operationPlugin = ViewPlugin.fromClass(class {
   }
 })
 
-let underlineId = 0
+let regionId = 0
 function nextRegion() {
-  const n = underlineId++
+  const n = regionId++
   const color = colors[n % colors.length]
   return {
-    id: `underline${n}`,
+    id: `region${n}`,
     color: color,
   }
 }
@@ -115,19 +115,19 @@ const colors = [
   {name: "cyan", light: "lightcyan", dark: "cyan"},
   {name: "purple", light: "lavender", dark: "purple"},
 ]
-export const underlineField = StateField.define({
+export const regionField = StateField.define({
   create() {
     return Decoration.none
   },
-  update(underlines, tr) {
-    underlines = underlines.map(tr.changes)
+  update(regions, tr) {
+    regions = regions.map(tr.changes)
     for (let e of tr.effects) {
       if (e.is(addRegion)) {
         const {id, color} = nextRegion()
-        underlines = underlines.update({
+        regions = regions.update({
           add: [
             ...(e.value.srcFrom == null ? [] : [Decoration.mark({
-              class: "cm-underline",
+              class: "cm-region",
               attributes: {
                 "data-role": "src",
                 "data-id": id,
@@ -136,7 +136,7 @@ export const underlineField = StateField.define({
               },
             }).range(e.value.srcFrom, e.value.srcTo)]),
             Decoration.mark({
-              class: "cm-underline",
+              class: "cm-region",
               attributes: {
                 "data-role": "dst",
                 "data-id": id,
@@ -147,18 +147,18 @@ export const underlineField = StateField.define({
           ]
         })
       } else if (e.is(removeRegion)) {
-        underlines = underlines.update({
+        regions = regions.update({
           filter: (f, t, value) => !(f === e.value.from && t === e.value.to),
         })
       }
     }
-    return underlines
+    return regions
   },
   provide: f => EditorView.decorations.from(f),
 })
 
-const underlineTheme = EditorView.baseTheme({
-  ".cm-underline::selection": {
+const regionTheme = EditorView.baseTheme({
+  ".cm-region::selection": {
     backgroundColor: "inherit",
   },
   ".cm-operation-text": {
@@ -201,7 +201,7 @@ function abort(reason) {
 }
 
 async function regenerateRegionsThat({view, pred}) {
-  const dsts = mapField(view.state, underlineField, (iter) => {
+  const dsts = mapField(view.state, regionField, (iter) => {
     if (pred(iter)) {
       if (iter.value.spec.attributes['data-role'] === 'dst') {
         return {
@@ -215,7 +215,7 @@ async function regenerateRegionsThat({view, pred}) {
   })
 
   for (const dst of dsts) {
-    const [src] = mapField(view.state, underlineField, (iter) => {
+    const [src] = mapField(view.state, regionField, (iter) => {
       if (iter.value.spec.attributes['data-id'] === dst.id
           && iter.value.spec.attributes['data-role'] === 'src') {
         return {
@@ -238,8 +238,8 @@ async function regenerateRegionsThat({view, pred}) {
   }
 }
 
-export function underlineExtension() {
-  const underlineKeymap = keymap.of(
+export function regionExtension() {
+  const regionKeymap = keymap.of(
     [
       {
         key: "Escape",
@@ -313,9 +313,9 @@ export function underlineExtension() {
   )
 
   return [
-    underlineKeymap,
-    underlineTheme,
-    underlineField,
+    regionKeymap,
+    regionTheme,
+    regionField,
     operationPlugin,
     placeholders,
   ]
@@ -367,7 +367,7 @@ async function runOperationText({view, state, operationText, input, srcFrom, src
       })
       const dstFrom = view.state.doc.length - 6
 
-      const missingOperationText = `missing ${e.operation}`
+      const missingOperationText = `missing operation=${e.operation}`
       console.log(`attempting to run missing for ${e.operation}`)
       await runOperationText({
         state,
@@ -440,10 +440,10 @@ function resolvePipeline(config, head, ...rest) {
 // foo $baz $bar | other | cmd
 function parseOperationPipeline(def) {
   const split = def.split(" ")
-  const pipeline = [{operation: undefined, args: []}]
+  const pipeline = [{operation: undefined, rawArgs: []}]
   for (const s of split) {
     if (s == "|") {
-      pipeline.push({operation: undefined, args: []})
+      pipeline.push({operation: undefined, rawArgs: []})
       continue
     }
 
@@ -452,9 +452,22 @@ function parseOperationPipeline(def) {
       p.operation = s
       continue
     }
+    p.rawArgs.push(s)
+  }
 
-
-    p.args.push(s)
+  // parse any rawArgs into a set of keywords
+  for (const p of pipeline) {
+    p.args = Object.fromEntries(p.rawArgs.map(arg => {
+      const [k, v] = arg.split("=", 2)
+      const o = v == null
+        ? v
+        : /^[-+0-9]/.test(v)
+          ? +v
+          : v.startsWith('"') || v.startsWith("[") || v.startsWith("{")
+            ? JSON.parse(v)
+          : v
+      return [k, o]
+    }))
   }
 
   return pipeline
@@ -551,12 +564,14 @@ function discoverOperationDef(state, name) {
 export const defaultOperations = {
   'complete-via': {
     run({view, args}) {
+      const {url, ...params} = args
       const config = {
-        url: args[0],
+        url,
         controller: newAbortController(),
         params: {
           model: "/res/model/huggingface/local",
           max_tokens: 1000,
+          ...params,
         },
       }
 
@@ -600,8 +615,8 @@ export const defaultOperations = {
         if (input.endsWith('\n')) {
           input = input.substring(0, input.length - 1)
         }
-        input = args.reduce(
-          (acc, arg, i) => acc.replace(head.args[i], arg),
+        input = Object.entries(args).reduce(
+          (acc, [k, v], i) => acc.replace(`{${k}}`, v),
           input,
         )
         return {
@@ -653,17 +668,14 @@ export const defaultOperations = {
 
       return async ({input}) => {
         for await (const s of inputAsGenerator(input)) {
-          const t = view.state.update({
+          view.dispatch({
             changes: {from: dstFrom, to: dstTo, insert: s},
             scrollIntoView,
           })
           dstFrom += s.length
           // only insert over a span the first time, after that we just insert at dstFrom
           if (dstTo !== dstFrom) {
-            dstTo = dstFrom
-          }
-          if (t) {
-            view.dispatch(t)
+            dstTo = undefined
           }
         }
 
@@ -734,18 +746,18 @@ class PlaceholderWidget extends WidgetType {
       if (selection.from !== selection.to) {
         from = selection.from
       } else {
-        const [underline] = mapField(
+        const [region] = mapField(
           view.state,
-          underlineField,
+          regionField,
           (iter) => (selection.from >= iter.from && selection.from < iter.to) ? ({
             from: iter.from,
             to: iter.to,
           }) : undefined,
         )
-        if (underline) {
-          from = underline.from
-          to = underline.to
-          dstFrom = underline.to
+        if (region) {
+          from = region.from
+          to = region.to
+          dstFrom = region.to
         }
       }
       if (dstFrom === undefined) {
@@ -797,41 +809,45 @@ const placeholders = ViewPlugin.fromClass(class {
 export const defaultValue = `there is a park
 :haiku
 
-:fetch http://localhost:8080/bridge2;sessions=sp-01HRDXSC0ZZEA42EP0RDXMZPGC/sessions/cnl7bt7p0ons73b0b0hg/text
 
 ---
 
 # [[complete]]
-> phi-2
+> llama-3-8b-instruct
+
+---
+
+# [[llama-3-8b-instruct]]
+> complete-via url=/llama-3-8b-instruct/v1/completions
 
 ---
 
 # [[phi-2]]
-> complete-via /phi-2/v1/completions
+> complete-via url=/phi-2/v1/completions
 
 ---
 
 # [[mixtral-8x7b-instruct]]
-> complete-via /mixtral-8x7b-instruct/v1/completions
+> complete-via url=/mixtral-8x7b-instruct/v1/completions
 
 ---
 
 # [[local-llamafile]]
-> complete-via http://localhost:8080/completion
+> complete-via url=http://localhost:8080/completion
 
 ---
 
 # [[airoboros-l2-13b-2.2]]
-> complete-via /airoboros-l2-13b-2.2/v1/completions
+> complete-via url=/airoboros-l2-13b-2.2/v1/completions
 
 ---
 
-# [[fetch]]
+# [[fetch]] url
 > eval | insert
 
 ${"```"}js
 function ({view, args}) {
-  const url = args[0]
+  const url = args.url
   return async ({input, args}) => {
     const r = await fetch(url)
     return {
@@ -843,9 +859,9 @@ ${"```"}
 
 ---
 
-# [[missing]] $operation
+# [[missing]] operation
 > template | complete | insert
-You are a professional, extensible, LLM-powered text editor. Your task is to generate a generic, reusable prompt for the $operation operation. Use {} as a placeholder for input.
+You are a professional, extensible, LLM-powered text editor. Your task is to generate a generic, reusable prompt for the {operation} operation. Use {} as a placeholder for input.
 
 Stop after you output the prompt. Do not evaluate the prompt. Do not mention the prompt or operation itself.
 

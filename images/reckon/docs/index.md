@@ -11,6 +11,8 @@ import {
   StateField,
   Decoration,
   fieldView,
+  history,
+  historyKeymap,
   // basicSetup,
   markdown, markdownKeymap,
   languages,
@@ -18,15 +20,15 @@ import {
 } from "./components/codemirror.js"
 
 import {
-  underlineExtension,
+  regionExtension,
   removeUnderline,
-  underlineField,
+  regionField,
   defaultValue,
 } from "./components/reckon.js"
 ```
 
 ```js
-const [underlineView, underline] = fieldView(underlineField, (view, iter) => ({
+const [regionView, region] = fieldView(regionField, (view, iter) => ({
     from: iter.from,
     to: iter.to,
     "iter.value.spec": iter.value.spec,
@@ -44,8 +46,11 @@ const [underlineView, underline] = fieldView(underlineField, (view, iter) => ({
 const {container: e, view: ev} = CodeMirror(defaultValue, {
   extensions: [
     myDefaultTheme,
-    underlineExtension(),
-    underlineView,
+    regionExtension(),
+    regionView,
+    history({
+      minDepth: 1000,
+    }),
     // basicSetup,
     markdown({
       codeLanguages: languages,
@@ -53,7 +58,9 @@ const {container: e, view: ev} = CodeMirror(defaultValue, {
 
     EditorView.lineWrapping,
   ],
-  keymaps: [],
+  keymaps: [
+    keymap.of(historyKeymap),
+  ],
 })
 ```
 ```js
@@ -81,11 +88,11 @@ const myDefaultTheme = EditorView.theme({
 ```
 
 ```js
-html`${underline.map(u => {
+html`${region.map(u => {
   return html`<div><a href="#" onmousedown=${(e) => e.preventDefault()} onclick=${(e) => {u.remove(); e.preventDefault()}}>&#x2718;</a>&nbsp;&nbsp;${u.slice}</div>`
 })}`
 ```
 
 ```js
-display(underline)
+display(region)
 ```

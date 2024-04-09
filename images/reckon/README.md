@@ -38,9 +38,13 @@ If none is specified, the default internal chain is `template | complete | inser
 
 To override the default internal chain, a line starting with `> ` should follow the `# ` definition.
 
+The complete chain used when running an operation is the concatenation of all the internal chains of each of the referenced operations.
+
+There are not yet any well-defined specifications for what operations use as inputs or outputs. This will come with time as we experiment with various possibilities.
+
 #### JavaScript operations
 
-This is an example operation implemented in JavaScript. It defines a simple `fetch` operation to fetch a given url. Note the use of `eval` in its internal pipeline.
+This is an example operation implemented in JavaScript. It defines a simple `fetch` operation to fetch a given url. Note the use of `eval` in its internal chain.
 
 ~~~
 # [[fetch]]
