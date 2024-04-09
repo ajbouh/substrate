@@ -161,7 +161,7 @@ check_cue_dev_expr_as_cue() {
   cue def --strict --trace --all-errors --verbose --inline-imports --simplify \
     $CUE_DEV_PACKAGE \
     $CUE_DEV_TAG_ARGS \
-    "$@"
+    "$@" > /dev/null
 }
 
 docker_compose() {
@@ -253,26 +253,29 @@ write_os_container_units_overlay() {
   done
 }
 
-build_image() {
-  image=$1
-  PODMAN_BUILD_OPTIONS=$(print_rendered_cue_dev_expr_as text -e "#out.image_podman_build_options[\"$image\"]")
-  $PODMAN build --layers --tag $image $PODMAN_BUILD_OPTIONS
+build_images() {
+  images=
+
+  if [ $# -eq 0 ]; then
+    print_rendered_cue_dev_expr_as text -e '#out.bash_build_images_command' | bash
+  else
+    print_rendered_cue_dev_expr_as text -t "podman_build_imagespecs=$@" -e '#out.bash_build_images_command' | bash
+  fi
+  status=$?
+  if [ $status -ne 0 ]; then
+    exit $status
+  fi
 }
 
-build_images() {
-  if [ $# -eq 0 ]; then
-    # populate images
-    IMAGES=$(print_rendered_cue_dev_expr_as text -e '#out.image_references')
-    echo IMAGES=$IMAGES
-    for image in $IMAGES; do
-      build_image $image
-    done
-  else
-    for image_name in $@; do
-      image=$(print_rendered_cue_dev_expr_as text -e "#out.imagespecs[\"$image_name\"].image")
-      build_image $image
-    done
-  fi
+write_images_to_root_imagestore() {
+  # HACK should actually only be pulling the images we built...
+  IMAGES=$@
+  for image in $IMAGES; do
+    image_id=$($PODMAN image inspect $image -f '{{.ID}}')
+    if ! sudo $PODMAN image exists $image_id; then
+      $PODMAN save $image | sudo $PODMAN load
+    fi
+  done
 }
 
 write_images_to_imagestore() {
@@ -321,24 +324,21 @@ systemd_logs() {
   journalctl -xfeu substrate.service
 }
 
+write_image_ids_file() {
+  print_rendered_cue_dev_expr_as text -e '#out.bash_write_image_ids_command' | bash
+}
+
 systemd_reload() {
   containers=$@
 
   check_cue_dev_expr_as_cue
 
-  DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
+  built_images=$(build_images $containers)
+  echo built_images=$built_images
 
-  # TODO only build $containers
-  build_images $containers
+  write_image_ids_file
 
-  # HACK should actually only be pulling the images we built...
-  IMAGES=$(print_rendered_cue_dev_expr_as text -e '#out.image_references')
-  for image in $IMAGES; do
-    image_id=$($PODMAN image inspect $image -f '{{.ID}}')
-    if ! sudo $PODMAN image exists $image_id; then
-      $PODMAN save $image | sudo $PODMAN load
-    fi
-  done
+  write_images_to_root_imagestore $built_images
 
   write_os_resourcedirs_overlay
 
@@ -367,21 +367,36 @@ systemd_reload() {
   # HB it would be better to run this on the overlay dir *before* we copy it. how do we do that?
   /usr/libexec/podman/quadlet --dryrun
 
-  # HACK restart a few services by name. It would be much better to it based on what's changed...
-  sudo systemctl restart substrate caddy nvidia-ctk-cdi-generate vscode-server
+  # Only restart units that we expect to have changed
+  units=("caddy" "nvidia-ctk-cdi-generate")
+  restart_units=()
+
+  if [ -z $containers ]; then
+    restart_units=("${units[@]}")
+  fi
+
+  # HACK it would be much better to hardcode less of this here...
+  if [[ $built_images == *'ghcr.io/ajbouh/substrate:substrate-substrate'* ]]; then
+    restart_units+=("substrate")
+  elif [[ $built_images == *'ghcr.io/ajbouh/substrate:substrate-vscode-server'* ]]; then
+    restart_units+=("vscode-server")
+  fi
+
+  if [ ${#restart_units[@]} -gt 0 ]; then
+    sudo systemctl restart "${restart_units[@]}"
+  fi
 }
 
 os_oob_make() {
   write_os_resourcedirs_overlay
 
   check_cue_dev_expr_as_cue
- 
-  build_images
-  IMAGES=$(print_rendered_cue_dev_expr_as text -e '#out.image_references')
+
+  built_images=$(build_images)
 
   sudo rm -rf os/gen/oob/imagestore
   mkdir -p os/gen/oob/imagestore
-  write_images_to_imagestore os/gen/oob/imagestore $IMAGES
+  write_images_to_imagestore os/gen/oob/imagestore $built_images
   
   mkdir -p os/src/config/live/oob
   cosa shell sudo mksquashfs gen/oob src/config/live/oob/oob.squashfs -noappend -wildcards -no-recovery -comp zstd
@@ -441,6 +456,12 @@ case "$1" in
   expr-dump)
     shift
     print_cue_dev_expr
+    ;;
+  write-image-ids)
+    shift
+    set_os_vars
+    set_live_edit_vars
+    write_image_ids_file
     ;;
   reload|systemd-reload)
     shift
