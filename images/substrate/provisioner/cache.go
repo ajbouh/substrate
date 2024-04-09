@@ -24,6 +24,29 @@ func NewCache() *Cache {
 	}
 }
 
+func (r *Cache) Sample() map[string]*activityspec.ServiceSpawnResponse {
+	m := map[string]*activityspec.ServiceSpawnResponse{}
+
+	keys := make([]string, 0, len(r.entries))
+	cached := make([]*CachingSingleServiceProvisioner, 0, len(r.entries))
+	r.mu.Lock()
+	for k, v := range r.entries {
+		keys = append(keys, k)
+		cached = append(cached, v)
+	}
+	r.mu.Unlock()
+
+	for i, k := range keys {
+		v := cached[i]
+		r := v.Peek()
+		if r != nil {
+			m[k] = r
+		}
+	}
+
+	return m
+}
+
 // lock, loop over existing funcs, clean up now-stale ones.
 func (r *Cache) Refresh(ctx context.Context) {
 	r.mu.Lock()

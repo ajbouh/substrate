@@ -51,6 +51,7 @@ type ServiceSpawnResponse struct {
 	Name        string
 	BackendURL  string
 	BearerToken *string
+	PID         int
 
 	ServiceSpawnResolution ServiceSpawnResolution `json:"resolution"`
 }

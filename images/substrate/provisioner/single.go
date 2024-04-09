@@ -93,6 +93,13 @@ func (e *CachingSingleServiceProvisioner) makeCleanup() func(error) {
 	}
 }
 
+func (e *CachingSingleServiceProvisioner) Peek() *activityspec.ServiceSpawnResponse {
+	e.peekMu.Lock()
+	defer e.peekMu.Unlock()
+
+	return e.provisioned
+}
+
 func (e *CachingSingleServiceProvisioner) Refresh(ctx context.Context) (bool, error) {
 	e.peekMu.Lock()
 	spawner := e.spawner

@@ -29,19 +29,17 @@ func (h *Handler) newApiHandler() http.Handler {
 		})
 	}
 
-	type ActivityResult struct {
-		URL string `json:"url"`
-		// Status          *jamsocket.StatusEvent `json:"status"`
-		StatusStreamURL string `json:"status_stream_url"`
-
-		ActivitySpec string `json:"activityspec"`
-	}
-
-	type ActivityRequest struct {
-		ActivitySpec  string `json:"activityspec"`
-		ForceSpawn    bool   `json:"force_spawn"`
-		ForceReadOnly bool   `json:"force_read_only"`
-	}
+	handle("GET", "/substrate/v1/stats", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
+		m, v, err := sampleServicesWithStats(req.Context(), h, h.ProvisionerCache, []string{"nvml", "sigar"})
+		status := 200
+		if err != nil {
+			status = 500
+		}
+		return map[string]any{
+			"services": m,
+			"metrics":  v,
+		}, status, err
+	})
 
 	router.Handle("GET", "/substrate/v1/defs", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
 		h.DefsAnnouncer.ServeHTTP(rw, req)

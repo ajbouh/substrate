@@ -262,6 +262,8 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	return &activityspec.ServiceSpawnResponse{
 		Name: cResp.ID,
 
+		PID: inspect.State.Pid,
+
 		BackendURL:  backendURL + as.ServiceDefSpawn.URLPrefix,
 		BearerToken: bearerToken,
 
