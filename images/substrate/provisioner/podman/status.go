@@ -3,7 +3,6 @@ package podmanprovisioner
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"strings"
@@ -11,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/ajbouh/substrate/images/substrate/provisioner"
 	"github.com/containers/podman/v4/libpod/define"
 	"github.com/containers/podman/v4/pkg/bindings/containers"
 	"github.com/containers/podman/v4/pkg/bindings/system"
@@ -99,6 +98,7 @@ func (c *ContainerStatusCheck) waitUntilReadyTCP(ctx context.Context, maxAttempt
 		}
 		select {
 		case <-ctx.Done():
+			log.Printf("waitUntilReadyTCP cancelled host=%s port=%s attempts=%d maxAttempts=%d err=%s", c.host, c.port, attempts, maxAttempts, ctx.Err())
 			return ctx.Err()
 		case <-timeout:
 			log.Printf("waitUntilReadyTCP timed out host=%s port=%s attempts=%d maxAttempts=%d", c.host, c.port, attempts, maxAttempts)
@@ -122,7 +122,7 @@ func (c *ContainerStatusCheck) waitUntilReadyTCP(ctx context.Context, maxAttempt
 	}
 }
 
-func (c *ContainerStatusCheck) Status(ctx context.Context) (activityspec.ProvisionEvent, error) {
+func (c *ContainerStatusCheck) Status(ctx context.Context) (provisioner.Event, error) {
 	var state State
 
 	if c.containerJSON.State != nil {
@@ -142,11 +142,13 @@ func (c *ContainerStatusCheck) Status(ctx context.Context) (activityspec.Provisi
 	}, nil
 }
 
-func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan activityspec.ProvisionEvent, error) {
-	statusCh := make(chan activityspec.ProvisionEvent)
+func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan provisioner.Event, error) {
+	statusCh := make(chan provisioner.Event)
+	errEventChan := make(chan error)
 
 	go func() {
 		defer close(statusCh)
+		readyCh := make(chan error)
 
 		ctx, err := c.connect(ctx)
 		if err != nil {
@@ -154,8 +156,8 @@ func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan activit
 			return
 		}
 		eventsOptions := &system.EventsOptions{
+			Stream: boolPtr(true),
 			Filters: map[string][]string{
-				"type":      []string{"container"},
 				"container": []string{c.containerID},
 			},
 		}
@@ -167,7 +169,7 @@ func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan activit
 			cancelChan <- true
 		}()
 
-		emit := func(ev activityspec.ProvisionEvent) {
+		emit := func(ev provisioner.Event) {
 			log.Printf("event %#v", ev)
 			statusCh <- ev
 		}
@@ -175,13 +177,8 @@ func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan activit
 		go func() {
 			defer close(eventChan)
 			err := system.Events(ctx, eventChan, cancelChan, eventsOptions)
-			if err != nil && err != io.EOF {
-				now := time.Now().UTC()
-				emit(&StatusEvent{
-					Err:  err,
-					Time: now.Format(time.RFC3339Nano),
-				})
-			}
+			log.Printf("event channel done backend:%s status:%s err:%s", c.containerID, c.containerJSON.State.Status, err)
+			errEventChan <- err
 		}()
 
 		// Check the current status of the container
@@ -194,53 +191,46 @@ func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan activit
 			})
 			return
 		}
+		log.Printf("__event backend:%s status:%s ev:%#v", c.containerID, c.containerJSON.State.Status, ev)
 		emit(ev)
 		if ev.IsPending() {
-			if err := c.waitUntilReadyTCP(ctx, -1); err == nil {
-				now := time.Now().UTC()
-				emit(&StatusEvent{
-					Backend: c.containerID,
-					State:   ReadyState,
-					Time:    now.Format(time.RFC3339Nano),
-				})
-			}
+			go func() {
+				readyCh <- c.waitUntilReadyTCP(ctx, -1)
+			}()
 		}
 
+		var ready bool
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case event := <-eventChan:
-				if c.containerJSON.State.Status == "running" {
-					// Do we already know it's ready? If so, that's all we care about.
-					if err := c.waitUntilReadyTCP(ctx, 0); err == nil {
-						emit(&StatusEvent{
-							Backend: c.containerID,
-							State:   StateFromDockerStatus(event.Action, true),
-							Time:    time.Unix(event.Time, event.TimeNano).Format(time.RFC3339Nano),
-						})
-					} else {
-						// otherwise announce it as running, then as ready...
-						emit(&StatusEvent{
-							Backend: c.containerID,
-							State:   StateFromDockerStatus(event.Action, false),
-							Time:    time.Unix(event.Time, event.TimeNano).Format(time.RFC3339Nano),
-						})
-						if err := c.waitUntilReadyTCP(ctx, -1); err == nil {
-							emit(&StatusEvent{
-								Backend: c.containerID,
-								State:   StateFromDockerStatus(event.Action, true),
-								Time:    time.Unix(event.Time, event.TimeNano).Format(time.RFC3339Nano),
-							})
-						}
-					}
-				} else {
+			case readyErr := <-readyCh:
+				ready = readyErr == nil
+				if readyErr != nil {
+					log.Printf("error waiting for ready backend:%s err:%s", c.containerID, readyErr)
+				}
+				if ready {
+					now := time.Now().UTC()
 					emit(&StatusEvent{
 						Backend: c.containerID,
-						State:   StateFromDockerStatus(event.Action, false),
-						Time:    time.Unix(event.Time, event.TimeNano).Format(time.RFC3339Nano),
+						State:   ReadyState,
+						Time:    now.Format(time.RFC3339Nano),
 					})
 				}
+			case err := <-errEventChan:
+				now := time.Now().UTC()
+				emit(&StatusEvent{
+					Err:  err,
+					Time: now.Format(time.RFC3339Nano),
+				})
+			case event := <-eventChan:
+				log.Printf("__event backend:%s status:%s action:%s event:%#v", c.containerID, c.containerJSON.State.Status, event.Action, event)
+				// Do we already know it's ready? If so, that's all we care about.
+				emit(&StatusEvent{
+					Backend: c.containerID,
+					State:   StateFromDockerStatus(event.Action, ready),
+					Time:    time.Unix(event.Time, event.TimeNano).Format(time.RFC3339Nano),
+				})
 			}
 		}
 	}()
@@ -276,7 +266,7 @@ func (p *P) containerStatusCheck(ctx context.Context, containerID string) (*Cont
 	}, nil
 }
 
-func (p *P) Status(ctx context.Context, name string) (activityspec.ProvisionEvent, error) {
+func (p *P) Status(ctx context.Context, name string) (provisioner.Event, error) {
 	sc, err := p.containerStatusCheck(ctx, name)
 	if err != nil {
 		return nil, err
@@ -285,7 +275,7 @@ func (p *P) Status(ctx context.Context, name string) (activityspec.ProvisionEven
 	return sc.Status(ctx)
 }
 
-func (p *P) StatusStream(ctx context.Context, name string) (<-chan activityspec.ProvisionEvent, error) {
+func (p *P) StatusStream(ctx context.Context, name string) (<-chan provisioner.Event, error) {
 	sc, err := p.containerStatusCheck(ctx, name)
 	if err != nil {
 		return nil, err

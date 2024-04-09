@@ -5,9 +5,49 @@ import (
 	"errors"
 	"log"
 
+	"github.com/containers/podman/v4/pkg/bindings/containers"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 )
+
+func (p *P) Kill(
+	ctx context.Context,
+	name string,
+) error {
+	c, err := p.cli.ContainerInspect(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	errs := []error{}
+	switch c.State.Status {
+	case "running", "paused", "restarting":
+		log.Printf("stopping container %s", c.ID)
+		err := containers.Stop(ctx, c.ID, nil)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	default:
+		log.Printf("not stopping container %s; status: %s", c.ID, c.State.Status)
+	}
+
+	log.Printf("removing container %s", c.ID)
+	err = p.cli.ContainerRemove(ctx, c.ID, types.ContainerRemoveOptions{
+		// If we remove volumes then our caches will go away when the last container using it is stopped...
+		// RemoveVolumes: true,
+		RemoveLinks: true,
+		Force:       true,
+	})
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+
+	return nil
+}
 
 func (p *P) Cleanup(
 	ctx context.Context,

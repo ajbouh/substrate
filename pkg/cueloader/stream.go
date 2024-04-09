@@ -54,13 +54,13 @@ func (s *StreamLoader) run(ctx context.Context) {
 	log.Printf("making request of %s", s.url)
 	err = ReadStreamEvents(http.DefaultClient, req, func(event *Event) error {
 		var m any
-		log.Printf("event from %s is %#v", s.url, string(event.Data))
+		log.Printf("event from %s", s.url)
 		err := json.Unmarshal(event.Data, &m)
 		if err != nil {
 			return err
 		}
 		s.update(m)
-		log.Printf("update from %s is %#v", s.url, m)
+		// log.Printf("update from %s is %#v", s.url, m)
 		return nil
 	})
 	if err != nil {

@@ -1,6 +1,10 @@
 package activityspec
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
 	"net/url"
 	"sort"
 	"strconv"
@@ -31,6 +35,16 @@ type ServiceSpawnResolution struct {
 	GracePeriodSeconds *int                   `json:"grace_period_seconds,omitempty"`
 
 	ServiceDefSpawn ServiceDefSpawn `json:"spawn"`
+}
+
+func (r *ServiceSpawnResolution) Digest() string {
+	d := sha256.New()
+	err := json.NewEncoder(d).Encode(r)
+	if err != nil {
+		panic(fmt.Sprintf("could not calculate digest for %#v", r))
+	}
+
+	return hex.EncodeToString(d.Sum(nil))
 }
 
 type ServiceSpawnResponse struct {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
+	"github.com/ajbouh/substrate/images/substrate/provisioner"
 
 	nettypes "github.com/containers/common/libnetwork/types"
 	"github.com/containers/podman/v4/pkg/bindings/containers"
@@ -39,7 +40,7 @@ type P struct {
 	prep func(h *specgen.SpecGenerator)
 }
 
-var _ activityspec.ProvisionDriver = (*P)(nil)
+var _ provisioner.Driver = (*P)(nil)
 
 func New(connect func(ctx context.Context) (context.Context, error), namespace, internalNetwork, externalNetwork, hostResourceDirsRoot string, hostResourceDirsPath []string, prep func(h *specgen.SpecGenerator)) *P {
 	return &P{
@@ -62,7 +63,7 @@ const LabelSubstrateNamespace = "substrate.namespace"
 const LabelSubstrateActivity = "substrate.activity"
 const SubstrateNetworkNamePrefix = "substrate_network_"
 
-func (p *P) dumpLogs(ctx context.Context, containerID string) error {
+func (p *P) dumpLogs(ctx context.Context, prefix, containerID string) error {
 	ctx, err := p.connect(ctx)
 	if err != nil {
 		return err
@@ -71,7 +72,7 @@ func (p *P) dumpLogs(ctx context.Context, containerID string) error {
 	ch := make(chan string)
 	go func(ch chan string) {
 		for s := range ch {
-			os.Stderr.WriteString(s)
+			os.Stderr.WriteString(prefix + s)
 		}
 	}(ch)
 
@@ -243,7 +244,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	}
 
 	// Stream logs to stderr
-	go p.dumpLogs(ctx, cResp.ID)
+	go p.dumpLogs(ctx, "["+as.ServiceName+" "+cResp.ID+"] ", cResp.ID)
 
 	inspect, err := containers.Inspect(ctx, cResp.ID, nil)
 	if err != nil {

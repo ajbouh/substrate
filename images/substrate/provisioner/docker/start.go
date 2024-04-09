@@ -10,6 +10,7 @@ import (
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
+	"github.com/ajbouh/substrate/images/substrate/provisioner"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -40,7 +41,7 @@ type P struct {
 	prep func(h *container.HostConfig)
 }
 
-var _ activityspec.ProvisionDriver = (*P)(nil)
+var _ provisioner.Driver = (*P)(nil)
 
 func New(cli *client.Client, namespace, internalNetworkName, externalNetworkName, hostResourceDirsRoot string, hostResourceDirsPath []string, prep func(h *container.HostConfig)) *P {
 	return &P{
