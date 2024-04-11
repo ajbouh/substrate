@@ -1,7 +1,9 @@
 package nvml
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"strconv"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -65,18 +67,24 @@ func nvmlDefaultErrorString(r nvml.Return) string {
 	}
 }
 
-func GetSample() (*Sample, error) {
+type Sampler struct {
+}
+
+func (m *Sampler) Serve(ctx context.Context) {
 	ret := nvml.Init()
 	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("unable to initialize NVML: %v", nvmlDefaultErrorString(ret))
+		log.Fatalf("unable to initialize NVML: %v", nvmlDefaultErrorString(ret))
 	}
-	defer func() {
-		ret := nvml.Shutdown()
-		if ret != nvml.SUCCESS {
-			fmt.Printf("Unable to shutdown NVML: %v\n", nvml.ErrorString(ret))
-		}
-	}()
+}
 
+func (m *Sampler) Terminate() {
+	ret := nvml.Shutdown()
+	if ret != nvml.SUCCESS {
+		fmt.Printf("Unable to shutdown NVML: %v\n", nvml.ErrorString(ret))
+	}
+}
+
+func (m *Sampler) Get() (*Sample, error) {
 	count, ret := nvml.DeviceGetCount()
 	if ret != nvml.SUCCESS {
 		return nil, fmt.Errorf("unable to get device count: %v", nvml.ErrorString(ret))
@@ -97,7 +105,7 @@ func GetSample() (*Sample, error) {
 		d := &Device{}
 		devices[uuid] = d
 
-		if memory, ret := nvml.DeviceGetMemoryInfo_v2(device); ret != nvml.SUCCESS {
+		if memory, ret := device.GetMemoryInfo_v2(); ret != nvml.SUCCESS {
 			return nil, fmt.Errorf("unable to get memory of device at index %d with uuid %s: %v", i, uuid, nvml.ErrorString(ret))
 		} else {
 			d.Memory = &Memory{
@@ -108,13 +116,13 @@ func GetSample() (*Sample, error) {
 			}
 		}
 
-		if name, ret := nvml.DeviceGetName(device); ret != nvml.SUCCESS {
+		if name, ret := device.GetName(); ret != nvml.SUCCESS {
 			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
 		} else {
 			d.Name = name
 		}
 
-		if util, ret := nvml.DeviceGetUtilizationRates(device); ret != nvml.SUCCESS {
+		if util, ret := device.GetUtilizationRates(); ret != nvml.SUCCESS {
 			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
 		} else {
 			d.Utilization = &Utilization{
@@ -123,35 +131,49 @@ func GetSample() (*Sample, error) {
 			}
 		}
 
-		if pcieSpeed, ret := nvml.DeviceGetPcieSpeed(device); ret != nvml.SUCCESS {
+		if running, ret := device.GetComputeRunningProcesses(); ret != nvml.SUCCESS {
+			return nil, fmt.Errorf("unable to get: running processes: %s", nvml.ErrorString(ret))
+		} else {
+			d.RunningProcesses = map[string]*ProcessInfo{}
+			for _, p := range running {
+				d.RunningProcesses[strconv.Itoa(int(p.Pid))] = &ProcessInfo{
+					PID:               p.Pid,
+					UsedGPUMemoryMB:   uint32(p.UsedGpuMemory / (1 << 20)),
+					GPUInstanceID:     p.GpuInstanceId,
+					ComputeInstanceID: p.ComputeInstanceId,
+				}
+			}
+		}
+
+		if pcieSpeed, ret := device.GetPcieSpeed(); ret != nvml.SUCCESS {
 			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
 		} else {
 			d.PCIeSpeed = pcieSpeed
 		}
 
-		// if PcieThroughput, ret := nvml.DeviceGetPcieThroughput(deviceCounter PcieUtilCounter); ret != nvml.SUCCESS {
+		// if PcieThroughput, ret := device.GetPcieThroughput( PcieUtilCounter); ret != nvml.SUCCESS {
 
 		// }
 
-		if pcieLinkMaxSpeed, ret := nvml.DeviceGetPcieLinkMaxSpeed(device); ret != nvml.SUCCESS {
+		if pcieLinkMaxSpeed, ret := device.GetPcieLinkMaxSpeed(); ret != nvml.SUCCESS {
 			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
 		} else {
 			d.PCIeLinkMaxSpeed = pcieLinkMaxSpeed
 		}
 
-		if pcieReplayCounter, ret := nvml.DeviceGetPcieReplayCounter(device); ret != nvml.SUCCESS {
+		if pcieReplayCounter, ret := device.GetPcieReplayCounter(); ret != nvml.SUCCESS {
 			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
 		} else {
 			d.PCIeReplayCounter = pcieReplayCounter
 		}
 
-		if nFans, ret := nvml.DeviceGetNumFans(device); ret != nvml.SUCCESS {
+		if nFans, ret := device.GetNumFans(); ret != nvml.SUCCESS {
 			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
 		} else {
 			fans := map[string]*Fan{}
 			d.Fans = fans
 			for fan := 0; fan < nFans; fan++ {
-				if fanSpeed, ret := nvml.DeviceGetFanSpeed_v2(device, fan); ret != nvml.SUCCESS {
+				if fanSpeed, ret := device.GetFanSpeed_v2(fan); ret != nvml.SUCCESS {
 					return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
 				} else {
 					fans[strconv.Itoa(fan)] = &Fan{Speed: fanSpeed}
@@ -159,25 +181,25 @@ func GetSample() (*Sample, error) {
 			}
 		}
 
-		if enforcedPowerLimit, ret := nvml.DeviceGetEnforcedPowerLimit(device); ret != nvml.SUCCESS {
+		if enforcedPowerLimit, ret := device.GetEnforcedPowerLimit(); ret != nvml.SUCCESS {
 			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
 		} else {
 			d.EnforcedPowerLimit = enforcedPowerLimit
 		}
 
-		if major, minor, ret := nvml.DeviceGetCudaComputeCapability(device); ret != nvml.SUCCESS {
+		if major, minor, ret := device.GetCudaComputeCapability(); ret != nvml.SUCCESS {
 			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
 		} else {
 			d.CUDAComputeCapability = []int{major, minor}
 		}
 
-		if currPcieLinkGeneration, ret := nvml.DeviceGetCurrPcieLinkGeneration(device); ret != nvml.SUCCESS {
+		if currPcieLinkGeneration, ret := device.GetCurrPcieLinkGeneration(); ret != nvml.SUCCESS {
 			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
 		} else {
 			d.CurrPCIeLinkGeneration = currPcieLinkGeneration
 		}
 
-		if currPcieLinkWidth, ret := nvml.DeviceGetCurrPcieLinkWidth(device); ret != nvml.SUCCESS {
+		if currPcieLinkWidth, ret := device.GetCurrPcieLinkWidth(); ret != nvml.SUCCESS {
 			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
 		} else {
 			d.CurrPCIeLinkWidth = currPcieLinkWidth
@@ -206,6 +228,8 @@ type Device struct {
 	EnforcedPowerLimit     uint32 `json:"enforced_power_limit"`
 	CurrPCIeLinkGeneration int    `json:"curr_pcie_link_generation"`
 	CurrPCIeLinkWidth      int    `json:"curr_pcie_link_width"`
+
+	RunningProcesses map[string]*ProcessInfo
 }
 
 type Fan struct {
@@ -222,4 +246,11 @@ type Memory struct {
 	ReservedMB uint32 `json:"reserved_mb"`
 	FreeMB     uint32 `json:"free_mb"`
 	UsedMB     uint32 `json:"used_mb"`
+}
+
+type ProcessInfo struct {
+	PID               uint32 `json:"pid"`
+	UsedGPUMemoryMB   uint32 `json:"use_gpu_memory_mb"`
+	GPUInstanceID     uint32 `json:"gpu_instance_id"`
+	ComputeInstanceID uint32 `json:"compute_instance_id"`
 }
