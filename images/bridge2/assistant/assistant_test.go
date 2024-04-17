@@ -331,3 +331,15 @@ func TestAssistantAdd(t *testing.T) {
 		assert.DeepEqual(t, []tracks.Event{tevt}, events, cmpopts.IgnoreFields(tracks.Event{}, "track"))
 	})
 }
+
+func TestPromptTemplate(t *testing.T) {
+	c := OpenAIClientGenerator("")("hal", "system message")
+	out, err := c.(interface {
+		BuildPrompt(string, string) (string, error)
+	}).BuildPrompt("speaker", "user input")
+	assert.Assert(t, err)
+	assert.Equal(t, out, `system message
+
+USER: user input
+HAL:`)
+}

@@ -14,12 +14,16 @@ var dirEmbed embed.FS
 
 var dir = fs.LiveDir(dirEmbed)
 
+func baseTemplate() *template.Template {
+	return template.New("").Funcs(template.FuncMap{
+		"upper": strings.ToUpper,
+	})
+}
+
 func loadTemplates() (*template.Template, error) {
 	// TODO if we're reading from the embed.FS the contents won't change, so we
 	// should cache this forever
-	return template.New("").Funcs(template.FuncMap{
-		"upper": strings.ToUpper,
-	}).ParseFS(dir, "*.tmpl")
+	return baseTemplate().ParseFS(dir, "*.tmpl")
 }
 
 func Execute(w io.Writer, name string, data any) error {
@@ -34,4 +38,18 @@ func Render(name string, data any) (string, error) {
 	var w strings.Builder
 	err := Execute(&w, name, data)
 	return w.String(), err
+}
+
+func RenderToString(t *template.Template, data any) (string, error) {
+	var w strings.Builder
+	err := t.Execute(&w, data)
+	return w.String(), err
+}
+
+func RenderToTemplate(name string, data any) (*template.Template, error) {
+	s, err := Render(name, data)
+	if err != nil {
+		return nil, err
+	}
+	return baseTemplate().Parse(s)
 }

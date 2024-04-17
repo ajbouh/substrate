@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/ajbouh/substrate/images/bridge2/assistant/prompts"
@@ -231,17 +232,25 @@ Overall {} is a powerful system that can help humans with a wide range of tasks 
 }
 
 type OpenAIClient struct {
-	Name          string
-	Endpoint      string
-	SystemMessage string
+	Name     string
+	Endpoint string
+	Template *template.Template
 }
 
 func OpenAIClientGenerator(endpoint string) func(name, systemMessage string) Client {
 	return func(name, systemMessage string) Client {
+		tmpl, err := prompts.RenderToTemplate("complete", map[string]any{
+			"SystemMessage": systemMessage,
+			"AssistantName": name,
+		})
+		if err != nil {
+			panic(err)
+		}
+		template.Must(template.New("").Parse(systemMessage))
 		return OpenAIClient{
-			Name:          name,
-			Endpoint:      endpoint,
-			SystemMessage: systemMessage,
+			Name:     name,
+			Endpoint: endpoint,
+			Template: tmpl,
 		}
 	}
 }
@@ -250,23 +259,24 @@ func (a OpenAIClient) AssistantName() string {
 	return a.Name
 }
 
+func (a OpenAIClient) BuildPrompt(speaker, input string) (string, error) {
+	return prompts.RenderToString(a.Template, map[string]any{
+		"UserInput":   input,
+		"SpeakerName": speaker,
+	})
+}
+
 func (a OpenAIClient) Complete(speaker, input string) (string, string, error) {
 	if !matchesAssistantName(a, input) {
 		return "", "", ErrNoMatch
 	}
-	maxTokens := 4096
-	systemMessage := a.SystemMessage
-	prompt, err := prompts.Render("complete", map[string]any{
-		"SystemMessage": systemMessage,
-		"UserInput":     input,
-		"AssistantName": a.Name,
-		"SpeakerName":   speaker,
-	})
+	prompt, err := a.BuildPrompt(speaker, input)
 	if err != nil {
 		return prompt, "", err
 	}
+	maxTokens := 4096
 	req := CompletionRequest{
-		MaxTokens: maxTokens - tokenCount(systemMessage),
+		MaxTokens: maxTokens - tokenCount(prompt),
 		Prompt:    prompt,
 	}
 	resp, err := doCompletion(a.Endpoint, &req)
