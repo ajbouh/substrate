@@ -146,10 +146,10 @@ func (a *fsSync) loadPrompt(name string) (*tracks.Event, error) {
 
 func (a *fsSync) savePrompt(in *AssistantPromptEvent) (os.FileInfo, error) {
 	filename := filepath.Join(a.path, in.Name)
-	if in.SystemMessage == "" {
+	if in.PromptTemplate == "" {
 		return nil, os.Remove(filename)
 	}
-	if err := os.WriteFile(filename, []byte(in.SystemMessage), 0644); err != nil {
+	if err := os.WriteFile(filename, []byte(in.PromptTemplate), 0644); err != nil {
 		return nil, err
 	}
 	return os.Stat(filename)

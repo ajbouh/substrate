@@ -46,10 +46,6 @@ func RenderToString(t *template.Template, data any) (string, error) {
 	return w.String(), err
 }
 
-func RenderToTemplate(name string, data any) (*template.Template, error) {
-	s, err := Render(name, data)
-	if err != nil {
-		return nil, err
-	}
-	return baseTemplate().Parse(s)
+func ParseTemplate(tmpl string) (*template.Template, error) {
+	return baseTemplate().Parse(tmpl)
 }

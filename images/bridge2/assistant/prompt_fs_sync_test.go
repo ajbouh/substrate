@@ -53,8 +53,8 @@ func TestFSSync(t *testing.T) {
 				Type: "assistant-set-prompt",
 			},
 			Data: &AssistantPromptEvent{
-				Name:          "hal",
-				SystemMessage: newPrompt,
+				Name:           "hal",
+				PromptTemplate: newPrompt,
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "Start", "End", "ID", "track"))

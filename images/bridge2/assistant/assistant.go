@@ -24,8 +24,8 @@ var recordAssistantText = tracks.EventRecorder[*AssistantTextEvent]("assistant-t
 var recordAssistantPrompt = tracks.EventRecorder[*AssistantPromptEvent]("assistant-set-prompt")
 
 type AssistantPromptEvent struct {
-	Name          string
-	SystemMessage string
+	Name           string
+	PromptTemplate string
 }
 
 type AssistantTextEvent struct {
@@ -36,17 +36,17 @@ type AssistantTextEvent struct {
 	Error       *string
 }
 
-func AddAssistant(span tracks.Span, name, systemMessage string) tracks.Event {
+func AddAssistant(span tracks.Span, name, promptTemplate string) tracks.Event {
 	return recordAssistantPrompt(span, &AssistantPromptEvent{
-		Name:          name,
-		SystemMessage: systemMessage,
+		Name:           name,
+		PromptTemplate: promptTemplate,
 	})
 }
 
 func RemoveAssistant(span tracks.Span, name string) tracks.Event {
 	return recordAssistantPrompt(span, &AssistantPromptEvent{
-		Name:          name,
-		SystemMessage: "",
+		Name:           name,
+		PromptTemplate: "",
 	})
 }
 
@@ -64,7 +64,7 @@ type SessionStorage interface {
 type Agent struct {
 	SessionStorage    SessionStorage
 	DefaultAssistants []Client
-	NewClient         func(name, prompt string) Client
+	NewClient         func(name, promptTemplate string) (Client, error)
 }
 
 func (a *Agent) HandleSessionInit(sess *tracks.Session) {
@@ -103,7 +103,7 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 
 type sessionAgent struct {
 	mu         sync.RWMutex
-	NewClient  func(name, prompt string) Client
+	NewClient  func(name, promptTemplate string) (Client, error)
 	assistants map[string]eventClient
 }
 
@@ -143,8 +143,13 @@ func (a *sessionAgent) handleSetPrompt(annot tracks.Event) {
 	record := eventClient{
 		Event: annot.EventMeta,
 	}
-	if in.SystemMessage != "" {
-		record.Client = a.NewClient(in.Name, in.SystemMessage)
+	if in.PromptTemplate != "" {
+		var err error
+		record.Client, err = a.NewClient(in.Name, in.PromptTemplate)
+		if err != nil {
+			log.Printf("assistant: error creating client %q at %s: %s", in.Name, annot.Start, err)
+			return
+		}
 	}
 	if hasPrev {
 		log.Printf("assistant: replacing %q client from %s with newer %s", in.Name, prev.Event.Start, annot.Start)
@@ -217,18 +222,10 @@ func tokenCount(msg string) int {
 	return len(msg)
 }
 
-func DefaultSystemMessageForName(name string) string {
-	return strings.ReplaceAll(`
-A chat between ASSISTANT (named {}) and a USER.
-
-{} is a conversational, vocal, artificial intelligence assistant.
-
-{}'s job is to converse with humans to help them accomplish goals.
-
-{} is able to help with a wide variety of tasks from answering questions to assisting the human with creative writing.
-
-Overall {} is a powerful system that can help humans with a wide range of tasks and provide valuable insights as well as taking actions for the human.
-`, "{}", name)
+func DefaultPromptTemplateForName(name string) (string, error) {
+	return prompts.Render("complete", map[string]any{
+		"AssistantName": name,
+	})
 }
 
 type OpenAIClient struct {
@@ -237,21 +234,17 @@ type OpenAIClient struct {
 	Template *template.Template
 }
 
-func OpenAIClientGenerator(endpoint string) func(name, systemMessage string) Client {
-	return func(name, systemMessage string) Client {
-		tmpl, err := prompts.RenderToTemplate("complete", map[string]any{
-			"SystemMessage": systemMessage,
-			"AssistantName": name,
-		})
+func OpenAIClientGenerator(endpoint string) func(name, systemMessage string) (Client, error) {
+	return func(name, promptTemplate string) (Client, error) {
+		tmpl, err := prompts.ParseTemplate(promptTemplate)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
-		template.Must(template.New("").Parse(systemMessage))
 		return OpenAIClient{
 			Name:     name,
 			Endpoint: endpoint,
 			Template: tmpl,
-		}
+		}, nil
 	}
 }
 

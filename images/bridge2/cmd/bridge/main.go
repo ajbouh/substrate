@@ -64,7 +64,7 @@ func main() {
 		},
 		assistant.Agent{
 			DefaultAssistants: []assistant.Client{
-				newAssistantClient("bridge", assistant.DefaultSystemMessageForName("bridge")),
+				must(newAssistantClient("bridge", must(assistant.DefaultPromptTemplateForName("bridge")))),
 			},
 			NewClient: newAssistantClient,
 		},

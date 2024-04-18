@@ -214,8 +214,8 @@ func (s simpleClient) Complete(speaker, prompt string) (string, string, error) {
 
 func TestAssistantAdd(t *testing.T) {
 	a := Agent{
-		NewClient: func(name, prompt string) Client {
-			return simpleClient{name, prompt}
+		NewClient: func(name, prompt string) (Client, error) {
+			return simpleClient{name, prompt}, nil
 		},
 	}
 
@@ -330,16 +330,4 @@ func TestAssistantAdd(t *testing.T) {
 		events = es.FetchFor(10 * time.Millisecond)
 		assert.DeepEqual(t, []tracks.Event{tevt}, events, cmpopts.IgnoreFields(tracks.Event{}, "track"))
 	})
-}
-
-func TestPromptTemplate(t *testing.T) {
-	c := OpenAIClientGenerator("")("hal", "system message")
-	out, err := c.(interface {
-		BuildPrompt(string, string) (string, error)
-	}).BuildPrompt("speaker", "user input")
-	assert.Assert(t, err)
-	assert.Equal(t, out, `system message
-
-USER: user input
-HAL:`)
 }
