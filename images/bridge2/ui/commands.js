@@ -2,14 +2,14 @@ export const commands = {
 	addAssistant: {
 		parameters: {
 			name: { description: "assistant name" },
-			system_prompt: { description: "assistant system prompt" },
+			prompt_template: { description: "assistant prompt template" },
 		},
-		run({name, system_prompt}) {
+		run({name, prompt_template}) {
 			return fetch(
 				window.location.href + "/assistants/" + encodeURIComponent(name), {
 				method: "POST",
 				headers: {"Content-Type": "application/x-www-form-urlencoded"},
-				body: new URLSearchParams({system_prompt}).toString(),
+				body: new URLSearchParams({prompt_template}).toString(),
 			});
 		},
 	},

@@ -489,7 +489,7 @@ func (m *Main) Serve(ctx context.Context) {
 	http.HandleFunc("POST /sessions/{sessID}/assistants/{name}", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)
 		name := r.PathValue("name")
-		prompt := r.FormValue("system_prompt")
+		prompt := r.FormValue("prompt_template")
 		assistant.AddAssistant(sess.SpanNow(), name, prompt)
 		w.WriteHeader(http.StatusNoContent)
 	})
