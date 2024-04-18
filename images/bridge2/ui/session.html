@@ -7,6 +7,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mithril/2.2.3/mithril.min.js" integrity="sha512-veJyRkYTPP9HJBUEq3oqA1uBzxGA+OiiHkcgT4Nm8Ovg9dNKSxf4mxClYVCkujcxIz+reFruwp4OPsXY10U8UA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   <script src="https://cdn.jsdelivr.net/npm/cbor-js@0.1.0/cbor.min.js"></script>
   <script src="./webrtc/localmedia.js"></script>
+  <script src="./ui/substrate-r0.js"></script>
   <link rel="stylesheet" href="./ui/session.css" />
 </head>
 <body class="flex flex-row bg-gray-900 text-white antialiased">
@@ -16,6 +17,9 @@ import {Session} from "./ui/session.js";
 import {Sidebar} from "./ui/sidebar.js";
 import {Topbar} from "./ui/topbar.js";
 import {Session as SFU} from "./webrtc/session.js";
+import {commands} from "./ui/commands.js";
+
+window.substrate.r0.setCommands(commands);
 
 let webSocketURL = (() => {
   let u = new URL(`ws://${location.host}${location.pathname}`);

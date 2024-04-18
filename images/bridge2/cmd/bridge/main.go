@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"sync"
@@ -44,6 +45,8 @@ func main() {
 		Precision:   4,
 	}
 
+	newAssistantClient := assistant.OpenAIClientGenerator(getEnv("BRIDGE_ASSISTANT_URL", "http://localhost:8092/v1/assistant"))
+
 	engine.Run(
 		Main{
 			format: format,
@@ -60,12 +63,10 @@ func main() {
 			TargetLanguage: "en",
 		},
 		assistant.Agent{
-			Assistants: map[string]assistant.Client{
-				"bridge": &assistant.OpenAIClient{
-					Endpoint:      getEnv("BRIDGE_ASSISTANT_URL", "http://localhost:8092/v1/assistant"),
-					SystemMessage: assistant.DefaultSystemMessageForName("bridge"),
-				},
+			DefaultAssistants: []assistant.Client{
+				must(newAssistantClient("bridge", must(assistant.DefaultPromptTemplateForName("bridge")))),
 			},
+			NewClient: newAssistantClient,
 		},
 		eventLogger{
 			exclude: []string{"audio"},
@@ -94,8 +95,13 @@ func (l eventLogger) HandleEvent(e tracks.Event) {
 	log.Printf("event: %s %s %s-%s %#v", e.Type, e.ID, time.Duration(e.Start), time.Duration(e.End), e.Data)
 }
 
+type SessionInitHandler interface {
+	HandleSessionInit(*tracks.Session)
+}
+
 type Main struct {
-	EventHandlers []tracks.Handler
+	SessionInitHandlers []SessionInitHandler
+	EventHandlers       []tracks.Handler
 
 	sessions map[string]*Session
 	format   beep.Format
@@ -192,6 +198,13 @@ func (m *Main) saveSession(sess *Session) error {
 	// 	return err
 	// }
 	return nil
+}
+
+func (m *Main) SessionStoragePath(sess *tracks.Session, scope string) string {
+	dir := filepath.Join(m.sessionDir, string(sess.ID), scope)
+	err := os.MkdirAll(dir, 0744)
+	fatal(err)
+	return dir
 }
 
 func (m *Main) SavedSessions() (info []*tracks.SessionInfo, err error) {
@@ -322,6 +335,9 @@ func (m *Main) addSession(ctx context.Context, trackSess *tracks.Session) *Sessi
 	sess := &Session{
 		sfu:     sfu.NewSession(),
 		Session: trackSess,
+	}
+	for _, h := range m.SessionInitHandlers {
+		h.HandleSessionInit(sess.Session)
 	}
 	// For older sessions we may want to leave them read-only, at least by
 	// default. We could give them the option to start recording again, but they
@@ -469,6 +485,19 @@ func (m *Main) Serve(ctx context.Context) {
 	http.HandleFunc("/sessions/{sessID}/data", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)
 		m.serveSessionUpdates(ctx, w, r, sess)
+	})
+	http.HandleFunc("POST /sessions/{sessID}/assistants/{name}", func(w http.ResponseWriter, r *http.Request) {
+		sess := m.loadRequestSession(ctx, w, r)
+		name := r.PathValue("name")
+		prompt := r.FormValue("prompt_template")
+		assistant.AddAssistant(sess.SpanNow(), name, prompt)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	http.HandleFunc("DELETE /sessions/{sessID}/assistants/{name}", func(w http.ResponseWriter, r *http.Request) {
+		sess := m.loadRequestSession(ctx, w, r)
+		name := r.PathValue("name")
+		assistant.RemoveAssistant(sess.SpanNow(), name)
+		w.WriteHeader(http.StatusNoContent)
 	})
 	http.HandleFunc("/sessions/{sessID}/text", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)

@@ -2,6 +2,7 @@ package assistant
 
 import (
 	"cmp"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -33,17 +34,24 @@ func makeSegments(text string) []transcribe.Segment {
 	return []transcribe.Segment{s}
 }
 
-type echoClient struct{}
+type echoClient string
 
-func (e echoClient) Call(assistant, speaker, prompt string) (string, error) {
-	return "echo: " + prompt, nil
+func (e echoClient) AssistantName() string {
+	return string(e)
+}
+
+func (e echoClient) Complete(speaker, prompt string) (string, string, error) {
+	if !matchesAssistantName(e, prompt) {
+		return "", "", ErrNoMatch
+	}
+	return prompt, "echo: " + prompt, nil
 }
 
 func TestAssistant(t *testing.T) {
 	a := Agent{
-		Assistants: map[string]Client{
-			"bridge": echoClient{},
-			"hal":    echoClient{},
+		DefaultAssistants: []Client{
+			echoClient("bridge"),
+			echoClient("hal"),
 		},
 	}
 
@@ -75,8 +83,8 @@ func TestAssistant(t *testing.T) {
 			Data: &AssistantTextEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
-				Input:       "bridge bar",
-				Response:    "echo: bridge bar",
+				Prompt:      "bridge bar",
+				Response:    stringPtr("echo: bridge bar"),
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -96,8 +104,8 @@ func TestAssistant(t *testing.T) {
 			Data: &AssistantTextEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
-				Input:       "Bridge bar",
-				Response:    "echo: Bridge bar",
+				Prompt:      "Bridge bar",
+				Response:    stringPtr("echo: Bridge bar"),
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -117,8 +125,8 @@ func TestAssistant(t *testing.T) {
 			Data: &AssistantTextEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
-				Input:       "Bridge, bar",
-				Response:    "echo: Bridge, bar",
+				Prompt:      "Bridge, bar",
+				Response:    stringPtr("echo: Bridge, bar"),
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -138,8 +146,8 @@ func TestAssistant(t *testing.T) {
 			Data: &AssistantTextEvent{
 				SourceEvent: tevt.ID,
 				Name:        "bridge",
-				Input:       "hey Bridge, bar",
-				Response:    "echo: hey Bridge, bar",
+				Prompt:      "hey Bridge, bar",
+				Response:    stringPtr("echo: hey Bridge, bar"),
 			},
 		}
 		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
@@ -160,8 +168,8 @@ func TestAssistant(t *testing.T) {
 				Data: &AssistantTextEvent{
 					SourceEvent: tevt.ID,
 					Name:        "bridge",
-					Input:       "hey Bridge and HAL, open the pod bay doors",
-					Response:    "echo: hey Bridge and HAL, open the pod bay doors",
+					Prompt:      "hey Bridge and HAL, open the pod bay doors",
+					Response:    stringPtr("echo: hey Bridge and HAL, open the pod bay doors"),
 				},
 			},
 			{
@@ -173,8 +181,8 @@ func TestAssistant(t *testing.T) {
 				Data: &AssistantTextEvent{
 					SourceEvent: tevt.ID,
 					Name:        "hal",
-					Input:       "hey Bridge and HAL, open the pod bay doors",
-					Response:    "echo: hey Bridge and HAL, open the pod bay doors",
+					Prompt:      "hey Bridge and HAL, open the pod bay doors",
+					Response:    stringPtr("echo: hey Bridge and HAL, open the pod bay doors"),
 				},
 			},
 		}
@@ -186,4 +194,140 @@ func TestAssistant(t *testing.T) {
 		assert.DeepEqual(t, expected, events[1:], cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
 	})
 
+}
+
+type simpleClient struct {
+	Name         string
+	SystemPrompt string
+}
+
+func (s simpleClient) AssistantName() string {
+	return s.Name
+}
+
+func (s simpleClient) Complete(speaker, prompt string) (string, string, error) {
+	if !matchesAssistantName(s, prompt) {
+		return "", "", ErrNoMatch
+	}
+	return prompt, fmt.Sprintf("%s\n\n%s", s.SystemPrompt, prompt), nil
+}
+
+func TestAssistantAdd(t *testing.T) {
+	a := Agent{
+		NewClient: func(name, prompt string) (Client, error) {
+			return simpleClient{name, prompt}, nil
+		},
+	}
+
+	session := tracks.NewSession()
+	track := bridgetest.NewTrackWithSilence(session, 10*time.Millisecond)
+
+	es := bridgetest.AddEventStreamer(session)
+
+	pevt := AddAssistant(track.Span(track.Start(), track.Start()),
+		"hal",
+		"you are HAL 9000, a sentient computer",
+	)
+	events := es.FetchFor(10 * time.Millisecond)
+	assert.DeepEqual(t, []tracks.Event{pevt}, events, cmpopts.IgnoreFields(tracks.Event{}, "track"))
+
+	t.Run("does not match assistant name before initialization", func(t *testing.T) {
+		tevt := transcribe.RecordTranscription(track, &transcribe.Transcription{
+			Segments: makeSegments("hello hal"),
+		})
+		events := es.FetchFor(10 * time.Millisecond)
+		assert.DeepEqual(t, []tracks.Event{tevt}, events, cmpopts.IgnoreFields(tracks.Event{}, "track"))
+	})
+
+	t.Run("matches assistant name added via initialization", func(t *testing.T) {
+		a.HandleSessionInit(session)
+
+		tevt := transcribe.RecordTranscription(track, &transcribe.Transcription{
+			Segments: makeSegments("hello hal"),
+		})
+		events := es.FetchFor(10 * time.Millisecond)
+		expected := tracks.Event{
+			EventMeta: tracks.EventMeta{
+				Type:  "assistant-text",
+				Start: tevt.Start,
+				End:   tevt.End,
+			},
+			Data: &AssistantTextEvent{
+				SourceEvent: tevt.ID,
+				Name:        "hal",
+				Prompt:      "hello hal",
+				Response:    stringPtr("you are HAL 9000, a sentient computer\n\nhello hal"),
+			},
+		}
+		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
+	})
+
+	t.Run("changes assistant prompt", func(t *testing.T) {
+		pevt := AddAssistant(track.Span(track.End(), track.End()),
+			"hal",
+			"you are HAL 9001",
+		)
+		events := es.FetchFor(10 * time.Millisecond)
+		assert.DeepEqual(t, []tracks.Event{pevt}, events, cmpopts.IgnoreFields(tracks.Event{}, "track"))
+
+		tevt := transcribe.RecordTranscription(track, &transcribe.Transcription{
+			Segments: makeSegments("hello hal"),
+		})
+		events = es.FetchFor(10 * time.Millisecond)
+		expected := tracks.Event{
+			EventMeta: tracks.EventMeta{
+				Type:  "assistant-text",
+				Start: tevt.Start,
+				End:   tevt.End,
+			},
+			Data: &AssistantTextEvent{
+				SourceEvent: tevt.ID,
+				Name:        "hal",
+				Prompt:      "hello hal",
+				Response:    stringPtr("you are HAL 9001\n\nhello hal"),
+			},
+		}
+		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
+	})
+
+	t.Run("older event does not changes system prompt", func(t *testing.T) {
+		ts := track.Start() + tracks.Timestamp(5*time.Millisecond)
+		pevt := AddAssistant(track.Span(ts, ts),
+			"hal",
+			"you are HAL 42",
+		)
+		events := es.FetchFor(10 * time.Millisecond)
+		assert.DeepEqual(t, []tracks.Event{pevt}, events, cmpopts.IgnoreFields(tracks.Event{}, "track"))
+
+		tevt := transcribe.RecordTranscription(track, &transcribe.Transcription{
+			Segments: makeSegments("hello hal"),
+		})
+		events = es.FetchFor(10 * time.Millisecond)
+		expected := tracks.Event{
+			EventMeta: tracks.EventMeta{
+				Type:  "assistant-text",
+				Start: tevt.Start,
+				End:   tevt.End,
+			},
+			Data: &AssistantTextEvent{
+				SourceEvent: tevt.ID,
+				Name:        "hal",
+				Prompt:      "hello hal",
+				Response:    stringPtr("you are HAL 9001\n\nhello hal"),
+			},
+		}
+		assert.DeepEqual(t, []tracks.Event{tevt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
+	})
+
+	t.Run("does not match again after assistant is removed", func(t *testing.T) {
+		pevt := RemoveAssistant(track.Span(track.End(), track.End()), "hal")
+		events := es.FetchFor(10 * time.Millisecond)
+		assert.DeepEqual(t, []tracks.Event{pevt}, events, cmpopts.IgnoreFields(tracks.Event{}, "track"))
+
+		tevt := transcribe.RecordTranscription(track, &transcribe.Transcription{
+			Segments: makeSegments("hello hal"),
+		})
+		events = es.FetchFor(10 * time.Millisecond)
+		assert.DeepEqual(t, []tracks.Event{tevt}, events, cmpopts.IgnoreFields(tracks.Event{}, "track"))
+	})
 }
