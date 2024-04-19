@@ -59,6 +59,7 @@ chromium \
   --window-size=$CHROMIUM_WINDOW_SIZE \
   --no-first-run \
   --kiosk \
+	--autoplay-policy=no-user-gesture-required \
 	--disable-background-networking=true \
 	--enable-features="NetworkService,NetworkServiceInProcess" \
 	--disable-background-timer-throttling=true \
