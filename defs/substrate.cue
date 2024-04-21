@@ -102,60 +102,6 @@ daemons: "substrate": {
     }
   ]
 
-  #docker_compose_service: {
-    environment: {
-      "SUBSTRATE_PROVISIONER": "docker"
-
-      "ORIGIN": "http://localhost:8080"
-
-      "SUBSTRATE_INTERNAL_NETWORK": "\(#var.substrate.network_name_prefix)\(#var.substrate.internal_network_name)"
-      "SUBSTRATE_EXTERNAL_NETWORK": "\(#var.substrate.network_name_prefix)\(#var.substrate.external_network_name)"
-    }
-
-    networks: [
-      #var.substrate.internal_network_name,
-      #var.substrate.external_network_name,
-    ]
-  }
-
-  #docker_compose_networks: {
-    (#var.substrate.internal_network_name): {
-      internal: true
-      attachable: true
-      driver: "bridge"
-      driver_opts: {
-        "com.docker.network.bridge.enable_icc": "true"
-        "com.docker.network.bridge.enable_ip_masquerade": "true"
-        "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0"
-      }
-      ipam: {
-        driver: "default"
-        config: [
-          {
-            subnet: "192.168.100.0/24"
-          },
-        ]
-      }
-    }
-    (#var.substrate.external_network_name): {
-      attachable: true
-      driver: "bridge"
-      driver_opts: {
-        "com.docker.network.bridge.enable_icc": "true"
-        "com.docker.network.bridge.enable_ip_masquerade": "true"
-        "com.docker.network.bridge.host_binding_ipv4": "0.0.0.0"
-      }
-      ipam: {
-        driver: "default"
-        config: [
-          {
-            subnet: "192.168.101.0/24"
-          },
-        ]
-      }
-    }
-  }
-
   #systemd_units: {
     "substrate-internal.network": quadlet.#Network & {
       Network: {

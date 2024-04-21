@@ -40,7 +40,7 @@ type P struct {
 	prep func(h *container.HostConfig)
 }
 
-var _ activityspec.ProvisionDriver = (*P)(nil)
+var _ provisioner.Driver = (*P)(nil)
 
 func New(cli *client.Client, namespace, internalNetworkName, externalNetworkName, hostResourceDirsRoot string, hostResourceDirsPath []string, prep func(h *container.HostConfig)) *P {
 	return &P{

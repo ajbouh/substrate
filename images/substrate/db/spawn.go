@@ -5,14 +5,13 @@ import (
 	"time"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
-	"github.com/ajbouh/substrate/images/substrate/fs"
+	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 
 	ulid "github.com/oklog/ulid/v2"
 )
 
 func (s *DB) ServiceSpawned(
 	ctx context.Context,
-	driver activityspec.ProvisionDriver,
 	req *activityspec.ServiceSpawnRequest,
 	res *activityspec.ServiceSpawnResponse,
 ) error {

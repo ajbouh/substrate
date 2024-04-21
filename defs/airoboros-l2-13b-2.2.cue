@@ -14,24 +14,29 @@ tests: "airoboros-l2-13b-2.2": assister: {
   depends_on: "substrate": true
 }
 
+image_tags: "airoboros-l2-13b-2.2": image_tags["vllm"]
+
 services: "airoboros-l2-13b-2.2": {
   spawn: {
-    image: images["llama-cpp-python"]
     environment: {
-      USE_MLOCK: "0"
+      // USE_MLOCK: "0"
       CUDA_DEVICE_ORDER: "PCI_BUS_ID"
       // CUDA_VISIBLE_DEVICES: "1,0"
     }
 
     resourcedirs: {
-      airoboros: {
-        id: "huggingface:model:TheBloke/Airoboros-L2-13B-2.2-GGUF:fc16805be8a5a90b7ea4e614711a23b96981521d:airoboros-l2-13b-2.2.Q5_K_M.gguf"
+      model: {
+        id: "huggingface:model:TheBloke/airoboros-l2-13b-gpt4-2.0-AWQ:cd4642fa384abee24063063644a06bbb4119102a"
       }
     }
 
     command: [
-      "--model=/res/airoboros/huggingface/local/airoboros-l2-13b-2.2.Q5_K_M.gguf",
-      "--n_gpu_layers=43",
+      "--host", "0.0.0.0",
+      "--port", "8080",
+      "--model=/res/model/huggingface/local",
+      "--enforce-eager",
+      "--dtype=half",
+      "--quantization=awq",
     ]
   }
 

@@ -11,8 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ajbouh/substrate/images/substrate/activityspec"
-
+	"github.com/ajbouh/substrate/images/substrate/provisioner"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
@@ -122,7 +121,7 @@ func (c *ContainerStatusCheck) waitUntilReadyTCP(ctx context.Context, maxAttempt
 	}
 }
 
-func (c *ContainerStatusCheck) Status(ctx context.Context) (activityspec.ProvisionEvent, error) {
+func (c *ContainerStatusCheck) Status(ctx context.Context) (provisioner.Event, error) {
 	var state State
 
 	if c.containerJSON.State != nil {
@@ -142,8 +141,8 @@ func (c *ContainerStatusCheck) Status(ctx context.Context) (activityspec.Provisi
 	}, nil
 }
 
-func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan activityspec.ProvisionEvent, error) {
-	statusCh := make(chan activityspec.ProvisionEvent)
+func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan provisioner.Event, error) {
+	statusCh := make(chan provisioner.Event)
 
 	go func() {
 		defer close(statusCh)
@@ -155,7 +154,7 @@ func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan activit
 		eventsOptions := types.EventsOptions{Filters: filters}
 		events, errs := c.cli.Events(ctx, eventsOptions)
 
-		emit := func(ev activityspec.ProvisionEvent) {
+		emit := func(ev provisioner.Event) {
 			log.Printf("event %#v", ev)
 			statusCh <- ev
 		}
@@ -256,7 +255,7 @@ func (p *P) containerStatusCheck(ctx context.Context, containerID string) (*Cont
 	}, nil
 }
 
-func (p *P) Status(ctx context.Context, name string) (activityspec.ProvisionEvent, error) {
+func (p *P) Status(ctx context.Context, name string) (provisioner.Event, error) {
 	sc, err := p.containerStatusCheck(ctx, name)
 	if err != nil {
 		return nil, err
@@ -265,7 +264,7 @@ func (p *P) Status(ctx context.Context, name string) (activityspec.ProvisionEven
 	return sc.Status(ctx)
 }
 
-func (p *P) StatusStream(ctx context.Context, name string) (<-chan activityspec.ProvisionEvent, error) {
+func (p *P) StatusStream(ctx context.Context, name string) (<-chan provisioner.Event, error) {
 	sc, err := p.containerStatusCheck(ctx, name)
 	if err != nil {
 		return nil, err

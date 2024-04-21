@@ -7,7 +7,7 @@ imagespecs: "vllm-cuda": {
 }
 
 if system.#cuda_memory_total_mb > 0 {
-    images: "vllm": imagespecs["vllm-cuda"].image
+    image_tags: "vllm": imagespecs["vllm-cuda"].image
 }
 
-images: "vllm": imagespecs["vllm-cuda"].image
+image_tags: "vllm": imagespecs["vllm-cuda"].image

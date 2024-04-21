@@ -16,8 +16,7 @@ type SpaceView struct {
 
 	Tip *TipRef `json:"tip"`
 
-	Time       time.Time `json:"time"`
-	IsReadOnly bool      `json:"is_read_only,omitempty"`
+	IsReadOnly bool `json:"is_read_only,omitempty"`
 
 	Creation *SpaceViewCreation `json:"creation,omitempty"`
 }
@@ -91,8 +90,7 @@ func (l *Layout) NewSpaceView(tip *TipRef, base *Ref, readOnly, checkpointExisti
 	return &SpaceView{
 		layout: l,
 
-		Time: at,
-		Tip:  tip,
+		Tip: tip,
 
 		IsReadOnly: readOnly,
 		Creation:   creation,

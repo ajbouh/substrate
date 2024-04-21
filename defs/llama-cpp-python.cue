@@ -12,9 +12,9 @@ imagespecs: "llama-cpp-python-cuda": {
 }
 
 if system.#cuda_memory_total_mb > 0 {
-    images: "llama-cpp-python": imagespecs["llama-cpp-python-cuda"].image
+    image_tags: "llama-cpp-python": imagespecs["llama-cpp-python-cuda"].image
 }
 
 if system.#cuda_memory_total_mb == 0 {
-    images: "llama-cpp-python": imagespecs["llama-cpp-python-cpu"].image
+    image_tags: "llama-cpp-python": imagespecs["llama-cpp-python-cpu"].image
 }

@@ -4,22 +4,25 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/url"
-	"sync"
 
 	"cuelang.org/go/cue"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
+	"github.com/ajbouh/substrate/images/substrate/provisioner"
 )
 
-func (s *DefSet) SpawnService(ctx context.Context, driver activityspec.ProvisionDriver, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResponse, error) {
+func (s *DefSet) ResolveService(ctx context.Context, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResolution, error) {
 	serviceDefSpawnValue, err := s.resolveServiceDefSpawn(req)
 	if err != nil {
 		return nil, err
 	}
 
-	serviceSpawnResolution, err := s.resolveServiceSpawn(req, serviceDefSpawnValue)
+	return s.resolveServiceSpawn(req, serviceDefSpawnValue)
+}
+
+func (s *DefSet) SpawnService(ctx context.Context, driver provisioner.Driver, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResponse, error) {
+	serviceSpawnResolution, err := s.ResolveService(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -30,7 +33,7 @@ func (s *DefSet) SpawnService(ctx context.Context, driver activityspec.Provision
 	}
 
 	for _, fn := range s.ServiceSpawned {
-		if err := fn.ServiceSpawned(ctx, driver, req, serviceSpawnResponse); err != nil {
+		if err := fn.ServiceSpawned(ctx, req, serviceSpawnResponse); err != nil {
 			log.Printf("error notifying ServiceSpawned listener: %s", err)
 		}
 
@@ -171,120 +174,4 @@ func (s *DefSet) resolveServiceSpawn(req *activityspec.ServiceSpawnRequest, serv
 		Parameters:      parameters,
 		ServiceDefSpawn: *serviceDefSpawn,
 	}, nil
-}
-
-func (s *DefSet) NewProvisionFunc(driver activityspec.ProvisionDriver, req *activityspec.ServiceSpawnRequest) activityspec.ProvisionFunc {
-	logf := func(fmt string, values ...any) {
-		log.Printf(fmt, values...)
-	}
-
-	mu := &sync.Mutex{}
-	var gen = 0
-	var cached *url.URL
-	var cachedToken *string
-	set := func(v *url.URL, t *string) {
-		gen++
-		copy := *v
-		cached = &copy
-		cachedToken = t
-		logf("action=cache:set gen=%d url=%s", gen, v)
-	}
-	get := func() (*url.URL, *string, bool) {
-		logf("action=cache:get gen=%d url=%s", gen, cached)
-		if cached != nil {
-			copy := *cached
-			return &copy, cachedToken, true
-		}
-		return nil, nil, false
-	}
-	makeCleanup := func() func(error) {
-		cleanupGen := gen
-
-		return func(reason error) {
-			mu.Lock()
-			defer mu.Unlock()
-			if gen == cleanupGen {
-				cached = nil
-				logf("action=cache:clear gen=%d cleanupGen=%d err=%s", gen, cleanupGen, reason)
-			} else {
-				logf("action=cache:staleclear gen=%d cleanupGen=%d err=%s", gen, cleanupGen, reason)
-			}
-		}
-	}
-
-	return func(ctx context.Context) (*url.URL, bool, func(error), error) {
-		mu.Lock()
-		defer mu.Unlock()
-
-		if target, _, ok := get(); ok {
-			return target, false, makeCleanup(), nil
-		}
-
-		sres, err := s.SpawnService(ctx, driver, req)
-		if err != nil {
-			return nil, false, nil, err
-		}
-
-		var parsedToken *string
-		if sres.BearerToken != nil {
-			parsedToken = sres.BearerToken
-		}
-
-		parsed, err := url.Parse(sres.BackendURL)
-		if err != nil {
-			return nil, false, nil, err
-		}
-
-		streamCtx, streamCancel := context.WithCancel(context.Background())
-
-		ch, err := driver.StatusStream(streamCtx, sres.Name)
-		if err != nil {
-			streamCancel()
-			return nil, false, nil, err
-		}
-
-		ready := false
-
-		for event := range ch {
-			if event.Error() != nil {
-				streamCancel()
-				return nil, false, nil, fmt.Errorf("backend will never be ready; err=%w", event.Error())
-			}
-
-			if event.IsPending() {
-				continue
-			}
-
-			if event.IsReady() {
-				ready = true
-				break
-			}
-
-			if event.IsGone() {
-				streamCancel()
-				return nil, false, nil, fmt.Errorf("backend will never be ready; event=%s", event.String())
-			}
-		}
-
-		if !ready {
-			streamCancel()
-			return nil, false, nil, fmt.Errorf("status stream ended without ready")
-		}
-
-		set(parsed, parsedToken)
-		// Do this AFTER we've loaded the cache.
-		cleanup := makeCleanup()
-		go func() {
-			// Stay subscribed and cleanup once it's gone.
-			defer cleanup(fmt.Errorf("backend error or gone"))
-			defer streamCancel()
-			for event := range ch {
-				if event.Error() != nil || event.IsGone() {
-					break
-				}
-			}
-		}()
-
-		return parsed, true, cleanup, nil
-	}
 }

@@ -18,6 +18,10 @@ type SourcesLoaded interface {
 	DefSetSourcesLoaded(err error, files map[string]string, cueLoadConfigWithFiles *load.Config)
 }
 
+type Loaded interface {
+	DefSetLoaded(defSet *DefSet)
+}
+
 type CueMutex sync.Mutex
 
 func (m *CueMutex) Lock() {
@@ -38,6 +42,7 @@ type Loader struct {
 
 	ServiceSpawned      []ServiceSpawned
 	DefSetSourcesLoaded []SourcesLoaded
+	DefSetLoaded        []Loaded
 
 	defSetMu sync.RWMutex
 	defSet   *DefSet
@@ -61,14 +66,7 @@ func (l *Loader) Initialize() {
 	l.LoadDefSet()
 }
 
-func (l *Loader) loadDefSet() *DefSet {
-	files, cueLoadConfigWithFiles, err := cueloader.CopyConfigAndReadFilesIntoOverrides(l.Config)
-	for _, l := range l.DefSetSourcesLoaded {
-		l.DefSetSourcesLoaded(err, files, cueLoadConfigWithFiles)
-	}
-
-	load := l.CueLoader.LoadCue(l.CueMu, l.CueContext, cueLoadConfigWithFiles)
-
+func (l *Loader) loadDefSet(files map[string]string, cueLoadConfigWithFiles *load.Config, err error) *DefSet {
 	sds := &DefSet{
 		Services:   map[string]cue.Value{},
 		CueMu:      l.CueMu,
@@ -77,6 +75,12 @@ func (l *Loader) loadDefSet() *DefSet {
 
 		ServiceSpawned: l.ServiceSpawned,
 	}
+	if err != nil {
+		sds.Err = err
+		return sds
+	}
+
+	load := l.CueLoader.LoadCue(l.CueMu, l.CueContext, cueLoadConfigWithFiles)
 	if load.Err != nil {
 		sds.Err = fmt.Errorf("error loading cue defs: %w", load.Err)
 		return sds
@@ -125,10 +129,11 @@ func (l *Loader) loadDefSet() *DefSet {
 
 func (l *Loader) LoadDefSet() (*DefSet, bool) {
 	defer log.Printf("Loader LoadDefSet() %#v", l)
-	sds := l.loadDefSet()
+	files, cueLoadConfigWithFiles, err := cueloader.CopyConfigAndReadFilesIntoOverrides(l.Config)
+
+	sds := l.loadDefSet(files, cueLoadConfigWithFiles, err)
 
 	l.defSetMu.Lock()
-	defer l.defSetMu.Unlock()
 
 	commit := false
 	if sds.Err == nil {
@@ -147,6 +152,16 @@ func (l *Loader) LoadDefSet() (*DefSet, bool) {
 	if commit {
 		l.defSet = sds
 	}
+	l.defSetMu.Unlock()
+
+	for _, l := range l.DefSetSourcesLoaded {
+		l.DefSetSourcesLoaded(err, files, cueLoadConfigWithFiles)
+	}
+
+	for _, l := range l.DefSetLoaded {
+		l.DefSetLoaded(sds)
+	}
+
 	return sds, commit
 }
 

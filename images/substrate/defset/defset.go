@@ -13,7 +13,6 @@ import (
 type ServiceSpawned interface {
 	ServiceSpawned(
 		ctx context.Context,
-		driver activityspec.ProvisionDriver,
 		req *activityspec.ServiceSpawnRequest,
 		res *activityspec.ServiceSpawnResponse,
 	) error
@@ -30,7 +29,7 @@ type DefSet struct {
 	ServiceSpawned []ServiceSpawned
 }
 
-func (s *DefSet) ResolveService(ctx context.Context, serviceName string) (*activityspec.ServiceDef, error) {
+func (s *DefSet) ResolveServiceByName(ctx context.Context, serviceName string) (*activityspec.ServiceDef, error) {
 	s.CueMu.Lock()
 	defer s.CueMu.Unlock()
 

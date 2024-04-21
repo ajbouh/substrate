@@ -6,9 +6,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	substratedb "github.com/ajbouh/substrate/images/substrate/db"
 	"github.com/ajbouh/substrate/images/substrate/defset"
+	"github.com/ajbouh/substrate/images/substrate/provisioner"
 	"github.com/ajbouh/substrate/pkg/cueloader"
 	"github.com/julienschmidt/httprouter"
 	"github.com/rs/cors"
@@ -32,12 +32,12 @@ type Handler struct {
 	InternalSubstrateOrigin string
 	User                    string
 
-	DefsAnnouncer *cueloader.Announcer
-	DB            *substratedb.DB
+	DefsAnnouncer       *cueloader.Announcer
+	DB                  *substratedb.DB
 
 	CurrentDefSet    defset.CurrentDefSet
-	Driver           activityspec.ProvisionDriver
-	ProvisionerCache *activityspec.ProvisionerCache
+	Driver           provisioner.Driver
+	ProvisionerCache *provisioner.Cache
 }
 
 func (h *Handler) Initialize() {

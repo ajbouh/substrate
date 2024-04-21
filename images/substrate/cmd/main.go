@@ -35,6 +35,7 @@ import (
 	"github.com/ajbouh/substrate/images/substrate/defset"
 	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 	substratehttp "github.com/ajbouh/substrate/images/substrate/http"
+	"github.com/ajbouh/substrate/images/substrate/provisioner"
 	dockerprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/docker"
 	podmanprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/podman"
 	"github.com/ajbouh/substrate/pkg/cueloader"
@@ -48,7 +49,7 @@ func mustGetenv(name string) string {
 	return value
 }
 
-func newProvisioner(cudaAllowed bool) activityspec.ProvisionDriver {
+func newProvisioner(cudaAllowed bool) provisioner.Driver {
 	switch os.Getenv("SUBSTRATE_PROVISIONER") {
 	case "docker":
 		return newDockerProvisioner(cudaAllowed)
@@ -289,7 +290,7 @@ func main() {
 		newProvisioner(cudaAllowed),
 		db,
 		&defset.CueMutex{},
-		activityspec.NewProvisionerCache(),
+		provisioner.NewCache(),
 		cuecontext.New(),
 		initialCueLoadConfig(),
 		&AnnounceDefsOnSourcesLoaded{},
@@ -300,6 +301,7 @@ func main() {
 			InternalSubstrateOrigin: internalSubstrateOrigin,
 		},
 		&ProvisionWithCurrentDefSet{},
+		&RefreshServicesOnSourcesLoaded{},
 		&cueloader.CueConfigWatcher{},
 		&LoadDefSetOnCueModuleChanged{},
 		&defset.Loader{},
@@ -318,8 +320,9 @@ func (c *LoadDefSetOnCueModuleChanged) CueModuleChanged(err error, files map[str
 }
 
 type RefreshCurrentDefSetOnStreamUpdate struct {
-	StreamLoader []*cueloader.StreamLoader
-	DefSetLoader *defset.Loader
+	StreamLoader     []*cueloader.StreamLoader
+	DefSetLoader     *defset.Loader
+	ProvisionerCache *provisioner.Cache
 }
 
 func (o *RefreshCurrentDefSetOnStreamUpdate) Serve(ctx context.Context) {
@@ -330,18 +333,44 @@ func (o *RefreshCurrentDefSetOnStreamUpdate) Serve(ctx context.Context) {
 
 type ProvisionWithCurrentDefSet struct {
 	CurrentDefSet   defset.CurrentDefSet
-	ProvisionDriver activityspec.ProvisionDriver
+	ProvisionDriver provisioner.Driver
 }
 
-func (l *ProvisionWithCurrentDefSet) MakeProvisionFunc(req *activityspec.ServiceSpawnRequest) activityspec.ProvisionFunc {
-	return l.CurrentDefSet.CurrentDefSet().NewProvisionFunc(l.ProvisionDriver, req)
+func (l *ProvisionWithCurrentDefSet) Spawn(ctx context.Context, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResponse, <-chan provisioner.Event, error) {
+	res, err := l.CurrentDefSet.CurrentDefSet().SpawnService(ctx, l.ProvisionDriver, req)
+	if err != nil {
+		return res, nil, err
+	}
+	ch, err := l.ProvisionDriver.StatusStream(ctx, res.Name)
+	return res, ch, err
+}
+
+func (l *ProvisionWithCurrentDefSet) Shutdown(ctx context.Context, name string, reason error) error {
+	return l.ProvisionDriver.Kill(ctx, name)
+}
+
+func (l *ProvisionWithCurrentDefSet) Peek(ctx context.Context, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResolution, error) {
+	return l.CurrentDefSet.CurrentDefSet().ResolveService(ctx, req)
+}
+
+type RefreshServicesOnSourcesLoaded struct {
+	ProvisionerCache *provisioner.Cache
+	ctx              context.Context
+}
+
+func (l *RefreshServicesOnSourcesLoaded) Serve(ctx context.Context) {
+	l.ctx = ctx
+}
+
+func (l *RefreshServicesOnSourcesLoaded) DefSetLoaded(defSet *defset.DefSet) {
+	l.ProvisionerCache.Refresh(l.ctx)
 }
 
 type AnnounceDefsOnSourcesLoaded struct {
 	DefsAnnouncer *cueloader.Announcer
 }
 
-func (l *AnnounceDefsOnSourcesLoaded) SourcesLoaded(err error, files map[string]string, cueLoadConfigWithFiles *load.Config) {
+func (l *AnnounceDefsOnSourcesLoaded) DefSetSourcesLoaded(err error, files map[string]string, cueLoadConfigWithFiles *load.Config) {
 	if err != nil {
 		log.Printf("err on update: %s", fmtErr(err))
 		return

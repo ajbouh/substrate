@@ -36,13 +36,6 @@ services: "faster-whisper": {
       PORT: string
     }
 
-    #docker_compose_service: {
-      // On Docker Desktop for macOS on an M3 Max, I see an error when we use platform linux/amd64.
-      // So switch back to the default and let it be linux/aarch64 if appropriate.
-      // ImportError: libctranslate2-1e22bce9.so.3.24.0: cannot enable executable stack as shared object requires: Invalid argument
-      platform: ""
-    }
-
     command: ["--port", environment.PORT]
 
     resourcedirs: {

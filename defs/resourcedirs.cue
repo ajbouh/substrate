@@ -8,27 +8,21 @@ enable: "huggingface-cli": true
 
 imagespecs: "huggingface-cli": {}
 
-resourcedirs: [id=(string & =~"^huggingface:[^:]+:[^:]+:[^:]+(:[^:]+)?$")]: {
-  let m = regexp.FindSubmatch("^huggingface:([^:]+):([^:]+):([^:]+)(?::([^:]+))?$", id)
+resourcedirs: [id=(string & =~"^huggingface:[^:]+:[^:]+:[^:]+(:[^:]+:[^:]+)?$")]: {
+  let m = regexp.FindSubmatch("^huggingface:([^:]+):([^:]+):([^:]+)(?::([^:]+):([^:]+))?$", id)
   let type = m[1]
   let repo = m[2]
   let revision = m[3]
-  let file = m[4]
+  // NOTE we do not currently use the last two group in the match. a future change might use those fields.
 
   #imagespec: imagespecs["huggingface-cli"]
   #containerspec: {
-    command: [
-      "download",
-      "--repo-type", type,
-      "--revision", revision,
-      "--cache-dir", "/res/huggingface/cache",
-      "--local-dir", "/res/huggingface/local",
-      "--local-dir-use-symlinks", "True",
-      repo,
-      if file != "" {
-        file,
-      }
-    ]
+    command: []
+    environment: {
+      HF_REPO_TYPE: type
+      HF_REVISION: revision
+      HF_REPO: repo
+    }
   }
 }
 

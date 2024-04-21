@@ -88,5 +88,5 @@ func (h *Handler) serveProxyRequest(rw http.ResponseWriter, req *http.Request, p
 		return
 	}
 
-	h.ProvisionerCache.ProvisionReverseProxy(views).ServeHTTP(rw, req)
+	h.ProvisionerCache.ServeProxiedHTTP(views, rw, req)
 }
