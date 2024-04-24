@@ -63,7 +63,7 @@ func nvmlDefaultErrorString(r nvml.Return) string {
 	case nvml.ERROR_UNKNOWN:
 		return "ERROR_UNKNOWN"
 	default:
-		return fmt.Sprintf("Unknown return value: %d", r)
+		return fmt.Sprintf("unknown return value: %d", r)
 	}
 }
 
@@ -80,7 +80,7 @@ func (m *Sampler) Serve(ctx context.Context) {
 func (m *Sampler) Terminate() {
 	ret := nvml.Shutdown()
 	if ret != nvml.SUCCESS {
-		fmt.Printf("Unable to shutdown NVML: %v\n", nvml.ErrorString(ret))
+		fmt.Printf("unable to shutdown NVML: %v\n", nvml.ErrorString(ret))
 	}
 }
 
@@ -155,7 +155,7 @@ func (m *Sampler) Get() (*Sample, error) {
 		}
 
 		if pcieSpeed, ret := device.GetPcieSpeed(); ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
+			return nil, fmt.Errorf("unable to get: PCIe speed: %s", nvml.ErrorString(ret))
 		} else {
 			d.PCIeSpeed = pcieSpeed
 		}
@@ -165,19 +165,19 @@ func (m *Sampler) Get() (*Sample, error) {
 		// }
 
 		if pcieLinkMaxSpeed, ret := device.GetPcieLinkMaxSpeed(); ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
+			return nil, fmt.Errorf("unable to get: PCIe link max speed: %s", nvml.ErrorString(ret))
 		} else {
 			d.PCIeLinkMaxSpeed = pcieLinkMaxSpeed
 		}
 
 		if pcieReplayCounter, ret := device.GetPcieReplayCounter(); ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
+			return nil, fmt.Errorf("unable to get: PCIe replay counter: %s", nvml.ErrorString(ret))
 		} else {
 			d.PCIeReplayCounter = pcieReplayCounter
 		}
 
 		if nFans, ret := device.GetNumFans(); ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
+			return nil, fmt.Errorf("unable to get: num fans: %s", nvml.ErrorString(ret))
 		} else {
 			fans := map[string]*Fan{}
 			d.Fans = fans
@@ -191,25 +191,25 @@ func (m *Sampler) Get() (*Sample, error) {
 		}
 
 		if enforcedPowerLimit, ret := device.GetEnforcedPowerLimit(); ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
+			return nil, fmt.Errorf("unable to get: enforced power limit: %s", nvml.ErrorString(ret))
 		} else {
 			d.EnforcedPowerLimit = enforcedPowerLimit
 		}
 
 		if major, minor, ret := device.GetCudaComputeCapability(); ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
+			return nil, fmt.Errorf("unable to get: cuda compute capability: %s", nvml.ErrorString(ret))
 		} else {
 			d.CUDAComputeCapability = []int{major, minor}
 		}
 
 		if currPcieLinkGeneration, ret := device.GetCurrPcieLinkGeneration(); ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
+			return nil, fmt.Errorf("unable to get: current PCIe link generation: %s", nvml.ErrorString(ret))
 		} else {
 			d.CurrPCIeLinkGeneration = currPcieLinkGeneration
 		}
 
 		if currPcieLinkWidth, ret := device.GetCurrPcieLinkWidth(); ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
+			return nil, fmt.Errorf("unable to get: current PCIe link width: %s", nvml.ErrorString(ret))
 		} else {
 			d.CurrPCIeLinkWidth = currPcieLinkWidth
 		}
