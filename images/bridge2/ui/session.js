@@ -36,9 +36,9 @@ export var Entry = {
             )
           ),
           attrs.assistants.map(asst =>
-            m("div", {"class": "text text-fuchsia-500"},
+            m("div", {"class": "text text-fuchsia-500 whitespace-pre-wrap"},
               m("b", asst.name),
-              asst.text,
+              " ", asst.text,
             )
           ),
         )

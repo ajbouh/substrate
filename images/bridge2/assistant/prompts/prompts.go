@@ -2,6 +2,7 @@ package prompts
 
 import (
 	"embed"
+	"encoding/json"
 	"io"
 	"strings"
 	"text/template"
@@ -16,8 +17,26 @@ var dir = fs.LiveDir(dirEmbed)
 
 func baseTemplate() *template.Template {
 	return template.New("").Funcs(template.FuncMap{
-		"upper": strings.ToUpper,
+		"upper":      strings.ToUpper,
+		"json":       jsonString,
+		"jsonindent": jsonIndent,
 	})
+}
+
+func jsonIndent(v any) (string, error) {
+	b, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+func jsonString(v any) (string, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }
 
 func loadTemplates() (*template.Template, error) {

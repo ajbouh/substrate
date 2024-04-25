@@ -1,7 +1,7 @@
 // JSON model forked from `go-openai` under the Apache 2.0 license
 // https://github.com/sashabaranov/go-openai
 // http://www.apache.org/licenses/LICENSE-2.0
-package assistant
+package openai
 
 var (
 // ErrCompletionUnsupportedModel              = errors.New("this model is not supported with this method, please use CreateChatCompletion client method instead") //nolint:lll
@@ -168,21 +168,10 @@ func doCompletion(
 	endpoint string,
 	request *CompletionRequest,
 ) (response *CompletionResponse, err error) {
-	// if request.Stream {
-	// 	err = ErrCompletionStreamNotSupported
-	// 	return
-	// }
-
-	// urlSuffix := "/completions"
-	// if !checkEndpointSupportsModel(urlSuffix, request.Model) {
-	// 	err = ErrCompletionUnsupportedModel
-	// 	return
-	// }
-
-	// if !checkPromptType(request.Prompt) {
-	// 	err = ErrCompletionRequestPromptTypeNotSupported
-	// 	return
-	// }
-
+	if request.Model == "" {
+		req := *request
+		req.Model = "/res/model/huggingface/local"
+		request = &req
+	}
 	return doRequest[CompletionResponse](endpoint, request)
 }

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/ajbouh/substrate/images/bridge2/assistant"
+	"github.com/ajbouh/substrate/images/bridge2/assistant/tools"
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 	"github.com/ajbouh/substrate/images/bridge2/transcribe"
 	"github.com/ajbouh/substrate/images/bridge2/translate"
@@ -68,6 +69,35 @@ func main() {
 			},
 			NewClient: newAssistantClient,
 		},
+		tools.NewAgent(
+			"stock",
+			tools.Tools{
+				"get_stock_fundamentals": {
+					Run: func(args any) (any, error) {
+						symbol := args.(map[string]any)["symbol"].(string)
+						return map[string]any{
+							"symbol": symbol,
+						}, nil
+					},
+					Description: `get_stock_fundamentals(symbol: str) -> dict
+			Get fundamental data for a given stock symbol using yfinance API.
+
+			Args:
+				symbol (str): The stock symbol.
+
+			Returns:
+				dict: A dictionary containing fundamental data.`,
+					Parameters: tools.Params{
+						Type: "object",
+						Properties: map[string]tools.Prop{
+							"symbol": {Type: "string"},
+						},
+						Required: []string{"symbol"},
+					},
+				},
+			},
+			getEnv("BRIDGE_TOOLS_URL", "http://localhost:8092/v1/assistant"),
+		),
 		eventLogger{
 			exclude: []string{"audio"},
 		},
