@@ -16,7 +16,7 @@ import (
 	"github.com/ajbouh/substrate/images/bb/blackboard"
 )
 
-type CallDefRefinmentAdapter func(serviceName string, serviceDef, callDef cue.Value) blackboard.Refinement
+type CallDefRefinmentAdapter func(callDef cue.Value) blackboard.Refinement
 
 type CallDefLoader func(cueMu *sync.Mutex, cc *cue.Context, config *load.Config, adapter CallDefRefinmentAdapter) *CallDefLoad
 
@@ -61,7 +61,7 @@ func NewLoader(cueLoader *cueloader.Loader) CallDefLoader {
 
 		fields, err := value.Fields()
 		if err != nil {
-			l.Err = fmt.Errorf("error decoding service fields: %w", err)
+			l.Err = fmt.Errorf("error decoding calls fields: %w", err)
 			return l
 		}
 
@@ -70,26 +70,24 @@ func NewLoader(cueLoader *cueloader.Loader) CallDefLoader {
 			if !sel.IsString() {
 				continue
 			}
-			serviceDef := fields.Value()
-			serviceName := sel.Unquoted()
-
-			err := serviceDef.Validate()
-			if err != nil {
-				errs := cueerrors.Errors(err)
-				messages := make([]string, 0, len(errs))
-				for _, err := range errs {
-					messages = append(messages, err.Error())
-				}
-				log.Printf("service definition error: %s", strings.Join(messages, "\n"))
-			}
-
-			callDefs, err := serviceDef.LookupPath(cue.MakePath(cue.Str("calls"))).List()
+			callDefs, err := fields.Value().Fields()
 			if err != nil {
 				continue
 			}
 			for callDefs.Next() {
 				callDef := callDefs.Value()
-				l.Blackboard.Offer(ctx, blackboard.Input{Value: callDef}, adapter(serviceName, serviceDef, callDef))
+				err := callDef.Validate()
+				if err != nil {
+					errs := cueerrors.Errors(err)
+					messages := make([]string, 0, len(errs))
+					for _, err := range errs {
+						messages = append(messages, err.Error())
+					}
+					log.Printf("call definition error: %s", strings.Join(messages, "\n"))
+					continue
+				}
+
+				l.Blackboard.Offer(ctx, blackboard.Input{Value: callDef}, adapter(callDef))
 			}
 		}
 

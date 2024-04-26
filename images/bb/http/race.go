@@ -16,17 +16,7 @@ import (
 	"github.com/ajbouh/substrate/images/bb/calldef"
 )
 
-var methods []string = []string{
-	"GET",
-	"DELETE",
-	"PUT",
-	"PATCH",
-	"POST",
-	"HEAD",
-	"OPTIONS",
-}
-
-func NewHandler(blackboardFunc func() *blackboard.Blackboard) http.Handler {
+func NewFirstMatchWinsHandler(blackboardFunc func() *blackboard.Blackboard) http.Handler {
 	var responsePath = cue.MakePath(cue.Str("response"))
 
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {

@@ -163,7 +163,7 @@ func (b *Blackboard) Len() int {
 	return len(b.offers)
 }
 
-func (b *Blackboard) Stream(ctx context.Context, input Input, cb func(*Match) bool, refinement Refinement) {
+func (b *Blackboard) Stream(ctx context.Context, input Input, cb func(*Match, func() *Match) bool, refinement Refinement) {
 	log.Printf("bb stream start")
 	defer func() {
 		log.Printf("bb stream done")
@@ -197,32 +197,37 @@ func (b *Blackboard) Stream(ctx context.Context, input Input, cb func(*Match) bo
 		m.Events = append(m.Events, *newEvent("match", start, time.Now()))
 		m.Error = b.validate(m.Match)
 
-		if m.Error == nil {
-			start = time.Now()
-			output, err := o.Refinement(ctx, m.Match)
-			m.Events = append(m.Events, *newEvent("output", start, time.Now()))
-			m.Output = output
-			m.Error = err
+		// NOTE this function assumes we're still holding the lock.
+		finishMatch := func() *Match {
+			if m.Error == nil {
+				start = time.Now()
+				output, err := o.Refinement(ctx, m.Match)
+				m.Events = append(m.Events, *newEvent("output", start, time.Now()))
+				m.Output = output
+				m.Error = err
+			}
+
+			if m.Error == nil && refinement != nil {
+				start = time.Now()
+				output, err := refinement(ctx, m.Output)
+				m.Events = append(m.Events, *newEvent("refinement", start, time.Now()))
+				m.Output = output
+				// log.Printf("refinement output is %#v", output)
+				m.Error = err
+			}
+
+			if m.Error == nil {
+				start = time.Now()
+				m.Result = b.unify(m.Match, m.Output)
+				m.Events = append(m.Events, *newEvent("result", start, time.Now()))
+				m.Error = b.validate(m.Result)
+			}
+
+			log.Printf("events %s", m.EventsString())
+			return m
 		}
 
-		if m.Error == nil && refinement != nil {
-			start = time.Now()
-			output, err := refinement(ctx, m.Output)
-			m.Events = append(m.Events, *newEvent("refinement", start, time.Now()))
-			m.Output = output
-			// log.Printf("refinement output is %#v", output)
-			m.Error = err
-		}
-
-		if m.Error == nil {
-			start = time.Now()
-			m.Result = b.unify(m.Match, m.Output)
-			m.Events = append(m.Events, *newEvent("result", start, time.Now()))
-			m.Error = b.validate(m.Result)
-		}
-
-		log.Printf("events %s", m.EventsString())
-		if !cb(m) {
+		if !cb(m, finishMatch) {
 			break
 		}
 	}
@@ -232,7 +237,8 @@ func (b *Blackboard) Call(ctx context.Context, input Input, refinement Refinemen
 	matches := []Match{}
 	var match *Match
 
-	b.Stream(ctx, input, func(m *Match) bool {
+	b.Stream(ctx, input, func(_ *Match, finish func() *Match) bool {
+		m := finish()
 		matches = append(matches, *m)
 		if m.Error == nil {
 			match = m

@@ -54,7 +54,7 @@ func (m *Main) Serve(ctx context.Context) {
 	callDefLoader := calldef.NewLoader(
 		cueloader.NewCueLoader(
 			":defs",
-			cueloader.LookupPathTransform(cue.MakePath(cue.Def("#out"), cue.Str("services"))),
+			cueloader.LookupPathTransform(cue.MakePath(cue.Def("#out"), cue.Str("calls"))),
 		),
 	)
 
@@ -85,8 +85,8 @@ func (m *Main) Serve(ctx context.Context) {
 			}
 			log.Printf("again ... %d files keys=%#v dir=%s tags=%#v", len(files), keys, config.Dir, config.Tags)
 
-			callDefLoad := callDefLoader(cueMu, cc, config, func(serviceName string, serviceDef, callDef cue.Value) blackboard.Refinement {
-				return calldef.Refinement("http://substrate:8080/" + serviceName)
+			callDefLoad := callDefLoader(cueMu, cc, config, func(callDef cue.Value) blackboard.Refinement {
+				return calldef.Refinement("http://substrate:8080/")
 			})
 
 			// check for errors before applying. how should we handle it if there's an error?
@@ -110,15 +110,19 @@ func (m *Main) Serve(ctx context.Context) {
 		}
 	}()
 
-	handler := bbhttp.NewHandler(func() *blackboard.Blackboard {
+	bbFunc := func() *blackboard.Blackboard {
 		// Wait for first load
 		<-readyCtx.Done()
 
 		mu.RLock()
 		defer mu.RUnlock()
 		return bb
-	})
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("/v1/race/", http.StripPrefix("/v1/race", bbhttp.NewFirstMatchWinsHandler(bbFunc)))
+	mux.Handle("POST /v1/query/", bbhttp.NewQueryMatchesHandler(bbFunc))
 
 	log.Printf("running on http://%s ...", m.listenAddr)
-	log.Fatal(http.ListenAndServe(m.listenAddr, handler))
+	log.Fatal(http.ListenAndServe(m.listenAddr, mux))
 }

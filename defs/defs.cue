@@ -7,6 +7,7 @@ import (
 
   systemd "github.com/ajbouh/substrate/defs/systemd"
   service "github.com/ajbouh/substrate/defs/substrate:service"
+  call "github.com/ajbouh/substrate/defs/substrate:call"
   imagespec "github.com/ajbouh/substrate/defs/substrate:imagespec"
   containerspec "github.com/ajbouh/substrate/defs/substrate:containerspec"
 )
@@ -110,6 +111,8 @@ resourcedirs: [id=string]: {
 services: [key=string]: service & {
   "name": key
 }
+
+calls: [key=string]: [id=string]: call.#HTTPCall
 
 daemons: [key=string]: containerspec.#ContainerSpec
 
@@ -226,3 +229,5 @@ for key, def in #out.resourcedir_fetches {
     #containerspec: def.#containerspec
   }).#out
 }
+
+#out: "calls": calls

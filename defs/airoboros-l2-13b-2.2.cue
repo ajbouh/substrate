@@ -39,20 +39,21 @@ services: "airoboros-l2-13b-2.2": {
       "--quantization=awq",
     ]
   }
+}
 
-  calls: [
-    {
-      request: {
-        url: path: "/v1/chat/completions"
-        // headers: "Content-Type": ["application/json"]
-        body: chat_completion.#Request
-      }
-      response: {
-        // headers: "Content-Type": "application/json"
-        // body: chat_completion.#Response
-        ...
-      }
-    },
+calls: "airoboros-l2-13b-2.2": {
+  v1_chat_completion: {
+    request: {
+      url: path: "/airoboros-l2-13b-2.2/v1/chat/completions"
+      // headers: "Content-Type": ["application/json"]
+      body: chat_completion.#Request
+    }
+    response: {
+      // headers: "Content-Type": "application/json"
+      // body: chat_completion.#Response
+      ...
+    }
+  }
     // {
     //   request: {
     //     body: asr.#Request
@@ -91,5 +92,4 @@ services: "airoboros-l2-13b-2.2": {
     //   //   },
     //   // ]
     // },
-  ]
 }

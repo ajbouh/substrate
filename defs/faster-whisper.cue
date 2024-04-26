@@ -67,21 +67,21 @@ services: "faster-whisper": {
       }
     }
   }
+}
 
-  calls: [
-    {
-      request: {
-        url: path: "/v1/transcribe"
-        // headers: "Content-Type": "application/json"
-        body: asr.#Request
-        body: audio_data !: bytes | string
-      }
-      response: {
-        // headers: "Content-Type": "application/json"
-        // body: asr.#Response
-        ...
-      }
+calls: "faster-whisper": {
+  transcribe: {
+    request: {
+      url: path: "/faster-whisper/v1/transcribe"
+      // headers: "Content-Type": "application/json"
+      body: asr.#Request
+      body: audio_data !: bytes | string
     }
-  ]
+    response: {
+      // headers: "Content-Type": "application/json"
+      // body: asr.#Response
+      ...
+    }
+  }
 }
 

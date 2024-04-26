@@ -1,26 +1,5 @@
 package service
 
-#HTTPRequest: {
-	method !: string
-	url !: {
-		path: string | *"/"
-		query ?: [string]: [...string]
-	}
-	headers ?: [string]: [...string]
-	body ?: {...} | [...] | string | number | null
-}
-
-#HTTPResponse: {
-	status: int
-	headers: [string]: [...string]
-	body ?: {...} | [...] | string | number | null
-}
-
-#HTTPCall: {
-	request !: #HTTPRequest
-	response !: #HTTPResponse
-}
-
 #ServiceDefSpawnParameter: {
   type: "space" | "spaces" | "string"
   // if type == "spaces" {
@@ -116,8 +95,6 @@ package service
     //   }
     // }
   }
-
-  calls: [...#HTTPCall]
 
   activities: [string]: #ActivityDef
 }
