@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
+	"strings"
 
 	"cuelang.org/go/cue"
 
@@ -41,8 +43,6 @@ func (s *DefSet) SpawnService(ctx context.Context, driver provisioner.Driver, re
 
 	return serviceSpawnResponse, nil
 }
-
-var parameterTypePath = cue.MakePath(cue.Str("type"))
 
 func (s *DefSet) IsConcrete(req *activityspec.ServiceSpawnRequest) (bool, error) {
 	serviceDefSpawnValue, err := s.resolveServiceDefSpawn(req)
@@ -85,7 +85,8 @@ func (s *DefSet) resolveServiceDefSpawn(req *activityspec.ServiceSpawnRequest) (
 		for k := range s.Services {
 			services = append(services, k)
 		}
-		return cue.Value{}, fmt.Errorf("no such service: %q (have %#v)", req.ServiceName, services)
+		sort.Strings(services)
+		return cue.Value{}, fmt.Errorf("no such service: %q (have %#v)", req.ServiceName, strings.Join(services, ", "))
 	}
 
 	s.CueMu.Lock()
