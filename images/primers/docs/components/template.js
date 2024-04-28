@@ -210,8 +210,11 @@ export function newView({angles, surfaceDefs, aspectRatio}) {
 
   return {
     element: div,
-    eachSurface(cb) {
+    mapSurfaces(cb) {
       return Promise.all(Object.entries(surfaces).map(([sel, surface]) => cb(sel, surface)))
+    },
+    eachSurface(cb) {
+      this.mapSurface(cb)
     },
     update({width, viewportGet, surfaceGetAgo, running}) {
       div.style.height = `${width/aspectRatio}px`
@@ -265,6 +268,9 @@ export function defineAudioSurface({}) {
     // track the last step we were on and don't mess with the current time if we're on the same step we were last time.
     let lastAgoStep
     return {
+      async debuggingLinks() {
+        return {}
+      },
       async update({getAgo, running}) {
         const get = (...a) => getAgo(...a)[0]
         const nowPlaying = running && get('playing')
@@ -348,6 +354,30 @@ export function defineVoiceSurface({url}) {
   }
 }
 
+async function fetchChromestageDebuggerURL(chromestageURL) {
+  const r = await fetch(chromestageURL + "/json/version")
+  const {
+    webSocketDebuggerUrl,
+  } = await r.json()
+  
+  const ws = new URL(webSocketDebuggerUrl)
+  ws.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  ws.hostname = window.location.hostname
+  ws.port = window.location.port
+  console.log({websocketURL: ws.toString()})
+
+  const devtools = new URL(webSocketDebuggerUrl)
+  devtools.protocol = window.location.protocol
+  devtools.hostname = window.location.hostname
+  devtools.port = window.location.port
+  devtools.pathname = '/' + devtools.pathname.split('/')[1] + "/devtools/inspector.html"
+  devtools.searchParams.append(ws.protocol === 'wss:' ? 'wss' : 'ws', ws.toString().slice(ws.protocol.length + 2))
+
+  const o = {ws: ws.toString(), devtools: devtools.toString()}
+  console.log(o.devtools)
+  return o.devtools
+}
+
 export function defineDOMSurface({width, height, useChromestage}) {
   // TODO useChromestage
   return function createSurface() {
@@ -368,9 +398,13 @@ export function defineDOMSurface({width, height, useChromestage}) {
     // console.log("defining", {width, height, useChromestage})
 
     let run
+    let debuggingLinks
     if (useChromestage) {
         let id = ID++
         const chromestageURL = new URL(`/chromestage;id=${id};w=${width};h=${height}`, import.meta.url).toString()
+        console.log(`chromestage ${id}`, chromestageURL)
+        fetchChromestageDebuggerURL(chromestageURL)
+
         const chromstageCommands = chromestageURL + "/commands"
         const chromstageVNC = chromestageURL + "/vnc/"
         iframe.src = chromstageVNC
@@ -394,11 +428,22 @@ export function defineDOMSurface({width, height, useChromestage}) {
 
           // console.log("result", JSON.parse(t))
           // console.log(t)
-          return JSON.parse(t)
+          const o = JSON.parse(t)
+          console.log(`command ${command}`, {parameters, result: o})
+          return o
         }
-    } else {
+        debuggingLinks = async function() {
+          return {
+            "vnc": chromstageVNC,
+            "debugger": await fetchChromestageDebuggerURL(chromestageURL),
+          }
+        }
+      } else {
       let _url
-      run = (command, parameters) => {
+      debuggingLinks = async function() {
+        return {}
+      }
+      run = async (command, parameters) => {
         switch (command) {
         case "tab:navigate":
           if (parameters.url === _url) {
@@ -418,6 +463,7 @@ export function defineDOMSurface({width, height, useChromestage}) {
     return {
       element: composited,
       run,
+      debuggingLinks,
       async runTabEvaluate(fn, args) {
         const t = await run("tab:evaluate", {js: `(${fn})(${JSON.stringify(args)});`})
         // console.log("runTabEvaluate", fn, args, t)

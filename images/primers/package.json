@@ -7,7 +7,8 @@
     "dev": "observable preview",
     "deploy": "observable deploy",
     "observable": "observable",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "figma-fix": "node ./tools/figma-fix.js"
   },
   "dependencies": {
     "@observablehq/framework": "^1.5.0",
@@ -17,7 +18,8 @@
     "path-data-polyfill": "^1.0.4"
   },
   "devDependencies": {
-    "patch-package": "8.0.0"
+    "patch-package": "8.0.0",
+    "svgo": "^3.2.0"
   },
   "engines": {
     "node": ">=20.6"
