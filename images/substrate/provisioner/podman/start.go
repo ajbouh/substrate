@@ -144,6 +144,29 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	s.Labels = labels
 	s.Command = append([]string{}, as.ServiceDefSpawn.Command...)
 
+	// Recognized resource types include:
+	// - "core": maximum core dump size (ulimit -c)
+	// - "cpu": maximum CPU time (ulimit -t)
+	// - "data": maximum size of a process’s data segment (ulimit -d)
+	// - "fsize": maximum size of new files (ulimit -f)
+	// - "locks": maximum number of file locks (ulimit -x)
+	// - "memlock": maximum amount of locked memory (ulimit -l)
+	// - "msgqueue": maximum amount of data in message queues (ulimit -q)
+	// - "nice": niceness adjustment (nice -n, ulimit -e)
+	// - "nofile": maximum number of open files (ulimit -n)
+	// - "nproc": maximum number of processes (ulimit -u)
+	// - "rss": maximum size of a process’s (ulimit -m)
+	// - "rtprio": maximum real-time scheduling priority (ulimit -r)
+	// - "rttime": maximum amount of real-time execution between blocking syscalls
+	// - "sigpending": maximum number of pending signals (ulimit -i)
+	// - "stack": maximum stack size (ulimit -s)
+
+	s.Rlimits = append(s.Rlimits, specs.POSIXRlimit{
+		Type: "nofile",
+		Hard: uint64(65000),
+		Soft: uint64(65000),
+	})
+
 	if p.prep != nil {
 		p.prep(s)
 	}
