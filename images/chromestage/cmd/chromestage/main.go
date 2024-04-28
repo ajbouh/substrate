@@ -1,6 +1,7 @@
 package main
 
 import (
+	"chromestage/commands"
 	"context"
 	"log"
 	"net/http"
@@ -19,7 +20,8 @@ type Main struct {
 
 	chromedpProxy             http.Handler
 	proxiedJSONVersionHandler http.Handler
-	cdpCommander              http.Handler
+
+	CommandHandler *HTTPHandler
 
 	Daemon *daemon.Framework
 }
@@ -39,11 +41,6 @@ func main() {
 		}
 	}
 
-	cdpCommander := &CDPCommander{
-		Debug:    true,
-		Endpoint: chromedpUrl.String(),
-	}
-
 	engine.Run(
 		Main{
 			listenAddr: ":" + os.Getenv("PORT"),
@@ -61,10 +58,20 @@ func main() {
 				Prefix:    prefix,
 				Upstream:  "http://localhost:9222/json/version",
 			},
-
-			cdpCommander: cdpCommander,
 		},
-		cdpCommander,
+		&RemoteCDP{
+			Endpoint: chromedpUrl.String(),
+		},
+		&PageCommands{
+			Prefix: "page:",
+		},
+		&TabCommands{},
+		&HTTPHandler{
+			Debug: true,
+		},
+		&commands.HTTPHandler{
+			Debug: true,
+		},
 	)
 }
 
@@ -85,7 +92,7 @@ func (m *Main) Serve(ctx context.Context) {
 
 	// The chromedp package uses this URL path to complete its initial handshake.
 	mux.Handle(m.prefix+"/json/version", m.proxiedJSONVersionHandler)
-	mux.Handle(m.prefix+"/commands", m.cdpCommander)
+	mux.Handle(m.prefix+"/commands", m.CommandHandler)
 	mux.Handle(m.prefix+"/", http.StripPrefix(m.prefix, m.chromedpProxy))
 
 	log.Printf("running on http://%s ...", m.listenAddr)

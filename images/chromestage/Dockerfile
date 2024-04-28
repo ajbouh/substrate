@@ -9,8 +9,9 @@ COPY images/chromestage/go.sum .
 # Get dependancies - will also be cached if we won't change mod/sum
 RUN go mod download
 
-COPY images/chromestage/cmd/chromestage .
-RUN CGO_ENABLED=0 go install -installsuffix "static" .
+COPY images/chromestage/cmd cmd
+COPY images/chromestage/commands commands
+RUN CGO_ENABLED=0 go install -installsuffix "static" ./cmd/chromestage
 
 #########
 
