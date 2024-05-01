@@ -73,8 +73,8 @@ func TestAutoCall(t *testing.T) {
 				End:   span.End(),
 			},
 			Data: &TriggerEvent{
-				OfferID: evt.ID,
-				Call:    call,
+				OfferEvent: evt.ID,
+				Call:       call,
 			},
 		}
 
@@ -106,8 +106,8 @@ func TestAutoCall(t *testing.T) {
 				End:   span.End(),
 			},
 			Data: &TriggerEvent{
-				OfferID: evt.ID,
-				Call:    call,
+				OfferEvent: evt.ID,
+				Call:       call,
 			},
 		}
 
@@ -155,8 +155,8 @@ func TestTrigger(t *testing.T) {
 				End:   span.End(),
 			},
 			Data: &CallEvent{
-				TriggerID: evt.ID,
-				Call:      call,
+				TriggerEvent: evt.ID,
+				Call:         call,
 				Response: Response[any]{
 					Content: "HELLO",
 				},

@@ -41,6 +41,13 @@ export var Entry = {
               " ", asst.text,
             )
           ),
+          attrs.tools.map(evt =>
+            m("div", {"class": "text text-fuchsia-500 whitespace-pre-wrap"},
+              m("div", m("b", evt.name)),
+              m("div", m("b", "Called"), " ", JSON.stringify(evt.call)),
+              m("div", m("b", "Response"), " ", JSON.stringify(evt.response)),
+            )
+          ),
         )
       )
     ])

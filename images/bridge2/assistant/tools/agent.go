@@ -16,9 +16,9 @@ import (
 var recordOffer = tracks.EventRecorder[*OfferEvent]("tool-offer")
 
 type OfferEvent struct {
-	SourceID tracks.ID
-	Name     string
-	Prompt   string
+	SourceEvent tracks.ID
+	Name        string
+	Prompt      string
 	// TODO record the list of tool definitions too so that we can pass those
 	// along when we pass it back for summarization?
 	Calls []Call[any]
@@ -27,20 +27,20 @@ type OfferEvent struct {
 var recordTrigger = tracks.EventRecorder[*TriggerEvent]("tool-trigger")
 
 type TriggerEvent struct {
-	SourceID tracks.ID
-	OfferID  tracks.ID
-	Name     string
-	Call     Call[any]
+	SourceEvent tracks.ID
+	OfferEvent  tracks.ID
+	Name        string
+	Call        Call[any]
 }
 
 var recordCall = tracks.EventRecorder[*CallEvent]("tool-call")
 
 type CallEvent struct {
-	SourceID  tracks.ID
-	TriggerID tracks.ID
-	Name      string
-	Call      Call[any]
-	Response  Response[any]
+	SourceEvent  tracks.ID
+	TriggerEvent tracks.ID
+	Name         string
+	Call         Call[any]
+	Response     Response[any]
 	// TODO error here or inside the response?
 }
 
@@ -56,10 +56,6 @@ func NewAgent(name string, registry Registry, endpoint string) tracks.Handler {
 			&CallAgent{
 				Name:   name,
 				Runner: registry,
-			},
-			&Summarizer{
-				Name:     name,
-				Complete: templateCompleter("tool-response-simple"),
 			},
 		},
 	}
@@ -97,10 +93,10 @@ func (a *Agent) HandleEvent(event tracks.Event) {
 			return
 		}
 		recordOffer(event.Span(), &OfferEvent{
-			SourceID: event.ID,
-			Name:     a.Name,
-			Prompt:   prompt,
-			Calls:    calls,
+			SourceEvent: event.ID,
+			Name:        a.Name,
+			Prompt:      prompt,
+			Calls:       calls,
 		})
 	}
 }
@@ -140,10 +136,10 @@ func (a AutoCallAgent) HandleEvent(event tracks.Event) {
 			return
 		}
 		recordTrigger(event.Span(), &TriggerEvent{
-			SourceID: offer.SourceID,
-			OfferID:  event.ID,
-			Name:     offer.Name,
-			Call:     offer.Calls[0],
+			SourceEvent: offer.SourceEvent,
+			OfferEvent:  event.ID,
+			Name:        offer.Name,
+			Call:        offer.Calls[0],
 		})
 	}
 }
@@ -165,9 +161,10 @@ func (a *CallAgent) HandleEvent(event tracks.Event) {
 			return // FIXME
 		}
 		recordCall(event.Span(), &CallEvent{
-			SourceID:  trigger.SourceID,
-			TriggerID: event.ID,
-			Call:      trigger.Call,
+			Name:         a.Name,
+			SourceEvent:  trigger.SourceEvent,
+			TriggerEvent: event.ID,
+			Call:         trigger.Call,
 			Response: Response[any]{
 				Content: result,
 			},
@@ -186,7 +183,7 @@ func (a *Summarizer) HandleEvent(event tracks.Event) {
 		result := event.Data.(*CallEvent)
 		prompt, resp, err := a.Complete(result)
 		out := assistant.AssistantTextEvent{
-			SourceEvent: result.SourceID,
+			SourceEvent: result.SourceEvent,
 			Name:        a.Name,
 			Prompt:      prompt,
 		}
