@@ -1,4 +1,4 @@
-FROM docker.io/library/golang:1.21-bookworm as builder
+FROM docker.io/library/golang:1.22-bookworm as builder
 WORKDIR /chromestage
 
 COPY images/chromestage/go.mod .

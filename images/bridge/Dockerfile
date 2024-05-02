@@ -12,7 +12,7 @@ COPY images/bridge/ui/*.sh images/bridge/ui/*.js images/bridge/ui/*.json images/
 RUN npm run build
 
 
-FROM docker.io/library/golang:1.21 as builder
+FROM docker.io/library/golang:1.22 as builder
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     pkg-config \

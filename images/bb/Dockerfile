@@ -1,4 +1,4 @@
-FROM docker.io/library/golang:1.21 as source
+FROM docker.io/library/golang:1.22 as source
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/cueloader/
 COPY pkg/cueloader/go.mod pkg/cueloader/go.sum .

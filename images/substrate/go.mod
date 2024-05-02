@@ -1,8 +1,8 @@
 module github.com/ajbouh/substrate/images/substrate
 
-go 1.21
+go 1.22
 
-toolchain go1.21.1
+toolchain go1.22.2
 
 require (
 	cuelang.org/go v0.7.0

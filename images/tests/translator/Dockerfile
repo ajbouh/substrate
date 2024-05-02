@@ -1,3 +1,3 @@
-FROM docker.io/library/golang:1.21 as test
+FROM docker.io/library/golang:1.22 as test
 
 WORKDIR /test
