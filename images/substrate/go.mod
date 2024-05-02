@@ -6,10 +6,9 @@ toolchain go1.21.1
 
 require (
 	cuelang.org/go v0.7.0
-	github.com/NVIDIA/go-nvml v0.12.0-2
 	github.com/ajbouh/substrate/pkg/cueloader v0.0.0-00010101000000-000000000000
-	github.com/containers/common v0.57.1
-	github.com/containers/podman/v4 v4.8.2
+	github.com/containers/common v0.57.4
+	github.com/containers/podman/v4 v4.9.4
 	github.com/docker/docker v24.0.7+incompatible
 	github.com/docker/go-connections v0.4.1-0.20231031175723-0b8c1f4e07a0
 	github.com/go-playground/form/v4 v4.2.1
@@ -19,7 +18,6 @@ require (
 	github.com/opencontainers/runtime-spec v1.1.1-0.20230922153023-c0e90434df2a
 	github.com/rs/cors v1.10.1
 	github.com/sirupsen/logrus v1.9.3
-	github.com/urfave/cli v1.22.14
 	tractor.dev/toolkit-go v0.0.0-20240111035846-6a7f40f8500e
 )
 
@@ -41,14 +39,13 @@ require (
 	github.com/containerd/containerd v1.7.9 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.15.1 // indirect
-	github.com/containers/buildah v1.33.2 // indirect
-	github.com/containers/image/v5 v5.29.0 // indirect
+	github.com/containers/buildah v1.33.7 // indirect
+	github.com/containers/image/v5 v5.29.2 // indirect
 	github.com/containers/libtrust v0.0.0-20230121012942-c1716e8a8d01 // indirect
 	github.com/containers/ocicrypt v1.1.9 // indirect
 	github.com/containers/psgo v1.8.0 // indirect
 	github.com/containers/storage v1.51.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.1-0.20231103132048-7d375ecc2b09 // indirect
-	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/cyberphone/json-canonicalization v0.0.0-20231011164504-785e29786b46 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
 	github.com/disiqueira/gotree/v3 v3.0.2 // indirect
@@ -116,7 +113,6 @@ require (
 	github.com/proglottis/gpgme v0.1.3 // indirect
 	github.com/protocolbuffers/txtpbfmt v0.0.0-20230328191034-3462fbc510c0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
-	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.7.0 // indirect
 	github.com/sigstore/fulcio v1.4.3 // indirect
 	github.com/sigstore/rekor v1.2.2 // indirect
@@ -133,18 +129,18 @@ require (
 	go.mongodb.org/mongo-driver v1.11.3 // indirect
 	go.mozilla.org/pkcs7 v0.0.0-20210826202110-33d05740a352 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	golang.org/x/crypto v0.15.0 // indirect
+	golang.org/x/crypto v0.18.0 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
 	golang.org/x/mod v0.14.0 // indirect
 	golang.org/x/net v0.18.0 // indirect
-	golang.org/x/sync v0.5.0 // indirect
-	golang.org/x/sys v0.14.0 // indirect
-	golang.org/x/term v0.14.0 // indirect
+	golang.org/x/sync v0.6.0 // indirect
+	golang.org/x/sys v0.16.0 // indirect
+	golang.org/x/term v0.16.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230920204549-e6e6cdab5c13 // indirect
 	google.golang.org/grpc v1.58.3 // indirect
-	google.golang.org/protobuf v1.31.0 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/go-jose/go-jose.v2 v2.6.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
