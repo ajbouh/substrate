@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"html/template"
 	"log"
@@ -289,26 +288,33 @@ func (f *fileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			_ = f.serveStatus(w, r, http.StatusInternalServerError)
 		}
 	case f.allowUpload && info.IsDir() && r.Method == http.MethodPost:
-		location, err := r.Response.Location()
-		if err == nil {
-			res, err := http.Get(location.String())
+		location := r.Header.Get("Location")
+		if location != "" {
+			res, err := http.Get(location)
 			if err != nil {
 				log.Printf("error: bad Location header %s", err.Error())
-				http.Error(w, err.Error(), 500)
+				_ = f.serveStatus(w, r, http.StatusInternalServerError)
 				return
 			}
 			err = f.serveTarUploadTo(res.Body, osPath)
 			if err != nil {
 				log.Printf("error: %s", err.Error())
 				_ = f.serveStatus(w, r, http.StatusInternalServerError)
+				return
 			}
-		} else if !errors.Is(err, http.ErrNoLocation) {
-			log.Printf("error: bad Location header %s", err.Error())
-			http.Error(w, err.Error(), 400)
+
+			w.Header().Set("Location", r.URL.String())
+			w.WriteHeader(303)
 			return
 		}
-		contentType := r.Header.Get("Content-Type")
-		switch contentType {
+
+		mediaType, err := contenttype.GetMediaType(r)
+		if err != nil {
+			_ = f.serveStatus(w, r, http.StatusUnsupportedMediaType)
+			return
+		}
+
+		switch mediaType.Type + "/" + mediaType.Subtype {
 		case "application/x-www-form-urlencoded", "multipart/form-data", "text/plain":
 			err := f.serveFormUploadTo(w, r, osPath)
 			if err != nil {
@@ -320,6 +326,9 @@ func (f *fileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				log.Printf("error: %s", err.Error())
 				_ = f.serveStatus(w, r, http.StatusInternalServerError)
+			} else {
+				w.Header().Set("Location", r.URL.String())
+				w.WriteHeader(303)
 			}
 		}
 	case f.allowUpload && !info.IsDir() && r.Method == http.MethodPut:
