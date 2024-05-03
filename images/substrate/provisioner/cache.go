@@ -51,20 +51,35 @@ func (r *Cache) Sample() map[string]*activityspec.ServiceSpawnResponse {
 func (r *Cache) Refresh(ctx context.Context) {
 	r.mu.Lock()
 
+	keys := make([]string, 0, len(r.entries))
 	entries := make([]*CachingSingleServiceProvisioner, 0, len(r.entries))
 
 	// todo loop over existing funcs, clean up now-stale ones.
-	for _, v := range r.entries {
+	for k, v := range r.entries {
 		entries = append(entries, v)
+		keys = append(keys, k)
 	}
 	r.mu.Unlock()
 
-	for _, entry := range entries {
-		_, err := entry.Refresh(ctx)
+	remove := map[string]int{}
+	for i, entry := range entries {
+		pruned, gen, err := entry.PurgeIfChanged(ctx)
 		if err != nil {
 			log.Printf("error during refresh: %s", err)
+		} else if pruned {
+			remove[keys[i]] = gen
 		}
 	}
+
+	r.mu.Lock()
+	for k, gen := range remove {
+		log.Printf("removing entry %s", k)
+		entry := r.entries[k]
+		if entry != nil && entry.Generation() == gen {
+			delete(r.entries, k)
+		}
+	}
+	r.mu.Unlock()
 }
 
 func (r *Cache) ServeProxiedHTTP(asr *activityspec.ServiceSpawnRequest, rw http.ResponseWriter, rq *http.Request) {
