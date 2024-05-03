@@ -92,5 +92,6 @@ Screen contents are backed by real, dynamic and optionally interactive streams o
 <div class="grid grid-cols-4">
   <div class="card">
     <a href="bridge/">A student uses Substrate during a lecture</a>
+    <a href="stats/">Stats</a>
   </div>
 </div>
