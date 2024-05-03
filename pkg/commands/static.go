@@ -5,7 +5,7 @@ import (
 	"log"
 )
 
-type StaticSource struct {
+type StaticSource[T any] struct {
 	Entries  []Entry
 	defIndex DefIndex
 	runIndex RunIndex
@@ -17,8 +17,8 @@ type Entry struct {
 	Run RunnerFunc
 }
 
-func NewStaticSource(entries []Entry) *StaticSource {
-	a := &StaticSource{
+func NewStaticSource[T any](entries []Entry) *StaticSource[T] {
+	a := &StaticSource[T]{
 		defIndex: DefIndex{},
 		runIndex: RunIndex{},
 	}
@@ -32,9 +32,9 @@ func NewStaticSource(entries []Entry) *StaticSource {
 	return a
 }
 
-var _ Source = (*StaticSource)(nil)
+var _ Source = (*StaticSource[any])(nil)
 
-func (c *StaticSource) Reflect(ctx context.Context) (DefIndex, error) {
+func (c *StaticSource[T]) Reflect(ctx context.Context) (DefIndex, error) {
 	ci := DefIndex{}
 	for name, def := range c.defIndex {
 		ci[name] = def
@@ -43,7 +43,7 @@ func (c *StaticSource) Reflect(ctx context.Context) (DefIndex, error) {
 	return ci, nil
 }
 
-func (c *StaticSource) Run(ctx context.Context, name string, p Fields) (Fields, error) {
+func (c *StaticSource[T]) Run(ctx context.Context, name string, p Fields) (Fields, error) {
 	if cmd, ok := c.runIndex[name]; ok {
 		log.Printf("Static command %s running... parameters:%#v", name, p)
 		var err error

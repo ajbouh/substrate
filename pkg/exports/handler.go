@@ -6,7 +6,7 @@ import (
 )
 
 type Handler struct {
-	ExportSources []Source
+	Sources []Source
 }
 
 func (c *Handler) ContributeHTTP(mux *http.ServeMux) {
@@ -14,7 +14,7 @@ func (c *Handler) ContributeHTTP(mux *http.ServeMux) {
 }
 
 func (c *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	exports, err := Union(r.Context(), c.ExportSources)
+	exports, err := Union(r.Context(), c.Sources)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

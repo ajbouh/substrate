@@ -11,7 +11,7 @@ type Sampler[T any] struct {
 	SampleFunc func() (T, error)
 	Interval   time.Duration
 
-	ExportsChanged []Changed
+	Changed []Changed
 
 	value T
 	err   error
@@ -47,7 +47,7 @@ func (s *Sampler[T]) sample() {
 	s.value = value
 	s.mu.Unlock()
 
-	NotifyChanged(s.ExportsChanged)
+	NotifyChanged(s.Changed)
 }
 
 func (s *Sampler[T]) Serve(ctx context.Context) {

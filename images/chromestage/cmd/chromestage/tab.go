@@ -21,10 +21,10 @@ type TabCommands struct {
 var _ commands.Source = (*TabCommands)(nil)
 
 func (a *TabCommands) Initialize() {
-	a.Source = commands.NewStaticSource(
+	a.Source = commands.NewStaticSource[TabCommands](
 		[]commands.Entry{
 			{
-				Name: "tab:navigate",
+				Name: "navigate",
 				Def: commands.Def{
 					Description: "Visit the given `url`",
 					Parameters: commands.FieldDefs{
@@ -65,7 +65,7 @@ func (a *TabCommands) Initialize() {
 				},
 			},
 			{
-				Name: "tab:reload",
+				Name: "reload",
 				Def: commands.Def{
 					Description: "Reload the tab's current url",
 				},
@@ -74,7 +74,7 @@ func (a *TabCommands) Initialize() {
 				},
 			},
 			{
-				Name: "tab:back",
+				Name: "back",
 				Def: commands.Def{
 					Description: "Go to the previous page",
 				},
@@ -83,7 +83,7 @@ func (a *TabCommands) Initialize() {
 				},
 			},
 			{
-				Name: "tab:evaluate",
+				Name: "evaluate",
 				Def: commands.Def{
 					Description: "Evaluate given javascript",
 				},
@@ -99,7 +99,7 @@ func (a *TabCommands) Initialize() {
 				},
 			},
 			{
-				Name: "tab:scrollup",
+				Name: "scrollup",
 				Def: commands.Def{
 					Description: "Scroll up",
 				},
@@ -108,7 +108,7 @@ func (a *TabCommands) Initialize() {
 				},
 			},
 			{
-				Name: "tab:scrolldown",
+				Name: "scrolldown",
 				Def: commands.Def{
 					Description: "Scroll down",
 				},
@@ -117,7 +117,7 @@ func (a *TabCommands) Initialize() {
 				},
 			},
 			{
-				Name: "tab:click",
+				Name: "click",
 				Def: commands.Def{
 					Description: "Click on a link with the given `text`",
 				},

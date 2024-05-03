@@ -15,7 +15,7 @@ import (
 type PublishingSink struct {
 	URL string
 
-	ExportsSources []Source
+	Sources []Source
 
 	mu sync.Mutex
 }
@@ -48,7 +48,7 @@ func (m *PublishingSink) Publish(ctx context.Context) error {
 
 	log.Printf("publishing exports...")
 
-	exports, err := Union(ctx, m.ExportsSources)
+	exports, err := Union(ctx, m.Sources)
 	if err != nil {
 		return err
 	}

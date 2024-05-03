@@ -38,36 +38,33 @@ func main() {
 		log.Fatalf("could not parse substrate origin: %#v", err)
 	}
 
-	engine.Run(
+	units := []engine.Unit{
 		Main{},
-		&httpframework.Framework{
-			Log: slog.Default(),
+		slog.Default(),
+		&httpframework.Framework{},
+		&commands.Aggregate{},
+		&RemoteCDP{
+			Endpoint: chromedpUrl.String(),
 		},
-		&httpframework.StripPrefix{
-			Prefix: os.Getenv("SUBSTRATE_URL_PREFIX"),
-		},
-		&exports.Handler{},
-		&exports.PublishingSink{},
+	}
+
+	units = AppendUnits[exports.Source](units,
 		&InitialExports{
 			OriginScheme: substrateOriginURL.Scheme,
 			OriginHost:   substrateOriginURL.Host,
 		},
 		&ExportChromeDPFields{},
 		&commands.ExportCommands{},
+	)
+
+	units = AppendUnits[httpframework.MuxContributor](units,
+		&exports.Handler{},
 		&NoVNCHandler{},
 		&ChromeDPProxy{
 			OriginURL:   originURL,
 			Upstream:    chromedpUrl.String(),
 			UpstreamURL: chromedpUrl,
 		},
-		&RemoteCDP{
-			Endpoint: chromedpUrl.String(),
-		},
-		&PageCommands{
-			Prefix: "page:",
-		},
-		&TabCommands{},
-		&commands.Aggregate{},
 		&commands.HTTPHandler{
 			Debug: true,
 			Route: "/commands",
@@ -75,6 +72,37 @@ func main() {
 			GetEnabled: true,
 		},
 	)
+
+	units = AppendUnits[commands.Source](units,
+		&PageCommands{},
+		&commands.PrefixedSource[*PageCommands]{
+			Prefix: "page:",
+		},
+		&TabCommands{},
+		&commands.PrefixedSource[*TabCommands]{
+			Prefix: "tab:",
+		},
+	)
+
+	units = append(units,
+		As[httpframework.Middleware](&httpframework.StripPrefix{
+			Prefix: os.Getenv("SUBSTRATE_URL_PREFIX"),
+		}),
+		As[exports.Changed](&exports.PublishingSink{}),
+	)
+
+	engine.Run(units...)
+}
+
+func As[T any](unit T) engine.Unit {
+	return unit
+}
+
+func AppendUnits[T any](acc []engine.Unit, more ...T) []engine.Unit {
+	for _, u := range more {
+		acc = append(acc, u)
+	}
+	return acc
 }
 
 func (m *Main) InitializeCLI(root *cli.Command) {

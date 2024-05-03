@@ -15,7 +15,7 @@ type CommandProvider struct{}
 func (c *CommandProvider) CommandsSource(sess *tracks.Session) commands.Source {
 	src := &commands.DynamicSource{
 		Sources: []commands.Source{
-			commands.NewStaticSource([]commands.Entry{
+			commands.NewStaticSource[CommandProvider]([]commands.Entry{
 				{Name: "add_url",
 					Def: commands.Def{
 						Description: "Add a URL to the working set",
@@ -85,14 +85,14 @@ func (c *CommandProvider) CommandsSource(sess *tracks.Session) commands.Source {
 		},
 	}
 	for key, url := range ActiveURLs(sess) {
-		src.Sources = append(src.Sources, &commands.PrefixedSource{
+		src.Sources = append(src.Sources, &commands.PrefixedSource[unreliableHTTPSource]{
 			Prefix: key + ":",
 			Source: unreliableHTTPSource{
 				commands.HTTPSource{Endpoint: url},
 			},
 		})
 	}
-	return &commands.PrefixedSource{
+	return &commands.PrefixedSource[*commands.DynamicSource]{
 		Prefix: "workingset:",
 		Source: src,
 	}
