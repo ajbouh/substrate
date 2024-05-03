@@ -1,40 +1,39 @@
-FROM docker.io/node:18.19.0-alpine3.18 as uideps
-WORKDIR /app
-# COPY images/bridge/ui/patches ./patches
-COPY images/bridge/ui/package.json images/bridge/ui/package-lock.json ./
-RUN npm i
-
-
-FROM uideps as uibuild
-COPY images/bridge/ui/src ./src
-COPY images/bridge/ui/static ./static
-COPY images/bridge/ui/*.sh images/bridge/ui/*.js images/bridge/ui/*.json images/bridge/ui/*.cjs images/bridge/ui/.npmrc ./
-RUN npm run build
-
-
-FROM docker.io/library/golang:1.22 as builder
+FROM docker.io/library/golang:1.22.2 AS builder
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    pkg-config \
-    libopus-dev \
-    libopusfile-dev \
+  pkg-config \
+  libopus-dev \
+  libopusfile-dev \
+  libasound2-dev \
   && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge
-COPY images/bridge/go.mod images/bridge/go.sum .
-COPY images/bridge/thirdparty thirdparty
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
+COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
 RUN go mod download
 
-COPY images/bridge/pkg pkg
-COPY images/bridge/cmd cmd
+WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge/
+COPY images/bridge/go.mod images/bridge/go.sum ./
+RUN go mod download
+
+WORKDIR /go/src/
+COPY pkg/toolkit/. github.com/ajbouh/substrate/pkg/toolkit/
+COPY images/bridge/. github.com/ajbouh/substrate/images/bridge/
+
+WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge/
 RUN go build \
-  -ldflags "-linkmode external -extldflags '-static -lopus -logg -lm'" \
-  -o /bridge ./cmd
+  -o /bridge ./cmd/bridge \
+  && ldd /bridge \
+  && true
 
-
-FROM gcr.io/distroless/static-debian12 as dist
+FROM gcr.io/distroless/static-debian12 AS dist
 WORKDIR /app
+COPY --from=builder /lib64/ld-linux-x86-64.so.2 /lib64/
+COPY --from=builder /lib/x86_64-linux-gnu/libc.so.6 /lib/x86_64-linux-gnu/
+COPY --from=builder /lib/x86_64-linux-gnu/libm.so.6 /lib/x86_64-linux-gnu/
+COPY --from=builder /lib/x86_64-linux-gnu/libopus.so.0 /lib/x86_64-linux-gnu/
+COPY --from=builder /lib/x86_64-linux-gnu/libopusfile.so.0 /lib/x86_64-linux-gnu/
+COPY --from=builder /lib/x86_64-linux-gnu/libasound.so.2 /lib/x86_64-linux-gnu/
+COPY --from=builder /lib/x86_64-linux-gnu/libogg.so.0 /lib/x86_64-linux-gnu/
 COPY --from=builder /bridge ./bridge
-COPY ./images/bridge/cmd/config.toml ./config.toml
-COPY --from=uibuild /app/build ./ui/.
+
 CMD ["/app/bridge"]

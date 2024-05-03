@@ -3,7 +3,6 @@ go 1.22.2
 use (
 	./images/bb
 	./images/bridge
-	./images/bridge2
 	./images/chromestage
 	./images/files
 	./images/nvml
