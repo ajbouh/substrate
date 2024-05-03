@@ -128,7 +128,7 @@ export async function load({ params, url, fetch }) {
         break
       }
       default:
-        throw error(404)
+        error(404);
     }
   } else {
     switch (type) {
@@ -170,7 +170,7 @@ export async function load({ params, url, fetch }) {
         break
       }
       default:
-        throw error(404)
+        error(404);
     }
   }
 

@@ -148,7 +148,6 @@ func main() {
 		query := req.URL.Query()
 		targetURL := query.Get("url")
 
-		log.Printf("targeturl=%s", targetURL)
 
 		parsedTargetURL, err := url.Parse(targetURL)
 		if err != nil {
@@ -192,7 +191,6 @@ func main() {
 		}
 
 		// Forward cookies if they match the requested Domain and Path
-		log.Printf("header.set-cookie=%#v", req.Header["Set-Cookie"])
 		for _, c := range cookie.ReadSetCookies(req.Header) {
 			cookie := c
 			if cookie.Domain == "" {

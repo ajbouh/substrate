@@ -1,4 +1,5 @@
 FROM docker.io/node:18-alpine3.18 as node
+ENV NPM_CONFIG_UPDATE_NOTIFIER false
 
 FROM node as deps
 

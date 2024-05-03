@@ -257,9 +257,9 @@ export const urls = {
       ...(user? [`user=${user}`]:[]),
     ].join("")),
     spawn: ({}: {}) => debug(`${fetchOrigin}/substrate/v1/activities`),
-    screenshotServiceURL: ({}: {}) => `${domOrigin}/${screenshotService}`, // TODO don't hardcode "screenshot"
-    spaceExploreURL: ({ origin, space, previewFile }: { origin?: string; space: string; previewFile?: string }) => `${origin || domOrigin}/files(data=${space})/`,
-    spacePreviewURL: ({ origin, space, previewFile }: { origin?: string; space: string; previewFile?: string }) => `${origin || domOrigin}/visualizer(data=${space})/`,
+    screenshotServiceURL: ({}: {}) => `${domOrigin}/${screenshotService}/`, // TODO don't hardcode "screenshot"
+    spaceExploreURL: ({ origin, space, previewFile }: { origin?: string; space: string; previewFile?: string }) => `${origin || domOrigin}/files%3Bdata=${space}/`,
+    spacePreviewURL: ({ origin, space, previewFile }: { origin?: string; space: string; previewFile?: string }) => `${origin || domOrigin}/visualizer%3Bdata=${space}/`,
     activityPreviewURL: ({ origin, activity, previewFile }: { origin?: string; activity: string; previewFile?: string }) => `${origin || domOrigin}/${activity}/`,
     thumbnailPreviewURL: ({ space, activity, previewFile }: { activity: string; space: string; previewFile?: string }) =>
       space
