@@ -27,6 +27,7 @@ fi
 
 CUE_DEV_EXPR_PATH=.gen/cue/$NAMESPACE-dev.cue
 CUE_DEV_PACKAGE=github.com/ajbouh/substrate/defs
+CUE_DEV_DIR=./defs
 
 COREOS_ASSEMBLER_GIT=$HERE/images/coreos-assembler
 COREOS_ASSEMBLER_CONTAINER="quay.io/coreos-assembler/coreos-assembler@sha256:4efbb019b571bfcf7ca5eeaf5444e9b7ba64f283e01247d105f36c13ca0813d9"
@@ -77,9 +78,11 @@ cue() {
     fi
   fi
 
+  cd >/dev/null $CUE_DEV_DIR
   if [ -f $CUE_NATIVE ]; then
     $CUE_NATIVE "$@"
   fi
+  cd >/dev/null -
 }
 
 detect_dev_cue_tag_args() {
@@ -268,12 +271,12 @@ build_images() {
 }
 
 write_images_to_root_imagestore() {
-  # HACK should actually only be pulling the images we built...
   IMAGES=$@
   for image in $IMAGES; do
     image_id=$($PODMAN image inspect $image -f '{{.ID}}')
-    if ! sudo $PODMAN image exists $image_id; then
-      $PODMAN save $image | sudo $PODMAN load
+    if ! sudo $PODMAN image exists $image_id 1>&2; then
+      $PODMAN save $image | sudo $PODMAN load 1>&2
+      echo $image
     fi
   done
 }
@@ -328,6 +331,11 @@ write_image_ids_file() {
   print_rendered_cue_dev_expr_as text -e '#out.bash_write_image_ids_command' | bash
 }
 
+write_ready_file() {
+  echo 1>&2 "write_ready_file()"
+  touch $CUE_DEV_DIR/ready
+}
+
 systemd_reload() {
   containers=$@
 
@@ -338,7 +346,8 @@ systemd_reload() {
 
   write_image_ids_file
 
-  write_images_to_root_imagestore $built_images
+  changed_images=$(write_images_to_root_imagestore $built_images)
+  echo changed_images=$changed_images
 
   write_os_resourcedirs_overlay
 
@@ -376,15 +385,17 @@ systemd_reload() {
   fi
 
   # HACK it would be much better to hardcode less of this here...
-  if [[ $built_images == *'ghcr.io/ajbouh/substrate:substrate-substrate'* ]]; then
+  if [[ $changed_images == *'ghcr.io/ajbouh/substrate:substrate-substrate'* ]]; then
     restart_units+=("substrate")
-  elif [[ $built_images == *'ghcr.io/ajbouh/substrate:substrate-vscode-server'* ]]; then
+  elif [[ $changed_images == *'ghcr.io/ajbouh/substrate:substrate-vscode-server'* ]]; then
     restart_units+=("vscode-server")
   fi
 
   if [ ${#restart_units[@]} -gt 0 ]; then
     sudo systemctl restart "${restart_units[@]}"
   fi
+
+  write_ready_file
 }
 
 os_oob_make() {
@@ -462,6 +473,7 @@ case "$1" in
     set_os_vars
     set_live_edit_vars
     write_image_ids_file
+    write_ready_file
     ;;
   reload|systemd-reload)
     shift

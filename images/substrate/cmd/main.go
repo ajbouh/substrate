@@ -302,7 +302,9 @@ func main() {
 		},
 		&ProvisionWithCurrentDefSet{},
 		&RefreshServicesOnSourcesLoaded{},
-		&cueloader.CueConfigWatcher{},
+		&cueloader.CueConfigWatcher{
+			ReadyFile: "ready",
+		},
 		&LoadDefSetOnCueModuleChanged{},
 		&defset.Loader{},
 		&RefreshCurrentDefSetOnStreamUpdate{},
