@@ -175,7 +175,6 @@ func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan provisi
 		}
 
 		go func() {
-			defer close(eventChan)
 			err := system.Events(ctx, eventChan, cancelChan, eventsOptions)
 			log.Printf("event channel done backend:%s status:%s err:%s", c.containerID, c.containerJSON.State.Status, err)
 			errEventChan <- err
