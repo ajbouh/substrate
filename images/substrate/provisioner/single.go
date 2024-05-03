@@ -100,22 +100,23 @@ func (e *CachingSingleServiceProvisioner) Peek() *activityspec.ServiceSpawnRespo
 	return e.provisioned
 }
 
-func (e *CachingSingleServiceProvisioner) Refresh(ctx context.Context) (bool, error) {
+func (e *CachingSingleServiceProvisioner) PurgeIfChanged(ctx context.Context) (bool, int, error) {
 	e.peekMu.Lock()
 	spawner := e.spawner
 	was := e.provisionedResolutionDigest
 	provisioned := e.provisioned
 	req := e.req
 	cleanup := e.cleanup
+	gen := e.gen
 	e.peekMu.Unlock()
 
 	if was == "" {
-		return false, nil
+		return false, -1, nil
 	}
 
 	res, err := spawner.Peek(ctx, req)
 	if err != nil {
-		return false, err
+		return false, gen, err
 	}
 
 	now := res.Digest()
@@ -127,10 +128,10 @@ func (e *CachingSingleServiceProvisioner) Refresh(ctx context.Context) (bool, er
 		reason := fmt.Errorf("digest changed; was %s, now %s", was, now)
 		cleanup(reason)
 		err := spawner.Shutdown(ctx, provisioned.Name, reason)
-		return true, err
+		return true, gen, err
 	}
 
-	return false, nil
+	return false, gen, nil
 }
 
 func (e *CachingSingleServiceProvisioner) Ensure(ctx context.Context) (*url.URL, bool, func(error), error) {
