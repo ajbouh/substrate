@@ -85,6 +85,7 @@ type ServiceDefSpawn struct {
 }
 
 type ServiceDefSpawnMount struct {
+	Type        string `json:"type"`
 	Source      string `json:"source"`
 	Destination string `json:"destination"`
 	Mode        string `json:"mode,omitempty"`

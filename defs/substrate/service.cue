@@ -102,6 +102,15 @@ import (
       // todo include containerspec so it can be fetched at runtime
     }
 
+    mounts: [
+      ...{
+        type: string | *"bind"
+        source ?: string
+        destination: string
+        mode: string | *"rw"
+      }
+    ]
+
     // for name, parameter in parameters {
     //   if parameter.type == "space" {
     //     if parameter.space.is_read_only {

@@ -90,7 +90,7 @@ daemons: "substrate": {
   }
 
   mounts: [
-    {source: "\(#var.namespace)-substrate_data", destination: substrate_data},
+    {source: "\(#var.namespace)-substrate_data", destination: substrate_data, type: "volume"},
     {source: #var.host_substratefs_root, destination: #var.host_substratefs_root},
     {source: #var.host_machine_id_file, destination: #var.host_machine_id_file},
     {source: #var.host_docker_socket, destination: environment.#docker_socket},

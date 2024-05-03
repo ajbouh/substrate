@@ -8,7 +8,8 @@ import (
 )
 
 #Mount: {
-  source: string
+  type: string | *"bind"
+  source ?: string
   destination: string
   mode: string | *"rw"
 }
@@ -46,9 +47,25 @@ import (
         Exec: strings.Join(#containerspec.command, " ")
       }
       if #containerspec.mounts != _|_ {
-        Volume: [
+        Mount: [
           for mount in #containerspec.mounts {
-            "\(mount.source):\(mount.destination):\(mount.mode)",
+            strings.Join([
+              if mount.type != _|_ {
+                "type=\(mount.type)",
+              }
+              if mount.source != _|_ {
+                "source=\(mount.source)",
+              }
+              if mount.destination != _|_ {
+                "destination=\(mount.destination)",
+              }
+              if mount.mode == "rw" {
+                "rw=true",
+              }
+              if mount.mode == "ro" {
+                "ro=true",
+              }
+            ], ",")
           }
         ]
       }
@@ -65,7 +82,23 @@ import (
     }
     if #containerspec.mounts != _|_ {
       for mount in #containerspec.mounts {
-        "--volume=\(mount.source):\(mount.destination):\(mount.mode)",
+        strings.Join([
+          if mount.type != _|_ {
+            "type=\(mount.type)",
+          }
+          if mount.source != _|_ {
+            "source=\(mount.source)",
+          }
+          if mount.destination != _|_ {
+            "destination=\(mount.destination)",
+          }
+          if mount.mode == "rw" {
+            "rw=true",
+          }
+          if mount.mode == "ro" {
+            "ro=true",
+          }
+        ], ","),
       }
     }
     #containerspec.image,

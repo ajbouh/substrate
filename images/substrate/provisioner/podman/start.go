@@ -216,7 +216,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	for _, m := range as.ServiceDefSpawn.Mounts {
 		s.Mounts = append(s.Mounts,
 			specs.Mount{
-				Type:        "bind",
+				Type:        m.Type,
 				Source:      m.Source,
 				Destination: m.Destination,
 				Options:     []string{m.Mode},
