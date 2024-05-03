@@ -64,7 +64,7 @@ func (c *HTTPHandler) ContributeHTTP(mux *http.ServeMux) {
 
 		mux.HandleFunc("REFLECT "+c.Route, c.ServeHTTPReflect)
 		if c.GetEnabled {
-			mux.HandleFunc("GET "+c.Route, c.ServeHTTPRun)
+			mux.HandleFunc("GET "+c.Route, c.ServeHTTPReflect)
 		}
 	}
 }

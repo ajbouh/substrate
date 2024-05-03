@@ -5,14 +5,18 @@ import (
 	"strings"
 )
 
-type PrefixedSource struct {
+type PrefixedSource[T Source] struct {
 	Prefix string
-	Source Source
+	Source T
 }
 
-var _ Source = (*PrefixedSource)(nil)
+var _ Source = (*PrefixedSource[Source])(nil)
 
-func (s *PrefixedSource) Reflect(ctx context.Context) (DefIndex, error) {
+func (s *PrefixedSource[T]) WrapsCommandsSource() Source {
+	return s.Source
+}
+
+func (s *PrefixedSource[T]) Reflect(ctx context.Context) (DefIndex, error) {
 	index, err := s.Source.Reflect(ctx)
 	if err != nil {
 		return nil, err
@@ -24,7 +28,7 @@ func (s *PrefixedSource) Reflect(ctx context.Context) (DefIndex, error) {
 	return ci, nil
 }
 
-func (s *PrefixedSource) Run(ctx context.Context, name string, p Fields) (Fields, error) {
+func (s *PrefixedSource[T]) Run(ctx context.Context, name string, p Fields) (Fields, error) {
 	if name, ok := strings.CutPrefix(name, s.Prefix); ok {
 		return s.Source.Run(ctx, name, p)
 	}

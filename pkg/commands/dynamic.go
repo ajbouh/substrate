@@ -10,23 +10,43 @@ type Delegate interface {
 	Commands(ctx context.Context) Source
 }
 
+type Wrapper interface {
+	WrapsCommandsSource() Source
+}
+
 type Aggregate struct {
 	Delegates []Delegate
 	Sources   []Source
-	Entries   []Entry
+
+	Entries []Entry
 }
 
 func (s *Aggregate) AsDynamicSource(ctx context.Context) *DynamicSource {
-	src := &DynamicSource{
-		Sources: append([]Source(nil), s.Sources...),
-	}
+	sources := append([]Source(nil), s.Sources...)
 
 	for _, s := range s.Delegates {
-		src.Sources = append(src.Sources, s.Commands(ctx))
+		sources = append(sources, s.Commands(ctx))
 	}
 
-	if len(s.Entries) > 0 {
-		src.Sources = append(src.Sources, &StaticSource{Entries: append([]Entry(nil), s.Entries...)})
+	entries := append([]Entry(nil), s.Entries...)
+
+	if len(entries) > 0 {
+		sources = append(sources, &StaticSource[Aggregate]{Entries: entries})
+	}
+
+	wrapped := map[Source]struct{}{}
+	for _, source := range sources {
+		if wr, ok := source.(Wrapper); ok {
+			wrapped[wr.WrapsCommandsSource()] = struct{}{}
+		}
+	}
+
+	src := &DynamicSource{}
+
+	for _, source := range sources {
+		if _, ok := wrapped[source]; !ok {
+			src.Sources = append(src.Sources, source)
+		}
 	}
 
 	return src

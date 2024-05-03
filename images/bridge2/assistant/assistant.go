@@ -67,9 +67,9 @@ type Agent struct {
 }
 
 func (c *Agent) CommandsSource(sess *tracks.Session) commands.Source {
-	return &commands.PrefixedSource{
+	return &commands.PrefixedSource[*commands.StaticSource[Agent]]{
 		Prefix: "assistant:",
-		Source: commands.NewStaticSource([]commands.Entry{
+		Source: commands.NewStaticSource[Agent]([]commands.Entry{
 			{Name: "add",
 				Def: commands.Def{
 					Description: "Add an assistant to the session",
