@@ -11,12 +11,14 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/ajbouh/substrate/images/screenshot/cookie"
 )
@@ -132,13 +134,30 @@ func main() {
 	// 	opts = append(opts, chromedp.Flag("host-resolver-rules", fmt.Sprintf("MAP %s %s", substrateOrigin, substrateOriginAddress)))
 	// }
 
-	allocCtx, cancel := chromedp.NewExecAllocator(context.Background(), opts...)
-	defer cancel()
+	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
+	defer allocCancel()
+
+	mu := &sync.Mutex{}
+
+	sema := semaphore.NewWeighted(10)
 
 	router := http.NewServeMux()
 	router.Handle("/", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		err := sema.Acquire(req.Context(), 1)
+		if err != nil {
+			return
+		}
+
+		defer sema.Release(1)
+
+		// create new tabs instead of new browsers
+		mu.Lock()
+		ctx, ctxCancel := chromedp.NewContext(allocCtx)
+		mu.Unlock()
+		defer ctxCancel()
+
 		ctx, cancel := chromedp.NewContext(
-			allocCtx,
+			ctx,
 			// chromedp.WithDebugf(log.Printf),
 		)
 		defer cancel()
@@ -147,7 +166,6 @@ func main() {
 
 		query := req.URL.Query()
 		targetURL := query.Get("url")
-
 
 		parsedTargetURL, err := url.Parse(targetURL)
 		if err != nil {
