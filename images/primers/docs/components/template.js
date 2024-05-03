@@ -1,8 +1,8 @@
-import "npm:path-data-polyfill@1.0.4";
-import numeric from "npm:numeric@1.2.6";
-import {Generators, Mutable} from "npm:@observablehq/stdlib";
+import "path-data-polyfill";
+import numeric from "numeric";
+import {Mutable} from "npm:@observablehq/stdlib";
 import {disposal} from "npm:@observablehq/inputs";
-import {html} from "npm:htl";
+import {html} from "htl";
 
 export const useChromestage = true;
 
@@ -355,7 +355,7 @@ export function defineVoiceSurface({url}) {
 }
 
 async function fetchChromestageDebuggerURL(chromestageURL) {
-  const r = await fetch(chromestageURL + "/json/version")
+  const r = await fetch(chromestageURL + "/json/version/")
   const {
     webSocketDebuggerUrl,
   } = await r.json()
