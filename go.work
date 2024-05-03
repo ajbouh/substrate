@@ -5,6 +5,7 @@ use (
 	./images/bridge
 	./images/chromestage
 	./images/files
+	./images/gstreamer-pipeline
 	./images/nvml
 	./images/screenshot
 	./images/sigar
