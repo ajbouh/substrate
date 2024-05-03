@@ -10,6 +10,7 @@ use (
 	./images/nvml
 	./images/bridge
 	./images/bridge2
+	./images/sys
 	./images/chromestage
 	./images/files
 	./images/screenshot
