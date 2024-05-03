@@ -1,7 +1,7 @@
 FROM docker.io/library/golang:1.22-bookworm as source
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/cueloader/
-COPY pkg/cueloader/go.mod pkg/cueloader/go.sum .
+COPY pkg/cueloader/go.mod pkg/cueloader/go.sum ./
 RUN go mod download
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/substrate
@@ -25,6 +25,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
   -v \
   -o /substrate ./cmd
 
+RUN touch /tmp/ready
+  
 FROM source as test
 
 # Used when we want to debug
@@ -36,9 +38,12 @@ ARG CUE_DEFS_SOURCE
 ARG CUE_DEFS_TARGET
 
 COPY --from=build /substrate /app/substrate
+
 # Enable when we want to debug
 # COPY --from=toybox /usr/bin/. /usr/bin/
 COPY $CUE_DEFS_SOURCE $CUE_DEFS_TARGET
+COPY --from=build /tmp/ready $CUE_DEFS_TARGET/ready
+
 WORKDIR /data
 
 ENTRYPOINT ["/app/substrate"]

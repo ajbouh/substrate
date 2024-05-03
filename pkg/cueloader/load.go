@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"cuelang.org/go/cue"
@@ -104,6 +106,7 @@ type CueModuleChanged interface {
 }
 
 type CueConfigWatcher struct {
+	ReadyFile        string
 	Config           *load.Config
 	CueModuleChanged CueModuleChanged
 }
@@ -111,6 +114,14 @@ type CueConfigWatcher struct {
 func (w *CueConfigWatcher) Serve(ctx context.Context) {
 	log.Printf("CueConfigWatcher serve %#v", w)
 	watcher, err := NewWatcher(ctx, func(err error) {
+		if w.ReadyFile != "" {
+			readyFilePath := filepath.Join(w.Config.Dir, w.ReadyFile)
+			if _, err := os.Stat(readyFilePath); err != nil {
+				log.Printf("ignoring file event; ready file not visible; %#v", err)
+				return
+			}
+		}
+
 		if err != nil {
 			w.CueModuleChanged.CueModuleChanged(err, nil, nil)
 			return
