@@ -12,8 +12,6 @@ use (
 	./images/substrate
 	./images/sys
 	./images/tool-call
-	./pkg/commands
 	./pkg/cueloader
-	./pkg/exports
-	./pkg/httpframework
+	./pkg/toolkit
 )

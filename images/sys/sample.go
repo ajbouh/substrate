@@ -1,6 +1,7 @@
 package sys
 
 import (
+	"context"
 	"os"
 	"time"
 
@@ -23,7 +24,15 @@ type Sample struct {
 	Root *sysfs.Root `json:"root"`
 }
 
-func GetSample() (*Sample, error) {
+type Sampler struct {
+	MachineID string
+}
+
+func (s *Sampler) Exports(ctx context.Context) (any, error) {
+	return map[string]any{"data": s.Get()}, nil
+}
+
+func (s *Sampler) Get() *Sample {
 	start := time.Now().UTC()
 
 	sample := &Sample{
@@ -51,5 +60,5 @@ func GetSample() (*Sample, error) {
 
 	sample.SampleDurationMicros = time.Now().UTC().Sub(start).Microseconds()
 
-	return sample, nil
+	return sample
 }

@@ -164,7 +164,7 @@ func main() {
 
 	addr := fmt.Sprintf("0.0.0.0:%s", port)
 	server := &http.Server{
-		Addr: addr,
+		Addr:    addr,
 		Handler: nil,
 	}
 

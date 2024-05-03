@@ -2,22 +2,15 @@ package main
 
 import (
 	"log"
-	"log/slog"
+	"net/http"
 	"net/url"
 	"os"
 
-	"github.com/ajbouh/substrate/pkg/commands"
-	"github.com/ajbouh/substrate/pkg/exports"
-	"github.com/ajbouh/substrate/pkg/httpframework"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/service"
 
 	"tractor.dev/toolkit-go/engine"
-	"tractor.dev/toolkit-go/engine/cli"
-	"tractor.dev/toolkit-go/engine/daemon"
 )
-
-type Main struct {
-	Daemon *daemon.Framework
-}
 
 func main() {
 
@@ -38,42 +31,22 @@ func main() {
 		log.Fatalf("could not parse substrate origin: %#v", err)
 	}
 
-	units := []engine.Unit{
-		Main{},
-		slog.Default(),
-		&httpframework.Framework{},
-		&commands.Aggregate{},
+	engine.Run(
+		&service.Service{},
 		&RemoteCDP{
 			Endpoint: chromedpUrl.String(),
 		},
-	}
-
-	units = AppendUnits[exports.Source](units,
 		&InitialExports{
 			OriginScheme: substrateOriginURL.Scheme,
 			OriginHost:   substrateOriginURL.Host,
 		},
 		&ExportChromeDPFields{},
-		&commands.ExportCommands{},
-	)
-
-	units = AppendUnits[httpframework.MuxContributor](units,
-		&exports.Handler{},
 		&NoVNCHandler{},
 		&ChromeDPProxy{
 			OriginURL:   originURL,
 			Upstream:    chromedpUrl.String(),
 			UpstreamURL: chromedpUrl,
 		},
-		&commands.HTTPHandler{
-			Debug: true,
-			Route: "/commands",
-			// TODO switch to REFLECT and delete this field
-			GetEnabled: true,
-		},
-	)
-
-	units = AppendUnits[commands.Source](units,
 		&PageCommands{},
 		&commands.PrefixedSource[*PageCommands]{
 			Prefix: "page:",
@@ -83,34 +56,4 @@ func main() {
 			Prefix: "tab:",
 		},
 	)
-
-	units = append(units,
-		As[httpframework.Middleware](&httpframework.StripPrefix{
-			Prefix: os.Getenv("SUBSTRATE_URL_PREFIX"),
-		}),
-		As[exports.Changed](&exports.PublishingSink{}),
-	)
-
-	engine.Run(units...)
-}
-
-func As[T any](unit T) engine.Unit {
-	return unit
-}
-
-func AppendUnits[T any](acc []engine.Unit, more ...T) []engine.Unit {
-	for _, u := range more {
-		acc = append(acc, u)
-	}
-	return acc
-}
-
-func (m *Main) InitializeCLI(root *cli.Command) {
-	// a workaround for an unresolved issue in toolkit-go/engine
-	// for figuring out if its a CLI or a daemon program...
-	root.Run = func(ctx *cli.Context, args []string) {
-		if err := m.Daemon.Run(ctx); err != nil {
-			log.Fatal(err)
-		}
-	}
 }

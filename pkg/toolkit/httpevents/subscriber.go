@@ -1,4 +1,4 @@
-package cueloader
+package httpevents
 
 import (
 	"bufio"

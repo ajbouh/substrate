@@ -252,48 +252,70 @@ func (m *Sampler) GetDevicePower(device *nvml.Device) (*DevicePower, error) {
 	return d, nil
 }
 
-func (m *Sampler) Get() (*Sample, error) {
+func (m *Sampler) Exports(ctx context.Context) (any, error) {
+	return map[string]any{"data": m.Get()}, nil
+}
+
+func (m *Sampler) Get() *Sample {
 	start := time.Now().UTC()
 	var ret nvml.Return
 
-	count, ret := nvml.DeviceGetCount()
-	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("unable to get device count: %v", nvml.ErrorString(ret))
+	sample := &Sample{
+		MachineID:            m.MachineID,
+		StartMicros:          start.UnixMicro(),
+		SampleDurationMicros: time.Now().UTC().Sub(start).Microseconds(),
 	}
 
 	systemDriverVersion, ret := nvml.SystemGetDriverVersion()
 	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("unable to get: system driver version: %s", nvml.ErrorString(ret))
+		sample.Errors = append(sample.Errors, fmt.Sprintf("unable to get: system driver version: %s", nvml.ErrorString(ret)))
+	} else {
+		sample.SystemDriverVersion = &systemDriverVersion
 	}
 
 	systemNVMLVersion, ret := nvml.SystemGetNVMLVersion()
 	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("unable to get: system nvml version: %s", nvml.ErrorString(ret))
+		sample.Errors = append(sample.Errors, fmt.Sprintf("unable to get: system nvml version: %s", nvml.ErrorString(ret)))
+	} else {
+		sample.SystemNVMLVersion = &systemNVMLVersion
 	}
 
 	cudaDriverVersion, ret := nvml.SystemGetCudaDriverVersion_v2()
 	if ret != nvml.SUCCESS {
-		return nil, fmt.Errorf("unable to get: cuda driver version: %s", nvml.ErrorString(ret))
+		sample.Errors = append(sample.Errors, fmt.Sprintf("unable to get: cuda driver version: %s", nvml.ErrorString(ret)))
+	} else {
+		sample.CUDADriverVersion = &cudaDriverVersion
 	}
 
 	devices := map[string]*Device{}
 	processes := map[string]*ProcessInfo{}
+
+	count, ret := nvml.DeviceGetCount()
+	if ret != nvml.SUCCESS {
+		sample.Errors = append(sample.Errors, fmt.Sprintf("unable to get device count: %v", nvml.ErrorString(ret)))
+	}
+
+	if count > 0 {
+		sample.Devices = devices
+		sample.Processes = processes
+	}
+
 	for i := 0; i < count; i++ {
 		device, ret := nvml.DeviceGetHandleByIndex(i)
 		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get device at index %d: %v", i, nvml.ErrorString(ret))
+			sample.Errors = append(sample.Errors, fmt.Sprintf("unable to get device at index %d: %v", i, nvml.ErrorString(ret)))
 		}
 
 		uuid, ret := device.GetUUID()
 		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get uuid of device at index %d: %v", i, nvml.ErrorString(ret))
+			sample.Errors = append(sample.Errors, fmt.Sprintf("unable to get uuid of device at index %d: %v", i, nvml.ErrorString(ret)))
 		}
 
 		d := &Device{}
 		devices[uuid] = d
 
 		if memory, ret := device.GetMemoryInfo_v2(); ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get memory of device at index %d with uuid %s: %v", i, uuid, nvml.ErrorString(ret))
+			sample.Errors = append(sample.Errors, fmt.Sprintf("unable to get memory of device at index %d with uuid %s: %v", i, uuid, nvml.ErrorString(ret)))
 		} else {
 			d.Memory = &Memory{
 				TotalMB:    uint32(memory.Total / (1 << 20)),
@@ -305,11 +327,11 @@ func (m *Sampler) Get() (*Sample, error) {
 
 		d.Name, ret = device.GetName()
 		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get: device name: %s", nvml.ErrorString(ret))
+			sample.Errors = append(sample.Errors, fmt.Sprintf("unable to get: device name: %s", nvml.ErrorString(ret)))
 		}
 
 		if util, ret := device.GetUtilizationRates(); ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get: utilization rates: %s", nvml.ErrorString(ret))
+			sample.Errors = append(sample.Errors, fmt.Sprintf("unable to get: utilization rates: %s", nvml.ErrorString(ret)))
 		} else {
 			d.Utilization = &Utilization{
 				GPU:    util.Gpu,
@@ -318,7 +340,7 @@ func (m *Sampler) Get() (*Sample, error) {
 		}
 
 		if running, ret := device.GetComputeRunningProcesses(); ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get: running processes: %s", nvml.ErrorString(ret))
+			sample.Errors = append(sample.Errors, fmt.Sprintf("unable to get: running processes: %s", nvml.ErrorString(ret)))
 		} else {
 			d.Processes = map[string]*DeviceProcessInfo{}
 			for _, p := range running {
@@ -340,47 +362,47 @@ func (m *Sampler) Get() (*Sample, error) {
 		}
 
 		if major, minor, ret := device.GetCudaComputeCapability(); ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get: cuda compute capability: %s", nvml.ErrorString(ret))
+			sample.Errors = append(sample.Errors, fmt.Sprintf("unable to get: cuda compute capability: %s", nvml.ErrorString(ret)))
 		} else {
 			d.CUDAComputeCapability = []int{major, minor}
 		}
 
 		d.VBIOSVersion, ret = device.GetVbiosVersion()
 		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get: vbios version: %s", nvml.ErrorString(ret))
+			sample.Errors = append(sample.Errors, fmt.Sprintf("unable to get: vbios version: %s", nvml.ErrorString(ret)))
 		}
 
 		d.BoardPartNumber, ret = device.GetBoardPartNumber()
 		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get: board part number: %s", nvml.ErrorString(ret))
+			sample.Errors = append(sample.Errors, fmt.Sprintf("unable to get: board part number: %s", nvml.ErrorString(ret)))
 		}
 
 		// Retrieves total energy consumption for this GPU in millijoules (mJ) since the driver was last reloaded
 		d.TotalEnergyConsumptionMilliJ, ret = device.GetTotalEnergyConsumption()
 		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get: total energy consumption: %s", nvml.ErrorString(ret))
+			sample.Errors = append(sample.Errors, fmt.Sprintf("unable to get: total energy consumption: %s", nvml.ErrorString(ret)))
 		}
 
 		d.NumGPUCores, ret = device.GetNumGpuCores()
 		if ret != nvml.SUCCESS {
-			return nil, fmt.Errorf("unable to get: number of GPU cores: %s", nvml.ErrorString(ret))
+			sample.Errors = append(sample.Errors, fmt.Sprintf("unable to get: number of GPU cores: %s", nvml.ErrorString(ret)))
 		}
 
 		var err error
 
 		d.PCIE, err = m.GetDevicePCIE(&device)
 		if err != nil {
-			return nil, err
+			sample.Errors = append(sample.Errors, err.Error())
 		}
 
 		d.Thermals, err = m.GetDeviceThermals(&device)
 		if err != nil {
-			return nil, err
+			sample.Errors = append(sample.Errors, err.Error())
 		}
 
 		d.Power, err = m.GetDevicePower(&device)
 		if err != nil {
-			return nil, err
+			sample.Errors = append(sample.Errors, err.Error())
 		}
 
 		// TODO
@@ -390,18 +412,9 @@ func (m *Sampler) Get() (*Sample, error) {
 		// SetTemperatureThreshold(TemperatureThresholds, int) Return
 	}
 
-	return &Sample{
-		MachineID:            m.MachineID,
-		StartMicros:          start.UnixMicro(),
-		SampleDurationMicros: time.Now().UTC().Sub(start).Microseconds(),
+	sample.SampleDurationMicros = time.Now().UTC().Sub(start).Microseconds()
 
-		SystemDriverVersion: systemDriverVersion,
-		SystemNVMLVersion:   systemNVMLVersion,
-		CUDADriverVersion:   cudaDriverVersion,
-
-		Devices:   devices,
-		Processes: processes,
-	}, nil
+	return sample
 }
 
 type Sample struct {
@@ -409,12 +422,14 @@ type Sample struct {
 	StartMicros          int64  `json:"start_us"`
 	SampleDurationMicros int64  `json:"sample_duration_us"`
 
-	SystemDriverVersion string `json:"system_driver_version"`
-	SystemNVMLVersion   string `json:"system_nvml_version"`
-	CUDADriverVersion   int    `json:"cuda_driver_version"`
+	SystemDriverVersion *string `json:"system_driver_version"`
+	SystemNVMLVersion   *string `json:"system_nvml_version"`
+	CUDADriverVersion   *int    `json:"cuda_driver_version"`
 
 	Devices   map[string]*Device      `json:"devices"`
 	Processes map[string]*ProcessInfo `json:"processes"`
+
+	Errors []string `json:"errors,omitempty"`
 }
 
 type DevicePower struct {

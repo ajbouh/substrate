@@ -31,7 +31,7 @@ import (
 	"github.com/ajbouh/substrate/images/bridge2/webrtc/sfu"
 	"github.com/ajbouh/substrate/images/bridge2/webrtc/trackstreamer"
 	"github.com/ajbouh/substrate/images/bridge2/workingset"
-	"github.com/ajbouh/substrate/pkg/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gopxl/beep"
 	"github.com/gorilla/websocket"

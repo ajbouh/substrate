@@ -4,10 +4,9 @@ go 1.22.2
 
 require (
 	github.com/adrg/frontmatter v0.2.0
-	github.com/ajbouh/substrate/pkg/commands v0.0.0-20240808180218-f8f2851695f0
-	github.com/ajbouh/substrate/pkg/httpframework v0.0.0-20240808180218-f8f2851695f0
+	github.com/ajbouh/substrate/pkg/toolkit v0.0.0-20240808180218-f8f2851695f0
 	gotest.tools v2.2.0+incompatible
-	tractor.dev/toolkit-go v0.0.0-20240417045753-38146a213d9c
+	tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe
 )
 
 require (
@@ -17,4 +16,4 @@ require (
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
 
-replace github.com/ajbouh/substrate/pkg/commands => ../../pkg/commands
+replace github.com/ajbouh/substrate/pkg/toolkit => ../../pkg/toolkit

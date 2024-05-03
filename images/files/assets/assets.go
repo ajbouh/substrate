@@ -4,7 +4,7 @@ import (
 	"embed"
 	"net/http"
 
-	"github.com/ajbouh/substrate/pkg/httpframework"
+	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 	"tractor.dev/toolkit-go/engine/fs"
 )
 

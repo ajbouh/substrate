@@ -11,8 +11,8 @@ RUN npm run build-lib
 
 FROM docker.io/library/golang:1.22 as go-build
 
-WORKDIR /go/src/github.com/ajbouh/substrate/pkg/httpframework/
-COPY pkg/httpframework/go.mod pkg/httpframework/go.sum ./
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
+COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
 RUN go mod download
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/renkon/
@@ -20,7 +20,7 @@ COPY images/renkon/go.mod images/renkon/go.sum ./
 RUN go mod download
 
 WORKDIR /go/src/
-COPY pkg/httpframework/. github.com/ajbouh/substrate/pkg/httpframework/
+COPY pkg/toolkit/. github.com/ajbouh/substrate/pkg/toolkit/
 COPY images/renkon/. github.com/ajbouh/substrate/images/renkon/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/renkon

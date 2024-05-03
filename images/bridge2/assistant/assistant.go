@@ -16,7 +16,7 @@ import (
 	"github.com/ajbouh/substrate/images/bridge2/assistant/prompts"
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 	"github.com/ajbouh/substrate/images/bridge2/transcribe"
-	"github.com/ajbouh/substrate/pkg/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 )
 
 var RecordAssistantText = tracks.EventRecorder[*AssistantTextEvent]("assistant-text")

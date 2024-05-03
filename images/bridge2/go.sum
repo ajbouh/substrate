@@ -169,5 +169,5 @@ gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 gotest.tools v2.2.0+incompatible h1:VsBPFP1AI068pPrMxtb/S8Zkgf9xEmTLJjfM+P5UIEo=
 gotest.tools v2.2.0+incompatible/go.mod h1:DsYFclhRJ6vuDpmuTbkuFWG+y2sxOXAzmJt81HFBacw=
-tractor.dev/toolkit-go v0.0.0-20240417045753-38146a213d9c h1:AuYnKdc6Konsd+ngLZWuK7+tmixeHTwOlNqXg/0pyJk=
-tractor.dev/toolkit-go v0.0.0-20240417045753-38146a213d9c/go.mod h1:vI9Jf9tepHLrUqGQf7XZuRcQySNajWRKBjPD4+Ay72I=
+tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe h1:9GzxY8EwxFiMoSYHRfsJcuh24UPlcREFtQ9QtovmxW4=
+tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe/go.mod h1:vI9Jf9tepHLrUqGQf7XZuRcQySNajWRKBjPD4+Ay72I=

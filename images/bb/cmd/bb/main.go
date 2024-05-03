@@ -21,6 +21,8 @@ import (
 	"github.com/ajbouh/substrate/images/bb/calldef"
 	bbhttp "github.com/ajbouh/substrate/images/bb/http"
 	"github.com/ajbouh/substrate/pkg/cueloader"
+
+	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
 )
 
 type Main struct {
@@ -66,7 +68,7 @@ func (m *Main) Serve(ctx context.Context) {
 	var markReadyOnce sync.Once
 
 	go func() {
-		err := cueloader.NewCueConfigWatcherFromURL(ctx, "http://substrate:8080/substrate/v1/defs", func(err error, files map[string]string, config *load.Config) {
+		err := NewCueConfigWatcherFromURL(ctx, "http://substrate:8080/substrate/v1/defs", func(err error, files map[string]string, config *load.Config) {
 			defer markReadyOnce.Do(markReady)
 
 			if err != nil {
@@ -125,4 +127,18 @@ func (m *Main) Serve(ctx context.Context) {
 
 	log.Printf("running on http://%s ...", m.listenAddr)
 	log.Fatal(http.ListenAndServe(m.listenAddr, mux))
+}
+
+func NewCueConfigWatcherFromURL(ctx context.Context, url string, cb func(err error, files map[string]string, config *load.Config)) error {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return err
+	}
+	log.Printf("making request of %s", url)
+	return httpevents.ReadStreamEvents(http.DefaultClient, req, func(event *httpevents.Event) error {
+		files, config, err := cueloader.Unmarshal(event.Data)
+		log.Printf("%d files dir=%s tags=%#v", len(files), config.Dir, config.Tags)
+		cb(err, files, config)
+		return nil
+	})
 }

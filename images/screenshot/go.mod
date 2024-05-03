@@ -1,8 +1,8 @@
 module github.com/ajbouh/substrate/images/screenshot
 
-go 1.21
+go 1.22
 
-toolchain go1.21.1
+toolchain go1.22.6
 
 require (
 	github.com/chromedp/cdproto v0.0.0-20220924210414-0e3390be1777
