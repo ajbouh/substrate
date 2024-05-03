@@ -16,8 +16,8 @@ export const actions = {
 
     console.log({ r, data })
 
-    throw redirect(301, urls.gateway.activity({
-      activityspec: r.activityspec,
-    }))
+    redirect(301, urls.gateway.activity({
+              activityspec: r.activityspec,
+            }));
   }
 };

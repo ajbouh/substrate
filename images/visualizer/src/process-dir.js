@@ -26,7 +26,7 @@ export const processDir = (rootPath = "", excludedPaths = [], excludedGlobs = []
     isFolder = true,
   ) => {
     try {
-      console.log("Looking in ", `./${path}`);
+      // console.log("Looking in", `./${path}`);
 
       if (isFolder) {
         const filesOrFolders = fs.readdirSync(`./${path}`);

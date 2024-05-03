@@ -25,11 +25,28 @@ const main = ({
 
 const app = express()
 
+const idleTimeoutMillis = 3000
+let timeout
+function resetIdleTimeout() {
+  if (timeout) {
+    clearTimeout(timeout)
+  }
+  timeout = setTimeout(() => {
+    console.log(`no requests for ${idleTimeoutMillis}ms, exiting`)
+    process.exit()
+  }, idleTimeoutMillis)
+}
+
 app.get('/', (req, res) => {
+  // reset when the request arrives
+  resetIdleTimeout()
   res.set('Content-Type', 'image/svg+xml')
   res.send(main({
     rootPath: "spaces/data/tree",
   }))
+
+  // and again after it's complete
+  resetIdleTimeout()
 })
 
 app.listen(port, () => {
