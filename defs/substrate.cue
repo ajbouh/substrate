@@ -15,6 +15,7 @@ import (
   host_docker_socket: string
   host_resourcedirs_root: string
   host_resourcedirs_path: string
+  host_machine_id_file: string
 
   substrate: network_name_prefix: string | *""
   substrate: internal_network_name: string
@@ -66,6 +67,7 @@ daemons: "substrate": {
     "PORT": string | *"\(#var.substrate.internal_port)"
     "SUBSTRATE_DB": "\(substrate_data)/substrate.sqlite"
     "SUBSTRATEFS_ROOT": #var.host_substratefs_root
+    "SUBSTRATE_MACHINE_ID_FILE": #var.host_machine_id_file
     "SUBSTRATE_CUE_DEFS": string | *substrate_cue_defs
     if live_edit["substrate"] {
       "SUBSTRATE_CUE_DEFS_LIVE": substrate_cue_defs_live
@@ -90,6 +92,7 @@ daemons: "substrate": {
   mounts: [
     {source: "\(#var.namespace)-substrate_data", destination: substrate_data},
     {source: #var.host_substratefs_root, destination: #var.host_substratefs_root},
+    {source: #var.host_machine_id_file, destination: #var.host_machine_id_file},
     {source: #var.host_docker_socket, destination: environment.#docker_socket},
     {source: #var.host_resourcedirs_root, destination: #var.host_resourcedirs_root},
     if live_edit["substrate"] {

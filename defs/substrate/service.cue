@@ -1,5 +1,11 @@
 package service
 
+import (
+  "encoding/hex"
+  "encoding/json"
+  cryptosha256 "crypto/sha256"
+)
+
 #ServiceDefSpawnParameter: {
   type: "space" | "spaces" | "string"
   // if type == "spaces" {
@@ -73,10 +79,19 @@ package service
   name: string
   spawn?: {
     parameters: [string]: #ServiceDefSpawnParameter
+    parameters_digest: string | *"unknown"
+    parameters_digest: hex.Encode(cryptosha256.Sum256(json.Marshal(parameters)))
+  
     ephemeral ?: bool | *false
     image: string
     environment: [string]: string
-    environment: PORT: string | *"8080"
+    environment: {
+      PORT: string | *"8080"
+      SUBSTRATE_PARAMETERS_DIGEST: parameters_digest
+      INTERNAL_SUBSTRATE_ORIGIN: string | *"http://substrate:8080"
+      SUBSTRATE_VIEWSPEC: string | *"unknown"
+      INTERNAL_SUBSTRATE_EXPORTS_URL: "\(INTERNAL_SUBSTRATE_ORIGIN)/substrate/v1/activities/\(SUBSTRATE_VIEWSPEC)/\(parameters_digest)/exports"
+    }
     command ?: [...string]
 
     url_prefix ?: string

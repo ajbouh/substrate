@@ -389,6 +389,8 @@ systemd_reload() {
   # HACK it would be much better to hardcode less of this here...
   if [[ $changed_images == *'ghcr.io/ajbouh/substrate:substrate-substrate'* ]]; then
     restart_units+=("substrate")
+  elif [[ $changed_images == *'ghcr.io/ajbouh/substrate:substrate-mediamtx'* ]]; then
+    restart_units+=("mediamtx")
   elif [[ $changed_images == *'ghcr.io/ajbouh/substrate:substrate-vscode-server'* ]]; then
     restart_units+=("vscode-server")
   fi

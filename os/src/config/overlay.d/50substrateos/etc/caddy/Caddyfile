@@ -6,7 +6,7 @@
   admin off
 }
 
-{$HOSTNAME} {
+{$HOSTNAME}:443 {
   redir /debug/shell /debug/shell/
   reverse_proxy /debug/shell/* http://127.0.0.1:8181
   redir /debug/vscode /debug/vscode/
@@ -14,4 +14,8 @@
     reverse_proxy http://127.0.0.1:3001
   }
   reverse_proxy http://127.0.0.1:8080
+}
+
+{$HOSTNAME}:48889 {
+  reverse_proxy http://127.0.0.1:8889
 }

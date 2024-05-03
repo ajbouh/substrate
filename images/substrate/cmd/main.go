@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -192,12 +193,17 @@ func initialCueLoadConfig() *load.Config {
 	}
 }
 
-func newCueLoader(internalSubstrateOrigin string) []engine.Unit {
+func newCueLoader(
+	machineID string,
+	internalSubstrateOrigin string,
+) []engine.Unit {
 	origin := mustGetenv("ORIGIN")
 
 	// TODO stop hardcoding these
 	sigarLoader := cueloader.NewStreamLoader(context.Background(), internalSubstrateOrigin+"/sigar")
 	nvmlLoader := cueloader.NewStreamLoader(context.Background(), internalSubstrateOrigin+"/nvml")
+	originURL, _ := url.Parse(origin)
+	originHostname := originURL.Hostname()
 
 	return []engine.Unit{
 		sigarLoader,
@@ -220,6 +226,8 @@ func newCueLoader(internalSubstrateOrigin string) []engine.Unit {
 					"SUBSTRATE_ORIGIN":          origin,
 					"PUBLIC_EXTERNAL_ORIGIN":    origin,
 					"ORIGIN":                    origin,
+					"ORIGIN_HOSTNAME":           originHostname,
+					"SUBSTRATE_MACHINE_ID":      machineID,
 					"INTERNAL_SUBSTRATE_ORIGIN": internalSubstrateOrigin,
 				},
 			),
@@ -272,6 +280,12 @@ func main() {
 		log.Fatalf("couldn't open db: %s", err)
 	}
 
+	machineIDData, err := os.ReadFile(mustGetenv("SUBSTRATE_MACHINE_ID_FILE"))
+	if err != nil {
+		log.Fatalf("couldn't read machine id file: %s", err)
+	}
+	machineID := strings.Trim(string(machineIDData), "\n")
+
 	// TODO stop hardcoding these
 	internalSubstrateOrigin := "http://substrate:8080"
 
@@ -306,7 +320,11 @@ func main() {
 		&defset.Loader{},
 		&RefreshCurrentDefSetOnStreamUpdate{},
 	}
-	units = append(units, newCueLoader(internalSubstrateOrigin)...)
+	units = append(units,
+		newCueLoader(
+			machineID,
+			internalSubstrateOrigin,
+		)...)
 	engine.Run(units...)
 }
 

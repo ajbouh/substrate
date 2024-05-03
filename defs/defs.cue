@@ -23,6 +23,7 @@ import (
   image_prefix: string | *"ghcr.io/ajbouh/substrate:substrate-"
   host_resourcedirs_root: string
   host_resourcedirs_path: string
+  host_machine_id_file: "/etc/machine-id"
   build_resourcedirs_root: string
 
   host_docker_socket: string | *"/var/run/docker.sock"

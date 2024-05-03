@@ -98,6 +98,12 @@ func (s *DefSet) resolveServiceDefSpawn(req *activityspec.ServiceSpawnRequest) (
 		req.URLPrefix,
 	)
 
+	viewspec, _ := req.Format()
+	serviceDefSpawnValue = serviceDefSpawnValue.FillPath(
+		cue.MakePath(cue.Str("environment"), cue.Str("SUBSTRATE_VIEWSPEC")),
+		viewspec,
+	)
+
 	for parameterName, parameterReq := range req.Parameters {
 		serviceDefSpawnValue = serviceDefSpawnValue.FillPath(
 			cue.MakePath(cue.Str("parameters"), cue.Str(parameterName), cue.Str("value")),
