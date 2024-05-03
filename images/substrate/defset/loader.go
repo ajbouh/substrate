@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	cueerrors "cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
 
@@ -37,9 +38,6 @@ type Loader struct {
 	Config    *load.Config
 	Layout    *substratefs.Layout
 
-	CueMu      *CueMutex
-	CueContext *cue.Context
-
 	ServiceSpawned      []ServiceSpawned
 	DefSetSourcesLoaded []SourcesLoaded
 	DefSetLoaded        []Loaded
@@ -67,10 +65,13 @@ func (l *Loader) Initialize() {
 }
 
 func (l *Loader) loadDefSet(files map[string]string, cueLoadConfigWithFiles *load.Config, err error) *DefSet {
+	cueContext := cuecontext.New()
+	cueMu := &CueMutex{}
+
 	sds := &DefSet{
 		Services:   map[string]cue.Value{},
-		CueMu:      l.CueMu,
-		CueContext: l.CueContext,
+		CueMu:      cueMu,
+		CueContext: cueContext,
 		Layout:     l.Layout,
 
 		ServiceSpawned: l.ServiceSpawned,
@@ -80,7 +81,7 @@ func (l *Loader) loadDefSet(files map[string]string, cueLoadConfigWithFiles *loa
 		return sds
 	}
 
-	load := l.CueLoader.LoadCue(l.CueMu, l.CueContext, cueLoadConfigWithFiles)
+	load := l.CueLoader.LoadCue(cueMu, cueContext, cueLoadConfigWithFiles)
 	if load.Err != nil {
 		sds.Err = fmt.Errorf("error loading cue defs: %w", load.Err)
 		return sds

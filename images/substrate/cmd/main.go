@@ -25,7 +25,6 @@ import (
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/load"
 	"github.com/sirupsen/logrus"
 
@@ -289,9 +288,7 @@ func main() {
 		},
 		newProvisioner(cudaAllowed),
 		db,
-		&defset.CueMutex{},
 		provisioner.NewCache(),
-		cuecontext.New(),
 		initialCueLoadConfig(),
 		&AnnounceDefsOnSourcesLoaded{},
 		cueloader.NewAnnouncer("application/json"),
