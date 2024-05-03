@@ -7,8 +7,8 @@ RUN apt-get update \
   libasound2-dev \
   && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /go/src/github.com/ajbouh/substrate/pkg/commands/
-COPY pkg/commands/go.mod pkg/commands/go.sum ./
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
+COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
 RUN go mod download
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge2/
@@ -16,7 +16,7 @@ COPY images/bridge2/go.mod images/bridge2/go.sum ./
 RUN go mod download
 
 WORKDIR /go/src/
-COPY pkg/commands/. github.com/ajbouh/substrate/pkg/commands/
+COPY pkg/toolkit/. github.com/ajbouh/substrate/pkg/toolkit/
 COPY images/bridge2/. github.com/ajbouh/substrate/images/bridge2/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge2/

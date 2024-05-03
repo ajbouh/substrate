@@ -17,12 +17,18 @@ type Middleware interface {
 	WrapHTTP(next http.Handler) http.Handler
 }
 
+type ConnState interface {
+	HTTPConnState(net.Conn, http.ConnState)
+}
+
 type Framework struct {
 	ListenAddr string
 	Listener   net.Listener
 
 	Contributors []MuxContributor
 	Middleware   []Middleware
+
+	ConnState []ConnState
 
 	Log *slog.Logger
 
@@ -46,26 +52,38 @@ func FmtListenAddr(host, port string) string {
 
 func (f *Framework) Serve(ctx context.Context) {
 	f.Log.Info("http at", "url", "http://"+f.Addr().String())
-	if err := f.s.Serve(f.Listener); err != nil {
-		if err == http.ErrServerClosed {
-			return
+
+	if f.s.TLSConfig == nil {
+		if err := f.s.Serve(f.Listener); err != nil {
+			if err == http.ErrServerClosed {
+				return
+			}
+			f.Log.Info("unexpected error while serving", "error", err)
 		}
-		f.Log.Info("unexpected error while serving", "error", err)
+	} else {
+		if err := f.s.ServeTLS(f.Listener, "", ""); err != nil {
+			if err == http.ErrServerClosed {
+				return
+			}
+			f.Log.Info("unexpected error while serving with tls", "error", err)
+		}
 	}
 }
 
 func (f *Framework) InitializeDaemon() error {
-	if f.Log == nil {
-		f.Log = slog.Default()
-	}
-
 	f.mux = http.NewServeMux()
 	for _, c := range f.Contributors {
+		f.Log.Info("adding handlers", "contributor", c)
 		c.ContributeHTTP(f.mux)
 	}
 
 	f.s = &http.Server{
 		Handler: f,
+		ConnState: func(c net.Conn, cs http.ConnState) {
+			for _, fn := range f.ConnState {
+				fn.HTTPConnState(c, cs)
+			}
+		},
 	}
 
 	if f.Listener == nil {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/load"
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -101,14 +101,16 @@ func (r *Loader) LoadCue(mu Lock, cc *cue.Context, config *load.Config) *Load {
 	return l
 }
 
-type CueModuleChanged interface {
-	CueModuleChanged(err error, files map[string]string, cueLoadConfigWithFiles *load.Config)
+type CueModuleChanged struct {
+	Error                  error
+	Files                  map[string]string
+	CueLoadConfigWithFiles *load.Config
 }
 
 type CueConfigWatcher struct {
 	ReadyFile        string
 	Config           *load.Config
-	CueModuleChanged CueModuleChanged
+	CueModuleChanged []notify.Notifier[*CueModuleChanged]
 }
 
 func (w *CueConfigWatcher) Serve(ctx context.Context) {
@@ -123,31 +125,17 @@ func (w *CueConfigWatcher) Serve(ctx context.Context) {
 		}
 
 		if err != nil {
-			w.CueModuleChanged.CueModuleChanged(err, nil, nil)
+			notify.Notify(ctx, w.CueModuleChanged, &CueModuleChanged{err, nil, nil})
 			return
 		}
 		files, copy, err := CopyConfigAndReadFilesIntoOverrides(w.Config)
-		w.CueModuleChanged.CueModuleChanged(err, files, copy)
+		notify.Notify(ctx, w.CueModuleChanged, &CueModuleChanged{err, files, copy})
 	})
 	if err != nil {
 		log.Printf("error starting cue module watcher: %s", err)
 		return
 	}
 	watcher.Add(w.Config.Dir)
-}
-
-func NewCueConfigWatcherFromURL(ctx context.Context, url string, cb func(err error, files map[string]string, config *load.Config)) error {
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return err
-	}
-	log.Printf("making request of %s", url)
-	return ReadStreamEvents(http.DefaultClient, req, func(event *Event) error {
-		files, config, err := Unmarshal(event.Data)
-		log.Printf("%d files dir=%s tags=%#v", len(files), config.Dir, config.Tags)
-		cb(err, files, config)
-		return nil
-	})
 }
 
 func NewWatcher(ctx context.Context, cb func(err error)) (*fsnotify.Watcher, error) {

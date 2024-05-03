@@ -4,6 +4,8 @@ github.com/chromedp/chromedp v0.9.3 h1:Wq58e0dZOdHsxaj9Owmfcf+ibtpYN1N0FWVbaxa/e
 github.com/chromedp/chromedp v0.9.3/go.mod h1:NipeUkUcuzIdFbBP8eNNvl9upcceOfWzoJn6cRe4ksA=
 github.com/chromedp/sysutil v1.0.0 h1:+ZxhTpfpZlmchB58ih/LBHX52ky7w2VhQVKQMucy3Ic=
 github.com/chromedp/sysutil v1.0.0/go.mod h1:kgWmDdq8fTzXYcKIBqIYvRRTnYb9aNS9moAV0xufSww=
+github.com/elnormous/contenttype v1.0.4 h1:FjmVNkvQOGqSX70yvocph7keC8DtmJaLzTTq6ZOQCI8=
+github.com/elnormous/contenttype v1.0.4/go.mod h1:5KTOW8m1kdX1dLMiUJeN9szzR2xkngiv2K+RVZwWBbI=
 github.com/gobwas/httphead v0.1.0 h1:exrUm0f4YX0L7EBwZHuCF4GDp8aJfVeBrlLQrs6NqWU=
 github.com/gobwas/httphead v0.1.0/go.mod h1:O/RXo79gxV8G+RqlR/otEwx4Q36zl9rqC5u12GKvMCM=
 github.com/gobwas/pool v0.2.1 h1:xfeeEhW7pwmX8nuLVlqbzVc7udMDrwetjEv+TZIz1og=
@@ -25,5 +27,5 @@ golang.org/x/net v0.17.0/go.mod h1:NxSsAGuq816PNPmqtQdLE42eU2Fs7NoRIZrHJAlaCOE=
 golang.org/x/sys v0.6.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.13.0 h1:Af8nKPmuFypiUBjVoU9V20FiaFXOcuZI21p0ycVYYGE=
 golang.org/x/sys v0.13.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-tractor.dev/toolkit-go v0.0.0-20240111035846-6a7f40f8500e h1:SEcTMsSsCwSU0Oy62SR6swgFfAqkA5XtkKMByAeOApQ=
-tractor.dev/toolkit-go v0.0.0-20240111035846-6a7f40f8500e/go.mod h1:gteH4mWzJV+Y5zk6/Q6rPuWeOCFHnr55XPTgYEHuzUo=
+tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe h1:9GzxY8EwxFiMoSYHRfsJcuh24UPlcREFtQ9QtovmxW4=
+tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe/go.mod h1:vI9Jf9tepHLrUqGQf7XZuRcQySNajWRKBjPD4+Ay72I=

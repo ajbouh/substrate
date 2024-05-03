@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ajbouh/substrate/pkg/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"

@@ -1,4 +1,4 @@
-package cueloader
+package httpevents
 
 import (
 	"context"
@@ -11,24 +11,23 @@ import (
 
 type StreamListenerFunc func(v any)
 
+type StreamListener interface {
+	Listen(key any) (context.Context, StreamListenerFunc)
+}
+
 type StreamLoader struct {
 	value       any
-	mu          *sync.Mutex
+	mu          sync.Mutex
 	listenerSet map[struct{}]StreamListenerFunc
 	listeners   []StreamListenerFunc
 
 	ctx    context.Context
 	cancel func()
-	url    string
-}
 
-func NewStreamLoader(ctx context.Context, url string) *StreamLoader {
-	return &StreamLoader{
-		url:         url,
-		mu:          &sync.Mutex{},
-		listenerSet: map[struct{}]StreamListenerFunc{},
-		ctx:         ctx,
-	}
+	URL string
+	Key any
+
+	Listeners []StreamListener
 }
 
 func (s *StreamLoader) update(v any) {
@@ -46,25 +45,25 @@ func (s *StreamLoader) run(ctx context.Context) {
 	time.Sleep(3 * time.Second)
 
 	// TODO we should restart this if it aborts.
-	req, err := http.NewRequestWithContext(ctx, "GET", s.url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", s.URL, nil)
 	if err != nil {
-		log.Printf("error streaming from %s: %s", s.url, err)
+		log.Printf("error streaming from %s: %s", s.URL, err)
 		return
 	}
-	log.Printf("making request of %s", s.url)
+	log.Printf("making request of %s", s.URL)
 	err = ReadStreamEvents(http.DefaultClient, req, func(event *Event) error {
 		var m any
-		log.Printf("event from %s", s.url)
+		log.Printf("event from %s", s.URL)
 		err := json.Unmarshal(event.Data, &m)
 		if err != nil {
 			return err
 		}
 		s.update(m)
-		// log.Printf("update from %s is %#v", s.url, m)
+		// log.Printf("update from %s is %#v", s.URL, m)
 		return nil
 	})
 	if err != nil {
-		log.Printf("error streaming from %s: %s", s.url, err)
+		log.Printf("error streaming from %s: %s", s.URL, err)
 		return
 	}
 }
@@ -72,7 +71,9 @@ func (s *StreamLoader) run(ctx context.Context) {
 func (s *StreamLoader) unlisten(key struct{}) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.listenerSet, key)
+	if s.listenerSet != nil {
+		delete(s.listenerSet, key)
+	}
 	s.listeners = make([]StreamListenerFunc, 0, len(s.listenerSet))
 	for _, l := range s.listenerSet {
 		s.listeners = append(s.listeners, l)
@@ -82,10 +83,26 @@ func (s *StreamLoader) unlisten(key struct{}) {
 	}
 }
 
+func (s *StreamLoader) Serve(ctx context.Context) {
+	s.ctx = ctx
+
+	for _, l := range s.Listeners {
+		fnCtx, fn := l.Listen(s.Key)
+		if fn == nil {
+			continue
+		}
+
+		s.Listen(fnCtx, fn)
+	}
+}
+
 func (s *StreamLoader) Listen(ctx context.Context, cb StreamListenerFunc) {
 	key := struct{}{}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.listenerSet == nil {
+		s.listenerSet = map[struct{}]StreamListenerFunc{}
+	}
 	s.listenerSet[key] = cb
 	// copy so we can iterate over them during `update()` without holding the lock.
 	s.listeners = append([]StreamListenerFunc(nil), s.listeners...)

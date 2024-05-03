@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/ajbouh/substrate/pkg/httpframework"
+	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 )
 
 type ChromeDPProxy struct {
@@ -28,7 +28,7 @@ func (h *ChromeDPProxy) Initialize() {
 	h.reverseProxy = &httputil.ReverseProxy{
 		Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetURL(h.UpstreamURL)
-			r.Out.Host = "localhost"
+			r.Out.Host = "127.0.0.1"
 		},
 	}
 }

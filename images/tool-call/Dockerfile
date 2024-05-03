@@ -1,11 +1,11 @@
 FROM docker.io/library/golang:1.22.2 as build
 
-WORKDIR /go/src/github.com/ajbouh/substrate/pkg/httpframework/
-COPY pkg/httpframework/go.mod pkg/httpframework/go.sum ./
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
+COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
 RUN go mod download
 
-WORKDIR /go/src/github.com/ajbouh/substrate/pkg/commands/
-COPY pkg/commands/go.mod pkg/commands/go.sum ./
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
+COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
 RUN go mod download
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/tool-call/
@@ -13,8 +13,7 @@ COPY images/tool-call/go.mod images/tool-call/go.sum ./
 RUN go mod download
 
 WORKDIR /go/src/
-COPY pkg/httpframework/. github.com/ajbouh/substrate/pkg/httpframework/
-COPY pkg/commands/. github.com/ajbouh/substrate/pkg/commands/
+COPY pkg/toolkit/. github.com/ajbouh/substrate/pkg/toolkit/
 COPY images/tool-call/. github.com/ajbouh/substrate/images/tool-call/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/tool-call

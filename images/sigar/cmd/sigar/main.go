@@ -1,67 +1,43 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"log"
+	"context"
+	"os"
 	"time"
 
 	"github.com/ajbouh/substrate/images/sigar"
 
 	"tractor.dev/toolkit-go/engine"
-	"tractor.dev/toolkit-go/engine/cli"
-	"tractor.dev/toolkit-go/engine/daemon"
 
-	"github.com/ajbouh/substrate/pkg/cueloader"
-	"github.com/ajbouh/substrate/pkg/exports"
-	"github.com/ajbouh/substrate/pkg/httpframework"
+	"github.com/ajbouh/substrate/pkg/toolkit/exports"
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
+	"github.com/ajbouh/substrate/pkg/toolkit/service"
 )
-
-type Main struct {
-	listenAddr string
-
-	Daemon *daemon.Framework
-}
 
 func main() {
 	sigar.SetProcd("/hostproc")
 
-	announcer := &cueloader.Announcer{
-		ContentType: "application/json",
-		Route:       "/",
-	}
+	type Sample = sigar.Sample
+	type Sampler = sigar.Sampler
 
 	engine.Run(
-		Main{},
-		announcer,
-		&httpframework.Framework{},
-		&exports.PublishingSink{},
-		&exports.Sampler[*sigar.Sample]{
-			Interval: time.Second * 60,
-			SampleFunc: func() (*sigar.Sample, error) {
-				value, err := sigar.GetSample()
-				if err != nil {
-					announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
-				} else {
-					if b, err := json.Marshal(&value); err != nil {
-						announcer.Announce([]byte(fmt.Sprintf(`{"error": %q}`, err.Error())))
-					} else {
-						announcer.Announce(b)
-					}
-				}
-
-				return value, nil
-			},
+		&service.Service{
+			ExportsRoute: "/",
 		},
+		&Sampler{
+			MachineID: os.Getenv("SUBSTRATE_MACHINE_ID"),
+		},
+		&notify.Ticker[*Sample]{
+			Interval: time.Second * 60,
+		},
+		notify.On(func(
+			ctx context.Context,
+			e notify.Tick[*Sample],
+			t *struct {
+				ExportsChanged []notify.Notifier[exports.Changed]
+			},
+		) {
+			notify.Notify(ctx, t.ExportsChanged, exports.Changed{})
+		}),
 	)
-}
-
-func (m *Main) InitializeCLI(root *cli.Command) {
-	// a workaround for an unresolved issue in toolkit-go/engine
-	// for figuring out if its a CLI or a daemon program...
-	root.Run = func(ctx *cli.Context, args []string) {
-		if err := m.Daemon.Run(ctx); err != nil {
-			log.Fatal(err)
-		}
-	}
 }

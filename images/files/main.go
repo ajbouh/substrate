@@ -7,10 +7,11 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/ajbouh/substrate/images/files/assets"
 
-	"github.com/ajbouh/substrate/pkg/httpframework"
+	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 
 	"tractor.dev/toolkit-go/engine"
 	"tractor.dev/toolkit-go/engine/cli"
@@ -53,6 +54,13 @@ func main() {
 	engine.Run(
 		Main{},
 		&httpframework.Framework{},
+		&httpframework.IdleTracker{
+			IdleAfter: 10 * time.Second,
+			IdleNow: func(at time.Time) {
+				log.Printf("idle at %s; terminating...", at)
+				engine.Terminate()
+			},
+		},
 		&fileHandler{
 			route:       prefix + "/raw/",
 			path:        "/spaces/data/tree",

@@ -1,8 +1,8 @@
 package sigar
 
 import (
+	"context"
 	"errors"
-	"os"
 	"slices"
 	"syscall"
 	"time"
@@ -141,11 +141,19 @@ type Sample struct {
 	Errors    []string              `json:"errors,omitempty"`
 }
 
-func GetSample() (*Sample, error) {
+type Sampler struct {
+	MachineID string
+}
+
+func (s *Sampler) Exports(ctx context.Context) (any, error) {
+	return map[string]any{"data": s.Get()}, nil
+}
+
+func (s *Sampler) Get() *Sample {
 	start := time.Now().UTC()
 
 	sample := &Sample{
-		MachineID:   os.Getenv("SUBSTRATE_MACHINE_ID"),
+		MachineID:   s.MachineID,
 		StartMicros: start.UnixMicro(),
 
 		System:    &System{},
@@ -194,7 +202,7 @@ func GetSample() (*Sample, error) {
 
 	sample.SampleDurationMicros = time.Now().UTC().Sub(start).Microseconds()
 
-	return sample, nil
+	return sample
 }
 
 type ProcessStats struct {

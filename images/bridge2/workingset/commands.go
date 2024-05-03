@@ -7,7 +7,7 @@ import (
 	"net/url"
 
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
-	"github.com/ajbouh/substrate/pkg/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 )
 
 type CommandProvider struct{}

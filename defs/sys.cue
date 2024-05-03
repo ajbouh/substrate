@@ -9,6 +9,10 @@ imagespecs: "sys": {
 services: "sys": {
   instances: [string]: {
     ephemeral: true
+
+    environment: [string]: string
+    url_prefix: environment.SUBSTRATE_URL_PREFIX
+
     mounts: [
       { source: "/sys", destination: "/hostsys", mode: "ro" },
     ]

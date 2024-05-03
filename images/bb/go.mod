@@ -7,9 +7,10 @@ toolchain go1.22.2
 require (
 	cuelang.org/go v0.9.2
 	github.com/ajbouh/substrate/pkg/cueloader v0.0.0-00010101000000-000000000000
+	github.com/ajbouh/substrate/pkg/toolkit v0.0.0-00010101000000-000000000000
 	github.com/elnormous/contenttype v1.0.4
 	github.com/stretchr/testify v1.8.4
-	tractor.dev/toolkit-go v0.0.0-20240111035846-6a7f40f8500e
+	tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe
 )
 
 require (
@@ -34,3 +35,5 @@ require (
 )
 
 replace github.com/ajbouh/substrate/pkg/cueloader => ../../pkg/cueloader
+
+replace github.com/ajbouh/substrate/pkg/toolkit => ../../pkg/toolkit

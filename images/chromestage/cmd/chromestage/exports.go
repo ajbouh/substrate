@@ -6,8 +6,9 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/ajbouh/substrate/pkg/exports"
-	"github.com/ajbouh/substrate/pkg/httpframework"
+	"github.com/ajbouh/substrate/pkg/toolkit/exports"
+	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
@@ -18,7 +19,7 @@ type InitialExports struct {
 	OriginScheme  string
 	OriginHost    string
 
-	ExportsChanged []exports.Changed
+	ExportsChanged []notify.Notifier[exports.Changed]
 
 	exports  map[string]any
 	readyCtx context.Context
@@ -29,7 +30,7 @@ func (m *InitialExports) Initialize() {
 	m.readyCtx, m.ready = context.WithCancel(context.Background())
 }
 
-func (c *InitialExports) Exports(ctx context.Context) (map[string]any, error) {
+func (c *InitialExports) Exports(ctx context.Context) (any, error) {
 	<-c.readyCtx.Done()
 	return c.exports, nil
 }
@@ -43,7 +44,7 @@ func (m *InitialExports) Serve(ctx context.Context) {
 	m.exports = exp
 	m.ready()
 
-	go exports.NotifyChanged(m.ExportsChanged)
+	go notify.Notify(context.Background(), m.ExportsChanged, exports.Changed{})
 }
 
 func (m *InitialExports) InitialExports(ctx context.Context, scheme, host string) (map[string]any, error) {
@@ -78,29 +79,35 @@ func (m *InitialExports) InitialExports(ctx context.Context, scheme, host string
 	vncURL.Path = prefix + "/vnc"
 
 	return map[string]any{
-		"multimedia": map[string]string{
-			"vnc":            vncURL.String(),
-			"rtsp_internal":  os.Getenv("MTX_RTSP_INTERNAL_ADDRESS_PREFIX"),
-			"rtsp":           os.Getenv("MTX_RTSP_ADDRESS_PREFIX"),
-			"embed":          os.Getenv("MTX_WEB_ADDRESS_PREFIX") + os.Getenv("MTX_WEB_ADDRESS_QUERY"),
-			"embed_internal": os.Getenv("MTX_WEB_INTERNAL_ADDRESS_PREFIX") + os.Getenv("MTX_WEB_ADDRESS_QUERY"),
-		},
-		"api": map[string]string{
-			"chromedp": debugger.String(),
-		},
-		"debug": map[string]string{
-			"devtools": devtools.String(),
+		"data": map[string]any{
+			"multimedia": map[string]string{
+				"vnc":            vncURL.String(),
+				"rtsp_internal":  os.Getenv("MTX_RTSP_INTERNAL_ADDRESS_PREFIX"),
+				"rtsp":           os.Getenv("MTX_RTSP_ADDRESS_PREFIX"),
+				"embed":          os.Getenv("MTX_WEB_ADDRESS_PREFIX") + os.Getenv("MTX_WEB_ADDRESS_QUERY"),
+				"embed_internal": os.Getenv("MTX_WEB_INTERNAL_ADDRESS_PREFIX") + os.Getenv("MTX_WEB_ADDRESS_QUERY"),
+			},
+			"api": map[string]string{
+				"chromedp": debugger.String(),
+			},
+			"debug": map[string]string{
+				"devtools": devtools.String(),
+			},
 		},
 	}, nil
 }
 
 type ExportChromeDPFields struct {
 	exports        map[string]any
-	ExportsChanged []exports.Changed
+	ExportsChanged []notify.Notifier[exports.Changed]
 	CDP            *RemoteCDP
 }
 
-func (c *ExportChromeDPFields) Exports(ctx context.Context) (map[string]any, error) {
+func (c *ExportChromeDPFields) Initialize() {
+	c.exports = map[string]any{}
+}
+
+func (c *ExportChromeDPFields) Exports(ctx context.Context) (any, error) {
 	return c.exports, nil
 }
 
@@ -138,7 +145,10 @@ func (c *ExportChromeDPFields) Refresh() {
 			offsetWidth: document.body.offsetWidth,
 			offsetHeight: document.body.offsetHeight,
 		},
-		meta: Object.fromEntries(Array.from(metas, meta => [meta.getAttribute('name'), meta.getAttribute('content')])),
+		meta: Object.fromEntries(Array.from(metas, meta => [
+			meta.getAttribute('name') || meta.getAttribute('property'),
+			meta.getAttribute('content'),
+		])),
 	}
 })()
 `),
@@ -152,18 +162,16 @@ func (c *ExportChromeDPFields) Refresh() {
 	log.Printf("ExportChromeDPFields.Refresh() ... result=%#v err=%#v", result, err)
 
 	if err == nil {
-		c.exports = result
+		c.exports = map[string]any{"data": result}
 	} else {
 		log.Printf("error getting chromedp fields from document to export: %#v", err)
 		c.exports = map[string]any{}
 	}
 
-	go exports.NotifyChanged(c.ExportsChanged)
+	go notify.Notify(context.Background(), c.ExportsChanged, exports.Changed{})
 }
 
 func (c *ExportChromeDPFields) Serve(ctx context.Context) {
-	// document.querySelector("meta[property='og:image']").getAttribute("content");
-
 	c.CDP.ListenTarget(ctx, func(ev interface{}) {
 		switch ev := ev.(type) {
 		case *page.EventFrameResized:

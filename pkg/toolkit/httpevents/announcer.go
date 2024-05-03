@@ -1,7 +1,8 @@
-package cueloader
+package httpevents
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,26 +11,46 @@ import (
 	"github.com/elnormous/contenttype"
 )
 
-// Announcer is a simple http.Handler that announces the latest value for a []byte via text/event-stream. In scenarios
+// EventStream is a simple http.Handler that announces the latest value for a []byte via text/event-stream. In scenarios
 // where there are many new []byte values to announce, it prioritizes sending the latest value byte rather than every
 // update.
-type Announcer struct {
+type EventStream[T any] struct {
 	Route string
 
 	ContentType string
+	Marshal     func(t T) []byte
 
 	b   []byte
 	mu  sync.Mutex
 	chs map[chan struct{}]struct{}
 }
 
-func (a *Announcer) ContributeHTTP(mux *http.ServeMux) {
+func NewJSONEventStream[T any](route string) *EventStream[T] {
+	return &EventStream[T]{
+		Route:       route,
+		ContentType: "application/json",
+		Marshal:     MarshalJSON[T],
+	}
+}
+
+func MarshalJSON[T any](t T) []byte {
+	var b []byte
+	var err error
+	b, err = json.Marshal(t)
+	if err != nil {
+		return []byte(fmt.Sprintf(`{"error": %q}`, err.Error()))
+	} else {
+		return b
+	}
+}
+
+func (a *EventStream[T]) ContributeHTTP(mux *http.ServeMux) {
 	if a.Route != "" {
 		mux.Handle(a.Route, a)
 	}
 }
 
-func (a *Announcer) listen(l chan struct{}) ([]byte, func()) {
+func (a *EventStream[T]) listen(l chan struct{}) ([]byte, func()) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.chs == nil {
@@ -46,14 +67,18 @@ func (a *Announcer) listen(l chan struct{}) ([]byte, func()) {
 	}
 }
 
-func (a *Announcer) get() []byte {
+func (a *EventStream[T]) get() []byte {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	return a.b
 }
 
-func (a *Announcer) Announce(b []byte) {
+func (a *EventStream[T]) Announce(t T) {
+	a.AnnounceRaw(a.Marshal(t))
+}
+
+func (a *EventStream[T]) AnnounceRaw(b []byte) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
@@ -75,7 +100,7 @@ func (a *Announcer) Announce(b []byte) {
 	}
 }
 
-func (a *Announcer) serveEventStream(w http.ResponseWriter, r *http.Request) {
+func (a *EventStream[T]) serveEventStream(w http.ResponseWriter, r *http.Request) {
 	writeData := func(b []byte) {
 		w.Write([]byte("data: "))
 		_, err := w.Write(b)
@@ -112,7 +137,7 @@ func (a *Announcer) serveEventStream(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *Announcer) serveBuffer(w http.ResponseWriter, r *http.Request) {
+func (a *EventStream[T]) serveBuffer(w http.ResponseWriter, r *http.Request) {
 	header := w.Header()
 	header.Set("Content-Type", a.ContentType)
 
@@ -120,7 +145,7 @@ func (a *Announcer) serveBuffer(w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
-func (a *Announcer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (a *EventStream[T]) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	availableMediaTypes := []contenttype.MediaType{
 		contenttype.NewMediaType("text/event-stream"),
 		contenttype.NewMediaType(a.ContentType),

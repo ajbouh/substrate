@@ -4,7 +4,7 @@ go 1.22.2
 
 require (
 	github.com/adrg/frontmatter v0.2.0
-	github.com/ajbouh/substrate/pkg/commands v0.0.0-00010101000000-000000000000
+	github.com/ajbouh/substrate/pkg/toolkit v0.0.0-00010101000000-000000000000
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/go-audio/audio v1.0.0
 	github.com/go-audio/wav v1.1.0
@@ -20,7 +20,7 @@ require (
 	github.com/technosophos/moniker v0.0.0-20210218184952-3ea787d3943b
 	gopkg.in/hraban/opus.v2 v2.0.0-20230925203106-0188a62cb302
 	gotest.tools v2.2.0+incompatible
-	tractor.dev/toolkit-go v0.0.0-20240417045753-38146a213d9c
+	tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe
 )
 
 require (
@@ -50,4 +50,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/ajbouh/substrate/pkg/commands => ../../pkg/commands
+replace github.com/ajbouh/substrate/pkg/toolkit => ../../pkg/toolkit

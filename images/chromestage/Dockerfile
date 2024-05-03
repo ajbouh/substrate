@@ -3,20 +3,8 @@ RUN go install gitlab.com/tozd/dinit/cmd/dinit@latest
 
 FROM docker.io/library/golang:1.22-bookworm as builder
 
-WORKDIR /go/src/github.com/ajbouh/substrate/pkg/commands/
-COPY pkg/commands/go.mod pkg/commands/go.sum ./
-RUN go mod download
-
-WORKDIR /go/src/github.com/ajbouh/substrate/pkg/exports/
-COPY pkg/exports/go.mod pkg/exports/go.sum ./
-RUN go mod download
-
-WORKDIR /go/src/github.com/ajbouh/substrate/pkg/httpframework/
-COPY pkg/httpframework/go.mod pkg/httpframework/go.sum ./
-RUN go mod download
-
-WORKDIR /go/src/github.com/ajbouh/substrate/pkg/exports/
-COPY pkg/exports/go.mod pkg/exports/go.sum ./
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
+COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
 RUN go mod download
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/chromestage/
@@ -24,10 +12,7 @@ COPY images/chromestage/go.mod images/chromestage/go.sum ./
 RUN go mod download
 
 WORKDIR /go/src/
-COPY pkg/commands/. github.com/ajbouh/substrate/pkg/commands/
-COPY pkg/exports/. github.com/ajbouh/substrate/pkg/exports/
-COPY pkg/httpframework/. github.com/ajbouh/substrate/pkg/httpframework/
-COPY pkg/exports/. github.com/ajbouh/substrate/pkg/exports/
+COPY pkg/toolkit/. github.com/ajbouh/substrate/pkg/toolkit/
 COPY images/chromestage/. github.com/ajbouh/substrate/images/chromestage/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/chromestage/

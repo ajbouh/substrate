@@ -1,15 +1,7 @@
 FROM docker.io/library/golang:1.22-bookworm as source
 
-WORKDIR /go/src/github.com/ajbouh/substrate/pkg/cueloader/
-COPY pkg/cueloader/go.mod pkg/cueloader/go.sum ./
-RUN go mod download
-
-WORKDIR /go/src/github.com/ajbouh/substrate/pkg/exports/
-COPY pkg/exports/go.mod pkg/exports/go.sum ./
-RUN go mod download
-
-WORKDIR /go/src/github.com/ajbouh/substrate/pkg/httpframework/
-COPY pkg/httpframework/go.mod pkg/httpframework/go.sum ./
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
+COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
 RUN go mod download
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/nvml
@@ -17,9 +9,7 @@ ADD images/nvml/go.mod images/nvml/go.sum ./
 RUN go mod download
 
 WORKDIR /go/src/
-COPY pkg/cueloader/. github.com/ajbouh/substrate/pkg/cueloader/
-COPY pkg/exports/. github.com/ajbouh/substrate/pkg/exports/
-COPY pkg/httpframework/. github.com/ajbouh/substrate/pkg/httpframework/
+COPY pkg/toolkit/. github.com/ajbouh/substrate/pkg/toolkit/
 COPY images/nvml/. github.com/ajbouh/substrate/images/nvml/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/nvml/

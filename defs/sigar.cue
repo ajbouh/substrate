@@ -9,6 +9,10 @@ imagespecs: "sigar": {
 services: "sigar": {
   instances: [string]: {
     ephemeral: true
+
+    environment: [string]: string
+    url_prefix: environment.SUBSTRATE_URL_PREFIX
+
     mounts: [
       { source: "/proc", destination: "/hostproc", mode: "ro" },
     ]

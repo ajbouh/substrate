@@ -13,6 +13,10 @@ imagespecs: "nvml": {
 services: "nvml": {
   instances: [string]: {
     ephemeral: true
+
+    environment: [string]: string
+    url_prefix: environment.SUBSTRATE_URL_PREFIX
+
   }
 }
 
