@@ -147,7 +147,6 @@ type SpaceListQuery struct {
 
 type Space struct {
 	Owner string `json:"owner"`
-	Alias string `json:"alias"`
 	ID    string `json:"space"`
 
 	CreatedAt     time.Time `json:"created_at"`
@@ -285,8 +284,8 @@ const spacesTable = "spaces"
 const createSpacesTable = `CREATE TABLE IF NOT EXISTS "spaces" (id TEXT, owner TEXT, alias TEXT, created_at_us INTEGER, deleted_at_us TEXT, forked_from_id TEXT, forked_from_ref TEXT, PRIMARY KEY (id), FOREIGN KEY (forked_from_id) REFERENCES spaces(id));`
 
 func (s *DB) WriteSpace(ctx context.Context, space *Space) error {
-	return s.dbExecContext(ctx, `INSERT INTO "spaces" (id, owner, alias, created_at_us, forked_from_id, forked_from_ref) VALUES (?, ?, ?, ?, ?, ?)`,
-		space.ID, space.Owner, space.Alias, space.CreatedAt.UnixMicro(), space.ForkedFromID, space.ForkedFromRef)
+	return s.dbExecContext(ctx, `INSERT INTO "spaces" (id, owner, created_at_us, forked_from_id, forked_from_ref) VALUES (?, ?, ?, ?, ?, ?)`,
+		space.ID, space.Owner, space.CreatedAt.UnixMicro(), space.ForkedFromID, space.ForkedFromRef)
 }
 
 func (w *CollectionMembershipWhere) AppendWhere(query *Query) bool {
@@ -430,7 +429,7 @@ func (s *DB) DeleteSpace(ctx context.Context, request *SpaceWhere) error {
 
 func (s *DB) ListSpaces(ctx context.Context, request *SpaceListQuery) ([]*Space, error) {
 	query := &Query{
-		Select:          []string{"id", "owner", "alias", "created_at_us", "forked_from_id", "forked_from_ref"},
+		Select:          []string{"id", "owner", "created_at_us", "forked_from_id", "forked_from_ref"},
 		FromTablesNamed: map[string]string{spacesTable: spacesTable},
 		WherePredicates: map[string]bool{},
 		OrderByColumn:   "created_at",
@@ -490,7 +489,7 @@ func (s *DB) ListSpaces(ctx context.Context, request *SpaceListQuery) ([]*Space,
 		var o Space
 		var createdAt int64
 		var collectionsJSONB []byte
-		err := rows.Scan(&o.ID, &o.Owner, &o.Alias, &createdAt, &o.ForkedFromID, &o.ForkedFromRef, &collectionsJSONB)
+		err := rows.Scan(&o.ID, &o.Owner, &createdAt, &o.ForkedFromID, &o.ForkedFromRef, &collectionsJSONB)
 		if err != nil {
 			return nil, err
 		}

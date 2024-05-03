@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"strings"
 	"time"
 
+	"cuelang.org/go/cue"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
@@ -23,6 +25,10 @@ func stringPtr(s string) *string {
 
 func (h *Handler) newApiHandler() http.Handler {
 	router := httprouter.New()
+
+	router.Handle("GET", "/substrate/v1/exports", func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
+		h.ExportsAnnouncer.ServeHTTP(w, r)
+	})
 
 	handle := func(method, route string, f func(req *http.Request, p httprouter.Params) (interface{}, int, error)) {
 		router.Handle(method, route, func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
@@ -47,6 +53,26 @@ func (h *Handler) newApiHandler() http.Handler {
 		h.DefsAnnouncer.ServeHTTP(rw, req)
 	})
 
+	router.Handle("POST", "/substrate/v1/eval", func(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
+		defset := h.DefSetLoader.Load()
+		defset.CueMu.Lock()
+		defer defset.CueMu.Unlock()
+
+		defer req.Body.Close()
+		b, err := io.ReadAll(req.Body)
+		if err != nil {
+			http.Error(rw, fmt.Sprintf(`{"message": %q}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		// HACK just trying to make an empty struct
+		scope := defset.CueContext.CompileString("{...}", cue.ImportPath("_"))
+		scope = scope.FillPath(cue.MakePath(cue.Hid("_root", "_")), defset.RootValue)
+
+		result := defset.CueContext.CompileBytes(b, cue.ImportPath("_"), cue.Scope(scope))
+		httputil.WriteCueValue(rw, req, result)
+	})
+
 	handle("POST", "/substrate/v1/spaces", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		// TODO should we allow setting an alias here?
 		r := &activityspec.SpaceViewRequest{}
@@ -55,8 +81,7 @@ func (h *Handler) newApiHandler() http.Handler {
 			return nil, status, err
 		}
 
-		alias := ""
-		view, err := h.CurrentDefSet.CurrentDefSet().ResolveSpaceView(r, h.User, alias)
+		view, err := h.DefSetLoader.Load().ResolveSpaceView(r, h.User)
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
@@ -82,14 +107,8 @@ func (h *Handler) newApiHandler() http.Handler {
 			}
 		}
 
-		alias, err = view.Alias()
-		if err != nil {
-			return nil, http.StatusInternalServerError, err
-		}
-
 		err = h.DB.WriteSpace(req.Context(), &substratedb.Space{
 			Owner:         h.User,
-			Alias:         alias, // initial alias is just the ID itself
 			ID:            view.Tip.SpaceID.String(),
 			ForkedFromRef: forkedFromRef,
 			ForkedFromID:  forkedFromID,
@@ -188,13 +207,13 @@ func (h *Handler) newApiHandler() http.Handler {
 		}
 	})
 
-	modifyExports := func(ctx context.Context, viewspec, digest string, cb func(f provisioner.ExportedFields) provisioner.ExportedFields) (interface{}, int, error) {
+	modifyExports := func(ctx context.Context, viewspec, digest string, cb func(f provisioner.Fields) provisioner.Fields) (interface{}, int, error) {
 		views, _, err := activityspec.ParseServiceSpawnRequest(viewspec, false, "/"+viewspec)
 		if err != nil {
 			return nil, http.StatusBadRequest, err
 		}
 
-		err = h.ProvisionerCache.UpdateExports(
+		err = h.ProvisionerCache.UpdateOutgoing(
 			ctx,
 			views,
 			digest,
@@ -208,7 +227,7 @@ func (h *Handler) newApiHandler() http.Handler {
 	}
 
 	handle("PATCH", "/substrate/v1/activities/:viewspec/:digest/exports", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		var fields provisioner.ExportedFields
+		var fields provisioner.Fields
 		defer req.Body.Close()
 		err := json.NewDecoder(req.Body).Decode(&fields)
 		if err != nil {
@@ -219,7 +238,7 @@ func (h *Handler) newApiHandler() http.Handler {
 			req.Context(),
 			p.ByName("viewspec"),
 			p.ByName("digest"),
-			func(f provisioner.ExportedFields) provisioner.ExportedFields {
+			func(f provisioner.Fields) provisioner.Fields {
 				for k, v := range fields {
 					f[k] = v
 				}
@@ -229,7 +248,7 @@ func (h *Handler) newApiHandler() http.Handler {
 	})
 
 	handle("PUT", "/substrate/v1/activities/:viewspec/:digest/exports", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		var fields provisioner.ExportedFields
+		var fields provisioner.Fields
 		defer req.Body.Close()
 		err := json.NewDecoder(req.Body).Decode(&fields)
 		if err != nil {
@@ -240,12 +259,12 @@ func (h *Handler) newApiHandler() http.Handler {
 			req.Context(),
 			p.ByName("viewspec"),
 			p.ByName("digest"),
-			func(f provisioner.ExportedFields) provisioner.ExportedFields { return fields },
+			func(f provisioner.Fields) provisioner.Fields { return fields },
 		)
 	})
 
 	handle("GET", "/substrate/v1/services/:service", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		service, err := h.CurrentDefSet.CurrentDefSet().ResolveServiceByName(req.Context(), p.ByName("service"))
+		service, err := h.DefSetLoader.Load().ResolveServiceByName(req.Context(), p.ByName("service"))
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
@@ -305,7 +324,7 @@ func (h *Handler) newApiHandler() http.Handler {
 	})
 
 	handle("GET", "/substrate/v1/services", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		services, err := h.CurrentDefSet.CurrentDefSet().AllServices(req.Context())
+		services, err := h.DefSetLoader.Load().AllServiceInstanceSpawnDefs(req.Context())
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}

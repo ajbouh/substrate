@@ -56,7 +56,6 @@ loop:
 			}
 			spaces = append(spaces, &Space{
 				Owner:         req.User,
-				Alias:         spaceID, // initial alias is just the ID itself
 				ID:            spaceID,
 				ForkedFromRef: forkedFromRef,
 				ForkedFromID:  forkedFromID,
@@ -93,13 +92,13 @@ loop:
 		}
 	}
 
-	if res.ServiceSpawnResolution.ServiceInstanceSpawnDef.Ephemeral {
+	if res.ServiceSpawnResolution.ServiceInstanceDef.Ephemeral {
 		return nil
 	}
 
 	eventULID := ulid.MustNew(nowTs, entropy)
 	eventID := "ev-" + eventULID.String()
-	viewspecReq, _ := req.Format()
+	viewspecReq := req.CanonicalFormat
 	err = s.WriteEvent(ctx, &Event{
 		ID:        eventID,
 		Type:      "spawn",
@@ -123,7 +122,7 @@ loop:
 
 	viewspec, _ := views.Format()
 
-	if !res.ServiceSpawnResolution.ServiceInstanceSpawnDef.Ephemeral && len(spaces) > 0 {
+	if !res.ServiceSpawnResolution.ServiceInstanceDef.Ephemeral && len(spaces) > 0 {
 		err = s.WriteActivity(ctx, &Activity{
 			ActivitySpec: viewspec,
 			CreatedAt:    now,

@@ -1,6 +1,7 @@
 package defset
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -11,17 +12,11 @@ import (
 	cueerrors "cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
 
+	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 	"github.com/ajbouh/substrate/pkg/cueloader"
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
-
-type SourcesLoaded interface {
-	DefSetSourcesLoaded(err error, files map[string]string, cueLoadConfigWithFiles *load.Config)
-}
-
-type Loaded interface {
-	DefSetLoaded(defSet *DefSet)
-}
 
 type CueMutex sync.Mutex
 
@@ -34,33 +29,19 @@ func (m *CueMutex) Unlock() {
 }
 
 type Loader struct {
-	CueLoader *cueloader.Loader
-	Config    *load.Config
-	Layout    *substratefs.Layout
+	CueLoader      *cueloader.Loader
+	Config         *load.Config
+	Layout         *substratefs.Layout
+	ServiceDefPath cue.Path
 
-	ServiceSpawned      []ServiceSpawned
-	DefSetSourcesLoaded []SourcesLoaded
-	DefSetLoaded        []Loaded
+	DefSetSlot *notify.Slot[DefSet]
 
-	defSetMu sync.RWMutex
-	defSet   *DefSet
+	ctx context.Context
 }
 
-type CurrentDefSet interface {
-	CurrentDefSet() *DefSet
-}
-
-func (l *Loader) CurrentDefSet() *DefSet {
-	l.defSetMu.RLock()
-	defer l.defSetMu.RUnlock()
-	if l.defSet == nil {
-		panic("called CurrentDefSet() before it was loaded.")
-	}
-	return l.defSet
-}
-
-func (l *Loader) Initialize() {
-	log.Printf("Loader Initialize() %#v", l)
+func (l *Loader) Serve(ctx context.Context) {
+	l.ctx = ctx
+	log.Printf("Loader Serve() %#v", l)
 	l.LoadDefSet()
 }
 
@@ -69,13 +50,13 @@ func (l *Loader) loadDefSet(files map[string]string, cueLoadConfigWithFiles *loa
 	cueMu := &CueMutex{}
 
 	sds := &DefSet{
-		Services:   map[string]cue.Value{},
-		CueMu:      cueMu,
-		CueContext: cueContext,
-		Layout:     l.Layout,
-
-		ServiceSpawned: l.ServiceSpawned,
+		ServicesCueValues: map[string]cue.Value{},
+		ServicesDefs:      map[string]*activityspec.ServiceDef{},
+		CueMu:             cueMu,
+		CueContext:        cueContext,
+		Layout:            l.Layout,
 	}
+	sds.Initialize()
 	if err != nil {
 		sds.Err = err
 		return sds
@@ -87,7 +68,9 @@ func (l *Loader) loadDefSet(files map[string]string, cueLoadConfigWithFiles *loa
 		return sds
 	}
 
-	value := load.Value
+	sds.RootValue = load.Value
+
+	value := sds.RootValue.LookupPath(l.ServiceDefPath)
 
 	sds.CueMu.Lock()
 	defer sds.CueMu.Unlock()
@@ -110,9 +93,17 @@ func (l *Loader) loadDefSet(files map[string]string, cueLoadConfigWithFiles *loa
 			continue
 		}
 		serviceName := sel.Unquoted()
-		serviceDef := fields.Value()
+		serviceDefCueValue := fields.Value()
 
-		err := serviceDef.Validate()
+		err := serviceDefCueValue.Validate()
+		if err == nil {
+			serviceDef := &activityspec.ServiceDef{}
+			err = serviceDefCueValue.Decode(&serviceDef)
+			if err == nil {
+				sds.ServicesDefs[serviceName] = serviceDef
+			}
+		}
+
 		if err != nil {
 			errs := cueerrors.Errors(err)
 			messages := make([]string, 0, len(errs))
@@ -121,29 +112,31 @@ func (l *Loader) loadDefSet(files map[string]string, cueLoadConfigWithFiles *loa
 			}
 			log.Printf("service definition error: %s", strings.Join(messages, "\n"))
 		}
-		// fmt.Println("found service", serviceName, "->", serviceDef)
-		sds.Services[serviceName] = serviceDef
+
+		// fmt.Println("found service", serviceName, "->", serviceDefCueValue)
+		sds.ServicesCueValues[serviceName] = serviceDefCueValue
 	}
 
 	return sds
 }
 
 func (l *Loader) LoadDefSet() (*DefSet, bool) {
+	log.Printf("Loader LoadDefSet()... %#v", l)
 	defer log.Printf("Loader LoadDefSet() %#v", l)
 	files, cueLoadConfigWithFiles, err := cueloader.CopyConfigAndReadFilesIntoOverrides(l.Config)
 
 	sds := l.loadDefSet(files, cueLoadConfigWithFiles, err)
 
-	l.defSetMu.Lock()
+	defSet := l.DefSetSlot.Peek()
 
 	commit := false
 	if sds.Err == nil {
 		commit = true
 		log.Printf("committing new defset without error")
-	} else if l.defSet == nil {
+	} else if defSet == nil {
 		commit = true
 		log.Printf("committing new defset with error because we need *something*; err=%s", fmtErr(sds.Err))
-	} else if l.defSet.Err != nil {
+	} else if defSet.Err != nil {
 		commit = true
 		log.Printf("committing new defset with error because the one we had did not have an error; err=%s", fmtErr(sds.Err))
 	} else {
@@ -151,16 +144,10 @@ func (l *Loader) LoadDefSet() (*DefSet, bool) {
 	}
 
 	if commit {
-		l.defSet = sds
-	}
-	l.defSetMu.Unlock()
-
-	for _, l := range l.DefSetSourcesLoaded {
-		l.DefSetSourcesLoaded(err, files, cueLoadConfigWithFiles)
-	}
-
-	for _, l := range l.DefSetLoaded {
-		l.DefSetLoaded(sds)
+		if !l.DefSetSlot.CompareAndSwap(defSet, sds) {
+			log.Printf("did not commit new defset because it changed too quickly")
+			commit = false
+		}
 	}
 
 	return sds, commit

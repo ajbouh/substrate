@@ -1,10 +1,13 @@
 package substratehttp
 
 import (
+	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/julienschmidt/httprouter"
 
@@ -13,8 +16,10 @@ import (
 )
 
 func (h *Handler) serveProxyRequest(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
-	log.Printf("Handler serveProxyRequest %#v", h)
-	log.Printf("%s %s %s", req.RemoteAddr, req.Method, req.URL.String())
+	start := time.Now()
+	defer func() {
+		slog.Info("request", "remoteaddr", req.RemoteAddr, "method", req.Method, "url", req.URL.String(), "dur", time.Since(start))
+	}()
 
 	viewspec := p.ByName("viewspec")
 	rest := p.ByName("rest")
@@ -51,7 +56,7 @@ func (h *Handler) serveProxyRequest(rw http.ResponseWriter, req *http.Request, p
 			jsonrw(nil, http.StatusBadRequest, err)
 			return
 		}
-		modern, _ := views.Format()
+		modern := views.CanonicalFormat
 		http.RedirectHandler("/"+modern+path+rest, http.StatusFound).ServeHTTP(rw, req)
 		return
 	}
@@ -64,8 +69,8 @@ func (h *Handler) serveProxyRequest(rw http.ResponseWriter, req *http.Request, p
 	}
 	views.User = h.User
 
-	defSet := h.CurrentDefSet.CurrentDefSet()
-	_, seemsConcrete := views.Format()
+	defSet := h.DefSetLoader.Load()
+	seemsConcrete := views.SeemsConcrete
 	concrete := seemsConcrete
 	if seemsConcrete {
 		concrete, err = defSet.IsConcrete(views)
@@ -76,14 +81,22 @@ func (h *Handler) serveProxyRequest(rw http.ResponseWriter, req *http.Request, p
 		}
 	}
 	if !concrete {
-		serviceSpawnResponse, err := defSet.SpawnService(req.Context(), h.Driver, views)
+		entry, err := h.ProvisionerCache.Ensure(req.Context(), views)
 		if err != nil {
 			jsonrw := httputil.NewJSONResponseWriter(rw)
 			jsonrw(nil, http.StatusInternalServerError, err)
 			return
 		}
 
-		concretized, _ := serviceSpawnResponse.ServiceSpawnResolution.Format()
+		gen := entry.Generation()
+		ssr := gen.ServiceSpawnResponse()
+		if ssr == nil {
+			jsonrw := httputil.NewJSONResponseWriter(rw)
+			jsonrw(nil, http.StatusInternalServerError, fmt.Errorf("gone before resolution"))
+			return
+		}
+
+		concretized, _ := ssr.ServiceSpawnResolution.Format()
 		http.RedirectHandler("/"+concretized+path+rest, http.StatusFound).ServeHTTP(rw, req)
 		return
 	}

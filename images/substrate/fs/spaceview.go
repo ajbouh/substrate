@@ -21,7 +21,7 @@ type SpaceView struct {
 	Creation *SpaceViewCreation `json:"creation,omitempty"`
 }
 
-func (l *Layout) NewSpaceView(tip *TipRef, base *Ref, readOnly, checkpointExistingFirst bool, owner, alias string) (*SpaceView, error) {
+func (l *Layout) NewSpaceView(tip *TipRef, base *Ref, readOnly, checkpointExistingFirst bool, ownerIfCreation, alias string) (*SpaceView, error) {
 	// If BaseRef is empty, create fresh
 	// If BaseRef is @tip, define implied checkpoint
 	// Otherwise it must be a checkpoint
@@ -46,12 +46,12 @@ func (l *Layout) NewSpaceView(tip *TipRef, base *Ref, readOnly, checkpointExisti
 	isNew = !tipExists
 
 	if !tipExists {
-		if owner == "" {
+		if ownerIfCreation == "" {
 			return nil, fmt.Errorf("can't create with nil owner")
 		}
 
 		if IsNilRef(base) {
-			tip, at, err = l.DeclareTipFromScratch(tip, owner, alias)
+			tip, at, err = l.DeclareTipFromScratchOrAlias(tip, ownerIfCreation, alias)
 		} else if base.TipRef != nil {
 			if base != nil && readOnly {
 				if checkpointExistingFirst {
@@ -62,12 +62,12 @@ func (l *Layout) NewSpaceView(tip *TipRef, base *Ref, readOnly, checkpointExisti
 			} else {
 				// TODO Use default alias from base
 
-				tip, at, err = l.DeclareTipFromTip(tip, base.TipRef, owner, alias)
+				tip, at, err = l.DeclareTipFromTip(tip, base.TipRef, ownerIfCreation, alias)
 			}
 		} else if base.CheckpointRef != nil {
 			// TODO Use default alias from base
 
-			tip, at, err = l.DeclareTipFromCheckpoint(tip, base.CheckpointRef, owner, alias)
+			tip, at, err = l.DeclareTipFromCheckpoint(tip, base.CheckpointRef, ownerIfCreation, alias)
 		}
 
 		if err != nil {
@@ -107,21 +107,8 @@ func (v *SpaceView) OwnerFilePath() string {
 	return v.layout.SpaceOwnerPath(v.Tip.SpaceID)
 }
 
-func (v *SpaceView) AliasFilePath() string {
-	return v.layout.SpaceAliasPath(v.Tip.SpaceID)
-}
-
 func (v *SpaceView) Owner() (string, error) {
 	b, err := os.ReadFile(v.OwnerFilePath())
-	if err != nil {
-		return "", err
-	}
-
-	return string(b), nil
-}
-
-func (v *SpaceView) Alias() (string, error) {
-	b, err := os.ReadFile(v.AliasFilePath())
 	if err != nil {
 		return "", err
 	}

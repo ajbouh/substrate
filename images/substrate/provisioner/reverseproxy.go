@@ -5,13 +5,18 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 )
 
-type ProvisionFunc func(ctx context.Context) (*url.URL, bool, func(err error), error)
+type Provisioning struct {
+	Target  *url.URL
+	Fresh   bool
+	Cleanup func(err error)
+}
+type ProvisionFunc func(ctx context.Context) (*Provisioning, error)
 
 func provisioningReverseProxy(
 	provision ProvisionFunc,
@@ -26,12 +31,16 @@ func provisioningReverseProxy(
 		return
 	}
 
-	target, fresh, cleanup, err := provision(req.Context())
+	slog.Info("provisioningReverseProxy", "ttl", ttl, "url", req.URL.String())
+	defer slog.Info("provisioningReverseProxy done", "ttl", ttl, "url", req.URL.String())
+
+	provisioning, err := provision(req.Context())
 	if err != nil {
 		errs = append([]error{fmt.Errorf("error provisioning: %w", err)}, errs...)
 		newBadGatewayHandler(errors.Join(errs...), rw)
 		return
 	}
+	target, fresh, cleanup := provisioning.Target, provisioning.Fresh, provisioning.Cleanup
 
 	var originalURL url.URL = *req.URL
 
@@ -39,13 +48,17 @@ func provisioningReverseProxy(
 		Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetURL(target)
 			r.Out.Host = r.In.Host
+			r.Out.Header["X-Forwarded-Proto"] = r.In.Header["X-Forwarded-Proto"]
+			r.Out.Header["X-Forwarded-Host"] = r.In.Header["X-Forwarded-Host"]
 
 			if _, ok := r.In.Header["User-Agent"]; !ok {
 				// explicitly disable User-Agent so it's not set to default value
 				r.Out.Header.Set("User-Agent", "")
 			}
 
-			log.Printf("%s %s %s -> %s", r.In.RemoteAddr, r.In.Method, originalURL.String(), r.Out.URL.String())
+			slog.Info("provisioningReverseProxy proxy.Rewrite", "ttl", ttl, "urlin", r.In.URL.String(), "urlout", r.Out.URL.String())
+			defer slog.Info("provisioningReverseProxy proxy.Rewrite done", "ttl", ttl, "urlin", r.In.URL.String(), "urlout", r.Out.URL.String())
+
 		},
 		// ErrorHandler is an optional function that handles errors reaching the backend or errors from ModifyResponse.
 		// If nil, the default is to log the provided error and return a 502 Status Bad Gateway response.
@@ -81,5 +94,8 @@ func provisioningReverseProxy(
 			)
 		},
 	}
+
+	slog.Info("provisioningReverseProxy proxy.ServeHTTP", "ttl", ttl, "url", req.URL.String())
 	proxy.ServeHTTP(rw, req)
+	slog.Info("provisioningReverseProxy proxy.ServeHTTP done", "ttl", ttl, "url", req.URL.String())
 }

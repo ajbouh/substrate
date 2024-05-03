@@ -85,6 +85,11 @@ import (
   
     ephemeral ?: bool | *false
     privileged ?: bool | *false
+    init ?: bool | *false
+    pinned ?: bool | *false
+
+    service ?: string
+
     image: string
     environment: [string]: string
     environment: {
@@ -112,6 +117,13 @@ import (
         mode: string | *"rw"
       }
     ]
+
+    exports ?: {
+      commands ?: _
+      data ?: _
+      claims ?: _
+    }
+
 
     // for name, parameter in parameters {
     //   if parameter.type == "space" {

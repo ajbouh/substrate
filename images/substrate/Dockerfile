@@ -4,12 +4,17 @@ WORKDIR /go/src/github.com/ajbouh/substrate/pkg/cueloader/
 COPY pkg/cueloader/go.mod pkg/cueloader/go.sum ./
 RUN go mod download
 
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
+COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
+RUN go mod download
+
 WORKDIR /go/src/github.com/ajbouh/substrate/images/substrate
 ADD images/substrate/go.mod images/substrate/go.sum ./
 RUN go mod download
 
 WORKDIR /go/src/
 COPY pkg/cueloader/. github.com/ajbouh/substrate/pkg/cueloader/
+COPY pkg/toolkit/. github.com/ajbouh/substrate/pkg/toolkit/
 COPY images/substrate/. github.com/ajbouh/substrate/images/substrate/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/substrate/
@@ -29,7 +34,6 @@ RUN touch /tmp/ready
   
 FROM source as test
 
-# Used when we want to debug
 FROM docker.io/tianon/toybox:latest as toybox
 
 FROM gcr.io/distroless/base-nossl-debian12 as dist

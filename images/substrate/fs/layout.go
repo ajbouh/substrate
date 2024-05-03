@@ -2,9 +2,11 @@ package substratefs
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"time"
 
 	ulid "github.com/oklog/ulid/v2"
@@ -16,6 +18,7 @@ type Layout struct {
 	SpaceIDPrefix      string
 	CheckpointIDPrefix string
 
+	AliasesBasename     string
 	SpacesBasename      string
 	CheckpointsBasename string
 	TipBasename         string
@@ -32,9 +35,11 @@ type Layout struct {
 	AliasBasename string
 }
 
-// /space/$wsid/
+// /aliases/$alias -> /space/$wsid
+// /spaces/$wsid/
 // ├── owner
-// ├── alias
+// ├── aliases/
+// │   ├── $alias -> /aliases/$alias
 // ├── log/$ckptid/
 // │   ├── tree/
 // │   ├── message
@@ -54,6 +59,7 @@ func NewLayout(root string) *Layout {
 		SpaceIDPrefix:      "sp-",
 		CheckpointIDPrefix: "ckpt-",
 
+		AliasesBasename:     "aliases",
 		SpacesBasename:      "spaces",
 		CheckpointsBasename: "log",
 		TipBasename:         "tip",
@@ -71,11 +77,19 @@ func NewLayout(root string) *Layout {
 	}
 }
 
+func (l *Layout) AliasPath(alias string) string {
+	return path.Join(l.RootPath, l.AliasesBasename, alias)
+}
+
 func (l *Layout) SpaceBasePath(spaceID SpaceID) string {
 	return path.Join(l.RootPath, l.SpacesBasename, string(spaceID))
 }
 
-func (l *Layout) SpaceAliasPath(spaceID SpaceID) string {
+func (l *Layout) SpaceAliasPath(spaceID SpaceID, alias string) string {
+	return path.Join(l.SpaceBasePath(spaceID), l.AliasBasename, alias)
+}
+
+func (l *Layout) SpaceAliasesBasePath(spaceID SpaceID) string {
 	return path.Join(l.SpaceBasePath(spaceID), l.AliasBasename)
 }
 
@@ -139,17 +153,70 @@ func (l *Layout) TipLockPath(r *TipRef) string {
 	return path.Join(l.TipBasePath(r), l.LockBasename)
 }
 
-func (l *Layout) DeclareTipFromScratch(tip *TipRef, owner, alias string) (*TipRef, time.Time, error) {
+func (l *Layout) ResolveAlias(alias string) (*TipRef, error) {
+	// We win the alias if our ln succeeds. If it fails then read the alias and use that.
+	aliasPath := l.AliasPath(alias)
+	target, err := os.Readlink(aliasPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("error reading alias: %w", err)
+	}
+
+	targetDir := filepath.Dir(target)
+	if targetDir != path.Join(l.RootPath, l.SpacesBasename) {
+		return nil, fmt.Errorf("target is not a valid space: %s", targetDir)
+	}
+
+	spaceID := SpaceID(filepath.Base(target))
+	ref := &TipRef{SpaceID: spaceID}
+	return ref, nil
+}
+
+func (l *Layout) declareAlias(alias string, ref *TipRef) (bool, error) {
+	// We win the alias if our ln succeeds. If it fails then read the alias and use that.
+	aliasPath := l.AliasPath(alias)
+	err := os.Symlink(l.SpaceBasePath(ref.SpaceID), aliasPath)
+	if os.IsExist(err) {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	// Since aliases are newer than some substratefs installations, ensure basedir for alias exists.
+	err = os.Mkdir(l.SpaceAliasesBasePath(ref.SpaceID), 0644)
+	if errors.Is(err, os.ErrExist) {
+		err = nil
+	}
+
+	err = os.Symlink(aliasPath, l.SpaceAliasPath(ref.SpaceID, alias))
+	return true, err
+}
+
+func (l *Layout) DeclareTipFromScratchOrAlias(tip *TipRef, owner, alias string) (*TipRef, time.Time, error) {
 	var err error
 	var at time.Time
 
-	if tip == nil {
+	tipWasNil := tip == nil
+	if tipWasNil {
+		if alias != "" {
+			tip, err = l.ResolveAlias(alias)
+			if tip != nil || err != nil {
+				return tip, at, err
+			}
+		}
 		tip, at = l.NewTipRef()
 	}
 
 	err = l.declareTip(tip, nil, nil, owner, alias)
 	if err != nil {
-		return nil, at, err
+		if tipWasNil && errors.Is(err, os.ErrExist) {
+			// we expect declareTip to try to reserve the alias first if it can, to avoid leaking
+			tip, err = l.ResolveAlias(alias)
+		}
+		return tip, at, err
 	}
 
 	return tip, at, nil
@@ -448,6 +515,17 @@ func (l *Layout) markTipReady(r *TipRef) error {
 func (l *Layout) declareTip(r *TipRef, initial, recent *CheckpointRef, owner, alias string) error {
 	var err error
 
+	if alias != "" {
+		var ok bool
+		ok, err = l.declareAlias(alias, r)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return os.ErrExist
+		}
+	}
+
 	err = mkdirAll(l.TipTreePath(r))
 	if err != nil {
 		return err
@@ -455,15 +533,6 @@ func (l *Layout) declareTip(r *TipRef, initial, recent *CheckpointRef, owner, al
 
 	var ownerData = []byte(owner)
 	err = writeFile(l.SpaceOwnerPath(r.SpaceID), ownerData)
-	if err != nil {
-		return err
-	}
-
-	if alias == "" {
-		alias = r.SpaceID.String()
-	}
-	var aliasData = []byte(alias)
-	err = writeFile(l.SpaceAliasPath(r.SpaceID), aliasData)
 	if err != nil {
 		return err
 	}

@@ -110,8 +110,8 @@ func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error) {
 }
 
 func (p *P) prepareResourceDirsMounts(as *activityspec.ServiceSpawnResolution) ([]mount.Mount, error) {
-	mounts := make([]mount.Mount, 0, len(as.ServiceInstanceSpawnDef.ResourceDirs))
-	for alias, rd := range as.ServiceInstanceSpawnDef.ResourceDirs {
+	mounts := make([]mount.Mount, 0, len(as.ServiceInstanceDef.ResourceDirs))
+	for alias, rd := range as.ServiceInstanceDef.ResourceDirs {
 		rdPath, err := p.findResourceDir(rd)
 		if err != nil {
 			return nil, err
@@ -137,7 +137,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		LabelSubstrateActivity:   spec,
 	}
 
-	imageID := as.ServiceInstanceSpawnDef.Image
+	imageID := as.ServiceInstanceDef.Image
 
 	c := &container.Config{
 		Image:        imageID,
@@ -176,16 +176,10 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 				Target:   targetPrefix + "/owner",
 				ReadOnly: true,
 			},
-			mount.Mount{
-				Type:     mount.TypeBind,
-				Source:   view.AliasFilePath(),
-				Target:   targetPrefix + "/alias",
-				ReadOnly: true,
-			},
 		)
 	}
 
-	for _, m := range as.ServiceInstanceSpawnDef.Mounts {
+	for _, m := range as.ServiceInstanceDef.Mounts {
 		readOnly := true
 		if m.Mode == "rw" {
 			readOnly = false
@@ -209,7 +203,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 
 	// Pull PORT out of env, so it can be used for port forwarding.
 	// TODO consider using configured portmappings instead of this weird approach.
-	portStr := as.ServiceInstanceSpawnDef.Environment["PORT"]
+	portStr := as.ServiceInstanceDef.Environment["PORT"]
 
 	natPort, err := nat.NewPort("tcp", portStr)
 	if err != nil {
@@ -217,9 +211,9 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	}
 	c.ExposedPorts[natPort] = struct{}{}
 
-	c.Cmd = append([]string{}, as.ServiceInstanceSpawnDef.Command...)
+	c.Cmd = append([]string{}, as.ServiceInstanceDef.Command...)
 
-	for k, v := range as.ServiceInstanceSpawnDef.Environment {
+	for k, v := range as.ServiceInstanceDef.Environment {
 		c.Env = append(c.Env, k+"="+v)
 	}
 	// TODO need to check schema before we know how to interpret a given parameter...
@@ -261,16 +255,12 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	// backendPortMap := inspect.NetworkSettings.Ports[natPort][0]
 	// backendURL := "http://host.docker.internal:" + backendPortMap.HostPort
 
-	var bearerToken *string
-	// bearerToken = r.BearerToken
-
 	return &activityspec.ServiceSpawnResponse{
 		Name: cResp.ID,
 
 		PID: inspect.State.Pid,
 
-		BackendURL:  backendURL + as.ServiceInstanceSpawnDef.URLPrefix,
-		BearerToken: bearerToken,
+		BackendURL: backendURL + as.ServiceInstanceDef.URLPrefix,
 
 		ServiceSpawnResolution: *as,
 	}, nil

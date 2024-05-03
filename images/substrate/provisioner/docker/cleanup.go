@@ -52,7 +52,9 @@ func (p *P) Kill(
 func (p *P) Cleanup(
 	ctx context.Context,
 ) error {
-	containers, err := p.cli.ContainerList(ctx, types.ContainerListOptions{})
+	containers, err := p.cli.ContainerList(ctx, types.ContainerListOptions{
+		All: true,
+	})
 	if err != nil {
 		return err
 	}
