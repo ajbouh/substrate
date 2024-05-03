@@ -3,6 +3,7 @@ package provisioner
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -27,7 +28,7 @@ func provisioningReverseProxy(
 
 	target, fresh, cleanup, err := provision(req.Context())
 	if err != nil {
-		errs = append([]error{err}, errs...)
+		errs = append([]error{fmt.Errorf("error provisioning: %w", err)}, errs...)
 		newBadGatewayHandler(errors.Join(errs...), rw)
 		return
 	}
@@ -74,7 +75,7 @@ func provisioningReverseProxy(
 			provisioningReverseProxy(
 				provision,
 				nextTTL,
-				append([]error{err}, errs...),
+				append([]error{fmt.Errorf("unexpected error: %w", err)}, errs...),
 				rw,
 				req,
 			)

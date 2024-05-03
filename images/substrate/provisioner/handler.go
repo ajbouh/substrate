@@ -46,7 +46,7 @@ func newDoomedHandler(status int, err error, w http.ResponseWriter) {
 		for _, err := range errs {
 			messages = append(messages, err.Error())
 		}
-		log.Printf("err in handler: %s", strings.Join(messages, "\n\t"))
+		log.Printf("err in handler: %s; %s", err, strings.Join(messages, "\n\t"))
 	}
 	w.WriteHeader(status)
 }

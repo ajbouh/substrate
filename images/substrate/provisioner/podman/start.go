@@ -128,7 +128,7 @@ func (p *P) prepareResourceDirsMounts(as *activityspec.ServiceSpawnResolution) (
 func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) (*activityspec.ServiceSpawnResponse, error) {
 	ctx, err := p.connect(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error connecting: %w", err)
 	}
 
 	imageID := as.ServiceInstanceSpawnDef.Image
@@ -213,7 +213,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 
 	resourcedirMounts, err := p.prepareResourceDirsMounts(as)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error preparing resourcedir mounts: %w", err)
 	}
 
 	for _, m := range as.ServiceInstanceSpawnDef.Mounts {
@@ -262,7 +262,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 
 	cResp, err := containers.CreateWithSpec(ctx, s, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating: %w", err)
 	}
 
 	if err := containers.Start(ctx, cResp.ID, nil); err != nil {
@@ -274,7 +274,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 
 	inspect, err := containers.Inspect(ctx, cResp.ID, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error inspecting: %w", err)
 	}
 
 	// backendIP := inspect.NetworkSettings.Networks[networkName].IPAddress

@@ -208,7 +208,7 @@ func (e *CachingSingleServiceProvisioner) Ensure(ctx context.Context) (*url.URL,
 	sres, ch, err := e.spawner.Spawn(streamCtx, e.req)
 	if err != nil {
 		streamCancel()
-		return nil, false, nil, err
+		return nil, false, nil, fmt.Errorf("error spawning: %w", err)
 	}
 
 	var parsedToken *string
@@ -219,7 +219,7 @@ func (e *CachingSingleServiceProvisioner) Ensure(ctx context.Context) (*url.URL,
 	parsed, err := url.Parse(sres.BackendURL)
 	if err != nil {
 		streamCancel()
-		return nil, false, nil, err
+		return nil, false, nil, fmt.Errorf("error parsing BackendURL: %w", err)
 	}
 
 	cleanup := e.set(sres, parsed, parsedToken)
@@ -227,7 +227,7 @@ func (e *CachingSingleServiceProvisioner) Ensure(ctx context.Context) (*url.URL,
 	ready := false
 
 	for event := range ch {
-		log.Printf("event serivce:%s name:%s %#v", sres.ServiceSpawnResolution.ServiceName, sres.Name, event)
+		log.Printf("event service:%s name:%s %#v", sres.ServiceSpawnResolution.ServiceName, sres.Name, event)
 		if event.Error() != nil {
 			streamCancel()
 			return nil, false, nil, fmt.Errorf("backend will never be ready; err=%w", event.Error())
@@ -258,7 +258,7 @@ func (e *CachingSingleServiceProvisioner) Ensure(ctx context.Context) (*url.URL,
 		defer cleanup(fmt.Errorf("backend error or gone"))
 		defer streamCancel()
 		for event := range ch {
-			log.Printf("event serivce:%s name:%s %#v", sres.ServiceSpawnResolution.ServiceName, sres.Name, event)
+			log.Printf("event service:%s name:%s %#v", sres.ServiceSpawnResolution.ServiceName, sres.Name, event)
 			if event.Error() != nil || event.IsGone() {
 				break
 			}
