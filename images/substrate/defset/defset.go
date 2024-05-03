@@ -5,54 +5,56 @@ import (
 	"fmt"
 
 	"cuelang.org/go/cue"
+	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 )
 
-type ServiceSpawned interface {
-	ServiceSpawned(
-		ctx context.Context,
-		req *activityspec.ServiceSpawnRequest,
-		res *activityspec.ServiceSpawnResponse,
-	) error
-}
-
 type DefSet struct {
-	Services   map[string]cue.Value
+	ServicesCueValues map[string]cue.Value
+	ServicesDefs      map[string]*activityspec.ServiceDef
+	RootValue         cue.Value
+
+	serviceSpawnCueValueLRU *lru.Cache[string, cue.Value]
+	isConcreteLRU           *lru.Cache[string, bool]
+
 	CueMu      *CueMutex
 	CueContext *cue.Context
 	Err        error
 
 	Layout *substratefs.Layout
-
-	ServiceSpawned []ServiceSpawned
 }
 
-func decodeServiceInstanceSpawnDef(service cue.Value) (*activityspec.ServiceInstanceSpawnDef, error) {
+func (s *DefSet) Initialize() {
+	s.serviceSpawnCueValueLRU, _ = lru.New[string, cue.Value](128)
+	s.isConcreteLRU, _ = lru.New[string, bool](128)
+}
+
+func decodeServiceInstanceSpawnDef(service cue.Value) (*activityspec.ServiceInstanceDef, error) {
 	v := service.LookupPath(cue.MakePath(cue.Str("instances"), cue.AnyString))
-	var result activityspec.ServiceInstanceSpawnDef
+	var result activityspec.ServiceInstanceDef
 	return &result, v.Decode(&result)
 }
 
-func (s *DefSet) ResolveServiceByName(ctx context.Context, serviceName string) (*activityspec.ServiceInstanceSpawnDef, error) {
+func (s *DefSet) ResolveServiceByName(ctx context.Context, serviceName string) (*activityspec.ServiceInstanceDef, error) {
 	s.CueMu.Lock()
 	defer s.CueMu.Unlock()
 
-	v, ok := s.Services[serviceName]
+	v, ok := s.ServicesCueValues[serviceName]
 	if !ok {
 		return nil, nil
 	}
 	return decodeServiceInstanceSpawnDef(v)
 }
 
-func (s *DefSet) AllServices(ctx context.Context) (map[string]*activityspec.ServiceInstanceSpawnDef, error) {
+func (s *DefSet) AllServiceInstanceSpawnDefs(ctx context.Context) (map[string]*activityspec.ServiceInstanceDef, error) {
 	s.CueMu.Lock()
 	defer s.CueMu.Unlock()
 
 	// use JSON encoding to defensively clone s.Services
-	services := map[string]*activityspec.ServiceInstanceSpawnDef{}
-	for k, v := range s.Services {
+	services := map[string]*activityspec.ServiceInstanceDef{}
+	for k, v := range s.ServicesCueValues {
 		def, err := decodeServiceInstanceSpawnDef(v)
 		if err != nil {
 			return nil, err
@@ -62,7 +64,21 @@ func (s *DefSet) AllServices(ctx context.Context) (map[string]*activityspec.Serv
 	return services, nil
 }
 
-func (s *DefSet) ResolveSpaceView(v *activityspec.SpaceViewRequest, ownerIfCreation, aliasIfCreation string) (view *substratefs.SpaceView, err error) {
+func (s *DefSet) LookupServiceInstanceJSON(ctx context.Context, serviceName, instanceName string, path cue.Path) ([]byte, error) {
+	s.CueMu.Lock()
+	defer s.CueMu.Unlock()
+
+	serviceCueValue, ok := s.ServicesCueValues[serviceName]
+	if !ok {
+		return nil, fmt.Errorf("unknown service: %s", serviceName)
+	}
+
+	instanceCueValue := serviceCueValue.LookupPath(cue.MakePath(cue.Str("instances"), cue.Str(instanceName)))
+	cueValue := instanceCueValue.LookupPath(path)
+	return cueValue.MarshalJSON()
+}
+
+func (s *DefSet) ResolveSpaceView(v *activityspec.SpaceViewRequest, ownerIfCreation string) (view *substratefs.SpaceView, err error) {
 	if v.SpaceID != "scratch" {
 		var tip *substratefs.TipRef
 		tip, err = substratefs.ParseTipRef(v.SpaceID)
@@ -78,7 +94,11 @@ func (s *DefSet) ResolveSpaceView(v *activityspec.SpaceViewRequest, ownerIfCreat
 			}
 		}
 
-		view, err = s.Layout.NewSpaceView(tip, base, v.ReadOnly, v.CheckpointExistingFirst, ownerIfCreation, aliasIfCreation)
+		var alias string
+		if v.SpaceAlias != nil {
+			alias = *v.SpaceAlias
+		}
+		view, err = s.Layout.NewSpaceView(tip, base, v.ReadOnly, v.CheckpointExistingFirst, ownerIfCreation, alias)
 		if err != nil {
 			return nil, fmt.Errorf("error creating view err=%s", err)
 		}

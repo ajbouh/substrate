@@ -4,21 +4,22 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
 type Spawner interface {
-	Spawn(ctx context.Context, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResponse, <-chan Event, error)
+	Spawn(ctx context.Context, ServiceSpawnRequest *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResponse, <-chan Event, error)
 	Shutdown(ctx context.Context, name string, reason error) error
-	Peek(ctx context.Context, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResolution, error)
+	Peek(ctx context.Context, ServiceSpawnRequest *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResolution, error)
 }
-
-type ExportedFields map[string]any
 
 type RequestEntry struct {
 	RequestID string    `json:"request_id"`
@@ -27,202 +28,220 @@ type RequestEntry struct {
 
 type Sample struct {
 	ServiceSpawnResponse *activityspec.ServiceSpawnResponse `json:"spawn,omitempty"`
-	RecentRequest        RequestEntry                       `json:"recent_request,omitempty"`
-	ExportedFields       ExportedFields                     `json:"exports,omitempty"`
+	RecentRequest        *RequestEntry                      `json:"recent_request,omitempty"`
+	Outgoing             Fields                             `json:"exports,omitempty"`
+	Incoming             Fields                             `json:"imports,omitempty"`
 }
 
-type CachingSingleServiceProvisioner struct {
-	peekMu                      *sync.Mutex
-	spawnMu                     *sync.Mutex
-	gen                         int
+type Generation struct {
 	cached                      *url.URL
-	cachedToken                 *string
 	cleanup                     func(reason error)
 	provisioned                 *activityspec.ServiceSpawnResponse
 	provisionedResolutionDigest string
-
-	lastRequestEntry   *RequestEntry
-	exportedFields     ExportedFields
-	exportedFieldsFunc func(f ExportedFields)
-
-	spawner Spawner
-	req     *activityspec.ServiceSpawnRequest
-
-	logf func(fmt string, values ...any)
 }
 
-func NewCachingSingleServiceProvisioner(spawner Spawner, req *activityspec.ServiceSpawnRequest, exportedFieldsFunc func(f ExportedFields)) *CachingSingleServiceProvisioner {
-	return &CachingSingleServiceProvisioner{
-		peekMu:  &sync.Mutex{},
-		spawnMu: &sync.Mutex{},
-		logf: func(fmt string, values ...any) {
-			log.Printf(fmt, values...)
-		},
-		spawner:            spawner,
-		req:                req,
-		exportedFieldsFunc: exportedFieldsFunc,
+func (g *Generation) ServiceSpawnResponse() *activityspec.ServiceSpawnResponse {
+	if g == nil {
+		return nil
 	}
+	return g.provisioned
 }
 
-func (e *CachingSingleServiceProvisioner) set(provisioned *activityspec.ServiceSpawnResponse, v *url.URL, t *string) func(reason error) {
-	e.peekMu.Lock()
-	defer e.peekMu.Unlock()
+func (g *Generation) Digest() string {
+	if g == nil {
+		return ""
+	}
+	return g.provisionedResolutionDigest
+}
 
-	e.gen++
+type FieldsExported struct {
+	ServiceSpawnRequest *activityspec.ServiceSpawnRequest
+	Fields              Fields
+}
+
+type FieldsImported struct {
+	ServiceSpawnRequest *activityspec.ServiceSpawnRequest
+	Fields              Fields
+}
+
+type CachingSingleServiceProvisioner struct {
+	spawnMu sync.Mutex
+
+	gen              atomic.Pointer[Generation]
+	lastRequestEntry atomic.Pointer[RequestEntry]
+	outgoingFields   atomic.Pointer[Fields]
+
+	Key            string
+	FieldsExported []notify.Notifier[FieldsExported]
+
+	Spawner             Spawner
+	ServiceSpawnRequest *activityspec.ServiceSpawnRequest
+
+	Log *slog.Logger
+}
+
+func (e *CachingSingleServiceProvisioner) Initialize() {
+	e.outgoingFields.Store(&Fields{})
+}
+
+func (e *CachingSingleServiceProvisioner) set(provisioned *activityspec.ServiceSpawnResponse, v *url.URL) func(reason error) {
 	copy := *v
-	e.cached = &copy
-	e.cachedToken = t
-	e.provisioned = provisioned
-	e.provisionedResolutionDigest = provisioned.ServiceSpawnResolution.Digest()
-	// Do this AFTER we've loaded the cache.
-	e.cleanup = e.makeCleanup()
-	e.logf("action=cache:set gen=%d url=%s", e.gen, v)
-
-	return e.cleanup
-}
-
-func (e *CachingSingleServiceProvisioner) get() (*url.URL, *string, bool, func(err error)) {
-	e.peekMu.Lock()
-	defer e.peekMu.Unlock()
-
-	e.logf("action=cache:get gen=%d url=%s", e.gen, e.cached)
-	if e.cached != nil {
-		copy := *e.cached
-		e.cleanup = e.makeCleanup()
-		return &copy, e.cachedToken, true, e.cleanup
+	var gen *Generation
+	gen = &Generation{
+		cached:                      &copy,
+		provisioned:                 provisioned,
+		provisionedResolutionDigest: provisioned.ServiceSpawnResolution.Digest(),
+		cleanup: func(reason error) {
+			if e.gen.CompareAndSwap(gen, nil) {
+				e.Log.Info("action=cache:clear", "key", e.Key, "cleanupGen", gen, "err", reason)
+			} else {
+				e.Log.Info("action=cache:staleclear", "key", e.Key, "gen", e.gen.Load(), "cleanupGen", gen, "err", reason)
+			}
+		},
 	}
-	return nil, nil, false, e.cleanup
+
+	e.gen.Store(gen)
+	e.Log.Info("action=cache:set", "key", e.Key, "gen", gen, "url", v)
+
+	return gen.cleanup
 }
 
-func (e *CachingSingleServiceProvisioner) makeCleanup() func(error) {
-	cleanupGen := e.gen
-
-	return func(reason error) {
-		e.peekMu.Lock()
-		defer e.peekMu.Unlock()
-		if e.gen == cleanupGen && e.cached != nil {
-			e.cached = nil
-			e.cachedToken = nil
-			e.provisioned = nil
-			e.provisionedResolutionDigest = ""
-
-			e.logf("action=cache:clear gen=%d cleanupGen=%d err=%s", e.gen, cleanupGen, reason)
-		} else {
-			e.logf("action=cache:staleclear gen=%d cleanupGen=%d err=%s", e.gen, cleanupGen, reason)
-		}
+func (e *CachingSingleServiceProvisioner) get() *Provisioning {
+	gen := e.gen.Load()
+	if gen != nil {
+		e.Log.Info("action=cache:get", "key", e.Key, "gen", gen, "url", gen.cached)
+		copy := *gen.cached
+		return &Provisioning{Target: &copy, Cleanup: gen.cleanup}
 	}
+	e.Log.Info("action=cache:get", "key", e.Key, "gen", gen, "url", "")
+	return nil
 }
 
-func (e *CachingSingleServiceProvisioner) Generation() int {
-	e.peekMu.Lock()
-	defer e.peekMu.Unlock()
+func (e *CachingSingleServiceProvisioner) Generation() *Generation {
+	return e.gen.Load()
+}
 
-	return e.gen
+func (c *CachingSingleServiceProvisioner) Outgoing() Fields {
+	f := c.outgoingFields.Load()
+	if f == nil {
+		return nil
+	}
+	return *f
 }
 
 func (e *CachingSingleServiceProvisioner) Peek() *Sample {
-	e.peekMu.Lock()
-	defer e.peekMu.Unlock()
-
-	return &Sample{
-		ServiceSpawnResponse: e.provisioned,
-		ExportedFields:       e.exportedFields,
-		RecentRequest:        *e.lastRequestEntry,
+	sample := &Sample{
+		RecentRequest: e.lastRequestEntry.Load(),
 	}
+
+	gen := e.gen.Load()
+	if gen != nil {
+		sample.ServiceSpawnResponse = gen.provisioned
+	}
+
+	out := e.outgoingFields.Load()
+	if out != nil {
+		sample.Outgoing = *out
+	}
+
+	return sample
 }
 
-func (c *CachingSingleServiceProvisioner) UpdateExports(ctx context.Context, digest string, cb func(fields ExportedFields) ExportedFields) error {
-	log.Printf("UpdateExports %s", digest)
-	defer log.Printf("UpdateExports %s done", digest)
-	c.peekMu.Lock()
-	spawner := c.spawner
-	req := c.req
-	c.peekMu.Unlock()
+func (c *CachingSingleServiceProvisioner) UpdateOutgoing(ctx context.Context, digest string, cb func(fields Fields) Fields) error {
+	log.Printf("UpdateOutgoing %s", digest)
+	var ef Fields
+	defer func() {
+		log.Printf("UpdateOutgoing %s done (string repr of it is %d bytes)", digest, len(fmt.Sprintf("%#v", ef)))
+	}()
+	spawner := c.Spawner
+	serviceSpawnRequest := c.ServiceSpawnRequest
 
-	res, err := spawner.Peek(ctx, req)
+	res, err := spawner.Peek(ctx, serviceSpawnRequest)
 	if err != nil {
 		return err
 	}
 
-	now := res.ServiceInstanceSpawnDef.Environment["SUBSTRATE_PARAMETERS_DIGEST"]
+	now := res.ServiceInstanceDef.Environment["SUBSTRATE_PARAMETERS_DIGEST"]
 	if now != digest {
 		return fmt.Errorf("stale digest for SetExports; got %s, expected %s", digest, now)
 	}
 
-	c.exportedFields = cb(c.exportedFields)
-	c.exportedFieldsFunc(c.exportedFields)
+	ef = *c.outgoingFields.Load()
+	ef = cb(ef)
+	c.outgoingFields.Store(&ef)
+
+	notify.Notify(ctx, c.FieldsExported, FieldsExported{ServiceSpawnRequest: c.ServiceSpawnRequest, Fields: ef})
 	return nil
 }
 
 func (c *CachingSingleServiceProvisioner) LogRequest(r *http.Request) {
-	c.peekMu.Lock()
-	defer c.peekMu.Unlock()
-
-	c.lastRequestEntry = &RequestEntry{RequestID: "", Time: time.Now()}
+	c.lastRequestEntry.Store(&RequestEntry{RequestID: "", Time: time.Now()})
 }
 
-func (e *CachingSingleServiceProvisioner) PurgeIfChanged(ctx context.Context) (bool, int, error) {
-	e.peekMu.Lock()
-	spawner := e.spawner
-	was := e.provisionedResolutionDigest
-	provisioned := e.provisioned
-	req := e.req
-	cleanup := e.cleanup
-	gen := e.gen
-	e.peekMu.Unlock()
+func (e *CachingSingleServiceProvisioner) PurgeIfChanged(ctx context.Context) (bool, *Generation, error) {
+	gen := e.gen.Load()
 
-	if was == "" {
-		return false, -1, nil
+	if gen == nil {
+		slog.Info("PurgeIfChanged", "key", e.Key, "gen", gen, "spawnPending", false, "instance", &e)
+		return true, nil, nil
 	}
 
-	res, err := spawner.Peek(ctx, req)
+	was := gen.provisionedResolutionDigest
+	provisioned := gen.provisioned
+	cleanup := gen.cleanup
+
+	res, err := e.Spawner.Peek(ctx, e.ServiceSpawnRequest)
 	if err != nil {
 		return false, gen, err
 	}
 
 	now := res.Digest()
-	log.Printf("Refresh service:%s name:%s now:%s was:%s", provisioned.ServiceSpawnResolution.ServiceName, provisioned.Name, now, was)
+	log.Printf("Refresh key:%s name:%s now:%s was:%s", provisioned.ServiceSpawnResolution.ServiceName, provisioned.Name, now, was)
 
 	if now != was {
 		log.Printf("prv %#v", &provisioned.ServiceSpawnResolution)
 		log.Printf("cur %#v", res)
 		reason := fmt.Errorf("digest changed; was %s, now %s", was, now)
 		cleanup(reason)
-		err := spawner.Shutdown(ctx, provisioned.Name, reason)
+		err := e.Spawner.Shutdown(ctx, provisioned.Name, reason)
 		return true, gen, err
 	}
 
 	return false, gen, nil
 }
 
-func (e *CachingSingleServiceProvisioner) Ensure(ctx context.Context) (*url.URL, bool, func(error), error) {
+func (e *CachingSingleServiceProvisioner) Ensure(ctx context.Context) (*Provisioning, error) {
+	slog.Info("CachingSingleServiceProvisioner.Ensure()", "key", e.Key, "instance", e)
+
+	// try once without holding the lock.
+	if provisioning := e.get(); provisioning != nil {
+		return provisioning, nil
+	}
+
+	// Lock here and expect unlock to happen next
 	e.spawnMu.Lock()
 	defer e.spawnMu.Unlock()
 
-	if target, _, ok, cleanup := e.get(); ok {
-		return target, false, cleanup, nil
+	// check again since we might be racing another call to Ensure
+	if provisioning := e.get(); provisioning != nil {
+		return provisioning, nil
 	}
 
 	streamCtx, streamCancel := context.WithCancel(context.Background())
 
-	sres, ch, err := e.spawner.Spawn(streamCtx, e.req)
+	sres, ch, err := e.Spawner.Spawn(streamCtx, e.ServiceSpawnRequest)
 	if err != nil {
 		streamCancel()
-		return nil, false, nil, fmt.Errorf("error spawning: %w", err)
-	}
-
-	var parsedToken *string
-	if sres.BearerToken != nil {
-		parsedToken = sres.BearerToken
+		return nil, fmt.Errorf("error spawning: %w", err)
 	}
 
 	parsed, err := url.Parse(sres.BackendURL)
 	if err != nil {
 		streamCancel()
-		return nil, false, nil, fmt.Errorf("error parsing BackendURL: %w", err)
+		return nil, fmt.Errorf("error parsing BackendURL: %w", err)
 	}
 
-	cleanup := e.set(sres, parsed, parsedToken)
+	cleanup := e.set(sres, parsed)
 
 	ready := false
 
@@ -230,7 +249,7 @@ func (e *CachingSingleServiceProvisioner) Ensure(ctx context.Context) (*url.URL,
 		log.Printf("event service:%s name:%s %#v", sres.ServiceSpawnResolution.ServiceName, sres.Name, event)
 		if event.Error() != nil {
 			streamCancel()
-			return nil, false, nil, fmt.Errorf("backend will never be ready; err=%w", event.Error())
+			return nil, fmt.Errorf("backend will never be ready; err=%w", event.Error())
 		}
 
 		if event.IsPending() {
@@ -244,13 +263,13 @@ func (e *CachingSingleServiceProvisioner) Ensure(ctx context.Context) (*url.URL,
 
 		if event.IsGone() {
 			streamCancel()
-			return nil, false, nil, fmt.Errorf("backend will never be ready; event=%s", event.String())
+			return nil, fmt.Errorf("backend will never be ready; event=%s", event.String())
 		}
 	}
 
 	if !ready {
 		streamCancel()
-		return nil, false, nil, fmt.Errorf("status stream ended without ready")
+		return nil, fmt.Errorf("status stream ended without ready")
 	}
 
 	go func() {
@@ -265,5 +284,5 @@ func (e *CachingSingleServiceProvisioner) Ensure(ctx context.Context) (*url.URL,
 		}
 	}()
 
-	return parsed, true, cleanup, nil
+	return &Provisioning{Target: parsed, Fresh: true, Cleanup: cleanup}, nil
 }

@@ -17,13 +17,21 @@ services: "nvml": {
     environment: [string]: string
     url_prefix: environment.SUBSTRATE_URL_PREFIX
 
+    exports: data: {
+      devices: [string]: { memory: { total_mb: number, ... }, ... }
+      ...
+    }
   }
 }
 
-system: nvml: _
+// A bit of an awkward pattern, but this ensures nvml exports are available for other defs.
+services: "nvml": instances: "nvml": pinned: true
+system: {
+  nvml: #out.services.nvml.instances["nvml"].exports.data
 
-system: #cuda_memory_total_mb: int | *0
+  #cuda_memory_total_mb: number | *0
 
-if system.nvml.devices != _|_ {
-    system: #cuda_memory_total_mb: list.Sum([ for uuid, device in system.nvml.devices { device.memory.total_mb } ])
+  if nvml.devices != _|_ {
+      #cuda_memory_total_mb: list.Sum([ for uuid, device in nvml.devices { device.memory.total_mb } ])
+  }
 }

@@ -108,8 +108,8 @@ func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error) {
 }
 
 func (p *P) prepareResourceDirsMounts(as *activityspec.ServiceSpawnResolution) ([]specs.Mount, error) {
-	mounts := make([]specs.Mount, 0, len(as.ServiceInstanceSpawnDef.ResourceDirs))
-	for alias, rd := range as.ServiceInstanceSpawnDef.ResourceDirs {
+	mounts := make([]specs.Mount, 0, len(as.ServiceInstanceDef.ResourceDirs))
+	for alias, rd := range as.ServiceInstanceDef.ResourceDirs {
 		rdPath, err := p.findResourceDir(rd)
 		if err != nil {
 			return nil, err
@@ -131,7 +131,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		return nil, fmt.Errorf("error connecting: %w", err)
 	}
 
-	imageID := as.ServiceInstanceSpawnDef.Image
+	imageID := as.ServiceInstanceDef.Image
 
 	spec, _ := as.Format()
 	labels := map[string]string{
@@ -141,12 +141,13 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	}
 
 	s := specgen.NewSpecGenerator(imageID, false)
-	s.Remove = true
+	// s.Remove = true
 	s.Env = map[string]string{}
 	s.Labels = labels
-	s.Command = append([]string{}, as.ServiceInstanceSpawnDef.Command...)
+	s.Command = append([]string{}, as.ServiceInstanceDef.Command...)
 
-	s.Privileged = as.ServiceInstanceSpawnDef.Privileged
+	s.Privileged = as.ServiceInstanceDef.Privileged
+
 	// Recognized resource types include:
 	// - "core": maximum core dump size (ulimit -c)
 	// - "cpu": maximum CPU time (ulimit -t)
@@ -169,6 +170,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		Hard: uint64(65000),
 		Soft: uint64(65000),
 	})
+	s.Init = as.ServiceInstanceDef.Init
 
 	if p.prep != nil {
 		p.prep(s)
@@ -202,12 +204,6 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 				Destination: targetPrefix + "/owner",
 				Options:     []string{"ro"},
 			},
-			specs.Mount{
-				Type:        "bind",
-				Source:      view.AliasFilePath(),
-				Destination: targetPrefix + "/alias",
-				Options:     []string{"ro"},
-			},
 		)
 	}
 
@@ -216,7 +212,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		return nil, fmt.Errorf("error preparing resourcedir mounts: %w", err)
 	}
 
-	for _, m := range as.ServiceInstanceSpawnDef.Mounts {
+	for _, m := range as.ServiceInstanceDef.Mounts {
 		s.Mounts = append(s.Mounts,
 			specs.Mount{
 				Type:        m.Type,
@@ -229,7 +225,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 
 	s.Mounts = append(s.Mounts, resourcedirMounts...)
 
-	for k, v := range as.ServiceInstanceSpawnDef.Environment {
+	for k, v := range as.ServiceInstanceDef.Environment {
 		s.Env[k] = v
 	}
 
@@ -282,16 +278,12 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	// backendPortMap := inspect.NetworkSettings.Ports[natPort][0]
 	// backendURL := "http://host.docker.internal:" + backendPortMap.HostPort
 
-	var bearerToken *string
-	// bearerToken = r.BearerToken
-
 	return &activityspec.ServiceSpawnResponse{
 		Name: cResp.ID,
 
 		PID: inspect.State.Pid,
 
-		BackendURL:  backendURL + as.ServiceInstanceSpawnDef.URLPrefix,
-		BearerToken: bearerToken,
+		BackendURL: backendURL + as.ServiceInstanceDef.URLPrefix,
 
 		ServiceSpawnResolution: *as,
 	}, nil

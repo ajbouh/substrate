@@ -9,7 +9,9 @@ import (
 	substratedb "github.com/ajbouh/substrate/images/substrate/db"
 	"github.com/ajbouh/substrate/images/substrate/defset"
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
-	"github.com/ajbouh/substrate/pkg/cueloader"
+	"github.com/ajbouh/substrate/pkg/toolkit/exports"
+	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/julienschmidt/httprouter"
 	"github.com/rs/cors"
 )
@@ -33,10 +35,13 @@ type Handler struct {
 	InternalSubstrateOrigin string
 	User                    string
 
-	DefsAnnouncer       *cueloader.Announcer
-	DB                  *substratedb.DB
+	ExportsAnnouncer *httpevents.EventStream[exports.Exports]
 
-	CurrentDefSet    defset.CurrentDefSet
+	DefsAnnouncer *httpevents.EventStream[*defset.DefSet]
+	DB            *substratedb.DB
+
+	DefSetLoader     notify.Loader[*defset.DefSet]
+	Spawner          provisioner.Spawner
 	Driver           provisioner.Driver
 	ProvisionerCache *provisioner.Cache
 }

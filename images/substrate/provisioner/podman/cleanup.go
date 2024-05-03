@@ -74,7 +74,9 @@ func (p *P) Cleanup(
 		return err
 	}
 
-	cntrs, err := containers.List(ctx, nil)
+	cntrs, err := containers.List(ctx, &containers.ListOptions{
+		All: boolPtr(true),
+	})
 	if err != nil {
 		return err
 	}

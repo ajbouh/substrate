@@ -7,18 +7,21 @@ toolchain go1.22.2
 require (
 	cuelang.org/go v0.9.2
 	github.com/ajbouh/substrate/pkg/cueloader v0.0.0-00010101000000-000000000000
+	github.com/ajbouh/substrate/pkg/toolkit v0.0.0-00010101000000-000000000000
 	github.com/containers/common v0.57.4
 	github.com/containers/podman/v4 v4.9.4
 	github.com/docker/docker v24.0.7+incompatible
 	github.com/docker/go-connections v0.4.1-0.20231031175723-0b8c1f4e07a0
 	github.com/go-playground/form/v4 v4.2.1
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/mattn/go-sqlite3 v1.14.18
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/opencontainers/runtime-spec v1.1.1-0.20230922153023-c0e90434df2a
+	github.com/puzpuzpuz/xsync/v3 v3.4.0
 	github.com/rs/cors v1.10.1
 	github.com/sirupsen/logrus v1.9.3
-	tractor.dev/toolkit-go v0.0.0-20240111035846-6a7f40f8500e
+	tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe
 )
 
 require (
@@ -150,3 +153,5 @@ require (
 )
 
 replace github.com/ajbouh/substrate/pkg/cueloader => ../../pkg/cueloader
+
+replace github.com/ajbouh/substrate/pkg/toolkit => ../../pkg/toolkit

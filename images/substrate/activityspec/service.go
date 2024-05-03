@@ -20,6 +20,9 @@ type ServiceSpawnRequest struct {
 	URLPrefix     string
 	User          string
 	ForceReadOnly bool
+
+	CanonicalFormat string
+	SeemsConcrete   bool
 }
 
 type ServiceSpawnResolution struct {
@@ -29,7 +32,7 @@ type ServiceSpawnResolution struct {
 	Parameters         ServiceSpawnParameters `json:"parameters"`
 	GracePeriodSeconds *int                   `json:"grace_period_seconds,omitempty"`
 
-	ServiceInstanceSpawnDef ServiceInstanceSpawnDef `json:"spawn"`
+	ServiceInstanceDef ServiceInstanceDef `json:"spawn"`
 }
 
 func (r *ServiceSpawnResolution) Digest() string {
@@ -43,10 +46,9 @@ func (r *ServiceSpawnResolution) Digest() string {
 }
 
 type ServiceSpawnResponse struct {
-	Name        string
-	BackendURL  string
-	BearerToken *string
-	PID         int
+	Name       string
+	BackendURL string
+	PID        int
 
 	ServiceSpawnResolution ServiceSpawnResolution `json:"resolution"`
 }
@@ -68,16 +70,23 @@ type ServiceSpawnParameterSchema struct {
 	Optional    bool                      `json:"optional,omitempty"`
 }
 
-type ServiceInstanceSpawnDef struct {
+type ServiceDef struct {
+	Instances map[string]*ServiceInstanceDef `json:"instances,omitempty"`
+}
+
+type ServiceInstanceDef struct {
 	Image        string                         `json:"image"`
 	Environment  map[string]string              `json:"environment,omitempty"`
 	Command      []string                       `json:"command,omitempty"`
 	ResourceDirs map[string]ResourceDirDef      `json:"resourcedirs,omitempty"`
 	Mounts       []ServiceInstanceDefSpawnMount `json:"mounts,omitempty"`
 
-	URLPrefix  string `json:"url_prefix,omitempty"`
-	Ephemeral  bool   `json:"ephemeral,omitempty"`
-	Privileged bool   `json:"privileged,omitempty"`
+	URLPrefix string `json:"url_prefix,omitempty"`
+
+	Ephemeral  bool `json:"ephemeral,omitempty"`
+	Privileged bool `json:"privileged,omitempty"`
+	Init       bool `json:"init,omitempty"`
+	Pinned     bool `json:"pinned,omitempty"`
 }
 
 type ServiceInstanceDefSpawnMount struct {
@@ -241,14 +250,19 @@ func ParseServiceSpawnRequest(spec string, forceReadOnly bool, spawnPrefix strin
 		ServiceName: service,
 		Parameters:  params,
 		URLPrefix:   spawnPrefix,
+
+		CanonicalFormat: "",
+		SeemsConcrete:   false,
 	}
+
+	r.CanonicalFormat, r.SeemsConcrete = r.format()
 
 	// fmt.Printf("ParseServiceSpawnRequest %q %#v\n", spec, *r)
 
 	return r, path, nil
 }
 
-func (r *ServiceSpawnRequest) Format() (string, bool) {
+func (r *ServiceSpawnRequest) format() (string, bool) {
 	concrete := r.ServiceName != ""
 
 	fragments := []string{}
@@ -260,6 +274,11 @@ func (r *ServiceSpawnRequest) Format() (string, bool) {
 		// TODO consider canonicalizing spaces order...
 		fragments = append(fragments, k+spaceViewCut+params[k].String())
 	}
+
+	if len(fragments) == 0 {
+		return r.ServiceName, concrete
+	}
+
 	// Canonicalize mount order
 	sort.Strings(fragments)
 
@@ -277,6 +296,10 @@ func (r ServiceSpawnResolution) Format() (string, bool) {
 		}
 		spaceFragments = append(spaceFragments, k+spaceViewCut+v.Format())
 	}
+	if len(spaceFragments) == 0 {
+		return r.ServiceName, r.ServiceName != ""
+	}
+
 	// Canonicalize mount order
 	sort.Strings(spaceFragments)
 

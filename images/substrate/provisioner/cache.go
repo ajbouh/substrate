@@ -4,48 +4,42 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
-	"sync"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
 type Cache struct {
-	mu      *sync.Mutex
-	entries map[string]*CachingSingleServiceProvisioner
+	entries *OnceMap[*CachingSingleServiceProvisioner]
 
-	FieldsExported []FieldsExported
+	ctx context.Context
+
+	FieldsExported []notify.Notifier[FieldsExported]
 	Spawner        Spawner
+
+	Log *slog.Logger
 }
 
-type FieldsExported interface {
-	FieldsExported(asr *activityspec.ServiceSpawnRequest, fieldsExported ExportedFields)
+func (r *Cache) Initialize() {
+	r.entries = NewOnceMap[*CachingSingleServiceProvisioner]()
 }
 
-func NewCache() *Cache {
-	return &Cache{
-		mu:      &sync.Mutex{},
-		entries: map[string]*CachingSingleServiceProvisioner{},
-	}
-}
-
-func (r *Cache) fieldsExported(asr *activityspec.ServiceSpawnRequest, fieldsExported ExportedFields) {
-	for _, fn := range r.FieldsExported {
-		fn.FieldsExported(asr, fieldsExported)
-	}
+func (r *Cache) Serve(ctx context.Context) {
+	r.ctx = ctx
 }
 
 func (r *Cache) Sample() map[string]*Sample {
 	m := map[string]*Sample{}
 
-	keys := make([]string, 0, len(r.entries))
-	cached := make([]*CachingSingleServiceProvisioner, 0, len(r.entries))
-	r.mu.Lock()
-	for k, v := range r.entries {
+	keys := make([]string, 0, r.entries.Size())
+	cached := make([]*CachingSingleServiceProvisioner, 0, len(keys))
+	r.entries.Range(func(k string, v *CachingSingleServiceProvisioner) bool {
 		keys = append(keys, k)
 		cached = append(cached, v)
-	}
-	r.mu.Unlock()
+		return true
+	})
 
 	for i, k := range keys {
 		v := cached[i]
@@ -58,106 +52,154 @@ func (r *Cache) Sample() map[string]*Sample {
 	return m
 }
 
-type ServiceInstanceExports struct {
-	Instances map[string]*InstanceExports `json:"instances"`
+func (r *Cache) AllServiceExports() ServicesRootMap {
+	root := ServicesRootMap{}
+
+	r.entries.Range(func(k string, v *CachingSingleServiceProvisioner) bool {
+		gen := v.Generation()
+		if gen == nil {
+			return true
+		}
+
+		ssr := gen.ServiceSpawnResponse()
+		if ssr == nil {
+			return true
+		}
+
+		serviceName := ssr.ServiceSpawnResolution.ServiceName
+		service := root[serviceName]
+		if service == nil {
+			service = &InstancesRoot{
+				Instances: map[string]*Instance{},
+			}
+			root[serviceName] = service
+		}
+
+		service.Instances[k] = &Instance{
+			Exports:     v.Outgoing(),
+			ServiceName: serviceName,
+		}
+
+		return true
+	})
+
+	return root
 }
 
-type InstanceExports struct {
-	Exports ExportedFields `json:"exports"`
-}
-
-func (r *Cache) AllServiceExports() map[string]*ServiceInstanceExports {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	m := map[string]*ServiceInstanceExports{}
-	for k, v := range r.entries {
-		sie := m[v.req.ServiceName]
-		if sie == nil {
-			sie = &ServiceInstanceExports{}
-			sie.Instances = map[string]*InstanceExports{}
-			m[v.req.ServiceName] = sie
-		}
-		exp := make(ExportedFields, len(v.exportedFields))
-		for ek, ev := range exp {
-			exp[ek] = ev
-		}
-		sie.Instances[k] = &InstanceExports{
-			Exports: exp,
-		}
+func (r *Cache) AllInstanceExports() *InstancesRoot {
+	root := &InstancesRoot{
+		Instances: map[string]*Instance{},
 	}
-	return m
+
+	i := 0
+	r.entries.Range(func(k string, v *CachingSingleServiceProvisioner) bool {
+		instance := &Instance{
+			Exports: v.Outgoing(),
+		}
+		root.Instances[k] = instance
+
+		if gen := v.Generation(); gen != nil {
+			ssr := gen.ServiceSpawnResponse()
+			if ssr != nil {
+				instance.ServiceName = ssr.ServiceSpawnResolution.ServiceName
+			}
+		}
+
+		i++
+		return true
+	})
+	slog.Info("Cache.AllInstanceExports()", "r.entries.Size()", r.entries.Size(), "i", i, "len(root.Instances)", len(root.Instances), "root", root)
+
+	return root
 }
 
-func (r *Cache) UpdateExports(ctx context.Context, asr *activityspec.ServiceSpawnRequest, digest string, cb func(f ExportedFields) ExportedFields) error {
-	log.Printf("UpdateExports...")
-	defer log.Printf("UpdateExports... done")
+func (r *Cache) UpdateOutgoing(ctx context.Context, asr *activityspec.ServiceSpawnRequest, digest string, cb func(f Fields) Fields) error {
+	// log.Printf("UpdateOutgoing...")
+	// defer log.Printf("UpdateOutgoing... done")
 
-	requestCacheKey, concrete := asr.Format()
+	requestCacheKey, concrete := asr.CanonicalFormat, asr.SeemsConcrete
 	if !concrete {
 		return fmt.Errorf("viewspec must be concrete")
 	}
 
-	r.mu.Lock()
-	entry := r.entries[requestCacheKey]
-	r.mu.Unlock()
+	entry, _ := r.entries.Load(requestCacheKey)
 	if entry == nil {
 		return fmt.Errorf("no active entry: %s", requestCacheKey)
 	}
 
-	return entry.UpdateExports(ctx, digest, cb)
+	return entry.UpdateOutgoing(ctx, digest, cb)
 }
 
 // lock, loop over existing funcs, clean up now-stale ones.
-func (r *Cache) Refresh(ctx context.Context) {
-	r.mu.Lock()
-
-	keys := make([]string, 0, len(r.entries))
-	entries := make([]*CachingSingleServiceProvisioner, 0, len(r.entries))
+func (r *Cache) Refresh() {
+	keys := make([]string, 0, r.entries.Size())
+	entries := make([]*CachingSingleServiceProvisioner, 0, len(keys))
 
 	// todo loop over existing funcs, clean up now-stale ones.
-	for k, v := range r.entries {
+	r.entries.Range(func(k string, v *CachingSingleServiceProvisioner) bool {
 		entries = append(entries, v)
 		keys = append(keys, k)
-	}
-	r.mu.Unlock()
+		return true
+	})
 
-	remove := map[string]int{}
 	for i, entry := range entries {
-		pruned, gen, err := entry.PurgeIfChanged(ctx)
+		pruned, gen, err := entry.PurgeIfChanged(r.ctx)
 		if err != nil {
 			log.Printf("error during refresh: %s", err)
 		} else if pruned {
-			remove[keys[i]] = gen
+			was, _ := r.entries.LoadAndDelete(keys[i])
+			if was == nil {
+				log.Printf("already pruned %s", keys[i])
+			} else {
+				if was != entry || was.Generation() != gen {
+					_, replaced := r.entries.LoadOrStore(keys[i], was)
+					if replaced {
+						log.Printf("pruned %s, took it out but it changed, so put it back", keys[i])
+					} else {
+						log.Printf("pruned %s, tried to put it back, but there was already something there.", keys[i])
+					}
+				} else {
+					log.Printf("pruned %s", keys[i])
+				}
+			}
+
 		}
+	}
+}
+
+func (r *Cache) Ensure(ctx context.Context, asr *activityspec.ServiceSpawnRequest) (*CachingSingleServiceProvisioner, error) {
+	requestCacheKey, concrete := asr.CanonicalFormat, asr.SeemsConcrete
+	if !concrete {
+		return nil, fmt.Errorf("viewspec must be concrete")
 	}
 
-	r.mu.Lock()
-	for k, gen := range remove {
-		log.Printf("removing entry %s", k)
-		entry := r.entries[k]
-		if entry != nil && entry.Generation() == gen {
-			delete(r.entries, k)
+	slog.Info("Cache.Ensure()", "key", requestCacheKey, "instance", &r)
+	defer slog.Info("Cache.Ensure() done", "key", requestCacheKey, "instance", &r)
+
+	// since we might be racing another request, we must .finishEnsure *after* LoadOrCompute, but only if we created it.
+	return r.entries.LoadOrCompute(requestCacheKey, func() (*CachingSingleServiceProvisioner, error) {
+		cssp := &CachingSingleServiceProvisioner{
+			Key:                 requestCacheKey,
+			Spawner:             r.Spawner,
+			ServiceSpawnRequest: asr,
+			FieldsExported:      r.FieldsExported,
+			Log:                 r.Log,
 		}
-	}
-	r.mu.Unlock()
+		cssp.Initialize()
+		_, err := cssp.Ensure(ctx)
+		return cssp, err
+	})
 }
 
 func (r *Cache) ServeProxiedHTTP(asr *activityspec.ServiceSpawnRequest, rw http.ResponseWriter, rq *http.Request) {
-	requestCacheKey, concrete := asr.Format()
-	if !concrete {
-		newDoomedHandler(http.StatusBadRequest, fmt.Errorf("viewspec must be concrete"), rw)
+	slog.Info("Cache.ServeProxiedHTTP()", "key", asr.CanonicalFormat, "instance", &r)
+	defer slog.Info("Cache.ServeProxiedHTTP() done", "key", asr.CanonicalFormat, "instance", &r)
+
+	entry, err := r.Ensure(rq.Context(), asr)
+	if err != nil {
+		newDoomedHandler(http.StatusBadRequest, err, rw)
 		return
 	}
-
-	r.mu.Lock()
-	entry := r.entries[requestCacheKey]
-	if entry == nil {
-		entry = NewCachingSingleServiceProvisioner(r.Spawner, asr, func(f ExportedFields) { r.fieldsExported(asr, f) })
-		r.entries[requestCacheKey] = entry
-		// TODO need to handle service provisioners that go away and can be removed from the map.
-	}
-	r.mu.Unlock()
 
 	entry.LogRequest(rq)
 

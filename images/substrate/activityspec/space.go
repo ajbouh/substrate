@@ -3,6 +3,7 @@ package activityspec
 import "strings"
 
 type SpaceViewRequest struct {
+	SpaceAlias              *string `json:"space_alias,omitempty"`
 	SpaceID                 string  `json:"space,omitempty" form:"space,omitempty"`
 	SpaceBaseRef            *string `json:"space_base_ref,omitempty" form:"space_base_ref,omitempty"`
 	ReadOnly                bool    `json:"read_only,omitempty" form:"read_only,omitempty"`
@@ -10,6 +11,7 @@ type SpaceViewRequest struct {
 }
 
 const spaceViewForkPrefix = "~"
+const spaceViewAliasPrefix = "$"
 
 // const spaceViewPlaceholder = "^"
 
@@ -27,6 +29,13 @@ func ParseViewRequest(v string, forceReadOnly bool) *SpaceViewRequest {
 			ReadOnly:     readOnly,
 		}
 	}
+	if strings.HasPrefix(v, spaceViewAliasPrefix) {
+		alias := strings.TrimPrefix(v, spaceViewAliasPrefix)
+		return &SpaceViewRequest{
+			SpaceAlias: &alias,
+			ReadOnly:   readOnly,
+		}
+	}
 
 	return &SpaceViewRequest{
 		SpaceID:  v,
@@ -41,6 +50,9 @@ func (r *SpaceViewRequest) Spec() string {
 	}
 	if r.SpaceBaseRef != nil {
 		return spaceViewForkPrefix + *r.SpaceBaseRef + suffix
+	}
+	if r.SpaceAlias != nil {
+		return spaceViewAliasPrefix + *r.SpaceAlias + suffix
 	}
 
 	return r.SpaceID + suffix
