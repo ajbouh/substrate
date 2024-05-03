@@ -146,6 +146,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	s.Labels = labels
 	s.Command = append([]string{}, as.ServiceInstanceSpawnDef.Command...)
 
+	s.Privileged = as.ServiceInstanceSpawnDef.Privileged
 	// Recognized resource types include:
 	// - "core": maximum core dump size (ulimit -c)
 	// - "cpu": maximum CPU time (ulimit -t)

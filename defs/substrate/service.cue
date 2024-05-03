@@ -84,6 +84,7 @@ import (
     parameters_digest: hex.Encode(cryptosha256.Sum256(json.Marshal(parameters)))
   
     ephemeral ?: bool | *false
+    privileged ?: bool | *false
     image: string
     environment: [string]: string
     environment: {

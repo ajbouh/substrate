@@ -77,6 +77,7 @@ type ServiceInstanceSpawnDef struct {
 
 	URLPrefix  string `json:"url_prefix,omitempty"`
 	Ephemeral  bool   `json:"ephemeral,omitempty"`
+	Privileged bool   `json:"privileged,omitempty"`
 }
 
 type ServiceInstanceDefSpawnMount struct {
