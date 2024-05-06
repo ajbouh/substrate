@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"text/template"
 	"time"
@@ -69,35 +70,9 @@ func main() {
 			},
 			NewClient: newAssistantClient,
 		},
-		tools.NewAgent(
-			"stock",
-			tools.Tools{
-				"get_stock_fundamentals": {
-					Run: func(args any) (any, error) {
-						symbol := args.(map[string]any)["symbol"].(string)
-						return map[string]any{
-							"symbol": symbol,
-						}, nil
-					},
-					Description: `get_stock_fundamentals(symbol: str) -> dict
-			Get fundamental data for a given stock symbol using yfinance API.
-
-			Args:
-				symbol (str): The stock symbol.
-
-			Returns:
-				dict: A dictionary containing fundamental data.`,
-					Parameters: tools.Params{
-						Type: "object",
-						Properties: map[string]tools.Prop{
-							"symbol": {Type: "string"},
-						},
-						Required: []string{"symbol"},
-					},
-				},
-			},
-			getEnv("BRIDGE_TOOLS_URL", "http://localhost:8092/v1/assistant"),
-		),
+		&AssistantCommands{
+			Endpoint: getEnv("BRIDGE_TOOLS_URL", "http://localhost:8092/v1/assistant"),
+		},
 		eventLogger{
 			exclude: []string{"audio"},
 		},
@@ -127,6 +102,70 @@ func (l eventLogger) HandleEvent(e tracks.Event) {
 
 type SessionInitHandler interface {
 	HandleSessionInit(*tracks.Session)
+}
+
+type AssistantCommands struct {
+	Endpoint string
+}
+
+func (a *AssistantCommands) HandleSessionInit(sess *tracks.Session) {
+	agent := tools.NewAgent(
+		"assistant",
+		tools.Tools{
+			"add_assistant": {
+				Run: func(args any) (any, error) {
+					name := args.(map[string]any)["name"].(string)
+					name = strings.ToLower(name)
+					prompt, err := assistant.DefaultPromptTemplateForName(name)
+					if err != nil {
+						return false, err
+					}
+					assistant.AddAssistant(sess.SpanNow(), name, prompt)
+					return true, nil
+				},
+				Description: `add_assistant(name: str) -> bool
+			Add an assistant to the session.
+
+			Args:
+				name (str): The assistant's name.
+
+			Returns:
+				bool: True if the assistant was added successfully.`,
+				Parameters: tools.Params{
+					Type: "object",
+					Properties: map[string]tools.Prop{
+						"name": {Type: "string"},
+					},
+					Required: []string{"name"},
+				},
+			},
+			"remove_assistant": {
+				Run: func(args any) (any, error) {
+					name := args.(map[string]any)["name"].(string)
+					name = strings.ToLower(name)
+					assistant.RemoveAssistant(sess.SpanNow(), name)
+					return true, nil
+				},
+				Description: `remove_assistant(name: str) -> bool
+			Remove an assistant from the session.
+
+			Args:
+				name (str): The assistant's name.
+
+			Returns:
+				bool: True if the assistant was removed successfully.`,
+				Parameters: tools.Params{
+					Type: "object",
+					Properties: map[string]tools.Prop{
+						"name": {Type: "string"},
+					},
+					Required: []string{"name"},
+				},
+			},
+		},
+		a.Endpoint,
+	)
+	sess.Listen(agent)
 }
 
 type Main struct {

@@ -13,7 +13,8 @@ services: "bridge2": {
     environment: {
       BRIDGE_TRANSCRIBE_URL: "http://substrate:8080/faster-whisper/v1/transcribe"
       BRIDGE_TRANSLATE_URL: "http://substrate:8080/seamlessm4t/v1/transcribe"
-      BRIDGE_ASSISTANT_URL: "http://substrate:8080/airoboros-l2-13b-2.2/v1/completions"
+      // BRIDGE_ASSISTANT_URL: "http://substrate:8080/airoboros-l2-13b-2.2/v1/completions"
+      BRIDGE_ASSISTANT_URL: "http://substrate:8080/llama-3-8b-instruct-awq/v1/completions"
       BRIDGE_TOOLS_URL: "http://substrate:8080/llama-3-8b-instruct-awq/v1/completions"
       BRIDGE_SESSIONS_DIR: "/spaces/sessions/tree"
     }
