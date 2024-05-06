@@ -11,28 +11,6 @@ import (
 	"gotest.tools/assert"
 )
 
-func TestFunc(t *testing.T) {
-	// this is almost the same as the assistant, but
-	// * it will use a "tool" prompt template
-	// * maybe system prompt should be canned for these?
-	// * output should be parsed to generate a tool event
-
-	// Flow:
-	// 1) send prompt for completion
-	// 2) parse for proposed tool call format (write this as an event)
-	//    - do we record this for every input? seems excessive?
-	//    - or only if it matches something else?
-	// (both yes or no to call something, could be multiple choices of tools?)
-	// 3) send tool call to handler (automatic, or manual?)
-	//    - automatic, but maybe we have an intermediate event to trigger the call?
-	//    - e.g. whenever we get a call proposed, it automatically triggers the first one
-	// 4) store tool response (as event)
-	// 5) pass response to completion again to get chat output
-
-	// If there's a tool call, that may take precedence over an assistant
-	// response for the same input. Where do we do that filtering?
-}
-
 func TestAutoCall(t *testing.T) {
 	session := tracks.NewSession()
 	var a AutoTriggerAgent
