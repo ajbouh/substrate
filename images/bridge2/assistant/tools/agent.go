@@ -6,7 +6,6 @@ import (
 	"log"
 	"strings"
 
-	"github.com/ajbouh/substrate/images/bridge2/assistant"
 	"github.com/ajbouh/substrate/images/bridge2/assistant/openai"
 	"github.com/ajbouh/substrate/images/bridge2/assistant/prompts"
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
@@ -44,15 +43,35 @@ type CallEvent struct {
 	// TODO error here or inside the response?
 }
 
+// NewAgent sets up a series of handlers to orchestrate the tool call flow.
+//
+// OfferAgent:
+// * Listens for transcription events that contain the agent's name.
+// * Call the Registry for a list of tool definitions.
+// * Call the OpenAI endpoint passing the transcription message and definitions to ask for possible calls.
+// * Records a "tool-offer" event storing a list of any calls proposed for this message.
+//
+// AutoTriggerAgent:
+// * Listen for "tool-offer" events. If a call is avaiable, record a "tool-trigger" event for the first one.
+//
+// CallAgent:
+// * Listen for "tool-trigger" events with the agent's name.
+// * Call the Runner to invoke that tool.
+// * Record a "tool-call" event with the response.
+//
+// Summarization:
+// This was omitted for now and the JSON response is shown directly in the UI.
+// However an improvement would be to take the "tool-call", and pass the response
+// back to the OpenAI endpoint to generate a human-readable summary.
 func NewAgent(name string, registry Registry, endpoint string) tracks.Handler {
 	return handlers{
 		handlers: []tracks.Handler{
-			&Agent{
+			&OfferAgent{
 				Name:      name,
 				Registry:  registry,
 				Completer: openAICompleter("tool-select", endpoint),
 			},
-			AutoCallAgent{},
+			AutoTriggerAgent{},
 			&CallAgent{
 				Name:   name,
 				Runner: registry,
@@ -73,13 +92,13 @@ func (h handlers) HandleEvent(event tracks.Event) {
 	}
 }
 
-type Agent struct {
+type OfferAgent struct {
 	Name      string
 	Registry  ToolLister
 	Completer func(any) (string, string, error)
 }
 
-func (a *Agent) HandleEvent(event tracks.Event) {
+func (a *OfferAgent) HandleEvent(event tracks.Event) {
 	switch event.Type {
 	case "transcription":
 		in := event.Data.(*transcribe.Transcription)
@@ -101,7 +120,7 @@ func (a *Agent) HandleEvent(event tracks.Event) {
 	}
 }
 
-func (a *Agent) CompleteTool(input string) (string, []Call[any], error) {
+func (a *OfferAgent) CompleteTool(input string) (string, []Call[any], error) {
 	defs := a.Registry.ListTools()
 	prompt, resp, err := a.Completer(map[string]any{
 		"UserInput": input,
@@ -126,9 +145,9 @@ func (a *Agent) CompleteTool(input string) (string, []Call[any], error) {
 	return prompt, []Call[any]{out}, nil
 }
 
-type AutoCallAgent struct{}
+type AutoTriggerAgent struct{}
 
-func (a AutoCallAgent) HandleEvent(event tracks.Event) {
+func (a AutoTriggerAgent) HandleEvent(event tracks.Event) {
 	switch event.Type {
 	case "tool-offer":
 		offer := event.Data.(*OfferEvent)
@@ -172,39 +191,6 @@ func (a *CallAgent) HandleEvent(event tracks.Event) {
 	}
 }
 
-type Summarizer struct {
-	Name     string
-	Complete func(any) (string, string, error)
-}
-
-func (a *Summarizer) HandleEvent(event tracks.Event) {
-	switch event.Type {
-	case "tool-call":
-		result := event.Data.(*CallEvent)
-		prompt, resp, err := a.Complete(result)
-		out := assistant.AssistantTextEvent{
-			SourceEvent: result.SourceEvent,
-			Name:        a.Name,
-			Prompt:      prompt,
-		}
-		if err != nil {
-			log.Printf("tools: %s error: %v", a.Name, err)
-			out.Error = stringPtr("error calling tool")
-		} else {
-			log.Printf("tools: %s response: %s", a.Name, resp)
-			out.Response = &resp
-		}
-		assistant.RecordAssistantText(event.Span(), &out)
-	}
-}
-
-func templateCompleter(template string) func(any) (string, string, error) {
-	return func(templateArgs any) (string, string, error) {
-		content, err := prompts.Render(template, templateArgs)
-		return "", content, err
-	}
-}
-
 func openAICompleter(template, endpoint string) func(any) (string, string, error) {
 	return func(templateArgs any) (string, string, error) {
 		prompt, err := prompts.Render(template, templateArgs)
@@ -218,8 +204,4 @@ func openAICompleter(template, endpoint string) func(any) (string, string, error
 		})
 		return prompt, resp, err
 	}
-}
-
-func stringPtr(s string) *string {
-	return &s
 }

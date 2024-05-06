@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ajbouh/substrate/images/bridge2/assistant"
 	"github.com/ajbouh/substrate/images/bridge2/bridgetest"
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -36,7 +35,7 @@ func TestFunc(t *testing.T) {
 
 func TestAutoCall(t *testing.T) {
 	session := tracks.NewSession()
-	var a AutoCallAgent
+	var a AutoTriggerAgent
 	session.Listen(&a)
 	track := bridgetest.NewTrackWithSilence(session, 10*time.Millisecond)
 	es := bridgetest.AddEventStreamer(session)
@@ -155,56 +154,12 @@ func TestTrigger(t *testing.T) {
 				End:   span.End(),
 			},
 			Data: &CallEvent{
+				Name:         "strings",
 				TriggerEvent: evt.ID,
 				Call:         call,
 				Response: Response[any]{
 					Content: "HELLO",
 				},
-			},
-		}
-
-		events := es.FetchFor(10 * time.Millisecond)
-		assert.DeepEqual(t, []tracks.Event{evt, expected}, events, cmpopts.IgnoreFields(tracks.Event{}, "ID", "track"))
-	})
-}
-
-func TestSummarize(t *testing.T) {
-	session := tracks.NewSession()
-	a := Summarizer{
-		Name: "stringer",
-		Complete: func(content any) (string, string, error) {
-			return "prompt", content.(string), nil
-		},
-	}
-	session.Listen(&a)
-	track := bridgetest.NewTrackWithSilence(session, 10*time.Millisecond)
-	es := bridgetest.AddEventStreamer(session)
-
-	t.Run("trigger", func(t *testing.T) {
-		span := track.Span(track.End(), track.End())
-
-		evt := recordCall(span, &CallEvent{
-			Call: Call[any]{
-				Name: "to_upper",
-				Arguments: map[string]any{
-					"text": "hello",
-				},
-			},
-			Response: Response[any]{
-				Content: "HELLO",
-			},
-		})
-
-		expected := tracks.Event{
-			EventMeta: tracks.EventMeta{
-				Type:  "assistant-text",
-				Start: span.Start(),
-				End:   span.End(),
-			},
-			Data: &assistant.AssistantTextEvent{
-				Name:     "stringer",
-				Prompt:   "prompt",
-				Response: stringPtr("HELLO"),
 			},
 		}
 
