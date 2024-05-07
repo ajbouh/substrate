@@ -95,7 +95,7 @@ func (h handlers) HandleEvent(event tracks.Event) {
 type OfferAgent struct {
 	Name      string
 	Registry  ToolLister
-	Completer func(any) (string, string, error)
+	Completer func(map[string]any) (string, string, error)
 }
 
 func (a *OfferAgent) HandleEvent(event tracks.Event) {
@@ -191,9 +191,17 @@ func (a *CallAgent) HandleEvent(event tracks.Event) {
 	}
 }
 
-func openAICompleter(template, endpoint string) func(any) (string, string, error) {
-	return func(templateArgs any) (string, string, error) {
-		prompt, err := prompts.Render(template, templateArgs)
+func openAICompleter(template, endpoint string) func(map[string]any) (string, string, error) {
+	return func(templateArgs map[string]any) (string, string, error) {
+		args := map[string]any{
+			"Frontmatter": map[string]any{
+				"endpoint": endpoint,
+			},
+		}
+		for key, value := range templateArgs {
+			args[key] = value
+		}
+		prompt, err := prompts.Render(template, args)
 		if err != nil {
 			return prompt, "", err
 		}
