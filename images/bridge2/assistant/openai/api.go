@@ -7,7 +7,37 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"strings"
+
+	"github.com/adrg/frontmatter"
 )
+
+func CompleteWithFrontmatter(promptWithFrontmatter string) (string, error) {
+	endpoint, req, err := parseFrontmatter(promptWithFrontmatter)
+	if err != nil {
+		return "", err
+	}
+	return Complete(endpoint, req)
+}
+
+func parseFrontmatter(input string) (string, *CompletionRequest, error) {
+	var req requestFrontmatter
+	prompt, err := frontmatter.Parse(strings.NewReader(input), &req)
+	if err != nil {
+		return "", nil, err
+	}
+	req.Prompt = string(prompt)
+	if req.MaxTokens == 0 {
+		req.MaxTokens = 4096
+	}
+	req.MaxTokens -= TokenCount(string(prompt))
+	return req.Endpoint, &req.CompletionRequest, nil
+}
+
+type requestFrontmatter struct {
+	CompletionRequest `yaml:",inline"`
+	Endpoint          string `json:"endpoint"`
+}
 
 func Complete(endpoint string, req *CompletionRequest) (string, error) {
 	resp, err := doCompletion(endpoint, req)

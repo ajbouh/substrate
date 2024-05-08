@@ -1,4 +1,9 @@
 {{"{{- with $assistant := "}}{{.AssistantName | printf "%q" }}{{" -}}"}}
+---
+endpoint: "http://substrate:8080/llama-3-8b-instruct-awq/v1/completions"
+model: "/res/model/huggingface/local"
+max_tokens: 4096
+---
 <|begin_of_text|><|start_header_id|>system<|end_header_id|>
 A chat between ASSISTANT (named {{"{{$assistant}}"}}) and a USER.
 

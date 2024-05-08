@@ -221,22 +221,18 @@ func DefaultPromptTemplateForName(name string) (string, error) {
 
 type OpenAIClient struct {
 	Name     string
-	Endpoint string
 	Template *template.Template
 }
 
-func OpenAIClientGenerator(endpoint string) func(name, systemMessage string) (Client, error) {
-	return func(name, promptTemplate string) (Client, error) {
-		tmpl, err := prompts.ParseTemplate(promptTemplate)
-		if err != nil {
-			return nil, err
-		}
-		return OpenAIClient{
-			Name:     name,
-			Endpoint: endpoint,
-			Template: tmpl,
-		}, nil
+func OpenAIClientGenerator(name, promptTemplate string) (Client, error) {
+	tmpl, err := prompts.ParseTemplate(promptTemplate)
+	if err != nil {
+		return nil, err
 	}
+	return OpenAIClient{
+		Name:     name,
+		Template: tmpl,
+	}, nil
 }
 
 func (a OpenAIClient) AssistantName() string {
@@ -258,10 +254,6 @@ func (a OpenAIClient) Complete(speaker, input string) (string, string, error) {
 	if err != nil {
 		return prompt, "", err
 	}
-	maxTokens := 4096
-	resp, err := openai.Complete(a.Endpoint, &openai.CompletionRequest{
-		MaxTokens: maxTokens - openai.TokenCount(prompt),
-		Prompt:    prompt,
-	})
+	resp, err := openai.CompleteWithFrontmatter(prompt)
 	return prompt, resp, err
 }

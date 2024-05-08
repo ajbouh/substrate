@@ -63,13 +63,13 @@ type CallEvent struct {
 // This was omitted for now and the JSON response is shown directly in the UI.
 // However an improvement would be to take the "tool-call", and pass the response
 // back to the OpenAI endpoint to generate a human-readable summary.
-func NewAgent(name string, registry Registry, endpoint string) tracks.Handler {
+func NewAgent(name string, registry Registry) tracks.Handler {
 	return handlers{
 		handlers: []tracks.Handler{
 			&OfferAgent{
 				Name:      name,
 				Registry:  registry,
-				Completer: openAICompleter("tool-select", endpoint),
+				Completer: openAICompleter("tool-select"),
 			},
 			AutoTriggerAgent{},
 			&CallAgent{
@@ -191,25 +191,13 @@ func (a *CallAgent) HandleEvent(event tracks.Event) {
 	}
 }
 
-func openAICompleter(template, endpoint string) func(map[string]any) (string, string, error) {
+func openAICompleter(template string) func(map[string]any) (string, string, error) {
 	return func(templateArgs map[string]any) (string, string, error) {
-		args := map[string]any{
-			"Frontmatter": map[string]any{
-				"endpoint": endpoint,
-			},
-		}
-		for key, value := range templateArgs {
-			args[key] = value
-		}
-		prompt, err := prompts.Render(template, args)
+		prompt, err := prompts.Render(template, templateArgs)
 		if err != nil {
 			return prompt, "", err
 		}
-		maxTokens := 4096
-		resp, err := openai.Complete(endpoint, &openai.CompletionRequest{
-			MaxTokens: maxTokens - openai.TokenCount(prompt),
-			Prompt:    prompt,
-		})
+		resp, err := openai.CompleteWithFrontmatter(prompt)
 		return prompt, resp, err
 	}
 }

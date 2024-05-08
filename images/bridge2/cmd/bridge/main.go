@@ -47,7 +47,7 @@ func main() {
 		Precision:   4,
 	}
 
-	newAssistantClient := assistant.OpenAIClientGenerator(getEnv("BRIDGE_ASSISTANT_URL", "http://localhost:8092/v1/assistant"))
+	newAssistantClient := assistant.OpenAIClientGenerator
 
 	engine.Run(
 		Main{
@@ -70,9 +70,7 @@ func main() {
 			},
 			NewClient: newAssistantClient,
 		},
-		&AssistantCommands{
-			Endpoint: getEnv("BRIDGE_TOOLS_URL", "http://localhost:8092/v1/assistant"),
-		},
+		&AssistantCommands{},
 		eventLogger{
 			exclude: []string{"audio"},
 		},
@@ -163,7 +161,6 @@ func (a *AssistantCommands) HandleSessionInit(sess *tracks.Session) {
 				},
 			},
 		},
-		a.Endpoint,
 	)
 	sess.Listen(agent)
 }

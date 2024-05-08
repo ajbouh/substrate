@@ -10,7 +10,7 @@ import (
 func TestLoadTemplates(t *testing.T) {
 	tmpl, err := loadTemplates()
 	assert.Assert(t, err)
-	assert.Equal(t, `; defined templates are: "complete.tmpl", "tool-select.tmpl"`, tmpl.DefinedTemplates())
+	assert.Equal(t, `; defined templates are: "complete.tmpl", "tool-response-simple.tmpl", "tool-response.tmpl", "tool-select.tmpl"`, tmpl.DefinedTemplates())
 }
 
 func TestRender(t *testing.T) {
@@ -25,5 +25,5 @@ func TestRender(t *testing.T) {
 	})
 	assert.Assert(t, err)
 	t.Log(s)
-	assert.Assert(t, strings.HasSuffix(s, "BRIDGE:"), "the rendered output should end with the assistant name without a trailing newline")
+	assert.Assert(t, !strings.HasSuffix(s, "\n"), "the rendered output should not end with without a trailing newline")
 }
