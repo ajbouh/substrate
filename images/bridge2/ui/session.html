@@ -89,6 +89,7 @@ dataWS.onmessage = e => {
 
   const translations = {};
   const assistants = {};
+  const tools = {};
   for (const e of events) {
     let src;
     switch (e.Type) {
@@ -113,6 +114,17 @@ dataWS.onmessage = e => {
         error: e.Data.Error,
       });
       break;
+    case "tool-call":
+      src = e.Data.SourceEvent
+      if (!tools.hasOwnProperty(src)) {
+        tools[src] = []
+      }
+      tools[src].push({
+        name: e.Data.Name,
+        call: e.Data.Call,
+        response: e.Data.Response,
+      });
+      break;
     }
   }
 
@@ -132,6 +144,7 @@ dataWS.onmessage = e => {
         // right now these are in response to a single message, though in the
         // future we may have some entries that are out of band
         assistants: assistants[t.ID] || [],
+        tools: tools[t.ID] || [],
       }
     }).filter(e => e.text.length > 0),
   }

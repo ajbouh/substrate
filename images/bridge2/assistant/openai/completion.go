@@ -1,7 +1,7 @@
 // JSON model forked from `go-openai` under the Apache 2.0 license
 // https://github.com/sashabaranov/go-openai
 // http://www.apache.org/licenses/LICENSE-2.0
-package assistant
+package openai
 
 var (
 // ErrCompletionUnsupportedModel              = errors.New("this model is not supported with this method, please use CreateChatCompletion client method instead") //nolint:lll
@@ -101,27 +101,27 @@ const (
 
 // CompletionRequest represents a request structure for completion API.
 type CompletionRequest struct {
-	Model string `json:"model"`
+	Model string `json:"model" yaml:"model"`
 	// XXX seems like API may support a list of strings too, is that helpful, or
 	// just limit to full strings?
-	Prompt      string  `json:"prompt,omitempty"`
-	Suffix      string  `json:"suffix,omitempty"`
-	MaxTokens   int     `json:"max_tokens,omitempty"`
-	Temperature float32 `json:"temperature,omitempty"`
-	TopP        float32 `json:"top_p,omitempty"`
-	N           int     `json:"n,omitempty"`
+	Prompt      string  `json:"prompt,omitempty" yaml:"prompt,omitempty"`
+	Suffix      string  `json:"suffix,omitempty" yaml:"suffix,omitempty"`
+	MaxTokens   int     `json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"`
+	Temperature float32 `json:"temperature,omitempty" yaml:"temperature,omitempty"`
+	TopP        float32 `json:"top_p,omitempty" yaml:"top_p,omitempty"`
+	N           int     `json:"n,omitempty" yaml:"n,omitempty"`
 	// Stream           bool     `json:"stream,omitempty"`
-	LogProbs         int      `json:"logprobs,omitempty"`
-	Echo             bool     `json:"echo,omitempty"`
-	Stop             []string `json:"stop,omitempty"`
-	PresencePenalty  float32  `json:"presence_penalty,omitempty"`
-	FrequencyPenalty float32  `json:"frequency_penalty,omitempty"`
-	BestOf           int      `json:"best_of,omitempty"`
+	LogProbs         int      `json:"logprobs,omitempty" yaml:"logprobs,omitempty"`
+	Echo             bool     `json:"echo,omitempty" yaml:"echo,omitempty"`
+	Stop             []string `json:"stop,omitempty" yaml:"stop,omitempty"`
+	PresencePenalty  float32  `json:"presence_penalty,omitempty" yaml:"presence_penalty,omitempty"`
+	FrequencyPenalty float32  `json:"frequency_penalty,omitempty" yaml:"frequency_penalty,omitempty"`
+	BestOf           int      `json:"best_of,omitempty" yaml:"best_of,omitempty"`
 	// LogitBias is must be a token id string (specified by their token ID in the tokenizer), not a word string.
 	// incorrect: `"logit_bias":{"You": 6}`, correct: `"logit_bias":{"1639": 6}`
 	// refs: https://platform.openai.com/docs/api-reference/completions/create#completions/create-logit_bias
-	LogitBias map[string]int `json:"logit_bias,omitempty"`
-	User      string         `json:"user,omitempty"`
+	LogitBias map[string]int `json:"logit_bias,omitempty" yaml:"logit_bias,omitempty"`
+	User      string         `json:"user,omitempty" yaml:"user,omitempty"`
 }
 
 // CompletionChoice represents one of possible completions.
@@ -168,21 +168,10 @@ func doCompletion(
 	endpoint string,
 	request *CompletionRequest,
 ) (response *CompletionResponse, err error) {
-	// if request.Stream {
-	// 	err = ErrCompletionStreamNotSupported
-	// 	return
-	// }
-
-	// urlSuffix := "/completions"
-	// if !checkEndpointSupportsModel(urlSuffix, request.Model) {
-	// 	err = ErrCompletionUnsupportedModel
-	// 	return
-	// }
-
-	// if !checkPromptType(request.Prompt) {
-	// 	err = ErrCompletionRequestPromptTypeNotSupported
-	// 	return
-	// }
-
+	if request.Model == "" {
+		req := *request
+		req.Model = "/res/model/huggingface/local"
+		request = &req
+	}
 	return doRequest[CompletionResponse](endpoint, request)
 }

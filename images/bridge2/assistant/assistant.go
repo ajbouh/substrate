@@ -1,26 +1,23 @@
 package assistant
 
 import (
-	"bytes"
 	"cmp"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"slices"
 	"strings"
 	"sync"
 	"text/template"
 	"time"
 
+	"github.com/ajbouh/substrate/images/bridge2/assistant/openai"
 	"github.com/ajbouh/substrate/images/bridge2/assistant/prompts"
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 	"github.com/ajbouh/substrate/images/bridge2/transcribe"
 )
 
-var recordAssistantText = tracks.EventRecorder[*AssistantTextEvent]("assistant-text")
+var RecordAssistantText = tracks.EventRecorder[*AssistantTextEvent]("assistant-text")
 var recordAssistantPrompt = tracks.EventRecorder[*AssistantPromptEvent]("assistant-set-prompt")
 
 type AssistantPromptEvent struct {
@@ -213,13 +210,7 @@ func respond(client Client, annot tracks.Event, input string) {
 		log.Printf("assistant: %s response: %s", name, response)
 		out.Response = &response
 	}
-	recordAssistantText(annot.Span(), &out)
-}
-
-// TODO replace this with an accurate count of tokens, e.g.:
-// https://github.com/pkoukk/tiktoken-go#counting-tokens-for-chat-api-calls
-func tokenCount(msg string) int {
-	return len(msg)
+	RecordAssistantText(annot.Span(), &out)
 }
 
 func DefaultPromptTemplateForName(name string) (string, error) {
@@ -230,22 +221,18 @@ func DefaultPromptTemplateForName(name string) (string, error) {
 
 type OpenAIClient struct {
 	Name     string
-	Endpoint string
 	Template *template.Template
 }
 
-func OpenAIClientGenerator(endpoint string) func(name, systemMessage string) (Client, error) {
-	return func(name, promptTemplate string) (Client, error) {
-		tmpl, err := prompts.ParseTemplate(promptTemplate)
-		if err != nil {
-			return nil, err
-		}
-		return OpenAIClient{
-			Name:     name,
-			Endpoint: endpoint,
-			Template: tmpl,
-		}, nil
+func OpenAIClientGenerator(name, promptTemplate string) (Client, error) {
+	tmpl, err := prompts.ParseTemplate(promptTemplate)
+	if err != nil {
+		return nil, err
 	}
+	return OpenAIClient{
+		Name:     name,
+		Template: tmpl,
+	}, nil
 }
 
 func (a OpenAIClient) AssistantName() string {
@@ -267,53 +254,6 @@ func (a OpenAIClient) Complete(speaker, input string) (string, string, error) {
 	if err != nil {
 		return prompt, "", err
 	}
-	maxTokens := 4096
-	req := CompletionRequest{
-		MaxTokens: maxTokens - tokenCount(prompt),
-		Prompt:    prompt,
-	}
-	resp, err := doCompletion(a.Endpoint, &req)
-	if err != nil {
-		return prompt, "", err
-	}
-	if len(resp.Choices) == 0 {
-		return prompt, "", fmt.Errorf("choices was empty")
-	}
-	if r, err := json.MarshalIndent(resp, "", " "); err == nil {
-		log.Printf("assistant: response: %s", r)
-	}
-	return prompt, resp.Choices[0].Text, nil
-}
-
-func indentJSONString(b []byte) string {
-	var buf bytes.Buffer
-	json.Indent(&buf, b, "", "  ")
-	return buf.String()
-}
-
-func doRequest[Resp, Req any](endpoint string, request Req) (*Resp, error) {
-	payloadBytes, err := json.Marshal(request)
-	if err != nil {
-		return nil, err
-	}
-	log.Println("assistant: request:", indentJSONString(payloadBytes))
-
-	resp, err := http.Post(endpoint, "application/json", bytes.NewBuffer(payloadBytes))
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("assistant: unexpected status %d: %s", resp.StatusCode, body)
-	}
-	var response Resp
-	err = json.Unmarshal(body, &response)
-	log.Println("assistant: response:", indentJSONString(body))
-	return &response, err
+	resp, err := openai.CompleteWithFrontmatter(prompt)
+	return prompt, resp, err
 }
