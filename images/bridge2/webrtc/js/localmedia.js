@@ -21,7 +21,9 @@ class LocalMedia {
     }
     this.updateStream();
     this.updateDevices();
-    navigator.mediaDevices.addEventListener('devicechange', () => this.updateDevices());
+    if (navigator.mediaDevices) {
+      navigator.mediaDevices.addEventListener('devicechange', () => this.updateDevices());
+    }
   }
 
   setAudioSource(deviceId) {
@@ -49,23 +51,25 @@ class LocalMedia {
   }
 
   async updateStream() {
-    if (this.videoSource === 'screen') {
-      this.stream = await navigator.mediaDevices.getDisplayMedia({
-        audio: {deviceId: true},
-        video: {deviceId: true},
-        systemAudio: 'include',
-      });
-    } else {
-      const source = (src) => {
-        if (src === false) {
-          return false;
+    if (navigator.mediaDevices) {
+      if (this.videoSource === 'screen') {
+        this.stream = await navigator.mediaDevices.getDisplayMedia({
+          audio: {deviceId: true},
+          video: {deviceId: true},
+          systemAudio: 'include',
+        });
+      } else {
+        const source = (src) => {
+          if (src === false) {
+            return false;
+          }
+          return {deviceId: src ? {exact: src} : true};
         }
-        return {deviceId: src ? {exact: src} : true};
+        this.stream = await navigator.mediaDevices.getUserMedia({
+          audio: source(this.audioSource),
+          video: source(this.videoSource),
+        });
       }
-      this.stream = await navigator.mediaDevices.getUserMedia({
-        audio: source(this.audioSource),
-        video: source(this.videoSource),
-      });
     }
     if (!this.audioEnabled) {
       for (const track of this.stream.getAudioTracks()) {
@@ -83,7 +87,7 @@ class LocalMedia {
   }
 
   async updateDevices() {
-    const devices = await navigator.mediaDevices.enumerateDevices();
+    const devices = navigator.mediaDevices ? await navigator.mediaDevices.enumerateDevices() : [];
     this.audioDevices = devices.filter(({kind}) => kind === "audioinput");
     this.videoDevices = devices.filter(({kind}) => kind === "videoinput");
     this.outputDevices = devices.filter(({kind}) => kind === "audiooutput");
