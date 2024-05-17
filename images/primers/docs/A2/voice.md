@@ -10,7 +10,7 @@ import {
   formatDuration,
   setupScrubber,
   substrateURL,
-  useChromestage,
+  defineStage,
 } from "../components/template.js";
 ```
 
@@ -38,12 +38,12 @@ const {fieldAt, scrubber, setWidth, viewports} = setupScrubber({
         "[fill='#00FF00']": defineDOMSurface({
           width: 1920,
           height: 1280,
-          useChromestage,
+          defineStage,
         }),
         "[fill='#FF00F5']": defineDOMSurface({
           width: 1280,
           height: 720,
-          useChromestage,
+          defineStage,
         }),
         "#audioLiv": defineVoiceSurface({
           url: "/styletts2/v1/speech",

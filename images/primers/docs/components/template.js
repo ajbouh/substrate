@@ -108,7 +108,136 @@ export function setupScrubber({events, viewports, autoplay = true}) {
   }
 }
 
-export function newView({angles, surfaceDefs, aspectRatio}) {
+export function newBlenderSceneView({scene: sceneData, surfaceDefs, aspectRatio}) {
+
+  const div = document.createElement('div')
+  div.style.position = 'relative'
+  div.style.overflow = 'clip'
+  div.style.userSelect = 'none'
+
+  const bgDiv = document.createElement('div')
+  bgDiv.style.backgroundColor = 'black'
+  bgDiv.style.position = 'absolute'
+  bgDiv.style.top = '0'
+  bgDiv.style.left = '0'
+  bgDiv.style.right = '0'
+  bgDiv.style.bottom = '0'
+  div.appendChild(bgDiv)
+  
+  const imgWrap = document.createElement('div')
+  // must be relative so the SVG sits atop the videos.
+  imgWrap.style.position = 'relative'
+  div.appendChild(imgWrap)
+
+  const imgs = {}
+  const dimensions = {}
+  const transforms = {}
+
+  for (const [angle, {src: imgSrc, width: imgOuterWidth, height: imgOuterHeight, screens}] of Object.entries(sceneData)) {
+    const img1 = document.createElement('img')
+    img1.src = imgSrc
+    img1.style.position = 'absolute'
+    img1.style.top = '0'
+    img1.style.left = '0'
+    img1.style.visibility = 'hidden'
+    img1.style.pointerEvents = 'none'
+    img1.style.mixBlendMode = 'screen'
+
+    const img2 = img1.cloneNode(false)
+    imgWrap.appendChild(img1)
+    imgWrap.appendChild(img2)
+
+    let imgInnerWidth = imgOuterWidth
+    let imgInnerHeight = imgOuterHeight
+    let imgInnerTranslateXRatio = 0
+
+    const imgExcessWidthRatio = imgOuterWidth / imgInnerWidth
+    const innerAspectRatio = imgInnerWidth/imgInnerHeight
+    const imgOuterAspectRatio = imgOuterWidth / imgOuterHeight
+
+    imgs[angle] = [img1, img2]
+    dimensions[angle] = {innerAspectRatio, imgInnerWidth, imgInnerHeight, imgInnerTranslateXRatio, imgExcessWidthRatio, imgOuterAspectRatio}
+    transforms[angle] = {}
+
+    for (const [surfaceName, {css_transform, coordinates}] of Object.entries(screens)) {
+      transforms[angle][surfaceName] = {transform: css_transform, quad: coordinates}
+    }
+  }
+
+  const surfaces = {}
+  for (const [surfaceName, stage] of Object.entries(surfaceDefs)) {
+    const surface = createDOMSurface(stage)
+    if (surface.element) {
+      imgWrap.insertBefore(surface.element, imgWrap.firstChild)
+    }
+    surfaces[surfaceName] = surface
+  }
+
+  let transformsBySurfaceName, img1, img2, imgInnerWidth, imgInnerHeight, imgInnerTranslateXRatio, imgExcessWidthRatio, imgOuterAspectRatio, innerAspectRatio
+
+  return {
+    element: div,
+    mapSurfaces(cb) {
+      return Promise.all(Object.entries(surfaces).map(([sel, surface]) => cb(sel, surface)))
+    },
+    eachSurface(cb) {
+      this.mapSurface(cb)
+    },
+    update({width, viewportGet, surfaceGetAgo, running}) {
+      div.style.height = `${width/aspectRatio}px`
+      div.style.width = `${width}px`
+      imgWrap.style.top = `-${width/2 - (width/aspectRatio/2)}px`
+
+      // if we have an angle, update it
+      const angle = viewportGet('angle')
+      if (!(angle in imgs)) {
+        throw new Error(`unknown angle: ${angle}`)
+      }
+
+      [img1, img2] = imgs[angle];
+      ({imgInnerWidth, imgInnerHeight, imgInnerTranslateXRatio, imgExcessWidthRatio, imgOuterAspectRatio, innerAspectRatio} = dimensions[angle]);
+      transformsBySurfaceName = transforms[angle]
+      console.log({angle, transformsBySurfaceName})
+
+      for (const [a, imgz] of Object.entries(imgs)) {
+        for (const img of imgz) {
+          img.style.visibility = (a === angle) ? 'visible' : 'hidden'
+        }
+      }
+
+      if (img1 && width !== undefined) {
+        img1.style.width = `${imgExcessWidthRatio * width}px`
+        // scale SVG height down by its existing aspect ratio
+        img1.style.height = `${imgExcessWidthRatio * width / imgOuterAspectRatio}px`
+        img1.style.left = `${imgInnerTranslateXRatio * imgExcessWidthRatio * width}px`
+      }
+      if (img2 && width !== undefined) {
+        img2.style.width = `${imgExcessWidthRatio * width}px`
+        // scale SVG height down by its existing aspect ratio
+        img2.style.height = `${imgExcessWidthRatio * width / imgOuterAspectRatio}px`
+        img2.style.left = `${imgInnerTranslateXRatio * imgExcessWidthRatio * width}px`
+      }
+
+      if (transformsBySurfaceName) {
+        for (let [surfaceName, surface] of Object.entries(surfaces)) {
+          const {transform, quad} = transformsBySurfaceName ? transformsBySurfaceName[surfaceName] || {} : {}
+          surface.update({
+            // transform,
+            quad: (quad && width)
+              ? [quad[0], quad[1], quad[2], quad[3]].map(({x, y}) => [width*x/imgInnerWidth + (imgInnerTranslateXRatio*width*imgExcessWidthRatio), (width/innerAspectRatio)*y/imgInnerHeight])
+              : null,
+            getAgo: (...k) => surfaceGetAgo(surfaceName, 'keyframe', ...k),
+            running,
+          });
+        }
+      }
+
+      return div
+    }
+  }
+}
+
+export function newSVGView({angles, surfaceDefs, aspectRatio}) {
   const div = document.createElement('div')
   div.style.position = 'relative'
   div.style.overflow = 'clip'
@@ -198,8 +327,8 @@ export function newView({angles, surfaceDefs, aspectRatio}) {
   }
 
   const surfaces = {}
-  for (const [sel, createSurface] of Object.entries(surfaceDefs)) {
-    const surface = createSurface()
+  for (const [sel, stage] of Object.entries(surfaceDefs)) {
+    const surface = createDOMSurface(stage)
     if (surface.element) {
       svgWrap.insertBefore(surface.element, svgWrap.firstChild)
     }
@@ -378,183 +507,201 @@ async function fetchChromestageDebuggerURL(chromestageURL) {
   return o.devtools
 }
 
-export function defineDOMSurface({width, height, useChromestage}) {
-  // TODO useChromestage
-  return function createSurface() {
-    const composited = document.createElement('div')
-    composited.style.backgroundColor = 'black'
-    composited.style.position = 'absolute'
-    composited.style.top = '0'
-    composited.style.left = '0'
-    composited.style.transformOrigin = '0 0'
-    const iframe = document.createElement('iframe')
-    iframe.width = width
-    iframe.height = height
-    iframe.style.margin = '0'
-    composited.style.width = width
-    composited.style.height = height
-    composited.appendChild(iframe)
+export function defineChromestage({width, height}) {
+  let id = ID++
+  const chromestageURL = new URL(`/chromestage;id=${id};w=${width};h=${height}`, import.meta.url).toString()
+  console.log(`chromestage ${id}`, chromestageURL)
+  fetchChromestageDebuggerURL(chromestageURL)
 
-    // console.log("defining", {width, height, useChromestage})
+  const chromstageCommands = chromestageURL + "/commands"
+  const chromstageVNC = chromestageURL + "/vnc/"
 
-    let run
-    let debuggingLinks
-    if (useChromestage) {
-        let id = ID++
-        const chromestageURL = new URL(`/chromestage;id=${id};w=${width};h=${height}`, import.meta.url).toString()
-        console.log(`chromestage ${id}`, chromestageURL)
-        fetchChromestageDebuggerURL(chromestageURL)
+  const iframe = document.createElement('iframe')
+  iframe.width = width
+  iframe.height = height
+  iframe.style.margin = '0'
 
-        const chromstageCommands = chromestageURL + "/commands"
-        const chromstageVNC = chromestageURL + "/vnc/"
-        iframe.src = chromstageVNC
+  iframe.src = chromstageVNC
 
-        run = async (command, parameters) => {
-          // console.log("running...", {command, parameters})
-          const r = await fetch(chromstageCommands, {
-            method: "POST",
-            headers: {'Content-Type': "application/json"},
-            body: JSON.stringify({
-              command,
-              parameters,
-            }),
-          })
+  return {
+    width,
+    height,
+    element: iframe,
+    run: async (command, parameters) => {
+      // console.log("running...", {command, parameters})
+      const r = await fetch(chromstageCommands, {
+        method: "POST",
+        headers: {'Content-Type': "application/json"},
+        body: JSON.stringify({
+          command,
+          parameters,
+        }),
+      })
 
-          const t = await r.text()
+      const t = await r.text()
 
-          if (r.status !== 200) {
-            throw new Error(`non-200 http status: ${t}`)
-          }
-
-          // console.log("result", JSON.parse(t))
-          // console.log(t)
-          const o = JSON.parse(t)
-          console.log(`command ${command}`, {parameters, result: o})
-          return o
-        }
-        debuggingLinks = async function() {
-          return {
-            "vnc": chromstageVNC,
-            "debugger": await fetchChromestageDebuggerURL(chromestageURL),
-          }
-        }
-      } else {
-      let _url
-      debuggingLinks = async function() {
-        return {}
+      if (r.status !== 200) {
+        throw new Error(`non-200 http status: ${t}`)
       }
-      run = async (command, parameters) => {
-        switch (command) {
-        case "tab:navigate":
-          if (parameters.url === _url) {
-            return
-          }
 
-          // console.log("setting src", parameters.url)
-          iframe.src = parameters.url
-          _url = parameters.url
-          break
-        default:
-          throw new Error(`unknown command ${command}`)
-        }
+      // console.log("result", JSON.parse(t))
+      // console.log(t)
+      const o = JSON.parse(t)
+      console.log(`command ${command}`, {parameters, result: o})
+      return o
+    },
+    debuggingLinks: async function() {
+      return {
+        "vnc": chromstageVNC,
+        "debugger": await fetchChromestageDebuggerURL(chromestageURL),
       }
-    }
+    },
+  }
+}
 
-    return {
-      element: composited,
-      run,
-      debuggingLinks,
-      async runTabEvaluate(fn, args) {
-        const t = await run("tab:evaluate", {js: `(${fn})(${JSON.stringify(args)});`})
-        // console.log("runTabEvaluate", fn, args, t)
-        return t
-      },
-      async runYouTubeTabEvaluate(args) {
-        // console.log("runYouTubeTabEvaluate")
-        return await this.runTabEvaluate(async function({playing, currentTime, playbackRate}) {
-          const video = document.querySelector('video')
-          if (!video) {
-            return
+export function defineIframeStage({width, height}) {
+  const iframe = document.createElement('iframe')
+  iframe.width = width
+  iframe.height = height
+  iframe.style.margin = '0'
+
+  let _url
+  return {
+    width,
+    height,
+    element: iframe,
+    debuggingLinks: async function() {
+      return {}
+    },
+    run: async (command, parameters) => {
+      switch (command) {
+      case "tab:navigate":
+        if (parameters.url === _url) {
+          return
+        }
+
+        // console.log("setting src", parameters.url)
+        iframe.src = parameters.url
+        _url = parameters.url
+        break
+      default:
+        throw new Error(`unknown command ${command}`)
+      }
+    },
+  }
+}
+
+export const defineWebstage = useChromestage ? defineChromestage : defineIframeStage;
+
+function createDOMSurface({run, debuggingLinks, element: stageElement, width, height}) {
+  const composited = document.createElement('div')
+  composited.classList.add('dom-surface')
+  composited.style.position = 'absolute'
+  composited.style.top = '0'
+  composited.style.left = '0'
+  composited.style.transformOrigin = '0 0'
+  
+  composited.appendChild(stageElement)
+  composited.style.width = width
+  composited.style.height = height
+
+  return {
+    element: composited,
+    run,
+    debuggingLinks,
+    async runTabEvaluate(fn, args) {
+      const t = await run("tab:evaluate", {js: `(${fn})(${JSON.stringify(args)});`})
+      // console.log("runTabEvaluate", fn, args, t)
+      return t
+    },
+    async runYouTubeTabEvaluate(args) {
+      // console.log("runYouTubeTabEvaluate")
+      return await this.runTabEvaluate(async function({playing, currentTime, playbackRate}) {
+        const video = document.querySelector('video')
+        if (!video) {
+          return
+        }
+
+        const wasPlaying = !video.paused && !video.ended && (video.readyState > 2) && (video.currentTime > 0)
+        function updateProps() {
+          if (currentTime != null) {
+            video.currentTime = currentTime
           }
-
-          const wasPlaying = !video.paused && !video.ended && (video.readyState > 2) && (video.currentTime > 0)
-          function updateProps() {
-            if (currentTime != null) {
-              video.currentTime = currentTime
-            }
-            if (playbackRate != null) {
-              video.playbackRate = playbackRate
-            }
+          if (playbackRate != null) {
+            video.playbackRate = playbackRate
           }
+        }
 
-          if (playing != null) {
-            if (playing !== wasPlaying) {
-              if (playing) {
-                updateProps()
-                const p = document.querySelector('button[aria-label="Play"]')
-                await p.click()
-                // await video.play()
-                return {"action": "play"}
-              } else {
-                video.pause()
-                for (const e of document.querySelectorAll('.ytp-pause-overlay')) {
-                  e.remove()
-                }
-                updateProps()
-                return {"action": "pause"}
-              }
-            } else {
+        if (playing != null) {
+          if (playing !== wasPlaying) {
+            if (playing) {
               updateProps()
-              return {"action": "noop"}
+              const p = document.querySelector('button[aria-label="Play"]')
+              await p.click()
+              // await video.play()
+              return {"action": "play"}
+            } else {
+              video.pause()
+              for (const e of document.querySelectorAll('.ytp-pause-overlay')) {
+                e.remove()
+              }
+              updateProps()
+              return {"action": "pause"}
             }
           } else {
             updateProps()
+            return {"action": "noop"}
           }
-        }, args)
-      },
-      async applyKeyframeURL({get}) {
-        // console.log("applyKeyframeURL")
-        const url = get('url')
-        await run("tab:navigate", {url, lazy: true})
-        return url
-      },
-      async applyKeyframeYouTube({get, getAgo, running}) {
-        // console.log("applyKeyframeYouTube")
-        const playbackRate = get('playbackRate')
-        let [currentTime, ago] = getAgo('currentTime')
-        currentTime += playbackRate * (ago / 1000.0)
-        return await this.runYouTubeTabEvaluate({
-          playing: running && get('playing'),
-          currentTime: currentTime,
-          playbackRate: playbackRate,
-        })
-      },
-      async update({quad, getAgo, running}) {
-        console.log("update")
-
-        if (!quad) {
-          composited.style.visibility = 'hidden'
-          composited.style.transform = undefined
-          return
+        } else {
+          updateProps()
         }
-        
-        composited.style.visibility = 'visible'
-        composited.style.transform = matrix3d(
+      }, args)
+    },
+    async applyKeyframeURL({get}) {
+      // console.log("applyKeyframeURL")
+      const url = get('url')
+      await run("tab:navigate", {url, lazy: true})
+      return url
+    },
+    async applyKeyframeYouTube({get, getAgo, running}) {
+      // console.log("applyKeyframeYouTube")
+      const playbackRate = get('playbackRate')
+      let [currentTime, ago] = getAgo('currentTime')
+      currentTime += playbackRate * (ago / 1000.0)
+      return await this.runYouTubeTabEvaluate({
+        playing: running && get('playing'),
+        currentTime: currentTime,
+        playbackRate: playbackRate,
+      })
+    },
+    async update({quad, transform, getAgo, running}) {
+      console.log("update", composited, {quad, transform})
+
+      if (!quad && !transform) {
+        composited.style.visibility = 'hidden'
+        composited.style.transform = undefined
+        return
+      }
+      
+      composited.style.visibility = 'visible'
+      if (!transform) {
+        transform = matrix3d(
           [[0, 0], [width, 0], [width, height], [0, height]],
           quad,
         )
-
-        const get = (...a) => getAgo(...a)[0]
-        const url = await this.applyKeyframeURL({get, running})
-        if (url.startsWith("https://www.youtube.com/")) {
-          await this.applyKeyframeYouTube({
-            get: (...k) => get('youtube', ...k),
-            getAgo: (...k) => getAgo('youtube', ...k),
-            running,
-          })
-        }
-      },
-    }
+      }
+      composited.style.transform = transform
+        
+      const get = (...a) => getAgo(...a)[0]
+      const url = await this.applyKeyframeURL({get, running})
+      if (url.startsWith("https://www.youtube.com/")) {
+        await this.applyKeyframeYouTube({
+          get: (...k) => get('youtube', ...k),
+          getAgo: (...k) => getAgo('youtube', ...k),
+          running,
+        })
+      }
+    },
   }
 }
 
