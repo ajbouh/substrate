@@ -458,7 +458,8 @@ function parseOperationPipeline(def) {
   // parse any rawArgs into a set of keywords
   for (const p of pipeline) {
     p.args = Object.fromEntries(p.rawArgs.map(arg => {
-      const [k, v] = arg.split("=", 2)
+      let [k, ...v] = arg.split("=")
+      v = v.join("=")
       const o = v == null
         ? v
         : /^[-+0-9]/.test(v)

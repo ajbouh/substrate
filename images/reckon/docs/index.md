@@ -1,5 +1,7 @@
 ---
 title: Reckon
+toc: false
+theme: [light, dark, alt, wide]
 ---
 
 ```js
