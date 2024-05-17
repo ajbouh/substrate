@@ -37,8 +37,9 @@ func (a *TabCommands) Initialize() {
 			},
 			Run: func(_ context.Context, p commands.Fields) (commands.Fields, error) {
 				url := p.String("url")
-				if p.Bool("lazy") {
-					var u string
+				var u string
+				lazy := p.Bool("lazy")
+				if lazy {
 					err := a.CDP.Run(chromedp.Location(&u))
 					if err != nil {
 						return nil, err
@@ -47,12 +48,18 @@ func (a *TabCommands) Initialize() {
 					if u == url {
 						return commands.Fields{
 							"navigated": false,
+							"previous":  u,
+							"lazy":      lazy,
+							"current":   url,
 						}, nil
 					}
 				}
 
 				return commands.Fields{
 					"navigated": true,
+					"lazy":      lazy,
+					"previous":  u,
+					"current":   url,
 				}, a.CDP.Run(chromedp.Navigate(url))
 			},
 		},

@@ -22,7 +22,7 @@ ENV LANG="C.UTF-8"
 RUN apt update \
   && apt install -y --fix-missing \
     wget gnupg \
-    xorg tigervnc-standalone-server tigervnc-tools xterm dbus-x11 xfonts-100dpi xfonts-75dpi fonts-liberation2 \
+    xorg tigervnc-standalone-server tigervnc-tools xterm dbus-x11 xfonts-100dpi xfonts-75dpi fonts-liberation2 fonts-noto-color-emoji \
     pulseaudio ffmpeg \
     ca-certificates tzdata \
   && apt clean \

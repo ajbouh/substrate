@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"errors"
+	"log"
 )
 
 type DynamicSource struct {
@@ -28,6 +29,9 @@ func (c *DynamicSource) Reflect(ctx context.Context) (DefIndex, error) {
 
 func (c *DynamicSource) Run(ctx context.Context, name string, p Fields) (Fields, error) {
 	for _, src := range c.Sources {
+		log.Printf("Dynamic command %s running... parameters:%#v", name, p)
+		var err error
+		defer log.Printf("Dynamic command %s done. err:%s", name, err)
 		result, err := src.Run(ctx, name, p)
 		if err == nil || !errors.Is(err, ErrNoSuchCommand) {
 			return result, err

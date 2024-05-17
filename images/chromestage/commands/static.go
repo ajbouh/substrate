@@ -30,7 +30,11 @@ func (c *StaticSource) Reflect(ctx context.Context) (DefIndex, error) {
 
 func (c *StaticSource) Run(ctx context.Context, name string, p Fields) (Fields, error) {
 	if cmd, ok := c.runIndex[name]; ok {
-		return cmd(ctx, p)
+		log.Printf("Static command %s running... parameters:%#v", name, p)
+		var err error
+		defer log.Printf("Static command %s done; err:%s", name, err)
+		f, err := cmd(ctx, p)
+		return f, err
 	}
 
 	return Fields{}, ErrNoSuchCommand

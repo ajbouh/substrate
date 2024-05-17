@@ -35,6 +35,8 @@ Xvnc $DISPLAY \
   -PasswordFile=./vncpassword \
   -rfbauth ./vncpassword \
   -rfbport 5900 \
+  -AcceptPointerEvents=on \
+  -AcceptKeyEvents=on \
   -SecurityTypes=None,Plain,VncAuth \
   &
 xvnc=$!
@@ -81,6 +83,7 @@ chromium \
 	--safebrowsing-disable-auto-update=true \
 	--password-store="basic" \
 	--use-mock-keychain=true \
+  --enable-logging --v=stderr \
   $start_page & # --start-maximized --start-fullscreen
 chromium=$!
 
