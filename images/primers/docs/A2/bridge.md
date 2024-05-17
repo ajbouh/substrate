@@ -4,12 +4,12 @@ title: A2
 
 ```js
 import {
-  newView,
-  defineDOMSurface,
+  newSVGView,
+  newBlenderSceneView,
+  defineWebstage,
   formatDuration,
   setupScrubber,
   substrateURL,
-  useChromestage,
 } from "../components/template.js";
 ```
 
@@ -35,41 +35,39 @@ const lecture = `https://docs.google.com/presentation/d/1dOoCTw5RMtn7NqhM4pNCiWI
 ```
 
 ```js
+const scene = await (await fetch("https://substrate.taild72f5.ts.net/primer-scene;d=sp-01HXFRX22F9AMJ8FVMRJTV86R1;mainfile=A2_grad_v03.blend/v1/shots")).json()
+```
+
+```js
 const {fieldAt, scrubber, setWidth, viewports} = setupScrubber({
   autoplay: false,
   viewports: {
-    v1: newView({
+    // v1: newSVGView({
+    v1: newBlenderSceneView({
+      scene,
       aspectRatio: 16/9,
       surfaceDefs: {
-        "[fill='#00FF00']": defineDOMSurface({
+        "SCREEN_1 AR:1.001": defineWebstage({
           // aspect ratio 3:2
           width: 1920,
           height: 1280,
-          useChromestage,
         }),
-        "[fill='#FF00F5']": defineDOMSurface({
+        "SCREEN_2 AR:1.6": defineWebstage({
           // aspect ratio 16:9
           width: 1280,
           height: 720,
-          useChromestage,
         }),
       },
-      angles: Object.fromEntries(await Promise.all([
-        ['grad_011_ovr', FileAttachment('../templates/v2/grad_011_ovr.svg')],
-        ['grad_020_scr', FileAttachment('../templates/v2/grad_020_scr.svg')],
-        ['grad_021_scr', FileAttachment('../templates/v2/grad_021_scr.svg')],
-        ['A2_grad_101', FileAttachment('../templates/v2/A2_grad_101.svg')],
-      ].map(async ([k, fa]) => [k, await fa.text()]))),
     }),
   },
   events: [
     {
-      "[fill='#00FF00']": {
+      "SCREEN_1 AR:1.001": {
         keyframe: {
           url: bridge,
         },
       },
-      "[fill='#FF00F5']": {
+      "SCREEN_2 AR:1.6": {
         keyframe: {
           url: lecture,
           // youtube: {
@@ -79,27 +77,22 @@ const {fieldAt, scrubber, setWidth, viewports} = setupScrubber({
           // },
         },
       },
-      'v1': {'angle': 'grad_021_scr'},
+      'v1': {'angle': 'CamWIDE'},
       'dur': 5000,
       'notes': `Liv sits at her desk. She is watching a live presentation.`
     },
     {
-      'v1': {'angle': 'grad_011_ovr'},
+      'v1': {'angle': 'CamBIGSCREEN'},
       'dur': 4000,
       'notes': `She is using Bridge on another display.`
     },
     {
-      'v1': {'angle': 'grad_020_scr'},
+      'v1': {'angle': 'CamLAPTOP'},
       'dur': 3000,
       'notes': `Bridge displays a live transcript along with its Spanish translation.`
     },
     {
-      'v1': {'angle': 'grad_011_ovr'},
-      'dur': 4000,
-      'notes': `She can follow along without worrying that she missed something and won't understand.`
-    },
-    {
-      'v1': {'angle': 'A2_grad_101'},
+      'v1': {'angle': 'CamWIDE'},
       'dur': 4000,
       'notes': `She can follow along without worrying that she missed something and won't understand.`
     },

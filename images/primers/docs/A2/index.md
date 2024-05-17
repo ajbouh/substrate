@@ -5,11 +5,10 @@ title: A2
 ```js
 import {
   newView,
-  defineDOMSurface,
+  defineWebstage,
   formatDuration,
   setupScrubber,
   substrateURL,
-  useChromestage,
 } from "../components/template.js";
 ```
 
@@ -34,15 +33,15 @@ const {fieldAt, scrubber, setWidth, viewports} = setupScrubber({
     v1: newView({
       aspectRatio: 16/9,
       surfaceDefs: {
-        "[fill='#00FF00']": defineDOMSurface({
+        "[fill='#00FF00']": defineWebstage({
+          // aspect ratio 3:2
           width: 1920,
           height: 1280,
-          useChromestage,
         }),
-        "[fill='#FF00F5']": defineDOMSurface({
+        "[fill='#FF00F5']": defineWebstage({
+          // aspect ratio 16:9
           width: 1280,
           height: 720,
-          useChromestage,
         }),
       },
       angles: Object.fromEntries(await Promise.all([
