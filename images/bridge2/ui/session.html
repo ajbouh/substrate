@@ -90,6 +90,8 @@ dataWS.onmessage = e => {
   const translations = {};
   const assistants = {};
   const tools = {};
+  const speakers = [];
+  const speakerNames = {};
   for (const e of events) {
     let src;
     switch (e.Type) {
@@ -125,6 +127,16 @@ dataWS.onmessage = e => {
         response: e.Data.Response,
       });
       break;
+    case "diarization":
+      speakers.push({
+        id: e.Data.SpeakerID,
+        start: e.Start,
+        end: e.End,
+      });
+      break;
+    case "diarization-speaker-name":
+      speakerNames[e.Data.SpeakerID] = e.Data.Name;
+      break;
     }
   }
 
@@ -134,10 +146,22 @@ dataWS.onmessage = e => {
     entries: events.filter(e => e.Type === "transcription").sort((a, b) => {
       return a.Start - b.Start;
     }).map(t => {
+      let speakerIds = []
+      let seenSpeakers = new Set();
+      for (const s of speakers) {
+        if (!seenSpeakers.has(s.id) && t.End >= s.start && t.Start <= s.end) {
+          seenSpeakers.add(s.id);
+          speakerIds.push(s.id);
+        }
+      }
+      let speakerNames2 = speakerIds.map(id => speakerNames[id] || id);
       return {
-        speakerLabel: "user",
+        speakerLabel: speakerNames2.length > 0 ? speakerNames2.join(", ") : "unknown",
         lang: t.Data.source_language,
         start: new Date(sessionStart + (t.Start / 1000000)),
+        // TODO try joining words instead
+        // can we then split one of these based on the speakers for different
+        // time spans?
         text: t.Data.segments.map(s => s.text).join(),
         final: true,
         translations: translations[t.ID] || [],

@@ -14,7 +14,7 @@ class Response(BaseModel):
 
 
 class Request(BaseModel):
-    audio_data: Optional[bytes]
+    audio_data: bytes
 
 
 def new_v1_api_app(

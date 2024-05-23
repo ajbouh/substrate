@@ -18,20 +18,21 @@ pipeline = Pipeline.from_pretrained(
     use_auth_token="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") # progrium's token for now
 
 # send pipeline to GPU (when available)
-#import torch
-#pipeline.to(torch.device("cuda"))
+import torch
+pipeline.to(torch.device("cuda"))
 
-def ogg2wav(ogg: bytes):
-    ogg_buf = io.BytesIO(ogg)
-    ogg_buf.name = 'file.opus'
-    data, samplerate = sf.read(ogg_buf, dtype='float32')
+def read_wav(wav: bytes):
+    buf = io.BytesIO(wav)
+    buf.name = 'file.wav'
+    data, samplerate = sf.read(buf, dtype='float32')
     return data, samplerate
 
 
 def diarize(request: Request) -> Response:
     data = base64.b64decode(request.audio_data)
-    audio_wav, sample_rate = ogg2wav(data)
+    audio_wav, sample_rate = read_wav(data)
     audio_data = np.frombuffer(audio_wav, dtype=np.float32)
+    print(f'diarize-srv: got {len(audio_data)} samples')
     waveform = torch.from_numpy(audio_data).unsqueeze(0)
 
     diarization = pipeline(dict(

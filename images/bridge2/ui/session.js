@@ -26,7 +26,7 @@ export var Entry = {
       ),
       m("div", {"class":"line","style":{"background-color":attrs.lineColor}},
         m("div", {"class":`right ${attrs.isAssistant ? "assistant": ""}`},
-          // m("div", {"class":"name"}, attrs.speakerLabel),
+          m("div", {"class":"text text-teal-500"}, attrs.speakerLabel),
           m("div", {"class": `text ${!attrs.final ? "text-gray-400": ""}`, lang: attrs.lang},
             attrs.text,
           ),

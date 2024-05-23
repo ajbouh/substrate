@@ -65,7 +65,7 @@ func newIDWithTime(t time.Time) ID {
 	return ID(xid.NewWithTime(t).String())
 }
 
-func newID() ID {
+func NewID() ID {
 	return newIDWithTime(time.Now().UTC())
 }
 
@@ -165,7 +165,7 @@ func (s *Session) now() Timestamp {
 
 func (s *Session) NewTrackAt(start Timestamp, format beep.Format) *Track {
 	t := &Track{
-		ID:      newID(),
+		ID:      NewID(),
 		Session: s,
 		start:   start,
 		audio:   newContinuousBuffer(format),
@@ -257,7 +257,7 @@ var _ Span = (*Track)(nil)
 func (t *Track) record(typ string, span Span, data any) Event {
 	e := Event{
 		EventMeta: EventMeta{
-			ID:    newID(),
+			ID:    NewID(),
 			Start: span.Start(),
 			End:   span.End(),
 			Type:  typ,
