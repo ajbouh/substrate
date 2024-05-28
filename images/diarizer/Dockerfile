@@ -20,6 +20,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the source code to the container
 COPY images/diarizer/. /app
 
+RUN python3 /app/model_download.py
+
 # Expose the port on which the application will run (default is 8000)
 EXPOSE 8080
 ENV PYTHONUNBUFFERED=1
