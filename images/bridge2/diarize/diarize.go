@@ -2,11 +2,14 @@ package diarize
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"slices"
+	"sync"
 	"time"
 
 	"github.com/ajbouh/substrate/images/bridge2/audio"
@@ -34,17 +37,29 @@ type SpeakerName struct {
 
 type Agent struct {
 	Endpoint string
+	mutex    sync.Map
 }
 
 const (
-	maxSampleLength = 5 * time.Second
+	maxSampleLength = 10 * time.Second
 	samplePadding   = 1 * time.Second
 )
+
+func (a *Agent) lock(id tracks.ID) *sync.Mutex {
+	v, _ := a.mutex.LoadOrStore(id, &sync.Mutex{})
+	m := v.(*sync.Mutex)
+	m.Lock()
+	return m
+}
 
 func (a *Agent) HandleEvent(annot tracks.Event) {
 	if annot.Type != "activity" {
 		return
 	}
+
+	// Only process one sample per-track at a time to avoid race conditions for
+	// new speakers being processed concurrently without the previous context.
+	defer a.lock(annot.Track().ID).Unlock()
 
 	samples := collectSamples(annot.Track(), maxSampleLength, samplePadding)
 	combinedAudio := make([]beep.Streamer, 0, len(samples)+1)
@@ -77,6 +92,17 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		return
 	}
 
+	// To help debugging samples & diarization timespans, record the times, then
+	// sort and log them after to show the sequence of events.
+	type timelog struct {
+		ts time.Duration
+		s  string
+	}
+	var logs []timelog
+	logTime := func(ts time.Duration, s string, args ...any) {
+		logs = append(logs, timelog{ts, fmt.Sprintf(s, args...)})
+	}
+
 	ids, newIDs := samples.MapSpeakers(resp.Timespans)
 
 	initSpan := annot.Span().Span(0, 0)
@@ -87,12 +113,19 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		})
 	}
 
+	for _, s := range samples {
+		logTime(s.Range.Start, "sample start %s", s.SpeakerID)
+		logTime(s.Range.End, "sample end   %s", s.SpeakerID)
+	}
+
 	sampleEnd := tracks.Timestamp(samples.End())
 	timeOffset := annot.Start - sampleEnd
 
 	for _, ts := range resp.Timespans {
 		tsStart := tracks.Timestamp(ts.Start * float64(time.Second))
 		tsEnd := tracks.Timestamp(ts.End * float64(time.Second))
+		logTime(time.Duration(tsStart), "speaker start %s %s", ids[ts.Speaker], ts.Speaker)
+		logTime(time.Duration(tsEnd), "speaker end   %s %s", ids[ts.Speaker], ts.Speaker)
 		if tsEnd < sampleEnd {
 			continue
 		}
@@ -106,6 +139,10 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 			SpeakerID:           ids[ts.Speaker],
 			InternalSpeakerName: ts.Speaker,
 		})
+	}
+	slices.SortFunc(logs, func(a, b timelog) int { return cmp.Compare(a.ts, b.ts) })
+	for _, l := range logs {
+		log.Printf("diarize: %s %s", l.ts, l.s)
 	}
 }
 

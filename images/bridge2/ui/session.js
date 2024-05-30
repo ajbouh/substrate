@@ -19,16 +19,22 @@ export var Session = {
 
 export var Entry = {
   view: ({attrs}) => {
-    return m("div", {"class":"entry"}, [
+    return m("div", {"class":"entry", "data-start": attrs.span.start, "data-end": attrs.span.end}, [
       m("div", {"class":"left"},
-        m("div", {"class":"time"}, formatTime(attrs.start)),
-        // m("div", {"class":"session-time"}, formatSessionTime(attrs.sessionTime))
+        m("div", {"class":"time"}, formatTime(attrs.start), "-", formatTime(attrs.end)),
       ),
       m("div", {"class":"line","style":{"background-color":attrs.lineColor}},
         m("div", {"class":`right ${attrs.isAssistant ? "assistant": ""}`},
-          m("div", {"class":"text text-teal-500"}, attrs.speakerLabel),
-          m("div", {"class": `text ${!attrs.final ? "text-gray-400": ""}`, lang: attrs.lang},
-            attrs.text,
+          m("div", {"class": "text text-teal-500 space-x-4"}, attrs.speakers.length == 0 ? "unknown" : attrs.speakers.map(s => {
+            return m("span", {"class": `text-${s.color}`, "data-speaker-id": s.id}, s.name);
+          })),
+          m("div", {"class": `text ${!attrs.final ? "text-gray-400": "text-slate-300"}`, lang: attrs.lang},
+            attrs.words.map(w => {
+              return m("span", {
+                "class": w.colors.length == 0 ? "" : `underline decoration-${w.colors[0]}/50`,
+                "data-start": w.start, "data-end": w.end,
+              }, w.word);
+            })
           ),
           attrs.translations.map(translation =>
             m("div", {"class": "text text-cyan-500", lang: translation.lang},

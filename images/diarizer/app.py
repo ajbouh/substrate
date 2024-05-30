@@ -15,7 +15,7 @@ from pyannote.audio import Pipeline
 
 pipeline = Pipeline.from_pretrained(
     "pyannote/speaker-diarization-3.1",
-    use_auth_token="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") # progrium's token for now
+    use_auth_token="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") # mgood's token for now
 
 # send pipeline to GPU (when available)
 import torch
