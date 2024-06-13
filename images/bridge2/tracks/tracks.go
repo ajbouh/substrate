@@ -39,6 +39,10 @@ func (t Timestamp) Sub(o Timestamp) time.Duration {
 	return time.Duration(t) - (time.Duration(o))
 }
 
+func (t Timestamp) Add(d time.Duration) Timestamp {
+	return t + Timestamp(d)
+}
+
 type ID string
 
 func (id ID) Compare(other ID) int {

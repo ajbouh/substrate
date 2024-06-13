@@ -159,14 +159,14 @@ dataWS.onmessage = e => {
         response: e.Data.Response,
       });
       break;
-    case "diarization":
+    case "diarize-speaker-detected":
       speakers.push({
         id: e.Data.SpeakerID,
         start: e.Start,
         end: e.End,
       });
       break;
-    case "diarization-speaker-name":
+    case "diarize-speaker-name":
       speakerNames[e.Data.SpeakerID] = e.Data.Name;
       break;
     }

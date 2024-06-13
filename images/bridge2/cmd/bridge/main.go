@@ -66,7 +66,7 @@ func main() {
 			TargetLanguage: "en",
 		},
 		diarize.Agent{
-			Endpoint: getEnv("BRIDGE_DIARIZE_URL", "http://localhost:8092/v1/diarize"),
+			Client: &diarize.PyannoteClient{Endpoint: getEnv("BRIDGE_DIARIZE_URL", "http://localhost:8092/v1/diarize")},
 		},
 		assistant.Agent{
 			DefaultAssistants: []assistant.Client{
