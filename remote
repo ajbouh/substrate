@@ -24,10 +24,10 @@ push() {
   git push --force ssh://${REMOTE_HOST}${REMOTE_ROOT}/.git +HEAD:$REMOTE_BRANCH
   ssh $REMOTE_HOST "cd $REMOTE_ROOT && git reset --hard $REMOTE_BRANCH && git clean -fd"
   if ! git diff --cached -s --exit-code; then
-    git diff --cached | ssh $REMOTE_HOST "cd $REMOTE_ROOT && git apply"
+    git diff --cached --binary | ssh $REMOTE_HOST "cd $REMOTE_ROOT && git apply"
   fi
   if ! git diff -s --exit-code; then
-    git diff | ssh $REMOTE_HOST "cd $REMOTE_ROOT && git apply"
+    git diff --binary | ssh $REMOTE_HOST "cd $REMOTE_ROOT && git apply"
   fi
 
   # NB disable cache syncing for now because it seems to destroy xattrs
