@@ -2,11 +2,11 @@
 
 ### Build container
 ```
-docker build -t transcriber .
+docker build -t diarizer .
 ```
 ### Run container
 ```
-docker run --rm -it -p 8000:8000 transcriber
+docker run --rm -it -p 8000:8000 diarizer
 ```
 ### Run test
 ```

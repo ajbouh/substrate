@@ -69,7 +69,7 @@ func New(config Config) *Agent {
 	}
 }
 
-var recordActivity = tracks.NilEventRecorder("activity")
+var RecordActivity = tracks.NilEventRecorder("activity")
 
 func (a *Agent) HandleEvent(annot tracks.Event) {
 	if annot.Type != "audio" {
@@ -89,7 +89,7 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 			log.Printf("vad: clamping start %d to track start %d", start, annot.Track().Start())
 			start = annot.Track().Start()
 		}
-		recordActivity(annot.Track().Span(start, annot.End))
+		RecordActivity(annot.Track().Span(start, annot.End))
 	}
 }
 
