@@ -7,7 +7,7 @@ use (
 	./images/sigar
 	./images/nvml
 	./images/bridge
-	// ./images/bridge2
+	./images/bridge2
 	./images/chromestage
 	./images/files
 	./images/screenshot
