@@ -526,19 +526,20 @@ func (m *Main) loadRequestSession(ctx context.Context, w http.ResponseWriter, r 
 func (m *Main) Serve(ctx context.Context) {
 	m.sessions = make(map[string]*Session)
 
-	http.HandleFunc("/sessions/new", func(w http.ResponseWriter, r *http.Request) {
+	// TODO change the client so we can make this a POST instead
+	http.HandleFunc("GET /sessions/new", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.addSession(ctx, tracks.NewSession())
 		http.Redirect(w, r, path.Join(m.basePath, "sessions", string(sess.ID)), http.StatusFound)
 	})
 
 	sessionHTMLHandler := serveWithBasePath(m.basePath, ui.Dir, "session.html")
-	http.Handle("/sessions/{$}", sessionHTMLHandler)
-	http.Handle("/sessions/{sessID}", sessionHTMLHandler)
+	http.Handle("GET /sessions/{$}", sessionHTMLHandler)
+	http.Handle("GET /sessions/{sessID}", sessionHTMLHandler)
 
-	http.HandleFunc("/sessions/data", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /sessions/data", func(w http.ResponseWriter, r *http.Request) {
 		m.serveSessionUpdates(ctx, w, r, nil)
 	})
-	http.HandleFunc("/sessions/{sessID}/sfu", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /sessions/{sessID}/sfu", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -552,7 +553,7 @@ func (m *Main) Serve(ctx context.Context) {
 		}
 		peer.HandleSignals()
 	})
-	http.HandleFunc("/sessions/{sessID}/data", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /sessions/{sessID}/data", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)
 		m.serveSessionUpdates(ctx, w, r, sess)
 	})
@@ -569,16 +570,16 @@ func (m *Main) Serve(ctx context.Context) {
 		assistant.RemoveAssistant(sess.SpanNow(), name)
 		w.WriteHeader(http.StatusNoContent)
 	})
-	http.HandleFunc("/sessions/{sessID}/text", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /sessions/{sessID}/text", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)
 		m.serveSessionText(ctx, w, r, sess)
 	})
 
-	http.Handle("/webrtc/", http.StripPrefix("/webrtc", http.FileServer(http.FS(js.Dir))))
-	http.Handle("/ui/", http.StripPrefix("/ui", http.FileServer(http.FS(ui.Dir))))
+	http.Handle("GET /webrtc/", http.StripPrefix("/webrtc", http.FileServer(http.FS(js.Dir))))
+	http.Handle("GET /ui/", http.StripPrefix("/ui", http.FileServer(http.FS(ui.Dir))))
 	// We need the trailing slash in order to go directly to the /sessions/
 	// handler without an extra redirect, but path.Join strips it by default.
-	http.Handle("/{$}", http.RedirectHandler(path.Join(m.basePath, "sessions")+"/", http.StatusFound))
+	http.Handle("GET /{$}", http.RedirectHandler(path.Join(m.basePath, "sessions")+"/", http.StatusFound))
 
 	log.Printf("running on http://localhost:%d ...", m.port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", m.port), nil))
