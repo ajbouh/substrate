@@ -260,3 +260,5 @@ gotest.tools v2.2.0+incompatible h1:VsBPFP1AI068pPrMxtb/S8Zkgf9xEmTLJjfM+P5UIEo=
 gotest.tools v2.2.0+incompatible/go.mod h1:DsYFclhRJ6vuDpmuTbkuFWG+y2sxOXAzmJt81HFBacw=
 tractor.dev/toolkit-go v0.0.0-20240111035846-6a7f40f8500e h1:SEcTMsSsCwSU0Oy62SR6swgFfAqkA5XtkKMByAeOApQ=
 tractor.dev/toolkit-go v0.0.0-20240111035846-6a7f40f8500e/go.mod h1:gteH4mWzJV+Y5zk6/Q6rPuWeOCFHnr55XPTgYEHuzUo=
+tractor.dev/toolkit-go v0.0.0-20240417045753-38146a213d9c h1:AuYnKdc6Konsd+ngLZWuK7+tmixeHTwOlNqXg/0pyJk=
+tractor.dev/toolkit-go v0.0.0-20240417045753-38146a213d9c/go.mod h1:vI9Jf9tepHLrUqGQf7XZuRcQySNajWRKBjPD4+Ay72I=

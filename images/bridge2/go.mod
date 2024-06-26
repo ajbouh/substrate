@@ -18,7 +18,7 @@ require (
 	github.com/technosophos/moniker v0.0.0-20210218184952-3ea787d3943b
 	gopkg.in/hraban/opus.v2 v2.0.0-20230925203106-0188a62cb302
 	gotest.tools v2.2.0+incompatible
-	tractor.dev/toolkit-go v0.0.0-20240111035846-6a7f40f8500e
+	tractor.dev/toolkit-go v0.0.0-20240417045753-38146a213d9c
 )
 
 require (
