@@ -1,17 +1,20 @@
 FROM docker.io/library/golang:1.22-bookworm as builder
-WORKDIR /chromestage
 
-COPY images/chromestage/go.mod .
-COPY images/chromestage/go.sum .
-
-# RUN apk add --no-cache ca-certificates git
-
-# Get dependancies - will also be cached if we won't change mod/sum
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg/commands/
+COPY pkg/commands/go.mod pkg/commands/go.sum ./
 RUN go mod download
 
-COPY images/chromestage/cmd cmd
-COPY images/chromestage/commands commands
-RUN CGO_ENABLED=0 go install -installsuffix "static" ./cmd/chromestage
+WORKDIR /go/src/github.com/ajbouh/substrate/images/chromestage/
+COPY images/chromestage/go.mod images/chromestage/go.sum ./
+RUN go mod download
+
+WORKDIR /go/src/
+COPY pkg/commands/. github.com/ajbouh/substrate/pkg/commands/
+COPY images/chromestage/. github.com/ajbouh/substrate/images/chromestage/
+
+WORKDIR /go/src/github.com/ajbouh/substrate/images/chromestage/
+
+RUN CGO_ENABLED=0 go build -o /chromestage ./cmd/chromestage
 
 #########
 
@@ -45,7 +48,7 @@ ENV XVNC_GEOMETRY=1280x720
 ENV CHROMIUM_WINDOW_SIZE=1280,720
 
 COPY images/chromestage/vnc /vnc
-COPY --from=builder /go/bin/chromestage /bin/chromestage
+COPY --from=builder /chromestage /bin/chromestage
 COPY images/chromestage/start.sh /home/chromium/start.sh
 RUN chmod +x /home/chromium/start.sh
 
