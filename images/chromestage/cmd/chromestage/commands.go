@@ -76,6 +76,16 @@ func (a *RemoteCDP) Terminate() {
 type HTTPHandler struct {
 	CommandHTTPHandler *commands.HTTPHandler
 	Debug              bool
+	Sources            []commands.Source
+}
+
+func (c *HTTPHandler) Initialize() {
+	c.CommandHTTPHandler = &commands.HTTPHandler{
+		Source: &commands.DynamicSource{
+			Sources: c.Sources,
+		},
+		Debug: c.Debug,
+	}
 }
 
 func (c *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
