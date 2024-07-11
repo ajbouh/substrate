@@ -8,6 +8,8 @@ import (
 	"net/url"
 	"os"
 
+	"github.com/ajbouh/substrate/pkg/commands"
+
 	"tractor.dev/toolkit-go/engine"
 	"tractor.dev/toolkit-go/engine/cli"
 	"tractor.dev/toolkit-go/engine/daemon"
