@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"chromestage/commands"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/ajbouh/substrate/images/bridge2/assistant"
 	"github.com/ajbouh/substrate/images/bridge2/assistant/tools"
+	"github.com/ajbouh/substrate/images/bridge2/cmds"
 	"github.com/ajbouh/substrate/images/bridge2/diarize"
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 	"github.com/ajbouh/substrate/images/bridge2/transcribe"
@@ -523,6 +525,66 @@ func (m *Main) loadRequestSession(ctx context.Context, w http.ResponseWriter, r 
 	return sess
 }
 
+func (m *Main) sessionCommandSource(sess *Session) commands.Source {
+	src := &commands.StaticSource{
+		Entries: []commands.Entry{
+			{Name: "add_assistant",
+				Def: commands.Def{
+					Description: `add_assistant(name: str) -> bool
+			Add an assistant to the session.
+
+			Args:
+				name (str): The assistant's name.
+
+			Returns:
+				success (bool): True if the assistant was added successfully.`,
+					Parameters: commands.FieldDefs{
+						"name": {
+							Name:        "name",
+							Type:        "string",
+							Description: "The assistant's name",
+						},
+					},
+					Returns: nil,
+				},
+				Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
+					name := args.String("name")
+					name = strings.ToLower(name)
+					prompt, err := assistant.DefaultPromptTemplateForName(name)
+					if err != nil {
+						return commands.Fields{
+							"success": false,
+						}, err
+					}
+					assistant.AddAssistant(sess.SpanNow(), name, prompt)
+					return commands.Fields{
+						"success": true,
+					}, nil
+				},
+			},
+		},
+	}
+	src.Initialize()
+	return src
+}
+
+func (m *Main) SessionCommandHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) *commands.HTTPHandler {
+	sess := m.loadRequestSession(ctx, w, r)
+	_ = sess
+	h := commands.HTTPHandler{
+		Sources: []commands.Source{
+			m.sessionCommandSource(sess),
+			cmds.CheckBeforeRun{
+				Source: cmds.ProxySource{
+					Endpoint: "http://localhost:8089",
+				},
+			},
+		},
+	}
+	h.Initialize()
+	return &h
+}
+
 func (m *Main) Serve(ctx context.Context) {
 	m.sessions = make(map[string]*Session)
 
@@ -535,6 +597,12 @@ func (m *Main) Serve(ctx context.Context) {
 	sessionHTMLHandler := serveWithBasePath(m.basePath, ui.Dir, "session.html")
 	http.Handle("GET /sessions/{$}", sessionHTMLHandler)
 	http.Handle("GET /sessions/{sessID}", sessionHTMLHandler)
+	http.HandleFunc("REFLECT /sessions/{sessID}", func(w http.ResponseWriter, r *http.Request) {
+		m.SessionCommandHandler(ctx, w, r).ServeHTTPReflect(w, r)
+	})
+	http.HandleFunc("POST /sessions/{sessID}", func(w http.ResponseWriter, r *http.Request) {
+		m.SessionCommandHandler(ctx, w, r).ServeHTTPRun(w, r)
+	})
 
 	http.HandleFunc("GET /sessions/data", func(w http.ResponseWriter, r *http.Request) {
 		m.serveSessionUpdates(ctx, w, r, nil)
