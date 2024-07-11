@@ -8,9 +8,9 @@ import (
 type Fields map[string]any
 
 type FieldDef struct {
-	Description string
-	Name        string
-	Type        string // "string", "number", "boolean"
+	Description string `json:"description,omitempty"`
+	Name        string `json:"name"`
+	Type        string `json:"type"` // "string", "number", "boolean"
 }
 
 type FieldDefs map[string]FieldDef
@@ -22,17 +22,17 @@ type Def struct {
 }
 
 type Request struct {
-	Command    string
-	Parameters Fields
+	Command    string `json:"command"`
+	Parameters Fields `json:"parameters"`
 }
 
 type ResponseError struct {
-	Message string
+	Message string `json:"message"`
 }
 
 type Response struct {
-	Error   *ResponseError
-	Returns Fields
+	Error   *ResponseError `json:"error,omitempty"`
+	Returns Fields         `json:"returns,omitempty"`
 }
 
 type DefIndex map[string]Def

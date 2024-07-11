@@ -415,8 +415,8 @@ export function defineDOMSurface({width, height, useChromestage}) {
             method: "POST",
             headers: {'Content-Type': "application/json"},
             body: JSON.stringify({
-              Command: command,
-              Parameters: parameters,
+              command,
+              parameters,
             }),
           })
 
