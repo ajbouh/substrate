@@ -3,6 +3,7 @@ module github.com/ajbouh/substrate/images/bridge2
 go 1.22
 
 require (
+	github.com/ajbouh/substrate/pkg/commands v0.0.0-00010101000000-000000000000
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/go-audio/audio v1.0.0
 	github.com/go-audio/wav v1.1.0
@@ -48,3 +49,5 @@ require (
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/ajbouh/substrate/pkg/commands => ../../pkg/commands

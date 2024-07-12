@@ -1,4 +1,4 @@
-FROM docker.io/library/golang:1.22 as builder
+FROM docker.io/library/golang:1.22.2 as builder
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
   pkg-config \
@@ -6,10 +6,20 @@ RUN apt-get update \
   libopusfile-dev \
   libasound2-dev \
   && rm -rf /var/lib/apt/lists/*
-WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge2
-COPY images/bridge2/go.mod images/bridge2/go.sum .
+
+WORKDIR /go/src/github.com/ajbouh/substrate/pkg/commands/
+COPY pkg/commands/go.mod pkg/commands/go.sum ./
 RUN go mod download
-COPY images/bridge2/. .
+
+WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge2/
+COPY images/bridge2/go.mod images/bridge2/go.sum ./
+RUN go mod download
+
+WORKDIR /go/src/
+COPY pkg/commands/. github.com/ajbouh/substrate/pkg/commands/
+COPY images/bridge2/. github.com/ajbouh/substrate/images/bridge2/
+
+WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge2/
 RUN go build \
   -o /bridge2 ./cmd/bridge \
   && ldd /bridge2 \
