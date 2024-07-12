@@ -1,7 +1,6 @@
 package main
 
 import (
-	"chromestage/commands"
 	"context"
 	"fmt"
 	"log"
@@ -10,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ajbouh/substrate/pkg/commands"
 	"tractor.dev/toolkit-go/engine"
 	"tractor.dev/toolkit-go/engine/cli"
 	"tractor.dev/toolkit-go/engine/daemon"
@@ -27,35 +27,32 @@ type Main struct {
 }
 
 func (m *Main) commandSource() commands.Source {
-	src := &commands.StaticSource{
-		Entries: []commands.Entry{
-			{Name: "to_lower",
-				Def: commands.Def{
-					Description: `to_lower(text: str) -> str
+	src := commands.NewStaticSource([]commands.Entry{
+		{Name: "to_lower",
+			Def: commands.Def{
+				Description: `to_lower(text: str) -> str
 			Args:
 				text (str): Text to convert.
 
 			Returns:
 				text (bool): Outpu.`,
-					Parameters: commands.FieldDefs{
-						"text": {
-							Name:        "text",
-							Type:        "string",
-							Description: "Text to lower-case.",
-						},
+				Parameters: commands.FieldDefs{
+					"text": {
+						Name:        "text",
+						Type:        "string",
+						Description: "Text to lower-case.",
 					},
-					Returns: nil,
 				},
-				Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
-					text := args.String("text")
-					return commands.Fields{
-						"text": strings.ToLower(text),
-					}, nil
-				},
+				Returns: nil,
+			},
+			Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
+				text := args.String("text")
+				return commands.Fields{
+					"text": strings.ToLower(text),
+				}, nil
 			},
 		},
-	}
-	src.Initialize()
+	})
 	return src
 }
 
@@ -103,22 +100,19 @@ func (m *Main) TerminateDaemon(ctx context.Context) error {
 	return nil
 }
 
-func (m *Main) commandHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) *commands.HTTPHandler {
-	h := commands.HTTPHandler{
-		Sources: []commands.Source{
-			m.commandSource(),
+func (m *Main) Serve(ctx context.Context) {
+	handler := &commands.HTTPHandler{
+		Source: &commands.DynamicSource{
+			Sources: []commands.Source{
+				m.commandSource(),
+			},
 		},
 	}
-	h.Initialize()
-	return &h
-}
-
-func (m *Main) Serve(ctx context.Context) {
 	http.HandleFunc("REFLECT /", func(w http.ResponseWriter, r *http.Request) {
-		m.commandHandler(ctx, w, r).ServeHTTPReflect(w, r)
+		handler.ServeHTTPReflect(w, r)
 	})
 	http.HandleFunc("POST /", func(w http.ResponseWriter, r *http.Request) {
-		m.commandHandler(ctx, w, r).ServeHTTPRun(w, r)
+		handler.ServeHTTPRun(w, r)
 	})
 	log.Printf("running on http://localhost:%d ...", m.port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", m.port), nil))

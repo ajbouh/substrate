@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"chromestage/commands"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -33,6 +32,7 @@ import (
 	"github.com/ajbouh/substrate/images/bridge2/webrtc/local"
 	"github.com/ajbouh/substrate/images/bridge2/webrtc/sfu"
 	"github.com/ajbouh/substrate/images/bridge2/webrtc/trackstreamer"
+	"github.com/ajbouh/substrate/pkg/commands"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gopxl/beep"
 	"github.com/gorilla/websocket"
@@ -526,11 +526,10 @@ func (m *Main) loadRequestSession(ctx context.Context, w http.ResponseWriter, r 
 }
 
 func (m *Main) sessionCommandSource(sess *Session) commands.Source {
-	src := &commands.StaticSource{
-		Entries: []commands.Entry{
-			{Name: "add_assistant",
-				Def: commands.Def{
-					Description: `add_assistant(name: str) -> bool
+	return commands.NewStaticSource([]commands.Entry{
+		{Name: "add_assistant",
+			Def: commands.Def{
+				Description: `add_assistant(name: str) -> bool
 			Add an assistant to the session.
 
 			Args:
@@ -538,51 +537,47 @@ func (m *Main) sessionCommandSource(sess *Session) commands.Source {
 
 			Returns:
 				success (bool): True if the assistant was added successfully.`,
-					Parameters: commands.FieldDefs{
-						"name": {
-							Name:        "name",
-							Type:        "string",
-							Description: "The assistant's name",
-						},
+				Parameters: commands.FieldDefs{
+					"name": {
+						Name:        "name",
+						Type:        "string",
+						Description: "The assistant's name",
 					},
-					Returns: nil,
 				},
-				Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
-					name := args.String("name")
-					name = strings.ToLower(name)
-					prompt, err := assistant.DefaultPromptTemplateForName(name)
-					if err != nil {
-						return commands.Fields{
-							"success": false,
-						}, err
-					}
-					assistant.AddAssistant(sess.SpanNow(), name, prompt)
+				Returns: nil,
+			},
+			Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
+				name := args.String("name")
+				name = strings.ToLower(name)
+				prompt, err := assistant.DefaultPromptTemplateForName(name)
+				if err != nil {
 					return commands.Fields{
-						"success": true,
-					}, nil
-				},
+						"success": false,
+					}, err
+				}
+				assistant.AddAssistant(sess.SpanNow(), name, prompt)
+				return commands.Fields{
+					"success": true,
+				}, nil
 			},
 		},
-	}
-	src.Initialize()
-	return src
+	})
 }
 
 func (m *Main) SessionCommandHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) *commands.HTTPHandler {
 	sess := m.loadRequestSession(ctx, w, r)
-	_ = sess
-	h := commands.HTTPHandler{
-		Sources: []commands.Source{
-			m.sessionCommandSource(sess),
-			cmds.CheckBeforeRun{
-				Source: cmds.ProxySource{
-					Endpoint: "http://localhost:8089",
+	return &commands.HTTPHandler{
+		Source: &commands.DynamicSource{
+			Sources: []commands.Source{
+				m.sessionCommandSource(sess),
+				cmds.CheckBeforeRun{
+					Source: cmds.ProxySource{
+						Endpoint: "http://localhost:8089",
+					},
 				},
 			},
 		},
 	}
-	h.Initialize()
-	return &h
 }
 
 func (m *Main) Serve(ctx context.Context) {
