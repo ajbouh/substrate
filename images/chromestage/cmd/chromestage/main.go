@@ -1,7 +1,6 @@
 package main
 
 import (
-	"chromestage/commands"
 	"context"
 	"log"
 	"net/http"
@@ -67,9 +66,6 @@ func main() {
 		},
 		&TabCommands{},
 		&HTTPHandler{
-			Debug: true,
-		},
-		&commands.HTTPHandler{
 			Debug: true,
 		},
 	)

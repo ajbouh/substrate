@@ -1,12 +1,13 @@
 package main
 
 import (
-	"chromestage/commands"
 	"context"
 	"log"
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/ajbouh/substrate/pkg/commands"
 
 	"github.com/chromedp/chromedp"
 )
@@ -75,6 +76,16 @@ func (a *RemoteCDP) Terminate() {
 type HTTPHandler struct {
 	CommandHTTPHandler *commands.HTTPHandler
 	Debug              bool
+	Sources            []commands.Source
+}
+
+func (c *HTTPHandler) Initialize() {
+	c.CommandHTTPHandler = &commands.HTTPHandler{
+		Source: &commands.DynamicSource{
+			Sources: c.Sources,
+		},
+		Debug: c.Debug,
+	}
 }
 
 func (c *HTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

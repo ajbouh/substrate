@@ -17,6 +17,21 @@ type Entry struct {
 	Run RunnerFunc
 }
 
+func NewStaticSource(entries []Entry) *StaticSource {
+	a := &StaticSource{
+		defIndex: DefIndex{},
+		runIndex: RunIndex{},
+	}
+
+	for _, entry := range entries {
+		a.defIndex[entry.Name] = entry.Def
+		a.runIndex[entry.Name] = entry.Run
+	}
+
+	log.Printf("Static source initialize ... %d commands registered", len(a.defIndex))
+	return a
+}
+
 var _ Source = (*StaticSource)(nil)
 
 func (c *StaticSource) Reflect(ctx context.Context) (DefIndex, error) {
@@ -38,16 +53,4 @@ func (c *StaticSource) Run(ctx context.Context, name string, p Fields) (Fields, 
 	}
 
 	return Fields{}, ErrNoSuchCommand
-}
-
-func (a *StaticSource) Initialize() {
-	a.defIndex = DefIndex{}
-	a.runIndex = RunIndex{}
-
-	for _, entry := range a.Entries {
-		a.defIndex[entry.Name] = entry.Def
-		a.runIndex[entry.Name] = entry.Run
-	}
-
-	log.Printf("Static source initialize ... %d commands registered", len(a.defIndex))
 }
