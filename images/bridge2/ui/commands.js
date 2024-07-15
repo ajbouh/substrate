@@ -24,4 +24,43 @@ export const commands = {
 			});
 		},
 	},
+
+	reflect: {
+		parameters: {},
+		async run() {
+			const resp = await fetch(window.location.href, {
+				method: "REFLECT",
+			});
+			return await resp.json();
+		},
+	},
+
+	workingSetAddURL: {
+		parameters: {
+			url: { description: "url" },
+		},
+		run({url}) {
+			return fetch(window.location.href, {
+				method: "POST",
+				headers: {"Content-Type": "application/json"},
+				body: JSON.stringify({
+					command: "working_set_add_url",
+					parameters: {url},
+				}),
+			});
+		},
+	},
+	workingSetList: {
+		parameters: {},
+		async run() {
+			const resp = await fetch(window.location.href, {
+				method: "POST",
+				headers: {"Content-Type": "application/json"},
+				body: JSON.stringify({
+					command: "working_set_list",
+				}),
+			});
+			return await resp.json();
+		},
+	},
 }

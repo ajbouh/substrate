@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -21,7 +23,6 @@ import (
 
 	"github.com/ajbouh/substrate/images/bridge2/assistant"
 	"github.com/ajbouh/substrate/images/bridge2/assistant/tools"
-	"github.com/ajbouh/substrate/images/bridge2/cmds"
 	"github.com/ajbouh/substrate/images/bridge2/diarize"
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 	"github.com/ajbouh/substrate/images/bridge2/transcribe"
@@ -32,6 +33,7 @@ import (
 	"github.com/ajbouh/substrate/images/bridge2/webrtc/local"
 	"github.com/ajbouh/substrate/images/bridge2/webrtc/sfu"
 	"github.com/ajbouh/substrate/images/bridge2/webrtc/trackstreamer"
+	"github.com/ajbouh/substrate/images/bridge2/workingset"
 	"github.com/ajbouh/substrate/pkg/commands"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gopxl/beep"
@@ -561,23 +563,81 @@ func (m *Main) sessionCommandSource(sess *Session) commands.Source {
 				}, nil
 			},
 		},
+
+		{Name: "working_set_add_url",
+			Def: commands.Def{
+				Description: `working_set_add_url(url: str) -> bool`,
+				Parameters: commands.FieldDefs{
+					"url": {
+						Name:        "url",
+						Type:        "string",
+						Description: "URL to add to working set",
+					},
+				},
+				Returns: nil,
+			},
+			Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
+				url := args.String("url")
+				workingset.AddURL(sess.SpanNow(), url)
+				return commands.Fields{
+					"success": true,
+				}, nil
+			},
+		},
+
+		{Name: "working_set_list",
+			Def: commands.Def{
+				Description: `working_set_list_urls() -> []string`,
+				Parameters:  commands.FieldDefs{},
+				Returns:     nil,
+			},
+			Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
+				urls := workingset.ActiveURLs(sess.Session)
+				return commands.Fields{
+					"urls": urls,
+				}, nil
+			},
+		},
 	})
+}
+
+type unreliableHTTPSource struct {
+	commands.Source
+}
+
+func (s unreliableHTTPSource) Reflect(ctx context.Context) (commands.DefIndex, error) {
+	def, err := s.Source.Reflect(ctx)
+	var netErr *net.OpError
+	if errors.As(err, &netErr) {
+		return nil, commands.ErrReflectNotSupported
+	}
+	return def, err
+}
+
+func (s unreliableHTTPSource) Run(ctx context.Context, name string, params commands.Fields) (commands.Fields, error) {
+	index, err := s.Reflect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := index[name]; !ok {
+		return nil, commands.ErrNoSuchCommand
+	}
+	return s.Source.Run(ctx, name, params)
 }
 
 func (m *Main) SessionCommandHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) *commands.HTTPHandler {
 	sess := m.loadRequestSession(ctx, w, r)
-	return &commands.HTTPHandler{
-		Source: &commands.DynamicSource{
-			Sources: []commands.Source{
-				m.sessionCommandSource(sess),
-				cmds.CheckBeforeRun{
-					Source: cmds.ProxySource{
-						Endpoint: "http://localhost:8089",
-					},
-				},
-			},
+	src := &commands.DynamicSource{
+		Sources: []commands.Source{
+			m.sessionCommandSource(sess),
 		},
 	}
+	for _, url := range workingset.ActiveURLs(sess.Session) {
+		src.Sources = append(src.Sources, unreliableHTTPSource{
+			commands.HTTPSource{Endpoint: url},
+		})
+	}
+	return &commands.HTTPHandler{Source: src}
 }
 
 func (m *Main) Serve(ctx context.Context) {

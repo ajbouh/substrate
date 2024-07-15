@@ -57,7 +57,10 @@ func (f Fields) Bool(k string) bool {
 	return false
 }
 
-var ErrNoSuchCommand = errors.New("no such command")
+var (
+	ErrReflectNotSupported = errors.New("reflect not supported")
+	ErrNoSuchCommand       = errors.New("no such command")
+)
 
 type Source interface {
 	Reflect(ctx context.Context) (DefIndex, error)
