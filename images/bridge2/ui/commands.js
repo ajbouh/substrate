@@ -1,3 +1,12 @@
+async function runCommand(command, parameters) {
+	const resp = await fetch(window.location.href, {
+		method: "POST",
+		headers: {"Content-Type": "application/json"},
+		body: JSON.stringify({ command, parameters }),
+	});
+	return await resp.json();
+}
+
 export const commands = {
 	addAssistant: {
 		parameters: {
@@ -5,12 +14,7 @@ export const commands = {
 			prompt_template: { description: "assistant prompt template" },
 		},
 		run({name, prompt_template}) {
-			return fetch(
-				window.location.href + "/assistants/" + encodeURIComponent(name), {
-				method: "POST",
-				headers: {"Content-Type": "application/x-www-form-urlencoded"},
-				body: new URLSearchParams({prompt_template}).toString(),
-			});
+			return runCommand("assistant:add", {name, prompt_template});
 		},
 	},
 	removeAssistant: {
@@ -18,10 +22,7 @@ export const commands = {
 			name: { description: "assistant name" },
 		},
 		run({name}) {
-			return fetch(
-				window.location.href + "/assistants/" + encodeURIComponent(name), {
-				method: "DELETE",
-			});
+			return runCommand("assistant:remove", {name});
 		},
 	},
 
@@ -40,27 +41,13 @@ export const commands = {
 			url: { description: "url" },
 		},
 		run({url}) {
-			return fetch(window.location.href, {
-				method: "POST",
-				headers: {"Content-Type": "application/json"},
-				body: JSON.stringify({
-					command: "working_set_add_url",
-					parameters: {url},
-				}),
-			});
+			return runCommand("workingset:add_url", {url});
 		},
 	},
 	workingSetList: {
 		parameters: {},
-		async run() {
-			const resp = await fetch(window.location.href, {
-				method: "POST",
-				headers: {"Content-Type": "application/json"},
-				body: JSON.stringify({
-					command: "working_set_list",
-				}),
-			});
-			return await resp.json();
+		run() {
+			return runCommand("workingset:list");
 		},
 	},
 }

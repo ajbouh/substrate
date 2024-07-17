@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"log"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -79,6 +77,7 @@ func main() {
 			NewClient: newAssistantClient,
 		},
 		&AssistantCommands{},
+		workingset.CommandProvider{},
 		eventLogger{
 			exclude: []string{"audio"},
 		},
@@ -173,9 +172,14 @@ func (a *AssistantCommands) HandleSessionInit(sess *tracks.Session) {
 	sess.Listen(agent)
 }
 
+type CommandProvider interface {
+	Commands(sess *tracks.Session) commands.Source
+}
+
 type Main struct {
 	SessionInitHandlers []SessionInitHandler
 	EventHandlers       []tracks.Handler
+	CommandProviders    []CommandProvider
 
 	sessions map[string]*Session
 	format   beep.Format
@@ -527,115 +531,11 @@ func (m *Main) loadRequestSession(ctx context.Context, w http.ResponseWriter, r 
 	return sess
 }
 
-func (m *Main) sessionCommandSource(sess *Session) commands.Source {
-	return commands.NewStaticSource([]commands.Entry{
-		{Name: "add_assistant",
-			Def: commands.Def{
-				Description: `add_assistant(name: str) -> bool
-			Add an assistant to the session.
-
-			Args:
-				name (str): The assistant's name.
-
-			Returns:
-				success (bool): True if the assistant was added successfully.`,
-				Parameters: commands.FieldDefs{
-					"name": {
-						Name:        "name",
-						Type:        "string",
-						Description: "The assistant's name",
-					},
-				},
-				Returns: nil,
-			},
-			Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
-				name := args.String("name")
-				name = strings.ToLower(name)
-				prompt, err := assistant.DefaultPromptTemplateForName(name)
-				if err != nil {
-					return commands.Fields{
-						"success": false,
-					}, err
-				}
-				assistant.AddAssistant(sess.SpanNow(), name, prompt)
-				return commands.Fields{
-					"success": true,
-				}, nil
-			},
-		},
-
-		{Name: "working_set_add_url",
-			Def: commands.Def{
-				Description: `working_set_add_url(url: str) -> bool`,
-				Parameters: commands.FieldDefs{
-					"url": {
-						Name:        "url",
-						Type:        "string",
-						Description: "URL to add to working set",
-					},
-				},
-				Returns: nil,
-			},
-			Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
-				url := args.String("url")
-				workingset.AddURL(sess.SpanNow(), url)
-				return commands.Fields{
-					"success": true,
-				}, nil
-			},
-		},
-
-		{Name: "working_set_list",
-			Def: commands.Def{
-				Description: `working_set_list_urls() -> []string`,
-				Parameters:  commands.FieldDefs{},
-				Returns:     nil,
-			},
-			Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
-				urls := workingset.ActiveURLs(sess.Session)
-				return commands.Fields{
-					"urls": urls,
-				}, nil
-			},
-		},
-	})
-}
-
-type unreliableHTTPSource struct {
-	commands.Source
-}
-
-func (s unreliableHTTPSource) Reflect(ctx context.Context) (commands.DefIndex, error) {
-	def, err := s.Source.Reflect(ctx)
-	var netErr *net.OpError
-	if errors.As(err, &netErr) {
-		return nil, commands.ErrReflectNotSupported
-	}
-	return def, err
-}
-
-func (s unreliableHTTPSource) Run(ctx context.Context, name string, params commands.Fields) (commands.Fields, error) {
-	index, err := s.Reflect(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if _, ok := index[name]; !ok {
-		return nil, commands.ErrNoSuchCommand
-	}
-	return s.Source.Run(ctx, name, params)
-}
-
 func (m *Main) SessionCommandHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) *commands.HTTPHandler {
 	sess := m.loadRequestSession(ctx, w, r)
-	src := &commands.DynamicSource{
-		Sources: []commands.Source{
-			m.sessionCommandSource(sess),
-		},
-	}
-	for _, url := range workingset.ActiveURLs(sess.Session) {
-		src.Sources = append(src.Sources, unreliableHTTPSource{
-			commands.HTTPSource{Endpoint: url},
-		})
+	src := &commands.DynamicSource{}
+	for _, p := range m.CommandProviders {
+		src.Sources = append(src.Sources, p.Commands(sess.Session))
 	}
 	return &commands.HTTPHandler{Source: src}
 }
@@ -679,19 +579,6 @@ func (m *Main) Serve(ctx context.Context) {
 	http.HandleFunc("GET /sessions/{sessID}/data", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)
 		m.serveSessionUpdates(ctx, w, r, sess)
-	})
-	http.HandleFunc("POST /sessions/{sessID}/assistants/{name}", func(w http.ResponseWriter, r *http.Request) {
-		sess := m.loadRequestSession(ctx, w, r)
-		name := r.PathValue("name")
-		prompt := r.FormValue("prompt_template")
-		assistant.AddAssistant(sess.SpanNow(), name, prompt)
-		w.WriteHeader(http.StatusNoContent)
-	})
-	http.HandleFunc("DELETE /sessions/{sessID}/assistants/{name}", func(w http.ResponseWriter, r *http.Request) {
-		sess := m.loadRequestSession(ctx, w, r)
-		name := r.PathValue("name")
-		assistant.RemoveAssistant(sess.SpanNow(), name)
-		w.WriteHeader(http.StatusNoContent)
 	})
 	http.HandleFunc("GET /sessions/{sessID}/text", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)
