@@ -19,7 +19,7 @@ func (c *CommandProvider) CommandsSource(sess *tracks.Session) commands.Source {
 			commands.NewStaticSource([]commands.Entry{
 				{Name: "add_url",
 					Def: commands.Def{
-						Description: `add_url(url: str) -> bool`,
+						Description: "Add a URL to the working set",
 						Parameters: commands.FieldDefs{
 							"url": {
 								Name:        "url",
@@ -27,7 +27,13 @@ func (c *CommandProvider) CommandsSource(sess *tracks.Session) commands.Source {
 								Description: "URL to add to working set",
 							},
 						},
-						Returns: nil,
+						Returns: commands.FieldDefs{
+							"success": {
+								Name:        "success",
+								Type:        "boolean",
+								Description: "True if the URL was added successfully",
+							},
+						},
 					},
 					Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
 						url := args.String("url")
@@ -40,9 +46,15 @@ func (c *CommandProvider) CommandsSource(sess *tracks.Session) commands.Source {
 
 				{Name: "list",
 					Def: commands.Def{
-						Description: `list() -> []string`,
-						Parameters:  commands.FieldDefs{},
-						Returns:     nil,
+						Description: "List the URLs in the working set",
+						Parameters:  nil,
+						Returns: commands.FieldDefs{
+							"urls": {
+								Name:        "urls",
+								Type:        "[]string",
+								Description: "List of URLs in the working set",
+							},
+						},
 					},
 					Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
 						urls := ActiveURLs(sess)

@@ -72,15 +72,7 @@ func (c *Agent) CommandsSource(sess *tracks.Session) commands.Source {
 		Source: commands.NewStaticSource([]commands.Entry{
 			{Name: "add",
 				Def: commands.Def{
-					Description: `add_assistant(name: str, prompt_template: str) -> bool
-			Add an assistant to the session.
-
-			Args:
-				name (str): The assistant's name.
-				prompt_template (str): Template for assistant prompts.
-
-			Returns:
-				success (bool): True if the assistant was added successfully.`,
+					Description: "Add an assistant to the session",
 					Parameters: commands.FieldDefs{
 						"name": {
 							Name:        "name",
@@ -93,7 +85,13 @@ func (c *Agent) CommandsSource(sess *tracks.Session) commands.Source {
 							Description: "Template for assistant prompts",
 						},
 					},
-					Returns: nil,
+					Returns: commands.FieldDefs{
+						"success": {
+							Name:        "success",
+							Type:        "boolean",
+							Description: "True if the assistant was added successfully",
+						},
+					},
 				},
 				Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
 					name := args.String("name")
@@ -107,14 +105,7 @@ func (c *Agent) CommandsSource(sess *tracks.Session) commands.Source {
 			},
 			{Name: "remove",
 				Def: commands.Def{
-					Description: `remove_assistant(name: str) -> bool
-			Remove an assistant from the session.
-
-			Args:
-				name (str): The assistant's name.
-
-			Returns:
-				success (bool): True if the assistant was removed successfully.`,
+					Description: "Remove an assistant from the session",
 					Parameters: commands.FieldDefs{
 						"name": {
 							Name:        "name",
@@ -122,7 +113,13 @@ func (c *Agent) CommandsSource(sess *tracks.Session) commands.Source {
 							Description: "The assistant's name",
 						},
 					},
-					Returns: nil,
+					Returns: commands.FieldDefs{
+						"success": {
+							Name:        "success",
+							Type:        "boolean",
+							Description: "True if the assistant was removed successfully",
+						},
+					},
 				},
 				Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
 					name := args.String("name")
