@@ -172,14 +172,14 @@ func (a *AssistantCommands) HandleSessionInit(sess *tracks.Session) {
 	sess.Listen(agent)
 }
 
-type CommandProvider interface {
+type SessionCommandSource interface {
 	Commands(sess *tracks.Session) commands.Source
 }
 
 type Main struct {
-	SessionInitHandlers []SessionInitHandler
-	EventHandlers       []tracks.Handler
-	CommandProviders    []CommandProvider
+	SessionInitHandlers   []SessionInitHandler
+	EventHandlers         []tracks.Handler
+	SessionCommandSources []SessionCommandSource
 
 	sessions map[string]*Session
 	format   beep.Format
@@ -534,7 +534,7 @@ func (m *Main) loadRequestSession(ctx context.Context, w http.ResponseWriter, r 
 func (m *Main) SessionCommandHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) *commands.HTTPHandler {
 	sess := m.loadRequestSession(ctx, w, r)
 	src := &commands.DynamicSource{}
-	for _, p := range m.CommandProviders {
+	for _, p := range m.SessionCommandSources {
 		src.Sources = append(src.Sources, p.Commands(sess.Session))
 	}
 	return &commands.HTTPHandler{Source: src}
