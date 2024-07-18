@@ -66,7 +66,7 @@ type Agent struct {
 	NewClient         func(name, promptTemplate string) (Client, error)
 }
 
-func (c *Agent) Commands(sess *tracks.Session) commands.Source {
+func (c *Agent) CommandsSource(sess *tracks.Session) commands.Source {
 	return &commands.PrefixedSource{
 		Prefix: "assistant:",
 		Source: commands.NewStaticSource([]commands.Entry{

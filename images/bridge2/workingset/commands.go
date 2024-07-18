@@ -13,7 +13,7 @@ import (
 
 type CommandProvider struct{}
 
-func (c *CommandProvider) Commands(sess *tracks.Session) commands.Source {
+func (c *CommandProvider) CommandsSource(sess *tracks.Session) commands.Source {
 	src := &commands.DynamicSource{
 		Sources: []commands.Source{
 			commands.NewStaticSource([]commands.Entry{

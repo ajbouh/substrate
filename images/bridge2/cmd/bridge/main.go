@@ -173,7 +173,7 @@ func (a *AssistantCommands) HandleSessionInit(sess *tracks.Session) {
 }
 
 type SessionCommandSource interface {
-	Commands(sess *tracks.Session) commands.Source
+	CommandsSource(sess *tracks.Session) commands.Source
 }
 
 type Main struct {
@@ -535,7 +535,7 @@ func (m *Main) SessionCommandHandler(ctx context.Context, w http.ResponseWriter,
 	sess := m.loadRequestSession(ctx, w, r)
 	src := &commands.DynamicSource{}
 	for _, p := range m.SessionCommandSources {
-		src.Sources = append(src.Sources, p.Commands(sess.Session))
+		src.Sources = append(src.Sources, p.CommandsSource(sess.Session))
 	}
 	return &commands.HTTPHandler{Source: src}
 }
