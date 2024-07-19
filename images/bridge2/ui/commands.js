@@ -38,10 +38,11 @@ export const commands = {
 
 	workingSetAddURL: {
 		parameters: {
+			key: { description: "key" },
 			url: { description: "url" },
 		},
-		run({url}) {
-			return runCommand("workingset:add_url", {url});
+		run({key, url}) {
+			return runCommand("workingset:add_url", {key, url});
 		},
 	},
 	workingSetList: {

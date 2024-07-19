@@ -3,8 +3,6 @@ package workingset
 import (
 	"context"
 	"errors"
-	"fmt"
-	"hash/fnv"
 	"net"
 
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
@@ -36,8 +34,12 @@ func (c *CommandProvider) CommandsSource(sess *tracks.Session) commands.Source {
 						},
 					},
 					Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
+						key := args.String("key")
 						url := args.String("url")
-						AddURL(sess.SpanNow(), url)
+						if _, err := AddURL(sess.SpanNow(), key, url); err != nil {
+							return nil, err
+						}
+						// TODO check for a previous value?
 						return commands.Fields{
 							"success": true,
 						}, nil
@@ -51,7 +53,7 @@ func (c *CommandProvider) CommandsSource(sess *tracks.Session) commands.Source {
 						Returns: commands.FieldDefs{
 							"urls": {
 								Name:        "urls",
-								Type:        "[]string",
+								Type:        "map[string]string", // TODO how should we specify other types?
 								Description: "List of URLs in the working set",
 							},
 						},
@@ -66,12 +68,9 @@ func (c *CommandProvider) CommandsSource(sess *tracks.Session) commands.Source {
 			}),
 		},
 	}
-	for _, url := range ActiveURLs(sess) {
+	for key, url := range ActiveURLs(sess) {
 		src.Sources = append(src.Sources, &commands.PrefixedSource{
-			// XXX should the URLs have a human-readable prefix instead? e.g. if we
-			// have multiple URLs that have overlapping commands, how would the user
-			// know which site it would be going to?
-			Prefix: hash(url) + ":",
+			Prefix: key + ":",
 			Source: unreliableHTTPSource{
 				commands.HTTPSource{Endpoint: url},
 			},
@@ -81,15 +80,6 @@ func (c *CommandProvider) CommandsSource(sess *tracks.Session) commands.Source {
 		Prefix: "workingset:",
 		Source: src,
 	}
-}
-
-func hash(s string) string {
-	// we don't need these hashes to be cryptographic, just something so that the
-	// same url gets the same prefix if we add/remove other urls in the working
-	// set
-	h := fnv.New32a()
-	h.Write([]byte(s))
-	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 type unreliableHTTPSource struct {
