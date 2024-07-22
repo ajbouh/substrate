@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"text/template"
 	"time"
@@ -109,65 +108,83 @@ type SessionInitHandler interface {
 	HandleSessionInit(*tracks.Session)
 }
 
+type commandSourceRegistry struct {
+	Source commands.Source
+}
+
+var _ tools.Registry = (*commandSourceRegistry)(nil)
+
+func (s *commandSourceRegistry) ListTools(ctx context.Context) ([]tools.Definition, error) {
+	def, err := s.Source.Reflect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var td []tools.Definition
+	for name, d := range def {
+		d2 := tools.Definition{
+			Type: "function",
+			Function: tools.Func{
+				Name: name,
+				// TODO do we need to generate the more API-doc style-description here?
+				// add_assistant(name: str) -> bool
+				// Add an assistant to the session.
+
+				// Args:
+				// 	name (str): The assistant's name.
+
+				// Returns:
+				// 	bool: True if the assistant was added successfully.
+				Description: d.Description,
+				Parameters: tools.Params{
+					Type:       "object",
+					Properties: map[string]tools.Prop{},
+				},
+			},
+		}
+		for paramName, param := range d.Parameters {
+			d2.Function.Parameters.Properties[paramName] = tools.Prop{Type: param.Type}
+			// TODO update commands to show which are required
+			d2.Function.Parameters.Required = append(d2.Function.Parameters.Required, paramName)
+		}
+		td = append(td, d2)
+	}
+	return td, nil
+}
+
+func (s *commandSourceRegistry) RunTool(ctx context.Context, call tools.Call[any]) (any, error) {
+	params := commands.Fields{}
+	for k, v := range call.Arguments.(map[string]any) {
+		params[k] = v
+	}
+	ret, err := s.Source.Run(ctx, call.Name, params)
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+type lazySource func() commands.Source
+
+var _ commands.Source = lazySource(nil)
+
+func (l lazySource) Reflect(ctx context.Context) (commands.DefIndex, error) {
+	return l().Reflect(ctx)
+}
+
+func (l lazySource) Run(ctx context.Context, name string, p commands.Fields) (commands.Fields, error) {
+	return l().Run(ctx, name, p)
+}
+
 type AssistantCommands struct {
-	Endpoint string
+	SessionCommandSources []SessionCommandSource
 }
 
 func (a *AssistantCommands) HandleSessionInit(sess *tracks.Session) {
 	agent := tools.NewAgent(
-		"assistant",
-		tools.Tools{
-			"add_assistant": {
-				Run: func(args any) (any, error) {
-					name := args.(map[string]any)["name"].(string)
-					name = strings.ToLower(name)
-					prompt, err := assistant.DefaultPromptTemplateForName(name)
-					if err != nil {
-						return false, err
-					}
-					assistant.AddAssistant(sess.SpanNow(), name, prompt)
-					return true, nil
-				},
-				Description: `add_assistant(name: str) -> bool
-			Add an assistant to the session.
-
-			Args:
-				name (str): The assistant's name.
-
-			Returns:
-				bool: True if the assistant was added successfully.`,
-				Parameters: tools.Params{
-					Type: "object",
-					Properties: map[string]tools.Prop{
-						"name": {Type: "string"},
-					},
-					Required: []string{"name"},
-				},
-			},
-			"remove_assistant": {
-				Run: func(args any) (any, error) {
-					name := args.(map[string]any)["name"].(string)
-					name = strings.ToLower(name)
-					assistant.RemoveAssistant(sess.SpanNow(), name)
-					return true, nil
-				},
-				Description: `remove_assistant(name: str) -> bool
-			Remove an assistant from the session.
-
-			Args:
-				name (str): The assistant's name.
-
-			Returns:
-				bool: True if the assistant was removed successfully.`,
-				Parameters: tools.Params{
-					Type: "object",
-					Properties: map[string]tools.Prop{
-						"name": {Type: "string"},
-					},
-					Required: []string{"name"},
-				},
-			},
-		},
+		"bridge",
+		&commandSourceRegistry{Source: lazySource(func() commands.Source {
+			return sessionCommandSource(a.SessionCommandSources, sess)
+		})},
 	)
 	sess.Listen(agent)
 }
@@ -531,13 +548,17 @@ func (m *Main) loadRequestSession(ctx context.Context, w http.ResponseWriter, r 
 	return sess
 }
 
+func sessionCommandSource(m []SessionCommandSource, sess *tracks.Session) commands.Source {
+	src := &commands.DynamicSource{}
+	for _, p := range m {
+		src.Sources = append(src.Sources, p.CommandsSource(sess))
+	}
+	return src
+}
+
 func (m *Main) SessionCommandHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) *commands.HTTPHandler {
 	sess := m.loadRequestSession(ctx, w, r)
-	src := &commands.DynamicSource{}
-	for _, p := range m.SessionCommandSources {
-		src.Sources = append(src.Sources, p.CommandsSource(sess.Session))
-	}
-	return &commands.HTTPHandler{Source: src}
+	return &commands.HTTPHandler{Source: sessionCommandSource(m.SessionCommandSources, sess.Session)}
 }
 
 func (m *Main) Serve(ctx context.Context) {

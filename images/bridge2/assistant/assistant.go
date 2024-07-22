@@ -97,6 +97,13 @@ func (c *Agent) CommandsSource(sess *tracks.Session) commands.Source {
 					name := args.String("name")
 					name = strings.ToLower(name)
 					prompt := args.String("prompt_template")
+					if prompt == "" {
+						var err error
+						prompt, err = DefaultPromptTemplateForName(name)
+						if err != nil {
+							return nil, err
+						}
+					}
 					AddAssistant(sess.SpanNow(), name, prompt)
 					return commands.Fields{
 						"success": true,

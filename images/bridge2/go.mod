@@ -1,8 +1,9 @@
 module github.com/ajbouh/substrate/images/bridge2
 
-go 1.22
+go 1.22.2
 
 require (
+	github.com/adrg/frontmatter v0.2.0
 	github.com/ajbouh/substrate/pkg/commands v0.0.0-00010101000000-000000000000
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/go-audio/audio v1.0.0
@@ -24,7 +25,6 @@ require (
 
 require (
 	github.com/BurntSushi/toml v0.3.1 // indirect
-	github.com/adrg/frontmatter v0.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-audio/riff v1.0.0 // indirect
 	github.com/google/uuid v1.3.1 // indirect
