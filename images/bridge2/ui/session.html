@@ -26,7 +26,11 @@ let webSocketURL = (() => {
   if (window.location.protocol == "https:") {
     u.protocol = 'wss:'
   }
-  return u.toString();
+  let urlStr = u.toString();
+  if (urlStr.endsWith("/")) {
+    urlStr = urlStr.slice(0, -1);
+  }
+  return urlStr;
 })();
 
 let micSess = null;
