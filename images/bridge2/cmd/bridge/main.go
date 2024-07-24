@@ -124,16 +124,7 @@ func (s *commandSourceRegistry) ListTools(ctx context.Context) ([]tools.Definiti
 		d2 := tools.Definition{
 			Type: "function",
 			Function: tools.Func{
-				Name: name,
-				// TODO do we need to generate the more API-doc style-description here?
-				// add_assistant(name: str) -> bool
-				// Add an assistant to the session.
-
-				// Args:
-				// 	name (str): The assistant's name.
-
-				// Returns:
-				// 	bool: True if the assistant was added successfully.
+				Name:        name,
 				Description: d.Description,
 				Parameters: tools.Params{
 					Type:       "object",

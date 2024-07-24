@@ -42,6 +42,8 @@ export var Entry = {
             )
           ),
           attrs.assistants.map(asst =>
+            // If there's a matching tool response, hide the assistant text
+            (attrs.tools.some(evt => evt.name === asst.name)) ? null :
             m("div", {"class": "text text-fuchsia-500 whitespace-pre-wrap"},
               m("b", asst.name),
               " ", asst.text,

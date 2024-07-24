@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/url"
 
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 	"github.com/ajbouh/substrate/pkg/commands"
@@ -22,7 +23,12 @@ func (c *CommandProvider) CommandsSource(sess *tracks.Session) commands.Source {
 							"url": {
 								Name:        "url",
 								Type:        "string",
-								Description: "URL to add to working set",
+								Description: "URL to add to working set. Should be fully qualified with the URL scheme.",
+							},
+							"key": {
+								Name:        "key",
+								Type:        "string",
+								Description: "Unique key for the URL. Lower case letters, numbers, and underscores allowed.",
 							},
 						},
 						Returns: commands.FieldDefs{
@@ -31,15 +37,25 @@ func (c *CommandProvider) CommandsSource(sess *tracks.Session) commands.Source {
 								Type:        "boolean",
 								Description: "True if the URL was added successfully",
 							},
+							"error": {
+								Name:        "error",
+								Type:        "string",
+								Description: "Description of the error when success is false",
+							},
 						},
 					},
 					Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
 						key := args.String("key")
 						url := args.String("url")
 						if _, err := AddURL(sess.SpanNow(), key, url); err != nil {
+							if errors.Is(err, ErrInvalidKey) {
+								return commands.Fields{
+									"success": false,
+									"error":   "Invalid key: should be lowercase alphanumeric",
+								}, nil
+							}
 							return nil, err
 						}
-						// TODO check for a previous value?
 						return commands.Fields{
 							"success": true,
 						}, nil
@@ -86,10 +102,14 @@ type unreliableHTTPSource struct {
 	commands.Source
 }
 
+func errorHasType[T error](err error) bool {
+	var target T
+	return errors.As(err, &target)
+}
+
 func (s unreliableHTTPSource) Reflect(ctx context.Context) (commands.DefIndex, error) {
 	def, err := s.Source.Reflect(ctx)
-	var netErr *net.OpError
-	if errors.As(err, &netErr) {
+	if errorHasType[*net.OpError](err) || errorHasType[*url.Error](err) {
 		return nil, commands.ErrReflectNotSupported
 	}
 	return def, err
