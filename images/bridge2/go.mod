@@ -1,8 +1,10 @@
 module github.com/ajbouh/substrate/images/bridge2
 
-go 1.22
+go 1.22.2
 
 require (
+	github.com/adrg/frontmatter v0.2.0
+	github.com/ajbouh/substrate/pkg/commands v0.0.0-00010101000000-000000000000
 	github.com/fxamacker/cbor/v2 v2.5.0
 	github.com/go-audio/audio v1.0.0
 	github.com/go-audio/wav v1.1.0
@@ -18,12 +20,11 @@ require (
 	github.com/technosophos/moniker v0.0.0-20210218184952-3ea787d3943b
 	gopkg.in/hraban/opus.v2 v2.0.0-20230925203106-0188a62cb302
 	gotest.tools v2.2.0+incompatible
-	tractor.dev/toolkit-go v0.0.0-20240111035846-6a7f40f8500e
+	tractor.dev/toolkit-go v0.0.0-20240417045753-38146a213d9c
 )
 
 require (
 	github.com/BurntSushi/toml v0.3.1 // indirect
-	github.com/adrg/frontmatter v0.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-audio/riff v1.0.0 // indirect
 	github.com/google/uuid v1.3.1 // indirect
@@ -48,3 +49,5 @@ require (
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/ajbouh/substrate/pkg/commands => ../../pkg/commands

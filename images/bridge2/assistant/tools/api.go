@@ -1,5 +1,7 @@
 package tools
 
+import "context"
+
 type ToolLister interface {
 	// Provide context as input, or keep state of
 	// what is available in this session?
@@ -9,11 +11,11 @@ type ToolLister interface {
 
 	// Can we layer that on in a way that memoizes a parameter
 	// and then puts it back into the call?
-	ListTools() []Definition
+	ListTools(context.Context) ([]Definition, error)
 }
 
 type Runner interface {
-	RunTool(Call[any]) (any, error)
+	RunTool(context.Context, Call[any]) (any, error)
 }
 
 type Registry interface {
@@ -29,7 +31,9 @@ type Tool struct {
 
 type Tools map[string]Tool
 
-func (t Tools) ListTools() []Definition {
+var _ Registry = Tools{}
+
+func (t Tools) ListTools(context.Context) ([]Definition, error) {
 	r := make([]Definition, 0, len(t))
 	for name, tool := range t {
 		r = append(r, Definition{
@@ -41,9 +45,9 @@ func (t Tools) ListTools() []Definition {
 			},
 		})
 	}
-	return r
+	return r, nil
 }
 
-func (t Tools) RunTool(call Call[any]) (any, error) {
+func (t Tools) RunTool(_ context.Context, call Call[any]) (any, error) {
 	return t[call.Name].Run(call.Arguments)
 }

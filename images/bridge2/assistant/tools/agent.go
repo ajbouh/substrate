@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -121,7 +122,10 @@ func (a *OfferAgent) HandleEvent(event tracks.Event) {
 }
 
 func (a *OfferAgent) CompleteTool(input string) (string, []Call[any], error) {
-	defs := a.Registry.ListTools()
+	defs, err := a.Registry.ListTools(context.TODO())
+	if err != nil {
+		return "", nil, err
+	}
 	prompt, resp, err := a.Completer(map[string]any{
 		"UserInput": input,
 		"ToolDefs":  defs,
@@ -175,7 +179,7 @@ func (a *CallAgent) HandleEvent(event tracks.Event) {
 		if trigger.Name != a.Name {
 			return
 		}
-		result, err := a.Runner.RunTool(trigger.Call)
+		result, err := a.Runner.RunTool(context.TODO(), trigger.Call)
 		if err != nil {
 			return // FIXME
 		}

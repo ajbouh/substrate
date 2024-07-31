@@ -16,6 +16,9 @@ func (c *DynamicSource) Reflect(ctx context.Context) (DefIndex, error) {
 	ci := DefIndex{}
 	for _, src := range c.Sources {
 		dci, err := src.Reflect(ctx)
+		if errors.Is(err, ErrReflectNotSupported) {
+			continue
+		}
 		if err != nil {
 			return nil, err
 		}

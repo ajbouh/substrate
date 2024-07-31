@@ -2,6 +2,7 @@ package assistant
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -15,6 +16,7 @@ import (
 	"github.com/ajbouh/substrate/images/bridge2/assistant/prompts"
 	"github.com/ajbouh/substrate/images/bridge2/tracks"
 	"github.com/ajbouh/substrate/images/bridge2/transcribe"
+	"github.com/ajbouh/substrate/pkg/commands"
 )
 
 var RecordAssistantText = tracks.EventRecorder[*AssistantTextEvent]("assistant-text")
@@ -62,6 +64,81 @@ type Agent struct {
 	SessionStorage    SessionStorage
 	DefaultAssistants []Client
 	NewClient         func(name, promptTemplate string) (Client, error)
+}
+
+func (c *Agent) CommandsSource(sess *tracks.Session) commands.Source {
+	return &commands.PrefixedSource{
+		Prefix: "assistant:",
+		Source: commands.NewStaticSource([]commands.Entry{
+			{Name: "add",
+				Def: commands.Def{
+					Description: "Add an assistant to the session",
+					Parameters: commands.FieldDefs{
+						"name": {
+							Name:        "name",
+							Type:        "string",
+							Description: "The assistant's name",
+						},
+						"prompt_template": {
+							Name:        "name",
+							Type:        "string",
+							Description: "Template for assistant prompts",
+						},
+					},
+					Returns: commands.FieldDefs{
+						"success": {
+							Name:        "success",
+							Type:        "boolean",
+							Description: "True if the assistant was added successfully",
+						},
+					},
+				},
+				Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
+					name := args.String("name")
+					name = strings.ToLower(name)
+					prompt := args.String("prompt_template")
+					if prompt == "" {
+						var err error
+						prompt, err = DefaultPromptTemplateForName(name)
+						if err != nil {
+							return nil, err
+						}
+					}
+					AddAssistant(sess.SpanNow(), name, prompt)
+					return commands.Fields{
+						"success": true,
+					}, nil
+				},
+			},
+			{Name: "remove",
+				Def: commands.Def{
+					Description: "Remove an assistant from the session",
+					Parameters: commands.FieldDefs{
+						"name": {
+							Name:        "name",
+							Type:        "string",
+							Description: "The assistant's name",
+						},
+					},
+					Returns: commands.FieldDefs{
+						"success": {
+							Name:        "success",
+							Type:        "boolean",
+							Description: "True if the assistant was removed successfully",
+						},
+					},
+				},
+				Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
+					name := args.String("name")
+					name = strings.ToLower(name)
+					RemoveAssistant(sess.SpanNow(), name)
+					return commands.Fields{
+						"success": true,
+					}, nil
+				},
+			},
+		}),
+	}
 }
 
 func (a *Agent) HandleSessionInit(sess *tracks.Session) {

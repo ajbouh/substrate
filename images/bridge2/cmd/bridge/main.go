@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"text/template"
 	"time"
@@ -31,6 +30,8 @@ import (
 	"github.com/ajbouh/substrate/images/bridge2/webrtc/local"
 	"github.com/ajbouh/substrate/images/bridge2/webrtc/sfu"
 	"github.com/ajbouh/substrate/images/bridge2/webrtc/trackstreamer"
+	"github.com/ajbouh/substrate/images/bridge2/workingset"
+	"github.com/ajbouh/substrate/pkg/commands"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gopxl/beep"
 	"github.com/gorilla/websocket"
@@ -75,6 +76,7 @@ func main() {
 			NewClient: newAssistantClient,
 		},
 		&AssistantCommands{},
+		workingset.CommandProvider{},
 		eventLogger{
 			exclude: []string{"audio"},
 		},
@@ -106,72 +108,86 @@ type SessionInitHandler interface {
 	HandleSessionInit(*tracks.Session)
 }
 
+type commandSourceRegistry struct {
+	Source commands.Source
+}
+
+var _ tools.Registry = (*commandSourceRegistry)(nil)
+
+func (s *commandSourceRegistry) ListTools(ctx context.Context) ([]tools.Definition, error) {
+	def, err := s.Source.Reflect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var td []tools.Definition
+	for name, d := range def {
+		d2 := tools.Definition{
+			Type: "function",
+			Function: tools.Func{
+				Name:        name,
+				Description: d.Description,
+				Parameters: tools.Params{
+					Type:       "object",
+					Properties: map[string]tools.Prop{},
+				},
+			},
+		}
+		for paramName, param := range d.Parameters {
+			d2.Function.Parameters.Properties[paramName] = tools.Prop{Type: param.Type}
+			// TODO update commands to show which are required
+			d2.Function.Parameters.Required = append(d2.Function.Parameters.Required, paramName)
+		}
+		td = append(td, d2)
+	}
+	return td, nil
+}
+
+func (s *commandSourceRegistry) RunTool(ctx context.Context, call tools.Call[any]) (any, error) {
+	params := commands.Fields{}
+	for k, v := range call.Arguments.(map[string]any) {
+		params[k] = v
+	}
+	ret, err := s.Source.Run(ctx, call.Name, params)
+	if err != nil {
+		return nil, err
+	}
+	return ret, nil
+}
+
+type lazySource func() commands.Source
+
+var _ commands.Source = lazySource(nil)
+
+func (l lazySource) Reflect(ctx context.Context) (commands.DefIndex, error) {
+	return l().Reflect(ctx)
+}
+
+func (l lazySource) Run(ctx context.Context, name string, p commands.Fields) (commands.Fields, error) {
+	return l().Run(ctx, name, p)
+}
+
 type AssistantCommands struct {
-	Endpoint string
+	SessionCommandSources []SessionCommandSource
 }
 
 func (a *AssistantCommands) HandleSessionInit(sess *tracks.Session) {
 	agent := tools.NewAgent(
-		"assistant",
-		tools.Tools{
-			"add_assistant": {
-				Run: func(args any) (any, error) {
-					name := args.(map[string]any)["name"].(string)
-					name = strings.ToLower(name)
-					prompt, err := assistant.DefaultPromptTemplateForName(name)
-					if err != nil {
-						return false, err
-					}
-					assistant.AddAssistant(sess.SpanNow(), name, prompt)
-					return true, nil
-				},
-				Description: `add_assistant(name: str) -> bool
-			Add an assistant to the session.
-
-			Args:
-				name (str): The assistant's name.
-
-			Returns:
-				bool: True if the assistant was added successfully.`,
-				Parameters: tools.Params{
-					Type: "object",
-					Properties: map[string]tools.Prop{
-						"name": {Type: "string"},
-					},
-					Required: []string{"name"},
-				},
-			},
-			"remove_assistant": {
-				Run: func(args any) (any, error) {
-					name := args.(map[string]any)["name"].(string)
-					name = strings.ToLower(name)
-					assistant.RemoveAssistant(sess.SpanNow(), name)
-					return true, nil
-				},
-				Description: `remove_assistant(name: str) -> bool
-			Remove an assistant from the session.
-
-			Args:
-				name (str): The assistant's name.
-
-			Returns:
-				bool: True if the assistant was removed successfully.`,
-				Parameters: tools.Params{
-					Type: "object",
-					Properties: map[string]tools.Prop{
-						"name": {Type: "string"},
-					},
-					Required: []string{"name"},
-				},
-			},
-		},
+		"bridge",
+		&commandSourceRegistry{Source: lazySource(func() commands.Source {
+			return sessionCommandSource(a.SessionCommandSources, sess)
+		})},
 	)
 	sess.Listen(agent)
 }
 
+type SessionCommandSource interface {
+	CommandsSource(sess *tracks.Session) commands.Source
+}
+
 type Main struct {
-	SessionInitHandlers []SessionInitHandler
-	EventHandlers       []tracks.Handler
+	SessionInitHandlers   []SessionInitHandler
+	EventHandlers         []tracks.Handler
+	SessionCommandSources []SessionCommandSource
 
 	sessions map[string]*Session
 	format   beep.Format
@@ -523,22 +539,42 @@ func (m *Main) loadRequestSession(ctx context.Context, w http.ResponseWriter, r 
 	return sess
 }
 
+func sessionCommandSource(m []SessionCommandSource, sess *tracks.Session) commands.Source {
+	src := &commands.DynamicSource{}
+	for _, p := range m {
+		src.Sources = append(src.Sources, p.CommandsSource(sess))
+	}
+	return src
+}
+
+func (m *Main) SessionCommandHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) *commands.HTTPHandler {
+	sess := m.loadRequestSession(ctx, w, r)
+	return &commands.HTTPHandler{Source: sessionCommandSource(m.SessionCommandSources, sess.Session)}
+}
+
 func (m *Main) Serve(ctx context.Context) {
 	m.sessions = make(map[string]*Session)
 
-	http.HandleFunc("/sessions/new", func(w http.ResponseWriter, r *http.Request) {
+	// TODO change the client so we can make this a POST instead
+	http.HandleFunc("GET /sessions/new", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.addSession(ctx, tracks.NewSession())
 		http.Redirect(w, r, path.Join(m.basePath, "sessions", string(sess.ID)), http.StatusFound)
 	})
 
 	sessionHTMLHandler := serveWithBasePath(m.basePath, ui.Dir, "session.html")
-	http.Handle("/sessions/{$}", sessionHTMLHandler)
-	http.Handle("/sessions/{sessID}", sessionHTMLHandler)
+	http.Handle("GET /sessions/{$}", sessionHTMLHandler)
+	http.Handle("GET /sessions/{sessID}", sessionHTMLHandler)
+	http.HandleFunc("REFLECT /sessions/{sessID}", func(w http.ResponseWriter, r *http.Request) {
+		m.SessionCommandHandler(ctx, w, r).ServeHTTPReflect(w, r)
+	})
+	http.HandleFunc("POST /sessions/{sessID}", func(w http.ResponseWriter, r *http.Request) {
+		m.SessionCommandHandler(ctx, w, r).ServeHTTPRun(w, r)
+	})
 
-	http.HandleFunc("/sessions/data", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /sessions/data", func(w http.ResponseWriter, r *http.Request) {
 		m.serveSessionUpdates(ctx, w, r, nil)
 	})
-	http.HandleFunc("/sessions/{sessID}/sfu", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /sessions/{sessID}/sfu", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -552,33 +588,20 @@ func (m *Main) Serve(ctx context.Context) {
 		}
 		peer.HandleSignals()
 	})
-	http.HandleFunc("/sessions/{sessID}/data", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /sessions/{sessID}/data", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)
 		m.serveSessionUpdates(ctx, w, r, sess)
 	})
-	http.HandleFunc("POST /sessions/{sessID}/assistants/{name}", func(w http.ResponseWriter, r *http.Request) {
-		sess := m.loadRequestSession(ctx, w, r)
-		name := r.PathValue("name")
-		prompt := r.FormValue("prompt_template")
-		assistant.AddAssistant(sess.SpanNow(), name, prompt)
-		w.WriteHeader(http.StatusNoContent)
-	})
-	http.HandleFunc("DELETE /sessions/{sessID}/assistants/{name}", func(w http.ResponseWriter, r *http.Request) {
-		sess := m.loadRequestSession(ctx, w, r)
-		name := r.PathValue("name")
-		assistant.RemoveAssistant(sess.SpanNow(), name)
-		w.WriteHeader(http.StatusNoContent)
-	})
-	http.HandleFunc("/sessions/{sessID}/text", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /sessions/{sessID}/text", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)
 		m.serveSessionText(ctx, w, r, sess)
 	})
 
-	http.Handle("/webrtc/", http.StripPrefix("/webrtc", http.FileServer(http.FS(js.Dir))))
-	http.Handle("/ui/", http.StripPrefix("/ui", http.FileServer(http.FS(ui.Dir))))
+	http.Handle("GET /webrtc/", http.StripPrefix("/webrtc", http.FileServer(http.FS(js.Dir))))
+	http.Handle("GET /ui/", http.StripPrefix("/ui", http.FileServer(http.FS(ui.Dir))))
 	// We need the trailing slash in order to go directly to the /sessions/
 	// handler without an extra redirect, but path.Join strips it by default.
-	http.Handle("/{$}", http.RedirectHandler(path.Join(m.basePath, "sessions")+"/", http.StatusFound))
+	http.Handle("GET /{$}", http.RedirectHandler(path.Join(m.basePath, "sessions")+"/", http.StatusFound))
 
 	log.Printf("running on http://localhost:%d ...", m.port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", m.port), nil))
