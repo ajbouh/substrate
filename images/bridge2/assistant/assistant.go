@@ -80,7 +80,7 @@ func (c *Agent) CommandsSource(sess *tracks.Session) commands.Source {
 							Description: "The assistant's name",
 						},
 						"prompt_template": {
-							Name:        "name",
+							Name:        "prompt_template",
 							Type:        "string",
 							Description: "Template for assistant prompts",
 						},
