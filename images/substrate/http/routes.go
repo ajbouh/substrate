@@ -24,6 +24,7 @@ var methods []string = []string{
 	"POST",
 	"HEAD",
 	"OPTIONS",
+	"REFLECT",
 }
 
 type Handler struct {
