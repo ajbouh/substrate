@@ -1,4 +1,4 @@
-<!-- <svelte:options customElement="command-panel" /> -->
+<svelte:options customElement="command-panel" />
 
 <script lang="ts">
 	import type { Commands, Def, DefIndex } from '$lib/defs.ts';

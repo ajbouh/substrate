@@ -1,11 +1,5 @@
 <script lang="ts">
 	import { CommandPanel } from '$lib';
-	import { browser } from '$app/environment';
-	if (browser) {
-		if (!window.customElements.get('command-panel')) {
-			window.customElements.define('command-panel', CommandPanel.element);
-		}
-	}
 	// For vanilla JS, assigning the commands would look something like:
 	// document.querySelector('command-panel').commands = substrate.r0.commands;
 
