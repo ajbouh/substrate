@@ -1,0 +1,31 @@
+{{- $lastEnd := 0 }}
+{{- $nativeLanguages := .NativeLanguages }}
+{{- $lastLang := "" }}
+{{- $inlineThreshold := duration "0.4s" }}
+{{- $noninitial := false }}
+{{- $speaker := "Unknown" }}
+{{- $forceNewline := false }}
+{{- range $trackIx, $track := .Session.Tracks }}
+    {{- if eq (len $track.Events) 0}}{{continue}}{{end}}
+    {{- range $eventIx, $event := $track.Events }}
+        {{- if eq $eventIx 0 }}{{$lastEnd = $event.End}}{{end}}
+        {{- $data := $event.Data }}
+        {{- $type := $event.Type }}
+        {{- if ne $type "transcription"}}{{continue}}{{end}}
+        {{- $since := $lastEnd.Sub $event.Start }}
+        {{- if eq (len $data.Segments) 0}}{{continue}}{{end}}
+        {{- $lang := $data.SourceLanguage }}
+        {{- $newline := or $forceNewline (gt $since $inlineThreshold) (ne $lastLang $lang) }}
+        {{- $forceNewline = false }}
+        {{- $foreignLanguage := eq false (index $nativeLanguages $lang) }}
+        {{- if and $newline $noninitial }}{{"\n"}}{{end}}
+        {{- if $newline}}{{$speaker}}: {{end}}
+        {{- range $segmentIx, $segment := $data.Segments }}
+            {{- range $wordIx, $word := $segment.Words}}{{$word.Word}}{{end}}
+            {{- if $newline}}{{$noninitial = true}}{{end}}
+        {{- end}}
+        {{- if $foreignLanguage}} ({{$lang}} p={{$data.SourceLanguageProbability}}){{$forceNewline = true}}{{end}}
+        {{- $lastEnd = $event.End }}
+        {{- $lastLang = $lang }}
+    {{- end}}
+{{- end}}
