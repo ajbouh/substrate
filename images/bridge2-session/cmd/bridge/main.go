@@ -10,9 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"sync"
 	"text/template"
@@ -189,7 +187,7 @@ type Main struct {
 	EventHandlers         []tracks.Handler
 	SessionCommandSources []SessionCommandSource
 
-	sessions map[string]*Session
+	session  *Session
 	format   beep.Format
 	basePath string
 	port     int
@@ -257,7 +255,7 @@ func (m *Main) InitializeCLI(root *cli.Command) {
 }
 
 func (m *Main) TerminateDaemon(ctx context.Context) error {
-	for _, sess := range m.sessions {
+	if sess := m.session; sess != nil {
 		if err := m.saveSession(sess); err != nil {
 			return err
 		}
@@ -270,7 +268,7 @@ func (m *Main) saveSession(sess *Session) error {
 	if err != nil {
 		return err
 	}
-	filename := fmt.Sprintf("%s/%s/session", m.sessionDir, sess.ID)
+	filename := fmt.Sprintf("%s/session", m.sessionDir)
 	if err := os.WriteFile(filename, b, 0644); err != nil {
 		return err
 	}
@@ -287,38 +285,15 @@ func (m *Main) saveSession(sess *Session) error {
 }
 
 func (m *Main) SessionStoragePath(sess *tracks.Session, scope string) string {
-	dir := filepath.Join(m.sessionDir, string(sess.ID), scope)
+	dir := filepath.Join(m.sessionDir, scope)
 	err := os.MkdirAll(dir, 0744)
 	fatal(err)
 	return dir
 }
 
-func (m *Main) SavedSessions() (info []*tracks.SessionInfo, err error) {
-	root := m.sessionDir
-	dir, err := os.ReadDir(root)
-	if err != nil {
-		return nil, err
-	}
-	for _, fi := range dir {
-		if fi.IsDir() {
-			log.Printf("reading session %s", fi.Name())
-			sess, err := tracks.LoadSessionInfo(root, fi.Name())
-			if err != nil {
-				log.Printf("error reading session %s: %s", fi.Name(), err)
-				continue
-			}
-			info = append(info, sess)
-		}
-	}
-	sort.Slice(info, func(i, j int) bool {
-		return info[i].Start.After(info[j].Start)
-	})
-	return
-}
-
 func (m *Main) StartSession(sess *Session) {
 	var err error
-	sess.peer, err = local.NewPeer(fmt.Sprintf("ws://localhost:%d/sessions/%s/sfu", m.port, sess.ID)) // FIX: hardcoded host
+	sess.peer, err = local.NewPeer(fmt.Sprintf("ws://localhost:%d/sfu", m.port)) // FIX: hardcoded host
 	fatal(err)
 	sess.peer.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 		sessTrack := sess.NewTrack(m.format)
@@ -394,16 +369,16 @@ func timeoutUpdateCh(in <-chan struct{}, timeout time.Duration) <-chan struct{} 
 	return out
 }
 
-func (m *Main) loadSession(ctx context.Context, id string) (*Session, error) {
+func (m *Main) loadSession(ctx context.Context) (*Session, error) {
 	m.mu.Lock()
-	sess := m.sessions[id]
+	sess := m.session
 	m.mu.Unlock()
 	if sess != nil {
-		log.Println("found session in cache", id)
+		log.Println("found session in cache")
 		return sess, nil
 	}
-	log.Println("loading session from disk", id)
-	trackSess, err := tracks.LoadSession(m.sessionDir, id)
+	log.Println("loading session from disk")
+	trackSess, err := tracks.LoadSession(m.sessionDir)
 	if err != nil {
 		// TODO handle not found error
 		return nil, err
@@ -415,7 +390,7 @@ func (m *Main) loadSession(ctx context.Context, id string) (*Session, error) {
 func (m *Main) addSession(ctx context.Context, trackSess *tracks.Session) *Session {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if sess := m.sessions[string(trackSess.ID)]; sess != nil {
+	if sess := m.session; sess != nil {
 		return sess
 	}
 	sess := &Session{
@@ -437,7 +412,7 @@ func (m *Main) addSession(ctx context.Context, trackSess *tracks.Session) *Sessi
 			fatal(m.saveSession(sess))
 		}
 	}()
-	m.sessions[string(sess.ID)] = sess
+	m.session = sess
 	fatal(os.MkdirAll(fmt.Sprintf("%s/%s", m.sessionDir, sess.ID), 0744))
 	go m.StartSession(sess)
 	return sess
@@ -509,10 +484,15 @@ func (m *Main) serveSessionUpdates(ctx context.Context, w http.ResponseWriter, r
 	// refresh the list of sessions periodically
 	updateCh = timeoutUpdateCh(updateCh, 10*time.Second)
 	for range updateCh {
-		names, err := m.SavedSessions()
-		fatal(err)
+		// XXX
+		var sessions []*tracks.SessionInfo
+		if sess != nil {
+			info, err := tracks.LoadSessionInfo(m.sessionDir, string(sess.ID))
+			fatal(err)
+			sessions = append(sessions, info)
+		}
 		data, err := cborenc.Marshal(View{
-			Sessions: names,
+			Sessions: sessions,
 			Session:  sess,
 		})
 		fatal(err)
@@ -524,15 +504,10 @@ func (m *Main) serveSessionUpdates(ctx context.Context, w http.ResponseWriter, r
 }
 
 func (m *Main) loadRequestSession(ctx context.Context, w http.ResponseWriter, r *http.Request) *Session {
-	sessID := r.PathValue("sessID")
-	if sessID == "" {
-		http.Error(w, "not found", http.StatusNotFound)
-		panic(http.ErrAbortHandler)
-	}
-	sess, err := m.loadSession(ctx, sessID)
+	sess, err := m.loadSession(ctx)
 	if err != nil {
 		// TODO different error if we failed to load vs not found
-		log.Printf("error loading session %s: %s", sessID, err)
+		log.Printf("error loading session: %s", err)
 		http.Error(w, "not found", http.StatusNotFound)
 		panic(http.ErrAbortHandler)
 	}
@@ -553,28 +528,24 @@ func (m *Main) SessionCommandHandler(ctx context.Context, w http.ResponseWriter,
 }
 
 func (m *Main) Serve(ctx context.Context) {
-	m.sessions = make(map[string]*Session)
+	// m.sessions = make(map[string]*Session)
 
 	// TODO change the client so we can make this a POST instead
-	http.HandleFunc("GET /sessions/new", func(w http.ResponseWriter, r *http.Request) {
-		sess := m.addSession(ctx, tracks.NewSession())
-		http.Redirect(w, r, path.Join(m.basePath, "sessions", string(sess.ID)), http.StatusFound)
-	})
+	// http.HandleFunc("GET /sessions/new", func(w http.ResponseWriter, r *http.Request) {
+	// 	sess := m.addSession(ctx, tracks.NewSession())
+	// 	http.Redirect(w, r, path.Join(m.basePath, "sessions", string(sess.ID)), http.StatusFound)
+	// })
 
 	sessionHTMLHandler := serveWithBasePath(m.basePath, ui.Dir, "session.html")
-	http.Handle("GET /sessions/{$}", sessionHTMLHandler)
-	http.Handle("GET /sessions/{sessID}", sessionHTMLHandler)
-	http.HandleFunc("REFLECT /sessions/{sessID}", func(w http.ResponseWriter, r *http.Request) {
+	http.Handle("GET /", sessionHTMLHandler)
+	http.HandleFunc("REFLECT /", func(w http.ResponseWriter, r *http.Request) {
 		m.SessionCommandHandler(ctx, w, r).ServeHTTPReflect(w, r)
 	})
-	http.HandleFunc("POST /sessions/{sessID}", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("POST /", func(w http.ResponseWriter, r *http.Request) {
 		m.SessionCommandHandler(ctx, w, r).ServeHTTPRun(w, r)
 	})
 
-	http.HandleFunc("GET /sessions/data", func(w http.ResponseWriter, r *http.Request) {
-		m.serveSessionUpdates(ctx, w, r, nil)
-	})
-	http.HandleFunc("GET /sessions/{sessID}/sfu", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /sfu", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -588,20 +559,17 @@ func (m *Main) Serve(ctx context.Context) {
 		}
 		peer.HandleSignals()
 	})
-	http.HandleFunc("GET /sessions/{sessID}/data", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /data", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)
 		m.serveSessionUpdates(ctx, w, r, sess)
 	})
-	http.HandleFunc("GET /sessions/{sessID}/text", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("GET /text", func(w http.ResponseWriter, r *http.Request) {
 		sess := m.loadRequestSession(ctx, w, r)
 		m.serveSessionText(ctx, w, r, sess)
 	})
 
 	http.Handle("GET /webrtc/", http.StripPrefix("/webrtc", http.FileServer(http.FS(js.Dir))))
 	http.Handle("GET /ui/", http.StripPrefix("/ui", http.FileServer(http.FS(ui.Dir))))
-	// We need the trailing slash in order to go directly to the /sessions/
-	// handler without an extra redirect, but path.Join strips it by default.
-	http.Handle("GET /{$}", http.RedirectHandler(path.Join(m.basePath, "sessions")+"/", http.StatusFound))
 
 	log.Printf("running on http://localhost:%d ...", m.port)
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", m.port), nil))

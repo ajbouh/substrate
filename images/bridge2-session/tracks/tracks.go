@@ -131,9 +131,9 @@ func LoadSessionInfo(root, id string) (*SessionInfo, error) {
 	}, nil
 }
 
-func LoadSession(root, id string) (*Session, error) {
+func LoadSession(root string) (*Session, error) {
 	var s Session
-	f, err := os.Open(filepath.Join(root, id, "session"))
+	f, err := os.Open(filepath.Join(root, "session"))
 	if err != nil {
 		return nil, err
 	}
