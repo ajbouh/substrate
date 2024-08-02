@@ -1,5 +1,8 @@
 export var Topbar = {
   view: ({attrs}) => {
+    if (!attrs.activeSession) {
+      return null;
+    }
     const localMedia = attrs.localMedia;
     return m("div", {"class":"flex flex-wrap px-6 py-4","id":"topbar"},
       [

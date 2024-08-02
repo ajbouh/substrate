@@ -204,8 +204,7 @@ type Session struct {
 }
 
 type View struct {
-	Sessions []*tracks.SessionInfo
-	Session  *Session
+	Session *Session
 }
 
 func fatal(err error) {
@@ -441,14 +440,8 @@ func (m *Main) serveSessionUpdates(ctx context.Context, w http.ResponseWriter, r
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	for range sessionUpdateHandler(ctx, m.session) {
-		// XXX
-		var sessions []*tracks.SessionInfo
-		info, err := tracks.LoadSessionInfo(m.sessionDir, string(m.session.ID))
-		fatal(err)
-		sessions = append(sessions, info)
 		data, err := cborenc.Marshal(View{
-			Sessions: sessions,
-			Session:  m.session,
+			Session: m.session,
 		})
 		fatal(err)
 		if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {

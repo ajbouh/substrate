@@ -14,7 +14,6 @@
 
 import {ReflectCommands} from "./ui/substrate-r0.js";
 import {Session} from "./ui/session.js";
-import {Sidebar} from "./ui/sidebar.js";
 import {Topbar} from "./ui/topbar.js";
 import {Session as SFU} from "./webrtc/session.js";
 
@@ -192,7 +191,6 @@ dataWS.onmessage = e => {
   }
 
   viewModel = {
-    sessions: data.Sessions,
     activeSession: data.Session,
     entries: events.filter(e => e.Type === "transcription").sort((a, b) => {
       return a.Start - b.Start;
@@ -233,21 +231,12 @@ dataWS.onmessage = e => {
 
 m.mount(document.body, {
   view: () => [
-    m(Sidebar, {activeSession: viewModel.activeSession, sessions: viewModel.sessions}),
     m("div", {"class":"flex flex-col h-screen grow"},
-      viewModel.activeSession ?
-        [
-          m(Topbar, {localMedia: initLocalMedia(), shareScreen, activeSession: viewModel.activeSession}),
-          m("div", {"class":"grow px-6 mt-4 overflow-auto","id":"session"},
-            m(Session, {summary: "Summary", entries: viewModel.entries})
-          )
-        ]
-      : [
-        m("div", {"class": "grow px-6 mt-4"}, [
-          m("a", {"href": "./sessions/new", "class": "rounded border border-2 px-3 py-2"}, "New session")
-        ])
-      ]
-    )
+      m(Topbar, {localMedia: initLocalMedia(), shareScreen, activeSession: viewModel.activeSession}),
+      m("div", {"class":"grow px-6 mt-4 overflow-auto","id":"session"},
+        m(Session, {summary: "Summary", entries: viewModel.entries}),
+      ),
+    ),
   ],
 });
 
