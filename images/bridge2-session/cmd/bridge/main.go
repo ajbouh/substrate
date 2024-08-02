@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log"
@@ -12,7 +13,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync"
 	"text/template"
 	"time"
 
@@ -195,8 +195,6 @@ type Main struct {
 	sessionDir string
 
 	Daemon *daemon.Framework
-
-	mu sync.Mutex
 }
 
 type Session struct {
@@ -302,7 +300,7 @@ func (m *Main) StartSession(sess *Session) {
 		if track.Kind() != webrtc.RTPCodecTypeAudio {
 			return
 		}
-		ogg, err := oggwriter.New(fmt.Sprintf("%s/%s/track-%s.ogg", m.sessionDir, sess.ID, track.ID()), uint32(m.format.SampleRate.N(time.Second)), uint16(m.format.NumChannels))
+		ogg, err := oggwriter.New(fmt.Sprintf("%s/track-%s.ogg", m.sessionDir, track.ID()), uint32(m.format.SampleRate.N(time.Second)), uint16(m.format.NumChannels))
 		fatal(err)
 		defer ogg.Close()
 		rtp := trackstreamer.Tee(track, ogg)
@@ -330,6 +328,8 @@ func (m *Main) StartSession(sess *Session) {
 // the updates.
 func sessionUpdateHandler(ctx context.Context, sess *Session) <-chan struct{} {
 	ch := make(chan struct{}, 1)
+	// start with a message in order to send an update right away
+	ch <- struct{}{}
 	h := tracks.HandlerFunc(func(e tracks.Event) {
 		if e.Type == "audio" {
 			// if this is a transient event like "audio" we don't need to save
@@ -349,49 +349,15 @@ func sessionUpdateHandler(ctx context.Context, sess *Session) <-chan struct{} {
 	return ch
 }
 
-func timeoutUpdateCh(in <-chan struct{}, timeout time.Duration) <-chan struct{} {
-	out := make(chan struct{})
-	go func() {
-		out <- struct{}{} // trigger initial update
-		for {
-			select {
-			case <-time.After(timeout):
-				out <- struct{}{}
-			case _, ok := <-in:
-				if !ok {
-					close(out)
-					return
-				}
-				out <- struct{}{}
-			}
-		}
-	}()
-	return out
-}
-
-func (m *Main) loadSession(ctx context.Context) (*Session, error) {
-	m.mu.Lock()
-	sess := m.session
-	m.mu.Unlock()
-	if sess != nil {
-		log.Println("found session in cache")
-		return sess, nil
-	}
+func (m *Main) loadOrCreateSession(ctx context.Context) (*Session, error) {
 	log.Println("loading session from disk")
 	trackSess, err := tracks.LoadSession(m.sessionDir)
 	if err != nil {
-		// TODO handle not found error
-		return nil, err
-	}
-	sess = m.addSession(ctx, trackSess)
-	return sess, nil
-}
-
-func (m *Main) addSession(ctx context.Context, trackSess *tracks.Session) *Session {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if sess := m.session; sess != nil {
-		return sess
+		if !errors.Is(err, tracks.ErrSessionNotFound) {
+			return nil, err
+		}
+		log.Println("session not found, creating a new one")
+		trackSess = tracks.NewSession()
 	}
 	sess := &Session{
 		sfu:     sfu.NewSession(),
@@ -412,10 +378,9 @@ func (m *Main) addSession(ctx context.Context, trackSess *tracks.Session) *Sessi
 			fatal(m.saveSession(sess))
 		}
 	}()
-	m.session = sess
-	fatal(os.MkdirAll(fmt.Sprintf("%s/%s", m.sessionDir, sess.ID), 0744))
+	fatal(os.MkdirAll(fmt.Sprintf("%s", m.sessionDir), 0744))
 	go m.StartSession(sess)
-	return sess
+	return sess, nil
 }
 
 func serveWithBasePath(basePath string, dir fs.FS, path string) http.HandlerFunc {
@@ -439,8 +404,8 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-func (m *Main) serveSessionText(ctx context.Context, w http.ResponseWriter, r *http.Request, sess *Session) {
-	snapshot := sess.Snapshot()
+func (m *Main) serveSessionText(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+	snapshot := m.session.Snapshot()
 	tmpl, err := template.New("session.tmpl.txt").
 		Funcs(template.FuncMap{
 			"json": func(v any) (string, error) {
@@ -467,7 +432,7 @@ func (m *Main) serveSessionText(ctx context.Context, w http.ResponseWriter, r *h
 	}
 }
 
-func (m *Main) serveSessionUpdates(ctx context.Context, w http.ResponseWriter, r *http.Request, sess *Session) {
+func (m *Main) serveSessionUpdates(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Print("upgrade:", err)
@@ -475,25 +440,15 @@ func (m *Main) serveSessionUpdates(ctx context.Context, w http.ResponseWriter, r
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	// by default, send updates until the context is cancelled
-	updateCh := ctx.Done()
-	if sess != nil {
-		// with an active session, send updates when new events arrive
-		updateCh = sessionUpdateHandler(ctx, sess)
-	}
-	// refresh the list of sessions periodically
-	updateCh = timeoutUpdateCh(updateCh, 10*time.Second)
-	for range updateCh {
+	for range sessionUpdateHandler(ctx, m.session) {
 		// XXX
 		var sessions []*tracks.SessionInfo
-		if sess != nil {
-			info, err := tracks.LoadSessionInfo(m.sessionDir, string(sess.ID))
-			fatal(err)
-			sessions = append(sessions, info)
-		}
+		info, err := tracks.LoadSessionInfo(m.sessionDir, string(m.session.ID))
+		fatal(err)
+		sessions = append(sessions, info)
 		data, err := cborenc.Marshal(View{
 			Sessions: sessions,
-			Session:  sess,
+			Session:  m.session,
 		})
 		fatal(err)
 		if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
@@ -501,17 +456,6 @@ func (m *Main) serveSessionUpdates(ctx context.Context, w http.ResponseWriter, r
 			return
 		}
 	}
-}
-
-func (m *Main) loadRequestSession(ctx context.Context, w http.ResponseWriter, r *http.Request) *Session {
-	sess, err := m.loadSession(ctx)
-	if err != nil {
-		// TODO different error if we failed to load vs not found
-		log.Printf("error loading session: %s", err)
-		http.Error(w, "not found", http.StatusNotFound)
-		panic(http.ErrAbortHandler)
-	}
-	return sess
 }
 
 func sessionCommandSource(m []SessionCommandSource, sess *tracks.Session) commands.Source {
@@ -523,18 +467,12 @@ func sessionCommandSource(m []SessionCommandSource, sess *tracks.Session) comman
 }
 
 func (m *Main) SessionCommandHandler(ctx context.Context, w http.ResponseWriter, r *http.Request) *commands.HTTPHandler {
-	sess := m.loadRequestSession(ctx, w, r)
+	sess := m.session
 	return &commands.HTTPHandler{Source: sessionCommandSource(m.SessionCommandSources, sess.Session)}
 }
 
 func (m *Main) Serve(ctx context.Context) {
-	// m.sessions = make(map[string]*Session)
-
-	// TODO change the client so we can make this a POST instead
-	// http.HandleFunc("GET /sessions/new", func(w http.ResponseWriter, r *http.Request) {
-	// 	sess := m.addSession(ctx, tracks.NewSession())
-	// 	http.Redirect(w, r, path.Join(m.basePath, "sessions", string(sess.ID)), http.StatusFound)
-	// })
+	m.session = must(m.loadOrCreateSession(ctx))
 
 	sessionHTMLHandler := serveWithBasePath(m.basePath, ui.Dir, "session.html")
 	http.Handle("GET /", sessionHTMLHandler)
@@ -546,13 +484,12 @@ func (m *Main) Serve(ctx context.Context) {
 	})
 
 	http.HandleFunc("GET /sfu", func(w http.ResponseWriter, r *http.Request) {
-		sess := m.loadRequestSession(ctx, w, r)
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			log.Print("upgrade:", err)
 			return
 		}
-		peer, err := sess.sfu.AddPeer(conn)
+		peer, err := m.session.sfu.AddPeer(conn)
 		if err != nil {
 			log.Print("peer:", err)
 			return
@@ -560,12 +497,10 @@ func (m *Main) Serve(ctx context.Context) {
 		peer.HandleSignals()
 	})
 	http.HandleFunc("GET /data", func(w http.ResponseWriter, r *http.Request) {
-		sess := m.loadRequestSession(ctx, w, r)
-		m.serveSessionUpdates(ctx, w, r, sess)
+		m.serveSessionUpdates(ctx, w, r)
 	})
 	http.HandleFunc("GET /text", func(w http.ResponseWriter, r *http.Request) {
-		sess := m.loadRequestSession(ctx, w, r)
-		m.serveSessionText(ctx, w, r, sess)
+		m.serveSessionText(ctx, w, r)
 	})
 
 	http.Handle("GET /webrtc/", http.StripPrefix("/webrtc", http.FileServer(http.FS(js.Dir))))

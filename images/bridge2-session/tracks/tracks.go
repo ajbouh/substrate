@@ -131,10 +131,15 @@ func LoadSessionInfo(root, id string) (*SessionInfo, error) {
 	}, nil
 }
 
+var ErrSessionNotFound = fmt.Errorf("session not found")
+
 func LoadSession(root string) (*Session, error) {
 	var s Session
 	f, err := os.Open(filepath.Join(root, "session"))
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrSessionNotFound
+		}
 		return nil, err
 	}
 	if err := cbor.NewDecoder(f).Decode(&s); err != nil {
