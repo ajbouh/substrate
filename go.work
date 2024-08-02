@@ -8,6 +8,7 @@ use (
 	./images/nvml
 	./images/bridge
 	./images/bridge2
+	./images/bridge2-session
 	./images/chromestage
 	./images/files
 	./images/screenshot
