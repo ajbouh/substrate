@@ -22,8 +22,6 @@ func (h *DefsHandler) ContributeHTTP(mux *http.ServeMux) {
 	mux.Handle(fmt.Sprintf("GET %s/v1/defs", h.Prefix), h.DefsAnnouncer)
 	mux.Handle(fmt.Sprintf("POST %s/v1/eval", h.Prefix), http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		defset := h.DefSetLoader.Load()
-		defset.CueMu.Lock()
-		defer defset.CueMu.Unlock()
 
 		defer req.Body.Close()
 		b, err := io.ReadAll(req.Body)
@@ -32,11 +30,21 @@ func (h *DefsHandler) ContributeHTTP(mux *http.ServeMux) {
 			return
 		}
 
-		// HACK just trying to make an empty struct
-		scope := defset.CueContext.CompileString("{...}", cue.ImportPath("_"))
-		scope = scope.FillPath(cue.MakePath(cue.Hid("_root", "_")), defset.RootValue)
+		var status int
+		var resp []byte
+		func() {
+			defset.CueMu.Lock()
+			defer defset.CueMu.Unlock()
 
-		result := defset.CueContext.CompileBytes(b, cue.ImportPath("_"), cue.Scope(scope))
-		httputil.WriteCueValue(rw, req, result)
+			// HACK just trying to make an empty struct
+			scope := defset.CueContext.CompileString("{...}", cue.ImportPath("_"))
+			scope = scope.FillPath(cue.MakePath(cue.Hid("_root", "_")), defset.RootValue)
+
+			result := defset.CueContext.CompileBytes(b, cue.ImportPath("_"), cue.Scope(scope))
+
+			status, resp = httputil.WriteCueValue(req, result)
+		}()
+		rw.WriteHeader(status)
+		rw.Write(resp)
 	}))
 }

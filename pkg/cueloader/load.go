@@ -49,7 +49,7 @@ func NewCueLoader(arg string, transforms ...Transform) *Loader {
 	}
 }
 
-func (r *Loader) LoadCue(mu Lock, cc *cue.Context, config *load.Config) *Load {
+func (r *Loader) LoadCue(cueMu Lock, cc *cue.Context, config *load.Config) *Load {
 	l := &Load{}
 	// log.Println("LoadStart")
 	l.LoadStart = time.Now()
@@ -64,9 +64,9 @@ func (r *Loader) LoadCue(mu Lock, cc *cue.Context, config *load.Config) *Load {
 		return l
 	}
 
-	if mu != nil {
-		mu.Lock()
-		defer mu.Unlock()
+	if cueMu != nil {
+		cueMu.Lock()
+		defer cueMu.Unlock()
 	}
 	// log.Println("BuildStart")
 	l.BuildStart = time.Now()
