@@ -93,6 +93,7 @@ export function setupProgram(scripts:string[], state:ProgramState) {
         }
     }
 
+
     state.order = sorted;
     state.nodes = newNodes;
 
@@ -100,6 +101,11 @@ export function setupProgram(scripts:string[], state:ProgramState) {
         const newNode = newNodes.get(nodeId)!;
         if (invalidatedInput(newNode, invalidatedStreamNames)) {
             state.inputArray.delete(newNode.id);
+        }
+        if (invalidatedStreamNames.has(nodeId)) {
+            state.resolved.delete(nodeId);
+            state.scratch.delete(nodeId);
+            state.inputArray.delete(nodeId);
         }
     }
 
@@ -114,7 +120,7 @@ export function setupProgram(scripts:string[], state:ProgramState) {
 
     for (const [varName, node] of state.nodes) {
         for (const input of node.inputs) {
-            if (!state.order.includes(input)) {
+            if (!state.order.includes(state.baseVarName(input))) {
                 console.log(`Node ${varName} won't be evaluated as it depends on an undefined variable ${input}.`);
             }
         }
@@ -309,10 +315,10 @@ const Events = {
         return eventBody({type: eventType, forObserve: false, dom, eventName: eventName, eventHandler: handler});
     },
     delay(varName:VarName, delay: number):DelayedEvent {
-        return new DelayedEvent(delay, varName);
+        return new DelayedEvent(delay, varName, false);
     },
     timer(interval:number):TimerEvent {
-        return new TimerEvent(interval);
+        return new TimerEvent(interval, false);
     },
     change(value:any):ChangeEvent{
         return new ChangeEvent(value);
@@ -323,6 +329,9 @@ const Events = {
     },
     or(...varNames:Array<VarName>) {
         return new OrEvent(varNames)
+    },
+    collect<I, T>(init:I, varName: VarName, updater: (c: I, v:T) => I):CollectStream<I, T> {
+        return new CollectStream(init, varName, updater, false);
     },
     send(state:ProgramState, receiver:VarName, value:any) {
         registerEvent(state, receiver, value);
@@ -351,10 +360,21 @@ const Behaviors = {
        return value;
     },
     collect<I, T>(init:I, varName: VarName, updater: (c: I, v:T) => I):CollectStream<I, T> {
-        return new CollectStream(init, varName, updater);
+        return new CollectStream(init, varName, updater, true);
     },
     timer(interval:number):TimerEvent {
-        return new TimerEvent(interval);
+        return new TimerEvent(interval, true);
+    },
+    delay(varName:VarName, delay: number):DelayedEvent {
+        return new DelayedEvent(delay, varName, true);
+    },
+    spaceURL(partialURL:string) {
+        // partialURL: './bridge/bridge.js'
+        // expected: 
+        const loc = window.location.toString();
+        const index = loc.lastIndexOf("/");
+        let base = loc.slice(0, index);
+        return `${base}/${partialURL}`;
     }
 }
 

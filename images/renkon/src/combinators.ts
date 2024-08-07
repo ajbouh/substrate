@@ -16,6 +16,7 @@ export type ResolveRecord = {
 }
 
 export const typeKey = Symbol("typeKey");
+export const isBehaviorKey = Symbol("isBehavior");
 
 export const eventType = "EventType";
 export const delayType = "DelayType";
@@ -153,8 +154,10 @@ export class ProgramState {
 
 export class Stream {
     [typeKey]: EventType;
-    constructor(type:EventType) {
+    [isBehaviorKey]: boolean;
+    constructor(type:EventType, isBehavior:boolean) {
         this[typeKey] = type;
+        this[isBehaviorKey] = isBehavior;
     }
 
     created(_state:ProgramState, _id:VarName):Stream {
@@ -182,8 +185,8 @@ export class Stream {
 export class DelayedEvent extends Stream {
     delay: number;
     varName: VarName;
-    constructor(delay :number, varName: VarName) {
-        super(delayType);
+    constructor(delay :number, varName: VarName, isBehavior:boolean) {
+        super(delayType, isBehavior);
         this.delay = delay;
         this.varName = varName;
     }
@@ -198,29 +201,40 @@ export class DelayedEvent extends Stream {
     created(state:ProgramState, id:VarName):Stream {
         if (!state.scratch.get(id)) {
             state.scratch.set(id, {queue: []});
-            state.updated = true;
         }
         return this;
     }
 
-    evaluate(state:ProgramState, node: ScriptCell, inputArray:Array<any>, _lastInputArray:Array<any>|undefined):void {
+    evaluate(state:ProgramState, node: ScriptCell, inputArray:Array<any>, lastInputArray:Array<any>|undefined):void {
         const value = state.spliceDelayedQueued(state.scratch.get(node.id) as QueueRecord, state.time);
         if (value !== undefined) {
             state.setResolved(node.id, {value, time: state.time});
         }
         const inputIndex = 0; // node.inputs.indexOf(this.varName);
         const myInput = inputArray[inputIndex];
-        if (myInput !== undefined) {
+
+        const doIt = (this[isBehaviorKey] && myInput !== undefined && myInput !== lastInputArray?.[inputIndex])
+            || (!this[isBehaviorKey] && myInput !== undefined);
+        if (doIt) {
             const scratch:QueueRecord = state.scratch.get(node.id) as QueueRecord;
-            scratch.queue.push({time: state.time + this.delay, value: myInput});
+                scratch.queue.push({time: state.time + this.delay, value: myInput});
         }
+    }
+
+    conclude(state:ProgramState, varName:VarName):VarName|undefined {
+        if (this[isBehaviorKey]) {return;}
+        if (state.resolved.get(varName)?.value !== undefined) {
+            state.resolved.delete(varName);
+            return varName;
+        }
+        return;
     }
 }
 
 export class TimerEvent extends Stream {
     interval: number;
-    constructor(interval:number) {
-        super(timerType);
+    constructor(interval:number, isBehavior:boolean) {
+        super(timerType, isBehavior);
         this.interval = interval;
     }
 
@@ -232,7 +246,7 @@ export class TimerEvent extends Stream {
         const output = node.outputs;
         const last = state.scratch.get(output) as number;
         const interval = this.interval;
-        return last === undefined || last + interval < state.time;
+        return last === undefined || last + interval <= state.time;
     }
 
     evaluate(state:ProgramState, node: ScriptCell, _inputArray:Array<any>, _lastInputArray:Array<any>|undefined):void {
@@ -241,12 +255,21 @@ export class TimerEvent extends Stream {
         state.setResolved(node.id, {value: logicalTrigger, time: state.time});
         state.scratch.set(node.id, logicalTrigger);
     }
+
+    conclude(state:ProgramState, varName:VarName):VarName|undefined {
+        if (this[isBehaviorKey]) {return;}
+        if (state.resolved.get(varName)?.value !== undefined) {
+            state.resolved.delete(varName);
+            return varName;
+        }
+        return;
+    }
 }
 
 export class PromiseEvent<T> extends Stream {
     promise:Promise<T>;
     constructor(promise:Promise<T>) {
-        super(promiseType);
+        super(promiseType, true);
         this.promise = promise;
     }
 
@@ -270,7 +293,7 @@ export class PromiseEvent<T> extends Stream {
 export class OrEvent extends Stream {
     varNames: Array<VarName>;
     constructor(varNames:Array<VarName>) {
-        super(orType);
+        super(orType, false);
         this.varNames = varNames;
     }
 
@@ -298,7 +321,7 @@ export class UserEvent extends Stream {
     cleanup?: (() => void);
     record: ValueRecord;
     constructor(record:QueueRecord) {
-        super(eventType);
+        super(eventType, false);
         this.cleanup = record.cleanup;
         this.record = record;
     }
@@ -331,14 +354,14 @@ export class UserEvent extends Stream {
 
 export class SendEvent extends Stream {
     constructor() {
-        super(sendType);
+        super(sendType, false);
     }
 }
 
 export class ReceiverEvent extends Stream {
     value: any;
     constructor(value:any) {
-        super(receiverType);
+        super(receiverType, false);
         this.value = value;
     }
 
@@ -369,7 +392,7 @@ export class ReceiverEvent extends Stream {
 export class ChangeEvent extends Stream {
     value: any;
     constructor(value:any) {
-        super(changeType);
+        super(changeType, false);
         this.value = value;
     }
 
@@ -401,7 +424,7 @@ export class ChangeEvent extends Stream {
 
 export class Behavior extends Stream {
     constructor() {
-        super(behaviorType);
+        super(behaviorType, true);
     }
 }
 
@@ -409,8 +432,8 @@ export class CollectStream<I, T> extends Stream {
     init: I;
     varName: VarName;
     updater: (acc:I, v: T) => I;
-    constructor(init:I, varName:VarName, updater:(acc:I, v: T) => I) {
-        super(collectType);
+    constructor(init:I, varName:VarName, updater:(acc:I, v: T) => I, isBehavior: boolean) {
+        super(collectType, isBehavior);
         this.init = init;
         this.varName = varName;
         this.updater = updater;
@@ -446,13 +469,22 @@ export class CollectStream<I, T> extends Stream {
             }
         }
     }
+
+    conclude(state:ProgramState, varName:VarName):VarName|undefined {
+        if (this[isBehaviorKey]) {return;}
+        if (state.resolved.get(varName)?.value !== undefined) {
+            state.resolved.delete(varName);
+            return varName;
+        }
+        return;
+    }
 }
 
 export class GeneratorEvent<T> extends Stream {
     promise: Promise<IteratorResult<T>>;
     generator: AsyncGenerator<T>;
     constructor(promise:Promise<IteratorResult<T>>, generator:AsyncGenerator<T>) {
-        super(generatorType);
+        super(generatorType, false);
         this.promise = promise;
         this.generator = generator;
     }
