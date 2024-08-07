@@ -108,7 +108,7 @@ func (r *Cache) AllInstanceExports() *InstancesRoot {
 		i++
 		return true
 	})
-	slog.Info("Cache.AllInstanceExports()", "r.entries.Size()", r.entries.Size(), "i", i, "len(root.Instances)", len(root.Instances), "root", root)
+	// slog.Info("Cache.AllInstanceExports()", "r.entries.Size()", r.entries.Size(), "i", i, "len(root.Instances)", len(root.Instances), "root", root)
 
 	return root
 }
@@ -173,8 +173,8 @@ func (r *Cache) Ensure(ctx context.Context, asr *activityspec.ServiceSpawnReques
 		return nil, fmt.Errorf("viewspec must be concrete")
 	}
 
-	slog.Info("Cache.Ensure()", "key", requestCacheKey, "instance", &r)
-	defer slog.Info("Cache.Ensure() done", "key", requestCacheKey, "instance", &r)
+	// slog.Info("Cache.Ensure()", "key", requestCacheKey, "instance", &r)
+	// defer slog.Info("Cache.Ensure() done", "key", requestCacheKey, "instance", &r)
 
 	// since we might be racing another request, we must .finishEnsure *after* LoadOrCompute, but only if we created it.
 	return r.entries.LoadOrCompute(requestCacheKey, func() (*CachingSingleServiceProvisioner, error) {
@@ -192,8 +192,8 @@ func (r *Cache) Ensure(ctx context.Context, asr *activityspec.ServiceSpawnReques
 }
 
 func (r *Cache) ServeProxiedHTTP(asr *activityspec.ServiceSpawnRequest, rw http.ResponseWriter, rq *http.Request) {
-	slog.Info("Cache.ServeProxiedHTTP()", "key", asr.CanonicalFormat, "instance", &r)
-	defer slog.Info("Cache.ServeProxiedHTTP() done", "key", asr.CanonicalFormat, "instance", &r)
+	// slog.Info("Cache.ServeProxiedHTTP()", "key", asr.CanonicalFormat, "instance", &r)
+	// defer slog.Info("Cache.ServeProxiedHTTP() done", "key", asr.CanonicalFormat, "instance", &r)
 
 	entry, err := r.Ensure(rq.Context(), asr)
 	if err != nil {
