@@ -9,11 +9,12 @@
 </script>
 
 <div>
-	<hr>
+	<hr />
 	<p>
-		<button onclick={() => run(params)}>{name}</button> {def.description}
+		<button onclick={() => run(params)}>{name}</button>
+		{def.description}
 	</p>
-	<tt>{"{"}</tt>
+	<tt>{'{'}</tt>
 	{#each paramDefs as param (param.name)}
 		<p>
 			<tt>{JSON.stringify(param.name)}: </tt>
@@ -27,9 +28,9 @@
 			[{param.type}]: {param.description}
 		</p>
 	{/each}
-	<tt>{"} -> {"}</tt>
+	<tt>{'} -> {'}</tt>
 	{#each Object.values(def.returns) as ret}
 		<p><tt>{JSON.stringify(ret.name)}:</tt> [{ret.type}]: {ret.description}</p>
 	{/each}
-	<tt>{"}"}</tt>
+	<tt>{'}'}</tt>
 </div>

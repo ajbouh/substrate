@@ -13,6 +13,6 @@ export default defineConfig({
 			name: 'CommandPanel',
 			fileName: 'command-panel'
 		},
-		outDir: 'dist-bundle',
+		outDir: 'dist-bundle'
 	}
 });

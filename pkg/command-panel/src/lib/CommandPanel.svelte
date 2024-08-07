@@ -4,7 +4,7 @@
 	import type { Commands, Def, DefIndex } from '$lib/defs.ts';
 	import Command from './Command.svelte';
 	let { commands = null }: { commands: Commands | null } = $props();
-	let results: { command: string; properties: Record<string, any>; result: any; }[] = $state([]);
+	let results: { command: string; properties: Record<string, any>; result: any }[] = $state([]);
 	async function run(command: string, properties: Record<string, any>) {
 		if (!commands) return;
 		let result = commands.run(command, properties);
@@ -37,18 +37,18 @@
 	</div>
 
 	{#each results as result}
-	<div>
-		<b>{result.command}</b>(<tt>{JSON.stringify(result.properties, null, 2)}</tt>)
-		<pre>
+		<div>
+			<b>{result.command}</b>(<tt>{JSON.stringify(result.properties, null, 2)}</tt>)
+			<pre>
 			{#await result.result}
-			(Running...)
-			{:then value}
-			{JSON.stringify(value, null, 2)}
-			{:catch error}
-			Failed: {error.message}
-			{/await}
+					(Running...)
+				{:then value}
+					{JSON.stringify(value, null, 2)}
+				{:catch error}
+					Failed: {error.message}
+				{/await}
 		</pre>
-	</div>
+		</div>
 	{/each}
 
 	<div class="commands">

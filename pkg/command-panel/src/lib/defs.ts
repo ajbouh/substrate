@@ -16,4 +16,4 @@ type Args = Record<string, any>;
 export type Commands = {
 	index: Promise<DefIndex>;
 	run: (command: string, args: Args) => Promise<any>;
-}
+};
