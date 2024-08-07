@@ -3,7 +3,7 @@
 <script lang="ts">
 	import type { Commands, Def, DefIndex } from '$lib/defs.ts';
 	import Command from './Command.svelte';
-	let { commands = null }: { commands: Commands | null } = $props();
+	let { commands = null as Commands | null, open = $bindable(false) } = $props();
 	let results: { command: string; properties: Record<string, any>; result: any }[] = $state([]);
 	async function run(command: string, properties: Record<string, any>) {
 		if (!commands) return;
@@ -18,7 +18,6 @@
 		return key.toLowerCase().includes(lower) || def.description.toLowerCase().includes(lower);
 	}
 	let focused = $state(false);
-	let open = $derived(focused || search);
 </script>
 
 <div class="command-panel" class:open>
