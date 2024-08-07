@@ -9,15 +9,14 @@
 </script>
 
 <div>
-	<h2>
-		{name}
-	</h2>
-	<p>{def.description}</p>
-	<h3>Parameters</h3>
-	<button onclick={() => run(params)}>Call</button>
-	<pre>{JSON.stringify(params)}</pre>
+	<hr>
+	<p>
+		<button onclick={() => run(params)}>{name}</button> {def.description}
+	</p>
+	<tt>{"{"}</tt>
 	{#each paramDefs as param (param.name)}
 		<p>
+			<tt>{JSON.stringify(param.name)}: </tt>
 			{#if param.type === 'boolean'}
 				<input type="checkbox" bind:checked={defined[param.name]} />
 			{:else if param.type === 'number'}
@@ -25,11 +24,12 @@
 			{:else}
 				<input type="text" bind:value={defined[param.name]} />
 			{/if}
-			{param.name} [{param.type}]: {param.description}
+			[{param.type}]: {param.description}
 		</p>
 	{/each}
-	<h3>Returns</h3>
+	<tt>{"} -> {"}</tt>
 	{#each Object.values(def.returns) as ret}
-		<p>{ret.name} [{ret.type}]: {ret.description}</p>
+		<p><tt>{JSON.stringify(ret.name)}:</tt> [{ret.type}]: {ret.description}</p>
 	{/each}
+	<tt>{"}"}</tt>
 </div>

@@ -10,8 +10,10 @@
 	$effect(() => {
 		if (panel) {
 			panel.commands = {
-				run(name: string, params: Record<string, any>) {
+				async run(name: string, params: Record<string, any>) {
 					console.log('Running command', name, params);
+					await new Promise((resolve) => setTimeout(resolve, 1000));
+					return 'ok';
 				},
 				index: {
 					'assistant:add': {

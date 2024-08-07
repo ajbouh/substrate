@@ -4,11 +4,11 @@
 	import type { Commands, Def, DefIndex } from '$lib/defs.ts';
 	import Command from './Command.svelte';
 	let { commands = null }: { commands: Commands | null } = $props();
-	async function run(name: string, props: Record<string, any>) {
+	let results: { command: string; properties: Record<string, any>; result: any; }[] = $state([]);
+	async function run(command: string, properties: Record<string, any>) {
 		if (!commands) return;
-		// TODO append to a log of the commands & returns
-		let ret = await commands.run(name, props);
-		console.log('ran', name, props, ret);
+		let result = commands.run(command, properties);
+		results.push({ command, properties, result });
 	}
 	let index = $derived(commands?.index || new Promise<DefIndex>(() => {}));
 	let search = $state('');
@@ -35,6 +35,21 @@
 			}}
 		/>
 	</div>
+
+	{#each results as result}
+	<div>
+		<b>{result.command}</b>(<tt>{JSON.stringify(result.properties, null, 2)}</tt>)
+		<pre>
+			{#await result.result}
+			(Running...)
+			{:then value}
+			{JSON.stringify(value, null, 2)}
+			{:catch error}
+			Failed: {error.message}
+			{/await}
+		</pre>
+	</div>
+	{/each}
 
 	<div class="commands">
 		{#await index}
