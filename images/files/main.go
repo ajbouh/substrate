@@ -13,6 +13,8 @@ import (
 	"github.com/ajbouh/substrate/pkg/httpframework"
 
 	"tractor.dev/toolkit-go/engine"
+	"tractor.dev/toolkit-go/engine/cli"
+	"tractor.dev/toolkit-go/engine/daemon"
 )
 
 const (
@@ -47,24 +49,41 @@ func init() {
 }
 
 func main() {
+	prefix := os.Getenv("SUBSTRATE_URL_PREFIX")
 	engine.Run(
+		Main{},
 		&httpframework.Framework{},
-		&httpframework.StripPrefix{
-			Prefix: os.Getenv("SUBSTRATE_URL_PREFIX"),
-		},
 		&fileHandler{
-			route:       "/raw/",
+			route:       prefix + "/raw/",
 			path:        "/spaces/data/tree",
 			allowUpload: allowUploadsFlag,
 			allowDelete: allowDeletesFlag,
 		},
 		httpframework.Route{
-			Route:   "/assets/",
-			Handler: http.StripPrefix("/assets/", http.FileServer(http.FS(assets.Dir))),
+			Route:   prefix + "/",
+			Handler: http.StripPrefix(prefix, http.RedirectHandler(prefix+"/raw/", http.StatusTemporaryRedirect)),
 		},
 		httpframework.Route{
-			Route:   "/edit/text/",
-			Handler: http.StripPrefix("/edit/text", assets.ServeFileReplacingBasePathHandler("/", "edit-text.html")),
+			Route:   prefix + "/assets/",
+			Handler: http.StripPrefix(prefix+"/assets/", http.FileServer(http.FS(assets.Dir))),
+		},
+		httpframework.Route{
+			Route:   prefix + "/edit/text/",
+			Handler: http.StripPrefix(prefix+"/edit/text", assets.ServeFileReplacingBasePathHandler("/", "edit-text.html")),
 		},
 	)
+}
+
+type Main struct {
+	Daemon *daemon.Framework
+}
+
+func (m *Main) InitializeCLI(root *cli.Command) {
+	// a workaround for an unresolved issue in toolkit-go/engine
+	// for figuring out if its a CLI or a daemon program...
+	root.Run = func(ctx *cli.Context, args []string) {
+		if err := m.Daemon.Run(ctx); err != nil {
+			log.Fatal(err)
+		}
+	}
 }
