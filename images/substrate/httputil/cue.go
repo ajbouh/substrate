@@ -2,7 +2,6 @@ package httputil
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 
 	"cuelang.org/go/cue"
@@ -10,7 +9,7 @@ import (
 	"github.com/elnormous/contenttype"
 )
 
-func WriteCueValue(rw http.ResponseWriter, req *http.Request, v cue.Value) {
+func WriteCueValue(req *http.Request, v cue.Value) (int, []byte) {
 	availableMediaTypes := []contenttype.MediaType{
 		contenttype.NewMediaType("application/json"),
 		contenttype.NewMediaType("application/json; charset=utf-8"),
@@ -20,20 +19,16 @@ func WriteCueValue(rw http.ResponseWriter, req *http.Request, v cue.Value) {
 
 	accepted, _, err := contenttype.GetAcceptableMediaType(req, availableMediaTypes)
 	if err != nil {
-		log.Printf("err in GetAcceptableMediaType %s: %#v", err, req)
-		jsonrw := NewJSONResponseWriter(rw)
-		jsonrw(nil, http.StatusUnsupportedMediaType, err)
-		return
+		return http.StatusUnsupportedMediaType, []byte(fmt.Sprintf(`{"message": %q}`, err.Error()))
 	}
 
 	switch accepted.Type + "/" + accepted.Subtype {
 	case "application/json":
 		b, err := v.MarshalJSON()
 		if err != nil {
-			http.Error(rw, fmt.Sprintf(`{"message": %q}`, err.Error()), http.StatusInternalServerError)
-			return
+			return http.StatusInternalServerError, []byte(fmt.Sprintf(`{"message": %q}`, err.Error()))
 		}
-		rw.Write(b)
+		return http.StatusOK, b
 	case "application/cue":
 		// Generate an AST
 		//   try out different options
@@ -54,10 +49,11 @@ func WriteCueValue(rw http.ResponseWriter, req *http.Request, v cue.Value) {
 			// format.UseSpaces(2),
 		)
 		if err != nil {
-			http.Error(rw, fmt.Sprintf(`{"message": %q}`, err.Error()), http.StatusInternalServerError)
-			return
+			return http.StatusInternalServerError, []byte(fmt.Sprintf(`{"message": %q}`, err.Error()))
 		}
 
-		rw.Write(b)
+		return http.StatusOK, b
+	default:
+		return http.StatusInternalServerError, []byte(`{"message": "unhandled media type"}`)
 	}
 }
