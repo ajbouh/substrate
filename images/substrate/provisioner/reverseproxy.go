@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -31,8 +30,8 @@ func provisioningReverseProxy(
 		return
 	}
 
-	slog.Info("provisioningReverseProxy", "ttl", ttl, "url", req.URL.String())
-	defer slog.Info("provisioningReverseProxy done", "ttl", ttl, "url", req.URL.String())
+	// slog.Info("provisioningReverseProxy", "ttl", ttl, "url", req.URL.String())
+	// defer slog.Info("provisioningReverseProxy done", "ttl", ttl, "url", req.URL.String())
 
 	provisioning, err := provision(req.Context())
 	if err != nil {
@@ -56,8 +55,8 @@ func provisioningReverseProxy(
 				r.Out.Header.Set("User-Agent", "")
 			}
 
-			slog.Info("provisioningReverseProxy proxy.Rewrite", "ttl", ttl, "urlin", r.In.URL.String(), "urlout", r.Out.URL.String())
-			defer slog.Info("provisioningReverseProxy proxy.Rewrite done", "ttl", ttl, "urlin", r.In.URL.String(), "urlout", r.Out.URL.String())
+			// slog.Info("provisioningReverseProxy proxy.Rewrite", "ttl", ttl, "urlin", r.In.URL.String(), "urlout", r.Out.URL.String())
+			// defer slog.Info("provisioningReverseProxy proxy.Rewrite done", "ttl", ttl, "urlin", r.In.URL.String(), "urlout", r.Out.URL.String())
 
 		},
 		// ErrorHandler is an optional function that handles errors reaching the backend or errors from ModifyResponse.
@@ -95,7 +94,7 @@ func provisioningReverseProxy(
 		},
 	}
 
-	slog.Info("provisioningReverseProxy proxy.ServeHTTP", "ttl", ttl, "url", req.URL.String())
+	// slog.Info("provisioningReverseProxy proxy.ServeHTTP", "ttl", ttl, "url", req.URL.String())
 	proxy.ServeHTTP(rw, req)
-	slog.Info("provisioningReverseProxy proxy.ServeHTTP done", "ttl", ttl, "url", req.URL.String())
+	// slog.Info("provisioningReverseProxy proxy.ServeHTTP done", "ttl", ttl, "url", req.URL.String())
 }
