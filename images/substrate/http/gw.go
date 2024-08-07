@@ -9,20 +9,20 @@ import (
 	"strings"
 	"time"
 
-	"github.com/julienschmidt/httprouter"
-
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	"github.com/ajbouh/substrate/images/substrate/httputil"
 )
 
-func (h *Handler) serveProxyRequest(rw http.ResponseWriter, req *http.Request, p httprouter.Params) {
+func (h *Handler) serveProxyRequest(rw http.ResponseWriter, req *http.Request) {
+	// log.Printf("Handler serveProxyRequest %#v", h)
+	// log.Printf("%s %s %s", req.RemoteAddr, req.Method, req.URL.String())
 	start := time.Now()
 	defer func() {
 		slog.Info("request", "remoteaddr", req.RemoteAddr, "method", req.Method, "url", req.URL.String(), "dur", time.Since(start))
 	}()
 
-	viewspec := p.ByName("viewspec")
-	rest := p.ByName("rest")
+	viewspec := req.PathValue("viewspec")
+	rest := req.PathValue("rest")
 
 	cookies := req.Cookies()
 	req.Header.Del("Cookie")

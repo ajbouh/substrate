@@ -13,7 +13,6 @@ require (
 	github.com/elnormous/contenttype v1.0.4
 	github.com/go-playground/form/v4 v4.2.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/julienschmidt/httprouter v1.3.0
 	github.com/mattn/go-sqlite3 v1.14.18
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/opencontainers/runtime-spec v1.1.1-0.20230922153023-c0e90434df2a
