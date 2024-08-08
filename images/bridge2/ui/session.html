@@ -9,16 +9,18 @@
   <script src="./webrtc/localmedia.js"></script>
   <link rel="stylesheet" href="./ui/session.css" />
 </head>
-<body class="flex flex-row bg-gray-900 text-white antialiased">
+<body>
   <script type="module">
-
+import "./ui/command-panel.js";
 import {ReflectCommands} from "./ui/substrate-r0.js";
 import {Session} from "./ui/session.js";
 import {Sidebar} from "./ui/sidebar.js";
 import {Topbar} from "./ui/topbar.js";
 import {Session as SFU} from "./webrtc/session.js";
 
-window.substrate.r0.commands = new ReflectCommands();
+let commands = new ReflectCommands();
+window.substrate.r0.commands = commands;
+document.querySelector('command-panel').commands = commands;
 
 let webSocketURL = (() => {
   let u = new URL(`ws://${location.host}${location.pathname}`);
@@ -231,7 +233,7 @@ dataWS.onmessage = e => {
   }, 0);
 }
 
-m.mount(document.body, {
+m.mount(document.querySelector('#body'), {
   view: () => [
     m(Sidebar, {activeSession: viewModel.activeSession, sessions: viewModel.sessions}),
     m("div", {"class":"flex flex-col h-screen grow"},
@@ -247,10 +249,12 @@ m.mount(document.body, {
           m("a", {"href": "./sessions/new", "class": "rounded border border-2 px-3 py-2"}, "New session")
         ])
       ]
-    )
+    ),
   ],
 });
 
   </script>
+  <command-panel class="z-50"></command-panel>
+  <div id="body" class="flex flex-row bg-gray-900 text-white antialiased"></div>
 </body>
 </html>
