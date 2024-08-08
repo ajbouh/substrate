@@ -3,6 +3,7 @@
 <script lang="ts">
 	import type { Commands, Def, DefIndex } from '$lib/defs.ts';
 	import Command from './Command.svelte';
+	import Prompt from './Prompt.svelte';
 	let { commands = null as Commands | null, open = $bindable(false) } = $props();
 	let results: { command: string; properties: Record<string, any>; result: any }[] = $state([]);
 	async function run(command: string, properties: Record<string, any>) {
@@ -10,30 +11,32 @@
 		let result = commands.run(command, properties);
 		results.push({ command, properties, result });
 	}
-	let index = $derived(commands?.index || new Promise<DefIndex>(() => {}));
+	let index = $state({} as DefIndex);
+	$effect(() => {
+		commands?.index.then((x) => {
+			index = x;
+		});
+	});
 	let search = $state('');
 	function filter(key: string, def: Def) {
 		if (!search) return true;
 		let lower = search.toLowerCase();
 		return key.toLowerCase().includes(lower) || def.description.toLowerCase().includes(lower);
 	}
-	let focused = $state(false);
+	let items = $derived.by(() => {
+		// TODO can use the search as a natural-language input to AI-matcher
+		// this can return richer results, ranking, filling props, etc.
+		return Object.entries(index).filter(([key, value]) => filter(key, value));
+	});
 </script>
 
 <div class="command-panel" class:open>
-	<div class="search">
-		<input
-			type="search"
-			bind:value={search}
-			placeholder="Search commands..."
-			onfocus={() => {
-				focused = true;
-			}}
-			onblur={() => {
-				focused = false;
-			}}
-		/>
-	</div>
+	<Prompt bind:search {items}>
+		{#snippet row([key, def], selected)}
+			<Command name={key} {def} run={(props) => run(key, props)} />
+				{selected}
+		{/snippet}
+	</Prompt>
 
 	{#each results as result}
 		<div>
@@ -49,20 +52,6 @@
 		</pre>
 		</div>
 	{/each}
-
-	<div class="commands">
-		{#await index}
-			<p>Loading...</p>
-		{:then index}
-			{#each Object.keys(index) as key}
-				{#if filter(key, index[key])}
-					<Command name={key} def={index[key]} run={(props) => run(key, props)} />
-				{/if}
-			{/each}
-		{:catch error}
-			<p style="color: red">{error.message}</p>
-		{/await}
-	</div>
 </div>
 
 <style>

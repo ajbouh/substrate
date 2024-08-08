@@ -12,7 +12,7 @@
 			await new Promise((resolve) => setTimeout(resolve, 1000));
 			return 'ok';
 		},
-		index: {
+		index: Promise.resolve({
 			'assistant:add': {
 				description: 'Add an assistant to the session',
 				parameters: {
@@ -83,7 +83,7 @@
 					}
 				}
 			}
-		}
+		})
 	};
 	let panel;
 	$effect(() => {
