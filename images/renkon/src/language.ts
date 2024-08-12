@@ -4,14 +4,18 @@ import {getFunctionBody, transpileJavaScript} from "./javascript/transpile"
 import {
     ProgramState, ScriptCell, VarName, NodeId, Stream,
     DelayedEvent, CollectStream, PromiseEvent, EventType,
-    GeneratorEvent, QueueRecord, Behavior, TimerEvent, ChangeEvent,
+    GeneratorNextEvent, QueueRecord, Behavior, TimerEvent, ChangeEvent,
     ReceiverEvent, UserEvent, SendEvent, OrEvent,
     eventType, typeKey,
+    isBehaviorKey,
+    GeneratorWithFlag,
 } from "./combinators";
 
 export {ProgramState} from  "./combinators";
 
 type ScriptCellForSort = Omit<ScriptCell, "body" | "code" | "forceVars">
+
+const prototypicalGeneratorFunction = (async function*() {while (true) {}})();
 
 export function evaluator(state:ProgramState) {
     state.evaluatorRunning = window.requestAnimationFrame(() => evaluator(state));
@@ -21,6 +25,7 @@ export function evaluator(state:ProgramState) {
         console.error(e);
         console.log("stopping animation");
         window.cancelAnimationFrame(state.evaluatorRunning);
+        state.evaluatorRunning = 0;
     }
 }
 
@@ -31,9 +36,9 @@ export function setupProgram(scripts:string[], state:ProgramState) {
     // This should not be necessary if the DOM element that an event listener is attached stays the same.
 
     for (const [varName, stream] of state.streams) {
-        if (stream[typeKey] === eventType) {
+        if (!stream[isBehaviorKey]) {
             const scratch = state.scratch.get(varName) as QueueRecord;
-            if (scratch.cleanup && typeof scratch.cleanup === "function") {
+            if (scratch?.cleanup && typeof scratch.cleanup === "function") {
                 scratch.cleanup();
                 scratch.cleanup = undefined;
             }
@@ -164,6 +169,12 @@ export function evaluate(state:ProgramState, now:number) {
                 state.streams.set(id, newStream);
                 const resolved = state.resolved.get(id);
                 if (!resolved || resolved.value !== maybeValue) {
+                    if (maybeValue.constructor === prototypicalGeneratorFunction.constructor) {
+                        maybeValue.done = false;
+                        // there is a special case for generators.
+                        // actually, there is no real guarantee that this generator is not done.
+                        // but I could not find a way to tell whether a generator is done or not.
+                    }
                     state.setResolved(id, {value: maybeValue, time: state.time});
                 }
                 outputs = newStream;
@@ -208,7 +219,7 @@ type ObserveCallback = (notifier:(v:any) => void) => () => void;
 type EventBodyType = {
     forObserve: boolean;
     callback?: ObserveCallback;
-    eventHandler?: (evt:any) => void;
+    eventHandler?: (evt:any) => any;
     dom?: HTMLElement | string;
     type: EventType;
     eventName?: UserEventType,
@@ -218,6 +229,7 @@ type EventBodyType = {
 function eventBody(options:EventBodyType) {
     let {forObserve, callback, dom, eventName, eventHandler} = options;
     let record:QueueRecord = {queue:[]};
+    let myHandler: (evt:any) => any;
 
     let realDom:HTMLElement|undefined;
     if (typeof dom === "string") {
@@ -230,12 +242,13 @@ function eventBody(options:EventBodyType) {
         realDom = dom;
     }
 
-    const handlers = (eventName:string):((evt:any) => void)|undefined => {
+    const handlers = (eventName:string):((evt:any) => any) => {
         if (eventName === "input" || eventName === "click") {
             return (evt:any) => {
                 record.queue.push({value: evt, time: 0});
             }
         }
+        return (_evt:any) => null;
     };
 
     const notifier = (value:any) => {
@@ -243,7 +256,16 @@ function eventBody(options:EventBodyType) {
     };
 
     if (realDom && !forObserve && eventName) {
-        const myHandler = eventHandler || handlers(eventName);
+        if (eventHandler) {
+            myHandler = (evt) => {
+                const value = eventHandler(evt);
+                if (value !== undefined) {
+                    record.queue.push({value, time: 0});
+                }
+            }
+        } else {
+            myHandler = handlers(eventName);
+        }
         if (myHandler) {
             realDom.addEventListener(eventName, myHandler);
         }
@@ -255,7 +277,6 @@ function eventBody(options:EventBodyType) {
     if (!forObserve && dom) {
         record.cleanup = () => {
             if (realDom && eventName) {
-                const myHandler = eventHandler || handlers(eventName);
                 if (myHandler) {
                     realDom.removeEventListener(eventName, myHandler);
                 }
@@ -278,7 +299,9 @@ function renkonify(func:Function) {
     setupProgram([output], programState);
 
     function generator(...args:any[]) {
-        return Events.next(renkonBody(...args));
+        const gen = renkonBody(...args) as GeneratorWithFlag<any>;
+        gen.done = false;
+        return Events.next(gen);
     }
     async function* renkonBody(...args:any[]) {
         for (let i = 0; i < params.length; i++) {
@@ -323,9 +346,8 @@ const Events = {
     change(value:any):ChangeEvent{
         return new ChangeEvent(value);
     },
-    next<T>(generator:AsyncGenerator<T>):GeneratorEvent<T> {
-        const value = generator.next();
-        return new GeneratorEvent(value, generator);//{type: generatorType, promise: value, generator};
+    next<T>(generator:GeneratorWithFlag<T>):(GeneratorNextEvent<T>) {
+        return new GeneratorNextEvent(generator);
     },
     or(...varNames:Array<VarName>) {
         return new OrEvent(varNames)
@@ -333,6 +355,9 @@ const Events = {
     collect<I, T>(init:I, varName: VarName, updater: (c: I, v:T) => I):CollectStream<I, T> {
         return new CollectStream(init, varName, updater, false);
     },
+    /*map<S, T>(varName:VarName, updater: (arg:S) => T) {
+        return new CollectStream(undefined, varName, (_a, b) => updater(b), false);
+    },*/
     send(state:ProgramState, receiver:VarName, value:any) {
         registerEvent(state, receiver, value);
         return new SendEvent();
@@ -372,8 +397,12 @@ const Behaviors = {
         // partialURL: './bridge/bridge.js'
         // expected: 
         const loc = window.location.toString();
+        const semi = loc.indexOf(";");
+        if (semi < 0) {
+            return partialURL;
+        }
         const index = loc.lastIndexOf("/");
-        let base = loc.slice(0, index);
+        let base = index >= 0 ? loc.slice(0, index) : loc;
         return `${base}/${partialURL}`;
     }
 }
