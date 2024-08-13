@@ -1,18 +1,19 @@
 go 1.22.2
 
 use (
-	./pkg/cueloader
-	./pkg/httpframework
-	./pkg/exports
-	./pkg/commands
 	./images/bb
-	./images/sigar
-	./images/nvml
 	./images/bridge
 	./images/bridge2
-	./images/sys
 	./images/chromestage
 	./images/files
+	./images/nvml
 	./images/screenshot
+	./images/sigar
 	./images/substrate
+	./images/sys
+	./images/tool-call
+	./pkg/commands
+	./pkg/cueloader
+	./pkg/exports
+	./pkg/httpframework
 )

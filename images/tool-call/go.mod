@@ -1,0 +1,20 @@
+module github.com/ajbouh/substrate/images/tool-call
+
+go 1.22.2
+
+require (
+	github.com/adrg/frontmatter v0.2.0
+	github.com/ajbouh/substrate/pkg/commands v0.0.0-20240808180218-f8f2851695f0
+	github.com/ajbouh/substrate/pkg/httpframework v0.0.0-20240808180218-f8f2851695f0
+	gotest.tools v2.2.0+incompatible
+	tractor.dev/toolkit-go v0.0.0-20240417045753-38146a213d9c
+)
+
+require (
+	github.com/BurntSushi/toml v0.3.1 // indirect
+	github.com/google/go-cmp v0.6.0 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
+	gopkg.in/yaml.v2 v2.3.0 // indirect
+)
+
+replace github.com/ajbouh/substrate/pkg/commands => ../../pkg/commands
