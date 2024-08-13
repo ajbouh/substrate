@@ -31,17 +31,16 @@ type Definition struct {
 	Function Func   `json:"function"`
 }
 
-// TODO do we need arbitrary arg types, or map[string]any for object?
-type Call[Args any] struct {
-	Name      string `json:"name"`
-	Arguments Args   `json:"arguments"`
+type Call struct {
+	Name      string         `json:"name"`
+	Arguments map[string]any `json:"arguments"`
 }
 
 type Response[Content any] struct {
 	Content Content `json:"content"`
 }
 
-func Suggest(input string, defs []Definition) (string, []Call[any], error) {
+func Suggest(input string, defs []Definition) (string, []Call, error) {
 	prompt, err := prompts.Render("tool-select", map[string]any{
 		"UserInput": input,
 		"ToolDefs":  defs,
@@ -63,9 +62,9 @@ func Suggest(input string, defs []Definition) (string, []Call[any], error) {
 		return prompt, nil, fmt.Errorf("tools: no </tool_call> found: %q", resp)
 	}
 	// TODO parse multiple <tool_call> sections
-	var out Call[any]
+	var out Call
 	if err := json.Unmarshal([]byte(inside), &out); err != nil {
 		return prompt, nil, err
 	}
-	return prompt, []Call[any]{out}, nil
+	return prompt, []Call{out}, nil
 }
