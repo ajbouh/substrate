@@ -63,9 +63,16 @@ func main() {
 					if err != nil {
 						return nil, err
 					}
+					reqs := make([]commands.Request, 0, len(calls))
+					for _, c := range calls {
+						reqs = append(reqs, commands.Request{
+							Command:    c.Name,
+							Parameters: c.Arguments,
+						})
+					}
 					return commands.Fields{
 						"prompt":  prompt,
-						"choices": calls,
+						"choices": reqs,
 					}, nil
 				},
 			},
