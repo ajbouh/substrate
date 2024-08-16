@@ -8,33 +8,38 @@
 	}: {
 		search: string;
 		selected: number | null;
-		items: T[];
-		row: Snippet<[T, bool]>;
+		items: Promise<T[]>;
+		row: Snippet<[T, boolean]>;
 	} = $props();
 	// TODO keyboard nav
+	let numitems = 0;
+	$effect(() => {
+		items.then((x) => {
+			numitems = x.length;
+		});
+	});
 	function onkeydown(event: KeyboardEvent) {
-		console.log(event.key);
 		switch (event.key) {
 			case 'ArrowUp':
-				if (items.length == 0) {
+				if (numitems == 0) {
 					selected = null;
 					return;
 				}
 				if (selected === null) {
-					selected = items.length - 1;
+					selected = numitems - 1;
 				} else {
-					selected = (selected - 1 + items.length) % items.length;
+					selected = (selected - 1 + numitems) % numitems;
 				}
 				break;
 			case 'ArrowDown':
-				if (items.length == 0) {
+				if (numitems == 0) {
 					selected = null;
 					return;
 				}
 				if (selected === null) {
 					selected = 0;
 				} else {
-					selected = (selected + 1) % items.length;
+					selected = (selected + 1) % numitems;
 				}
 				break;
 			default:
@@ -45,9 +50,10 @@
 
 <div class="search">
 	<input {onkeydown} type="search" bind:value={search} placeholder="Search commands..." />
-	{selected}
 </div>
 
-{#each items as item, idx (item)}
-	{@render row(item, selected === idx)}
-{/each}
+{#await items then items}
+	{#each items as item, idx (item)}
+		{@render row(item, selected === idx)}
+	{/each}
+{/await}

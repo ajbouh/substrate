@@ -1,7 +1,8 @@
 <svelte:options customElement="command-panel" />
 
 <script lang="ts">
-	import type { Commands, Def, DefIndex } from '$lib/defs.ts';
+	import type { Commands, Def, DefIndex, Call } from '$lib/defs.ts';
+	import { ReflectCommands } from './substrate-r0.js';
 	import Command from './Command.svelte';
 	import Prompt from './Prompt.svelte';
 	let { commands = null as Commands | null, open = $bindable(false) } = $props();
@@ -28,30 +29,51 @@
 		// this can return richer results, ranking, filling props, etc.
 		return Object.entries(index).filter(([key, value]) => filter(key, value));
 	});
+	let toolCall = new ReflectCommands('https://substrate.home.arpa/tool-call/commands');
+	async function suggest(input: string): Call[] {
+		if (!input) return [];
+		const r = await toolCall.run('suggest', { input, commands: index });
+		return r.choices;
+	}
+	let suggestions = $derived.by(async () => {
+		const choices = await suggest(search);
+		const top = choices.flatMap((call) => {
+			const def = index[call.command];
+			if (!def) return [];
+			return [[call.command, def, call.parameters]];
+		});
+		const rest = Object.entries(index)
+			.filter(([key]) => !top.some(([k]) => k === key))
+			.map(([key, def]) => [key, def, {}]);
+		return top.concat(rest);
+	});
 </script>
 
 <div class="command-panel" class:open>
-	<Prompt bind:search {items}>
-		{#snippet row([key, def], selected)}
-			<Command name={key} {def} run={(props) => run(key, props)} />
-				{selected}
+	<Prompt bind:search items={suggestions}>
+		{#snippet row([key, def, defaults], selected)}
+			<div class:selected>
+				<Command name={key} {def} {defaults} run={(props) => run(key, props)} />
+			</div>
 		{/snippet}
 	</Prompt>
 
-	{#each results as result}
-		<div>
-			<b>{result.command}</b>(<tt>{JSON.stringify(result.properties, null, 2)}</tt>)
-			<pre>
-			{#await result.result}
-					(Running...)
-				{:then value}
-					{JSON.stringify(value, null, 2)}
-				{:catch error}
-					Failed: {error.message}
-				{/await}
-		</pre>
-		</div>
-	{/each}
+	<div>
+		{#each results as result (result.command)}
+			<div>
+				<b>{result.command}</b>(<tt>{JSON.stringify(result.properties, null, 2)}</tt>)
+				<pre>
+					{#await result.result}
+						(Running...)
+					{:then value}
+						{JSON.stringify(value, null, 2)}
+					{:catch error}
+						Failed: {error.message}
+					{/await}
+				</pre>
+			</div>
+		{/each}
+	</div>
 </div>
 
 <style>

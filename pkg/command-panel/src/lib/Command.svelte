@@ -1,11 +1,20 @@
 <script lang="ts">
 	import type { Def } from '$lib/defs.ts';
-	let { name, def, run }: { name: string; def: Def; run: (props: Record<string, any>) => void } =
-		$props();
+	let {
+		name,
+		def,
+		defaults,
+		run
+	}: {
+		name: string;
+		def: Def;
+		defaults: Record<string, any>;
+		run: (props: Record<string, any>) => void;
+	} = $props();
 	let paramDefs = $derived(def.parameters ? Object.values(def.parameters) : []);
-	let defaults = $derived(Object.fromEntries(paramDefs.map(({ name }) => [name, null])));
-	let defined = $state({} as { [key: string]: any });
-	let params = $derived({ ...defaults, ...defined });
+	let zeros = $derived(Object.fromEntries(paramDefs.map(({ name }) => [name, null])));
+	let defined = $state({ ...defaults } as { [key: string]: any });
+	let params = $derived({ ...zeros, ...defined });
 </script>
 
 <div>

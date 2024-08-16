@@ -17,3 +17,8 @@ export type Commands = {
 	index: Promise<DefIndex>;
 	run: (command: string, args: Args) => Promise<any>;
 };
+
+export type Call = {
+	command: string;
+	parameters: Args;
+};
