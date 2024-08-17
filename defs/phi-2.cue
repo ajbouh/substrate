@@ -9,7 +9,7 @@ tests: "phi-2": assister: {
   depends_on: "substrate": true
 }
 
-image_tags: "phi-2": image_tags["vllm"]
+imagespecs: "phi-2": imagespecs["vllm"]
 
 services: "phi-2": {
   instances: [string]: {

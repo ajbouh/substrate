@@ -9,7 +9,7 @@ tests: "mixtral-8x7b-instruct": assister: {
   depends_on: "substrate": true
 }
 
-image_tags: "mixtral-8x7b-instruct": image_tags["vllm"]
+imagespecs: "mixtral-8x7b-instruct": imagespecs["vllm"]
 
 services: "mixtral-8x7b-instruct": {
   instances: [string]: {

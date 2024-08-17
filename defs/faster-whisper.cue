@@ -26,7 +26,10 @@ tests: "faster-whisper": transcribe: {
 // "Systran/faster-whisper-large-v2",
 // "Systran/faster-whisper-large-v3",
 
-imagespecs: "faster-whisper": {}
+imagespecs: "faster-whisper": {
+  image: "\(#var.image_prefix)faster-whisper"
+  build: dockerfile: "images/faster-whisper/Dockerfile"
+}
 
 services: "faster-whisper": {
   instances: [string]: {

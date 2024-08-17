@@ -2,7 +2,10 @@ package defs
 
 enable: "files": true
 
-imagespecs: "files": {}
+imagespecs: "files": {
+  image: "\(#var.image_prefix)files"
+  build: dockerfile: "images/files/Dockerfile"
+}
 
 services: "files": {
   instances: [string]: {

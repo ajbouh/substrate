@@ -29,7 +29,10 @@ tests: "bb": go: {
   ]
 }
 
-imagespecs: "bb": {}
+imagespecs: "bb": {
+  image: "\(#var.image_prefix)bb"
+  build: dockerfile: "images/bb/Dockerfile"
+}
 
 services: "bb": {
   instances: [string]: {}

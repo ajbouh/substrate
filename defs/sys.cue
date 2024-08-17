@@ -3,7 +3,8 @@ package defs
 enable: "sys": true
 
 imagespecs: "sys": {
-    build: dockerfile: "images/sys/Dockerfile"
+  image: "\(#var.image_prefix)sys"
+  build: dockerfile: "images/sys/Dockerfile"
 }
 
 services: "sys": {

@@ -7,6 +7,7 @@ import (
 enable: "nvml": true
 
 imagespecs: "nvml": {
+  image: "\(#var.image_prefix)nvml"
   build: dockerfile: "images/nvml/Dockerfile"
 }
 

@@ -72,7 +72,10 @@ EXPOSE 5000
 ```
 package defs
 enable: "miniService": true
-imagespecs: "miniService": {}
+imagespecs: "miniService": {
+  image: "\(#var.image_prefix)miniService"
+  build: dockerfile: "images/miniService/Dockerfile"
+}
 services: "miniService": {
     spawn: {
     }

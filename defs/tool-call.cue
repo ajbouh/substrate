@@ -2,7 +2,10 @@ package defs
 
 enable: "tool-call": true
 
-imagespecs: "tool-call": {}
+imagespecs: "tool-call": {
+  image: "\(#var.image_prefix)tool-call"
+  build: dockerfile: "images/tool-call/Dockerfile"
+}
 
 services: "tool-call": {
   instances: [string]: {

@@ -14,7 +14,7 @@ tests: "airoboros-l2-13b-2.2": assister: {
   depends_on: "substrate": true
 }
 
-image_tags: "airoboros-l2-13b-2.2": image_tags["vllm"]
+imagespecs: "airoboros-l2-13b-2.2": imagespecs["vllm"]
 
 services: "airoboros-l2-13b-2.2": {
   instances: [string]: {

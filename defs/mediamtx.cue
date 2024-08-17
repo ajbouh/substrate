@@ -4,7 +4,10 @@ enable: "mediamtx": true
 
 live_edit: "mediamtx": bool
 
-imagespecs: "mediamtx": {}
+imagespecs: "mediamtx": {
+  image: "\(#var.image_prefix)mediamtx"
+  build: dockerfile: "images/mediamtx/Dockerfile"
+}
 
 daemons: "mediamtx": {
   environment: {

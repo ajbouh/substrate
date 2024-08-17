@@ -4,7 +4,10 @@ enable: "primer-scene": true
 
 live_edit: "primer-scene": bool
 
-imagespecs: "primer-scene": {}
+imagespecs: "primer-scene": {
+  image: "\(#var.image_prefix)primer-scene"
+  build: dockerfile: "images/primer-scene/Dockerfile"
+}
 
 services: "primer-scene": {
   instances: [string]: {

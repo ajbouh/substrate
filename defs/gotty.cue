@@ -3,6 +3,8 @@ package defs
 enable: "gotty": true
 
 imagespecs: "gotty": {
+  image: "\(#var.image_prefix)gotty"
+  build: dockerfile: "images/gotty/Dockerfile"
   build: target: "dist-alpine"
 }
 

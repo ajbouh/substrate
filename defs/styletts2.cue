@@ -4,7 +4,10 @@ enable: "styletts2": true
 
 live_edit: "styletts2": bool
 
-imagespecs: "styletts2": {}
+imagespecs: "styletts2": {
+  image: "\(#var.image_prefix)styletts2"
+  build: dockerfile: "images/styletts2/Dockerfile"
+}
 
 services: "styletts2": {
   instances: [string]: {

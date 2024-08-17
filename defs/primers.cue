@@ -4,7 +4,13 @@ live_edit: "primers": bool
 
 enable: "primers": true
 
-imagespecs: "primers": {}
+imagespecs: "primers": {
+  image: "\(#var.image_prefix)primers"
+  build: dockerfile: "images/primers/Dockerfile"
+  if live_edit["primers"] {
+    build: target: "dev"
+  }
+}
 
 services: "primers": {
   instances: [string]: {
@@ -17,6 +23,3 @@ services: "primers": {
   }
 }
 
-if live_edit["primers"] {
-  imagespecs: "primers": build: target: "dev"
-}

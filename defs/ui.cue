@@ -4,10 +4,12 @@ enable: "ui": true
 
 live_edit: "ui": bool
 
-imagespecs: "ui": {}
-
-if live_edit["ui"] {
-  imagespecs: "ui": build: target: "dev"
+imagespecs: "ui": {
+  image: "\(#var.image_prefix)ui"
+  build: dockerfile: "images/ui/Dockerfile"
+  if live_edit["ui"] {
+    build: target: "dev"
+  }
 }
 
 services: "ui": {
