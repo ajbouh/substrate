@@ -4,10 +4,6 @@ WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
 COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
 RUN go mod download
 
-WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
-COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
-RUN go mod download
-
 WORKDIR /go/src/github.com/ajbouh/substrate/images/tool-call/
 COPY images/tool-call/go.mod images/tool-call/go.sum ./
 RUN go mod download
