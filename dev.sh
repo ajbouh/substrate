@@ -6,7 +6,7 @@ HERE=$(cd $(dirname $0); pwd)
 
 : ${NAMESPACE:=substrate-nobody}
 
-CUE_VERSION="0.10.0-alpha.2"
+CUE_VERSION="0.10.0"
 # CUE_VERSION="0.9.0-alpha.2"
 # CUE_VERSION="0.8.1"
 CUE_PREFIX=cue_v${CUE_VERSION}_
