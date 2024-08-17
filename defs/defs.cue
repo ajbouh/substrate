@@ -93,16 +93,13 @@ test_templates: [string]: #TestDef
 
 tests: [key=string]: [suitealias=string]: #TestDef
 
-imagespecs: [key=string]: imagespec & {
-  image: "\(#var.image_prefix)\(key)"
-  build: dockerfile: string | *"images/\(key)/Dockerfile"
-}
+imagespecs: [key=string] ?: imagespec
 
 // a way to reuse image names
-image_tags: [key=string]: string
 
 // for binding image_tags to image_ids
-image_ids: [ref=string]: string | *ref
+// default to the ref itself in case image_ids is missing.
+image_ids ?: [ref=string]: string
 
 resourcedirs: [id=string]: {
   #containerspec: containerspec.#ContainerSpec
@@ -111,7 +108,28 @@ resourcedirs: [id=string]: {
 
 services: [key=string]: service & {
   "name": key
+
+  instances: [string]: {
+    image_tag: string | *imagespecs[key].image
+
+    if image_ids == _|_ {
+      image: image_tag
+    }
+
+    if image_ids != _|_ {
+      image: image_ids[image_tag]
+    }
+
+    "resourcedirs": [alias=string]: {
+      id: string
+      sha256: hex.Encode(cryptosha256.Sum256(id))
+    }
+    // This is so we can turn services into JSON. It should really be done inside of
+    // substrate.go during boot so that nesting will work properly.
+    "environment": SUBSTRATE_URL_PREFIX: string | *"/\(key)"
+  }
 }
+
 
 calls: [key=string]: [id=string]: call.#HTTPCall
 
@@ -120,7 +138,6 @@ daemons: [key=string]: containerspec.#ContainerSpec
 #out: {
   services: [string]: service
 
-  imagespecs: [string]: imagespec
   daemons: [string]: containerspec.#ContainerSpec
   systemd_containers: [string]: systemd.#Unit
   systemd_container_contents: [string]: string
@@ -138,9 +155,9 @@ daemons: [key=string]: containerspec.#ContainerSpec
 }
 
 #podman_build_imagespecs_raw: string @tag(podman_build_imagespecs)
-let podman_build_imagespecs = [for k in strings.Split(#podman_build_imagespecs_raw, " ") { #out.imagespecs[k] }] | *#out.imagespecs
+let podman_build_imagespecs = {for k in strings.Split(#podman_build_imagespecs_raw, " ") { (k): imagespecs[k] }} | *{for key, def in imagespecs if (enable[key]) { (key): def }}
 
-for key, def in #out.imagespecs {
+for key, def in imagespecs if (enable[key]) {
   #out: "image_podman_build_options": (def.image): def.#podman_build_options
 }
 
@@ -157,8 +174,8 @@ for key, def in #out.imagespecs {
 ]
 
 #out: podman_build_services: [
-  for k, tag in #out.service_image_tags {
-    tag,
+  for key, def in services if (enable[key]) && ((def.instances & {"":_})[""] != _|_) {
+    (def.instances & {"":_})[""].image_tag,
   }
 ]
 
@@ -185,16 +202,6 @@ for key, def in #out.imagespecs {
   "mv $GEN_IMAGE_IDS defs/image_ids.cue",
 ], "\n")
 
-#out: "imagespecs": {
-  for key, def in imagespecs {
-    if (enable[key] != _|_) {
-      if (enable[key]) {
-        (key): def
-      }
-    }
-  }
-}
-
 for key, def in #out.services {
   if ((def.instances & {"":_})[""] != _|_) {
     for alias, rddef in (def.instances & {"":_})[""].resourcedirs {
@@ -220,37 +227,13 @@ for key, def in #out.services {
 ], "\n")
 
 for key, def in services if (enable[key]) {
-  #out: "services": (key): def & { "name": key }
-}
-
-#out: service_image_tags: [string]: string
-for key, def in services if (enable[key]) && ((def.instances & {"":_})[""] != _|_) {
-  let image_tag = image_tags[key] | *#out.imagespecs[key].image
-  image_ids: (image_tag): string
-  #out: service_image_tags: (key): image_tag
-}
-
-for key, def in services if (enable[key]) && ((def.instances & {"":_})[""] != _|_) {
-  #out: "services": (key): def & {
-    "name": key 
-    instances: [string]: {
-      image: image_ids[#out.service_image_tags[key]]
-
-      "resourcedirs": [alias=string]: {
-        id: string
-        sha256: hex.Encode(cryptosha256.Sum256(id))
-      }
-      // This is so we can turn services into JSON. It should really be done inside of
-      // substrate.go during boot so that nesting will work properly.
-      "environment": SUBSTRATE_URL_PREFIX: string | *"/\(key)"
-    }
-  }
+  #out: "services": (key): def
 }
 
 for key, def in daemons {
   if (enable[key]) {
     #out: "daemons": (key): def
-    #out: "daemons": (key): image: #out.imagespecs[key].image
+    #out: "daemons": (key): image: imagespecs[key].image
   }
 }
 
@@ -266,7 +249,7 @@ for basename, unit in #out.systemd_containers {
   for key, def in #out.systemd_containers { key }
 ], "\n")
 
-for key, def in #out.imagespecs {
+for key, def in imagespecs if (enable[key]) {
   #out: "image_podman_build_options": (def.image): def.#podman_build_options
 }
 

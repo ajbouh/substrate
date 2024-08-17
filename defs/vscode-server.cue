@@ -9,6 +9,7 @@ package defs
 enable: "vscode-server": true
 
 imagespecs: "vscode-server": {
+  image: "\(#var.image_prefix)vscode-server"
   build: {
     dockerfile: "images/vscode-server/Dockerfile"
   }

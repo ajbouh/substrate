@@ -2,7 +2,10 @@ package defs
 
 enable: "chromestage": true
 
-imagespecs: "chromestage": {}
+imagespecs: "chromestage": {
+  image: "\(#var.image_prefix)chromestage"
+  build: dockerfile: "images/chromestage/Dockerfile"
+}
 
 services: "chromestage": {
   instances: [string]: {

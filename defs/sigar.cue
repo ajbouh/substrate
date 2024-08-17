@@ -3,7 +3,8 @@ package defs
 enable: "sigar": true
 
 imagespecs: "sigar": {
-    build: dockerfile: "images/sigar/Dockerfile"
+  image: "\(#var.image_prefix)sigar"
+  build: dockerfile: "images/sigar/Dockerfile"
 }
 
 services: "sigar": {

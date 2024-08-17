@@ -39,6 +39,8 @@ live_edit: "substrate": bool
 
 let substrate_cue_defs = "/app/defs"
 imagespecs: "substrate": {
+  image: "\(#var.image_prefix)substrate"
+  build: dockerfile: "images/substrate/Dockerfile"
   build: {
     args: {
       CUE_DEFS_SOURCE: #var.cue_defs

@@ -6,7 +6,10 @@ import (
 
 enable: "huggingface-cli": true
 
-imagespecs: "huggingface-cli": {}
+imagespecs: "huggingface-cli": {
+  image: "\(#var.image_prefix)huggingface-cli"
+  build: dockerfile: "images/huggingface-cli/Dockerfile"
+}
 
 resourcedirs: [id=(string & =~"^huggingface:[^:]+:[^:]+:[^:]+(:[^:]+)?$")]: {
   let m = regexp.FindSubmatch("^huggingface:([^:]+):([^:]+):([^:]+)(?::([^:]+))?$", id)

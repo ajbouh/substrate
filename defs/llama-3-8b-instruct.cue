@@ -9,7 +9,7 @@ tests: "llama-3-8b-instruct": assister: {
   depends_on: "substrate": true
 }
 
-image_tags: "llama-3-8b-instruct": image_tags["vllm"]
+imagespecs: "llama-3-8b-instruct": imagespecs["vllm"]
 
 services: "llama-3-8b-instruct": {
   instances: [string]: {

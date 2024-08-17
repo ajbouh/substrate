@@ -37,10 +37,13 @@ To add a service named `foo`:
 
     enable: "foo": true
 
-    imagespecs: "foo": {}
+    imagespecs: "foo": {
+        image: "\(#var.image_prefix)foo"
+        build: dockerfile: "images/foo/Dockerfile"
+    }
 
     services: "foo": {
-        spawn: {
+        instances: [string]: {
             environment: {
                 SOME_VARIABLE: "some_value"
             }

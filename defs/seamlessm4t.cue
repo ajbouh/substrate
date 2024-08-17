@@ -22,7 +22,10 @@ tests: "seamlessm4t": transcribe: {
   depends_on: "substrate": true
 }
 
-imagespecs: "seamlessm4t": {}
+imagespecs: "seamlessm4t": {
+  image: "\(#var.image_prefix)seamlessm4t"
+  build: dockerfile: "images/seamlessm4t/Dockerfile"
+}
 
 services: "seamlessm4t": {
   instances: [string]: {
