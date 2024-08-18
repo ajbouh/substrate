@@ -80,7 +80,7 @@ push() {
   # NB disable cache syncing for now because it seems to destroy xattrs
   # [ ! -e os/cache ] || rsync -aP --no-perms --no-times --no-owner --no-group os/cache/. ${REMOTE_HOST}:${REMOTE_ROOT}/os/cache/
   # [ ! -e os/gen/oob ] || rsync -aP --no-perms --no-times --no-owner --no-group os/gen/oob/. ${REMOTE_HOST}:${REMOTE_ROOT}/os/gen/oob/
-  [ ! -e tools/cue ] || rsync -aP --no-perms --no-times --no-owner --no-group tools/cue/. ${REMOTE_HOST}:${REMOTE_ROOT}/tools/cue/
+  # [ ! -e tools/cue ] || rsync -aP --no-perms --no-times --no-owner --no-group tools/cue/. ${REMOTE_HOST}:${REMOTE_ROOT}/tools/cue/
 }
 
 pull() {
