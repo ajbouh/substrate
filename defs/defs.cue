@@ -202,7 +202,7 @@ for key, def in imagespecs if (enable[key]) {
   "mv $GEN_IMAGE_IDS defs/image_ids.cue",
 ], "\n")
 
-for key, def in #out.services {
+for key, def in services if (enable[key]) && ((def.instances & {"":_})[""] != _|_) {
   if ((def.instances & {"":_})[""] != _|_) {
     for alias, rddef in (def.instances & {"":_})[""].resourcedirs {
       resourcedirs: (rddef.id): _
@@ -225,10 +225,6 @@ for key, def in #out.services {
     key,
   }
 ], "\n")
-
-for key, def in services if (enable[key]) {
-  #out: "services": (key): def
-}
 
 for key, def in daemons {
   if (enable[key]) {

@@ -11,7 +11,7 @@ The images are used for:
 
 Substrate dynamically loads services to satisfy incoming HTTP requests. Any traffic that arrives is parsed according to this pattern: `/:service/*rest`.
 
-Consider the URL `/foo/bar`. Substrate will look in the cue files in the top-level `defs/` directory. It will use the value of `#out.services.foo` to determine what container image, command, environment variables, and volume mounts to set.
+Consider the URL `/foo/bar`. Substrate will look in the cue files in the top-level `defs/` directory. It will use the value of `services.foo` to determine what container image, command, environment variables, and volume mounts to set.
 
 If Substrate hasn't already started a matching container, it will launch a new one.
 
