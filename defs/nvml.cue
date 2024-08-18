@@ -28,7 +28,7 @@ services: "nvml": {
 // A bit of an awkward pattern, but this ensures nvml exports are available for other defs.
 services: "nvml": instances: "nvml": pinned: true
 system: {
-  nvml: #out.services.nvml.instances["nvml"].exports.data
+  nvml: services.nvml.instances["nvml"].exports.data
 
   #cuda_memory_total_mb: number | *0
 

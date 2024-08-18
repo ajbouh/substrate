@@ -183,7 +183,7 @@ func main() {
 		},
 		&notify.Slot[defset.DefSet]{},
 		&defset.Loader{
-			ServiceDefPath: cue.MakePath(cue.Def("#out"), cue.Str("services")),
+			ServiceDefPath: cue.MakePath(cue.Str("services")),
 		},
 		&substratehttp.PProfHandler{},
 		initialCueLoadConfig(),
@@ -193,13 +193,13 @@ func main() {
 		cueloader.NewCueLoader(
 			":defs",
 			cueloader.FillPathEncodeTransformCurrent(
-				cue.MakePath(cue.Def("#out"), cue.Str("services")),
+				cue.MakePath(cue.Str("services")),
 				func() any {
 					return provisionerCache.AllServiceExports()
 				},
 			),
 			cueloader.FillPathEncodeTransform(
-				cue.MakePath(cue.Def("#out"), cue.Str("services"), cue.AnyString, cue.Str("instances").Optional(), cue.AnyString, cue.Str("environment")),
+				cue.MakePath(cue.Str("services"), cue.AnyString, cue.Str("instances").Optional(), cue.AnyString, cue.Str("environment")),
 				map[string]string{
 					"JAMSOCKET_IFRAME_DOMAIN":   origin,
 					"SUBSTRATE_ORIGIN":          origin,

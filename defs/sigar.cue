@@ -37,4 +37,4 @@ services: "sigar": {
 
 // A bit of an awkward pattern, but this ensures sigar exports are available for other defs.
 services: "sigar": instances: "sigar": pinned: true
-system: sigar: #out.services.sigar.instances["sigar"].exports.data
+system: sigar: services.sigar.instances["sigar"].exports.data
