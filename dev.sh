@@ -6,9 +6,8 @@ HERE=$(cd $(dirname $0); pwd)
 
 : ${NAMESPACE:=substrate-nobody}
 
+CUE_EXPERIMENT=evalv3
 CUE_VERSION="0.10.0"
-# CUE_VERSION="0.9.0-alpha.2"
-# CUE_VERSION="0.8.1"
 CUE_PREFIX=cue_v${CUE_VERSION}_
 CUE_NATIVE_SUFFIX=$(uname -s | tr "[:upper:]" "[:lower:]")_$(uname -m)
 # HACK use amd64
@@ -66,7 +65,7 @@ cosa() {
   rc=$?; set +x; return $rc
 }
 
-cue() {
+ensure_cue() {
   # lazily unpack and download a native version of cue
   if [ ! -f $CUE_NATIVE ]; then
     CUE_ARTIFACT=$HERE/tools/cue/${CUE_PREFIX}${CUE_NATIVE_SUFFIX}.tar.gz
@@ -79,7 +78,10 @@ cue() {
       chmod +x $CUE_NATIVE
     fi
   fi
+}
 
+cue() {
+  ensure_cue
   cd >/dev/null $CUE_DEV_DIR
   if [ -f $CUE_NATIVE ]; then
     $CUE_NATIVE "$@"
