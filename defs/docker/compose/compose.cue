@@ -9,8 +9,6 @@ import (
 )
 
 let #compose = {
-  version: string | *"3.8"
-
   services !: [string]: service
 
   networks ?: [string]: network

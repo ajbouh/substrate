@@ -18,6 +18,17 @@ case "$CUE_NATIVE_SUFFIX" in
 esac
 CUE_NATIVE=$HERE/tools/cue/${CUE_PREFIX}${CUE_NATIVE_SUFFIX}
 
+BUILDX_VERSION="0.16.2"
+BUILDX_PREFIX=buildx-v${BUILDX_VERSION}.
+BUILDX_NATIVE_SUFFIX=$(uname -s | tr "[:upper:]" "[:lower:]")_$(uname -m)
+# HACK use amd64
+case "$BUILDX_NATIVE_SUFFIX" in
+  linux_x86_64)
+    BUILDX_NATIVE_SUFFIX=linux-amd64
+    ;;
+esac
+BUILDX_NATIVE=$HERE/tools/buildx/${BUILDX_PREFIX}${BUILDX_NATIVE_SUFFIX}
+
 if [ -z "$PODMAN" ]; then
   PODMAN=$(PATH=/opt/podman/bin:$PATH which podman)
 fi
@@ -87,6 +98,25 @@ cue() {
     $CUE_NATIVE "$@"
   fi
   cd >/dev/null -
+}
+
+ensure_buildx() {
+  # lazily unpack and download a native version of buildx
+  if [ ! -f $BUILDX_NATIVE ]; then
+    mkdir -p $(dirname $BUILDX_NATIVE)
+    curl -L https://github.com/docker/buildx/releases/download/v$BUILDX_VERSION/$(basename $BUILDX_NATIVE) > $BUILDX_NATIVE
+    chmod +x $BUILDX_NATIVE
+  fi
+}
+
+buildx() {
+  ensure_buildx
+  $BUILDX_NATIVE "$@"
+}
+
+sudo_buildx() {
+  ensure_buildx
+  sudo env DOCKER_HOST=unix:///run/podman/podman.sock $BUILDX_NATIVE "$@"
 }
 
 detect_dev_cue_tag_args() {
@@ -180,14 +210,23 @@ docker_compose() {
     -f $docker_compose_yml "$@"
 }
 
+sudo_buildx_bake() {
+  docker_compose_yml=$1
+  shift
+  sudo_buildx bake \
+    --progress=tty \
+    --metadata-file=$docker_compose_yml.metadata.json \
+    -f $docker_compose_yml "$@"
+}
+
 make_docker_compose_yml() {
   suffix=$1
   expr=$2
   shift 2
-  docker_compose_yml=.gen/docker/$NAMESPACE-$suffix.yml
+  docker_compose_yml=$HERE/.gen/docker/$NAMESPACE-$suffix.yml
   mkdir -p $(dirname $docker_compose_yml)
   write_rendered_cue_dev_expr_as yaml $docker_compose_yml -e $expr "$@"
-  echo $HERE/$docker_compose_yml
+  echo $docker_compose_yml
 }
 
 ensure_init_ostree_repo() {
@@ -261,17 +300,19 @@ write_os_container_units_overlay() {
 }
 
 build_images() {
-  images=
+  DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.buildx_bake_docker_compose')
+  sudo_buildx bake \
+    --progress=tty \
+    --metadata-file=$DOCKER_COMPOSE_FILE.metadata.json \
+    --load \
+    -f $DOCKER_COMPOSE_FILE "$@" >&2
 
-  if [ $# -eq 0 ]; then
-    print_rendered_cue_dev_expr_as text -e '#out.bash_build_images_command' | bash
-  else
-    print_rendered_cue_dev_expr_as text -t "podman_build_imagespecs=$@" -e '#out.bash_build_images_command' | bash
-  fi
   status=$?
   if [ $status -ne 0 ]; then
     exit $status
   fi
+
+  cat $DOCKER_COMPOSE_FILE.metadata.json
 }
 
 write_images_to_root_imagestore() {
@@ -279,7 +320,7 @@ write_images_to_root_imagestore() {
   for image in $IMAGES; do
     image_id=$($PODMAN image inspect $image -f '{{.ID}}')
     if ! sudo $PODMAN image exists $image_id 1>&2; then
-      $PODMAN save $image | sudo $PODMAN load 1>&2
+      $PODMAN save $image_id | sudo $PODMAN load 1>&2
       echo $image
     fi
   done
@@ -331,8 +372,16 @@ systemd_logs() {
   journalctl -xfeu substrate.service
 }
 
+built_images_from_metadata() {
+  print_rendered_cue_dev_expr_as text -t "buildx_bake_metadata=${1}" -e '#out.buildx_bake_image_refs'
+}
+
 write_image_ids_file() {
-  print_rendered_cue_dev_expr_as text -e '#out.bash_write_image_ids_command' | bash
+  GEN_IMAGE_IDS=.gen/cue/image_ids.cue
+  mkdir -p $(dirname $GEN_IMAGE_IDS)
+  print_rendered_cue_dev_expr_as text -t "buildx_bake_metadata=${1}" -e '#out.buildx_bake_image_ids_file' | tee >&2 -a $GEN_IMAGE_IDS
+  # use mv to make it atomic
+  mv $GEN_IMAGE_IDS defs/image_ids.cue
 }
 
 write_ready_file() {
@@ -345,10 +394,10 @@ systemd_reload() {
 
   check_cue_dev_expr_as_cue
 
-  built_images=$(build_images $containers)
-  echo built_images=$built_images
+  built_images_metadata="$(build_images $containers)"
 
-  write_image_ids_file
+  write_image_ids_file "$built_images_metadata"
+  built_images=$(built_images_from_metadata "$built_images_metadata")
 
   changed_images=$(write_images_to_root_imagestore $built_images)
   echo changed_images=$changed_images
@@ -409,7 +458,8 @@ os_oob_make() {
 
   check_cue_dev_expr_as_cue
 
-  built_images=$(build_images)
+  built_images_metadata="$(build_images)"
+  built_images=$(built_images_from_metadata "$built_images_metadata")
 
   sudo rm -rf os/gen/oob/imagestore
   mkdir -p os/gen/oob/imagestore
@@ -465,6 +515,10 @@ case "$1" in
   cosa)
     shift
     cosa "$@"
+    ;;
+  buildx)
+    shift
+    buildx "$@"
     ;;
   cue)
     shift
@@ -524,13 +578,13 @@ case "$1" in
     set_os_vars
     os_make
     ;;
-  docker-compose-build)
+  buildx-bake)
     shift
     set_docker_vars
     check_cue_dev_expr_as_cue
  
-    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
-    docker_compose $DOCKER_COMPOSE_FILE build "$@"
+    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.buildx_bake_docker_compose')
+    sudo_buildx_bake $DOCKER_COMPOSE_FILE "$@"
     ;;
   test)
     shift

@@ -1,11 +1,9 @@
 package defs
 
 import (
-  "strings"
   "encoding/hex"
   cryptosha256 "crypto/sha256"
 
-  systemd "github.com/ajbouh/substrate/defs/systemd"
   service "github.com/ajbouh/substrate/defs/substrate:service"
   call "github.com/ajbouh/substrate/defs/substrate:call"
   imagespec "github.com/ajbouh/substrate/defs/substrate:imagespec"
@@ -83,7 +81,7 @@ live_edit: [string]: bool | *#live_edit_default
 system: [string]: _
 
 #TestDef: {
-  imagespec
+  imagespec.#ImageSpec
   containerspec.#ContainerSpec
 
   depends_on: [string]: true
@@ -93,7 +91,7 @@ test_templates: [string]: #TestDef
 
 tests: [key=string]: [suitealias=string]: #TestDef
 
-imagespecs: [key=string] ?: imagespec
+imagespecs: [key=string] ?: imagespec.#ImageSpec
 
 // a way to reuse image names
 
@@ -103,7 +101,7 @@ image_ids ?: [ref=string]: string
 
 resourcedirs: [id=string]: {
   #containerspec: containerspec.#ContainerSpec
-  #imagespec: imagespec
+  #imagespec: imagespec.#ImageSpec
 }
 
 services: [key=string]: service & {
@@ -134,127 +132,3 @@ services: [key=string]: service & {
 calls: [key=string]: [id=string]: call.#HTTPCall
 
 daemons: [key=string]: containerspec.#ContainerSpec
-
-#out: {
-  services: [string]: service
-
-  daemons: [string]: containerspec.#ContainerSpec
-  systemd_containers: [string]: systemd.#Unit
-  systemd_container_contents: [string]: string
-  systemd_container_basenames: string
-  image_podman_build_options: [string]: string
-
-  "resourcedir_fetches": [alias=string]: {
-    sha256: string
-    #containerspec: containerspec.#ContainerSpec
-    #imagespec: imagespec
-  }
-  "resourcedir_keys": string
-  resourcedir_fetch_podman_build_options: [string]: string
-  resourcedir_fetch_podman_run_options: [string]: string
-}
-
-#podman_build_imagespecs_raw: string @tag(podman_build_imagespecs)
-let podman_build_imagespecs = {for k in strings.Split(#podman_build_imagespecs_raw, " ") { (k): imagespecs[k] }} | *{for key, def in imagespecs if (enable[key]) { (key): def }}
-
-for key, def in imagespecs if (enable[key]) {
-  #out: "image_podman_build_options": (def.image): def.#podman_build_options
-}
-
-#out: podman_build_imagespecs_parallel: [
-  for k, def in podman_build_imagespecs if k != "substrate" {
-    "podman build --layers --tag \(def.image) \(def.#podman_build_options)",
-  }
-]
-
-#out: podman_build_imagespecs_serial: [
-  for k, def in podman_build_imagespecs if k == "substrate" {
-    "podman build --layers --tag \(def.image) \(def.#podman_build_options)",
-  }
-]
-
-#out: podman_build_services: [
-  for key, def in services if (enable[key]) && ((def.instances & {"":_})[""] != _|_) {
-    (def.instances & {"":_})[""].image_tag,
-  }
-]
-
-#out: bash_build_images_command: strings.Join([
-  "set -ex",
-  for k, def in podman_build_imagespecs { "echo \(def.image)", },
-  "exec >&2",
-  // build most images in parallel
-  "xargs --delimiter='\\n' -n 1 --max-procs=8 sh -c 'set -x; exec $0 $@' <<'EOF'",
-  strings.Join(#out.podman_build_imagespecs_parallel, "\n"),
-  "EOF",
-  // now generate image_ids.cue file so we can build substrate image
-  "",
-  // now we can build substrate image
-  strings.Join(#out.podman_build_imagespecs_serial, "\n"),
-], "\n")
-
-#out: bash_write_image_ids_command: strings.Join([
-  "GEN_IMAGE_IDS=.gen/cue/image_ids.cue",
-  "mkdir -p $(dirname $GEN_IMAGE_IDS)",
-  "echo 'package defs' > $GEN_IMAGE_IDS",
-  "podman image inspect --format 'image_ids: \"{{index .RepoTags 0}}\": \"{{.ID}}\"' \(strings.Join(#out.podman_build_services, " ")) | tee >&2 -a $GEN_IMAGE_IDS",
-  "# use mv to make it atomic",
-  "mv $GEN_IMAGE_IDS defs/image_ids.cue",
-], "\n")
-
-for key, def in services if (enable[key]) && ((def.instances & {"":_})[""] != _|_) {
-  if ((def.instances & {"":_})[""] != _|_) {
-    for alias, rddef in (def.instances & {"":_})[""].resourcedirs {
-      resourcedirs: (rddef.id): _
-      #out: resourcedir_fetches: (rddef.id): {
-        sha256: rddef.sha256
-        target: "\(#var.build_resourcedirs_root)/\(rddef.sha256)"
-        #containerspec: (resourcedirs[rddef.id].#containerspec & {
-          image: resourcedirs[rddef.id].#imagespec.image
-          // write to .build directory first
-          mounts: [{source: "\(#var.build_resourcedirs_root)/\(rddef.sha256).build", "destination": "/res", "mode": "Z"}]
-        })
-        #imagespec: resourcedirs[rddef.id].#imagespec
-      }
-    }
-  }
-}
-
-#out: "resourcedir_keys": strings.Join([
-  for key, def in #out.resourcedir_fetches {
-    key,
-  }
-], "\n")
-
-for key, def in daemons {
-  if (enable[key]) {
-    #out: "daemons": (key): def
-    #out: "daemons": (key): image: imagespecs[key].image
-  }
-}
-
-for key, def in #out.daemons {
-  #out: "systemd_containers": (containerspec.#SystemdUnits & {#name: key, #containerspec: def}).#out
-}
-
-for basename, unit in #out.systemd_containers {
-  #out: "systemd_container_contents": (basename): (systemd.#render & {#unit: unit}).#out
-}
-
-#out: "systemd_container_basenames": strings.Join([
-  for key, def in #out.systemd_containers { key }
-], "\n")
-
-for key, def in imagespecs if (enable[key]) {
-  #out: "image_podman_build_options": (def.image): def.#podman_build_options
-}
-
-for key, def in #out.resourcedir_fetches {
-  #out: "resourcedir_fetch_podman_build_options": (key): def.#imagespec.#podman_build_options
-  #out: "resourcedir_fetch_dirs": (key): strings.Join([def.#containerspec.mounts[0].source], " ")
-  #out: "resourcedir_fetch_podman_run_options": (key): (containerspec.#PodmanRunOptions & {
-    #containerspec: def.#containerspec
-  }).#out
-}
-
-#out: "calls": calls
