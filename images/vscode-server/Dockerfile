@@ -3,13 +3,18 @@
 # Based on https://github.com/coder/code-server/blob/d9fe46a6be2baeb056a4cfadf4046c3ed03390e9/ci/release-image/Dockerfile
 
 ARG BASE=debian:12
-FROM scratch AS dl-vscode
-ADD https://github.com/coder/code-server/releases/download/v4.20.1/code-server_4.20.1_amd64.deb /dl/
-ADD https://github.com/coder/code-server/releases/download/v4.20.1/code-server_4.20.1_arm64.deb /dl/
 
-FROM scratch AS dl-go
-ADD https://go.dev/dl/go1.21.6.linux-amd64.tar.gz /dl/
-ADD https://go.dev/dl/go1.21.6.linux-arm64.tar.gz /dl/
+FROM docker.io/tianon/toybox:latest as toybox
+
+FROM toybox AS dl-vscode
+WORKDIR /dl/
+RUN wget https://github.com/coder/code-server/releases/download/v4.20.1/code-server_4.20.1_amd64.deb
+RUN wget https://github.com/coder/code-server/releases/download/v4.20.1/code-server_4.20.1_arm64.deb
+
+FROM toybox AS dl-go
+WORKDIR /dl/
+RUN wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz
+RUN wget https://go.dev/dl/go1.21.6.linux-arm64.tar.gz
 
 # FROM scratch as dl-extensions
 # ADD https://marketplace.visualstudio.com/_apis/public/gallery/publishers/golang/vsextensions/Go/0.40.3/vspackage /dl/
