@@ -127,6 +127,6 @@ case "$1" in
     ;;
   *)
     push
-    exec ssh $REMOTE_HOST "cd $REMOTE_ROOT && $@"
+    exec ssh -t $REMOTE_HOST "cd $REMOTE_ROOT && $@"
     ;;
 esac
