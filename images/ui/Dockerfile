@@ -1,20 +1,20 @@
-FROM docker.io/node:18-alpine3.18 as node
+FROM docker.io/node:18-alpine3.18 AS node
 ENV NPM_CONFIG_UPDATE_NOTIFIER false
 
-FROM node as deps
+FROM node AS deps
 
 WORKDIR /app
 COPY images/ui/patches ./patches
 COPY images/ui/package.json images/ui/package-lock.json ./
 RUN npm i
 
-FROM deps as build
+FROM deps AS build
 COPY images/ui/src ./src
 COPY images/ui/static ./static
 COPY images/ui/*.sh images/ui/*.js images/ui/*.json images/ui/*.cjs images/ui/.npmrc ./
 RUN npm run build
 
-FROM node as dev
+FROM node AS dev
 WORKDIR /app
 RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
 COPY --from=deps /app/ ./
@@ -22,7 +22,7 @@ COPY images/ui/*.sh images/ui/*.js images/ui/*.json images/ui/*.cjs images/ui/.n
 
 ENTRYPOINT ["npm", "run", "dev", "--", "--host=0.0.0.0"]
 
-FROM node as dist
+FROM node AS dist
 WORKDIR /app
 RUN apk update && apk add --no-cache ca-certificates && rm -rf /var/cache/apk/*
 COPY --from=build /app/package.json ./

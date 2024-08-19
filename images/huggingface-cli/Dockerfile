@@ -1,9 +1,9 @@
-FROM alpine as build
+FROM alpine AS build
 RUN apk add --no-cache python3 py3-pip \
   && mkdir /dist \
   && pip install --no-cache-dir --target=/dist huggingface_hub
 
-FROM alpine as dist
+FROM alpine AS dist
 RUN apk add --no-cache python3
 COPY --from=build /dist /app
 ENV PYTHONPATH=/app

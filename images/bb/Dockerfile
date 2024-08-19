@@ -1,4 +1,4 @@
-FROM docker.io/library/golang:1.22 as source
+FROM docker.io/library/golang:1.22 AS source
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
 COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
@@ -19,14 +19,14 @@ COPY images/bb/. github.com/ajbouh/substrate/images/bb/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/bb/
 
-FROM source as test
+FROM source AS test
 
-FROM source as build
+FROM source AS build
 RUN CGO_ENABLED=0 go build \
   -o /bb ./cmd/bb
 
 
-FROM gcr.io/distroless/static-debian12 as dist
+FROM gcr.io/distroless/static-debian12 AS dist
 WORKDIR /app
 COPY --from=build /bb ./bb
 CMD ["/app/bb"]

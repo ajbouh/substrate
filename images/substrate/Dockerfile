@@ -1,4 +1,4 @@
-FROM docker.io/library/golang:1.22-bookworm as source
+FROM docker.io/library/golang:1.22-bookworm AS source
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
 COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
@@ -19,7 +19,7 @@ COPY images/substrate/. github.com/ajbouh/substrate/images/substrate/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/substrate/
 
-FROM source as build
+FROM source AS build
 
 # With the trick below, Go's build cache is kept between builds.
 # https://github.com/golang/go/issues/27719#issuecomment-514747274
@@ -32,11 +32,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 RUN touch /tmp/ready
   
-FROM source as test
+FROM source AS test
 
-FROM docker.io/tianon/toybox:latest as toybox
+FROM docker.io/tianon/toybox:latest AS toybox
 
-FROM gcr.io/distroless/base-nossl-debian12 as dist
+FROM gcr.io/distroless/base-nossl-debian12 AS dist
 
 ARG CUE_DEFS_SOURCE
 ARG CUE_DEFS_TARGET
