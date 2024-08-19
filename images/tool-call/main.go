@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"net/http"
 	"os"
 
+	"github.com/ajbouh/substrate/images/tool-call/js"
 	"github.com/ajbouh/substrate/images/tool-call/tools"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
@@ -22,6 +24,10 @@ func main() {
 		&httpframework.StripPrefix{Prefix: prefix},
 		&commands.HTTPHandler{Route: "/commands"},
 		&commands.Aggregate{},
+		httpframework.Route{
+			Route:   "GET /js/",
+			Handler: http.StripPrefix("/js", http.FileServer(http.FS(js.Dir))),
+		},
 		commands.NewStaticSource[any](
 			[]commands.Entry{{
 				Name: "suggest",
