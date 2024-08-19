@@ -22,59 +22,61 @@ func main() {
 		&httpframework.StripPrefix{Prefix: prefix},
 		&commands.HTTPHandler{Route: "/commands"},
 		&commands.Aggregate{},
-		commands.Entry{
-			Name: "suggest",
-			Def: commands.Def{
-				Description: "Suggest a command",
-				Parameters: commands.FieldDefs{
-					"input": {
-						Name:        "input",
-						Type:        "string",
-						Description: "The input to suggest a command for",
+		commands.NewStaticSource[any](
+			[]commands.Entry{{
+				Name: "suggest",
+				Def: commands.Def{
+					Description: "Suggest a command",
+					Parameters: commands.FieldDefs{
+						"input": {
+							Name:        "input",
+							Type:        "string",
+							Description: "The input to suggest a command for",
+						},
+						"commands": {
+							Name:        "commands",
+							Type:        "object",
+							Description: "The commands to suggest from",
+						},
 					},
-					"commands": {
-						Name:        "commands",
-						Type:        "object",
-						Description: "The commands to suggest from",
+					Returns: commands.FieldDefs{
+						"prompt": {
+							Name:        "prompt",
+							Type:        "string",
+							Description: "The prompt provided to the tool suggestion model",
+						},
+						"choices": {
+							Name:        "choices",
+							Type:        "list",
+							Description: "The suggested commands",
+						},
 					},
 				},
-				Returns: commands.FieldDefs{
-					"prompt": {
-						Name:        "prompt",
-						Type:        "string",
-						Description: "The prompt provided to the tool suggestion model",
-					},
-					"choices": {
-						Name:        "choices",
-						Type:        "list",
-						Description: "The suggested commands",
-					},
+				Run: func(ctx context.Context, p commands.Fields) (commands.Fields, error) {
+					input := p.String("input")
+					cmds, err := convertJSON[commands.DefIndex](p["commands"])
+					if err != nil {
+						return nil, err
+					}
+					defs := translateDefs(cmds)
+					prompt, calls, err := tools.Suggest(input, defs)
+					if err != nil {
+						return nil, err
+					}
+					reqs := make([]commands.Request, 0, len(calls))
+					for _, c := range calls {
+						reqs = append(reqs, commands.Request{
+							Command:    c.Name,
+							Parameters: c.Arguments,
+						})
+					}
+					return commands.Fields{
+						"prompt":  prompt,
+						"choices": reqs,
+					}, nil
 				},
-			},
-			Run: func(ctx context.Context, p commands.Fields) (commands.Fields, error) {
-				input := p.String("input")
-				cmds, err := convertJSON[commands.DefIndex](p["commands"])
-				if err != nil {
-					return nil, err
-				}
-				defs := translateDefs(cmds)
-				prompt, calls, err := tools.Suggest(input, defs)
-				if err != nil {
-					return nil, err
-				}
-				reqs := make([]commands.Request, 0, len(calls))
-				for _, c := range calls {
-					reqs = append(reqs, commands.Request{
-						Command:    c.Name,
-						Parameters: c.Arguments,
-					})
-				}
-				return commands.Fields{
-					"prompt":  prompt,
-					"choices": reqs,
-				}, nil
-			},
-		},
+			}},
+		),
 	)
 }
 

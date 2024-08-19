@@ -185,7 +185,6 @@ func main() {
 		&defset.Loader{
 			ServiceDefPath: cue.MakePath(cue.Str("services")),
 		},
-		&substratehttp.PProfHandler{},
 		initialCueLoadConfig(),
 		&cueloader.CueConfigWatcher{
 			ReadyFile: "ready",
