@@ -4,14 +4,14 @@
 
 ARG BASE=debian:12
 
-FROM docker.io/tianon/toybox:latest AS toybox
+FROM docker.io/library/alpine:latest AS dl
 
-FROM toybox AS dl-vscode
+FROM dl AS dl-vscode
 WORKDIR /dl/
 RUN wget https://github.com/coder/code-server/releases/download/v4.20.1/code-server_4.20.1_amd64.deb
 RUN wget https://github.com/coder/code-server/releases/download/v4.20.1/code-server_4.20.1_arm64.deb
 
-FROM toybox AS dl-go
+FROM dl AS dl-go
 WORKDIR /dl/
 RUN wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz
 RUN wget https://go.dev/dl/go1.21.6.linux-arm64.tar.gz
