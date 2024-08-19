@@ -4,7 +4,7 @@
 
 ARG BASE=debian:12
 
-FROM docker.io/tianon/toybox:latest as toybox
+FROM docker.io/tianon/toybox:latest AS toybox
 
 FROM toybox AS dl-vscode
 WORKDIR /dl/
@@ -16,7 +16,7 @@ WORKDIR /dl/
 RUN wget https://go.dev/dl/go1.21.6.linux-amd64.tar.gz
 RUN wget https://go.dev/dl/go1.21.6.linux-arm64.tar.gz
 
-# FROM scratch as dl-extensions
+# FROM scratch AS dl-extensions
 # ADD https://marketplace.visualstudio.com/_apis/public/gallery/publishers/golang/vsextensions/Go/0.40.3/vspackage /dl/
 
 FROM $BASE

@@ -1,4 +1,4 @@
-FROM docker.io/library/golang:1.22-bookworm as source
+FROM docker.io/library/golang:1.22-bookworm AS source
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
 COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
@@ -14,7 +14,7 @@ COPY images/nvml/. github.com/ajbouh/substrate/images/nvml/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/nvml/
 
-FROM source as build
+FROM source AS build
 RUN apt update \
   && apt install -y --no-install-recommends \
     dash \
@@ -30,12 +30,12 @@ RUN --mount=type=cache,target=/go/pkg/mod \
   -v \
   -o /substrated-defs-nvml ./cmd/nvml
 
-FROM source as test
+FROM source AS test
 
 # Used when we want to debug
-FROM docker.io/tianon/toybox:latest as toybox
+FROM docker.io/tianon/toybox:latest AS toybox
 
-FROM gcr.io/distroless/base-nossl-debian12 as dist
+FROM gcr.io/distroless/base-nossl-debian12 AS dist
 
 # HACK use run-with-ldcache-hack.sh to run ldconfig before substrate starts. delete this when
 # we can figure out how to get the nvidia-container-toolkit logic to do it properly for this container

@@ -1,4 +1,4 @@
-FROM docker.io/node:20.11-bookworm-slim as dev
+FROM docker.io/node:20.11-bookworm-slim AS dev
 
 WORKDIR /app
 COPY images/bb-ui/package.json images/bb-ui/package-lock.json ./

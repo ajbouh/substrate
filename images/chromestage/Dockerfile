@@ -1,7 +1,7 @@
-FROM docker.io/library/golang:1.22-bookworm as dinit-builder
+FROM docker.io/library/golang:1.22-bookworm AS dinit-builder
 RUN go install gitlab.com/tozd/dinit/cmd/dinit@latest
 
-FROM docker.io/library/golang:1.22-bookworm as builder
+FROM docker.io/library/golang:1.22-bookworm AS builder
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
 COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./

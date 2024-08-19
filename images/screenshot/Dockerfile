@@ -1,4 +1,4 @@
-FROM docker.io/library/golang:1.22 as build
+FROM docker.io/library/golang:1.22 AS build
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/screenshot
 ADD images/screenshot/go.mod images/screenshot/go.sum ./

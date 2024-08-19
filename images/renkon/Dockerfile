@@ -1,15 +1,15 @@
-FROM docker.io/node:20.11-bookworm-slim as npm-base
+FROM docker.io/node:20.11-bookworm-slim AS npm-base
 
-FROM npm-base as npm-deps
+FROM npm-base AS npm-deps
 WORKDIR /app
 COPY images/renkon/package.json images/renkon/package-lock.json ./
 RUN npm install
 
-FROM npm-deps as npm-build
+FROM npm-deps AS npm-build
 COPY images/renkon/. .
 RUN npm run build-lib
 
-FROM docker.io/library/golang:1.22 as go-build
+FROM docker.io/library/golang:1.22 AS go-build
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
 COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./

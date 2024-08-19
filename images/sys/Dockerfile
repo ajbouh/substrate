@@ -1,4 +1,4 @@
-FROM fedora as fedora-build
+FROM fedora AS fedora-build
 
 RUN mkdir /scratchroot \
   && mkdir -p /scratchroot/tmp \
@@ -14,7 +14,7 @@ RUN mkdir /scratchroot \
     --setopt install_weak_deps=False \
   && dnf clean all -y --installroot /scratchroot --releasever 40
 
-FROM docker.io/library/golang:1.22-bookworm as source
+FROM docker.io/library/golang:1.22-bookworm AS source
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
 COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
@@ -30,7 +30,7 @@ COPY images/sys/. github.com/ajbouh/substrate/images/sys/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/sys/
 
-FROM source as build
+FROM source AS build
 
 # With the trick below, Go's build cache is kept between builds.
 # https://github.com/golang/go/issues/27719#issuecomment-514747274
@@ -40,12 +40,12 @@ RUN --mount=type=cache,target=/go/pkg/mod \
   -v \
   -o /substrated-defs-sys ./cmd/sys
 
-FROM source as test
+FROM source AS test
 
 # Used when we want to debug
-FROM docker.io/tianon/toybox:latest as toybox
+FROM docker.io/tianon/toybox:latest AS toybox
 
-FROM scratch as dist
+FROM scratch AS dist
 COPY --from=fedora-build /scratchroot /
 COPY --from=build /substrated-defs-sys /app/substrated-defs-sys
 
