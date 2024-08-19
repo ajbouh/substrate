@@ -9,10 +9,10 @@ tests: "llama-3-8b-instruct": assister: {
   depends_on: "substrate": true
 }
 
-imagespecs: "llama-3-8b-instruct": imagespecs["vllm"]
-
 services: "llama-3-8b-instruct": {
   instances: [string]: {
+    image_tag: imagespecs["vllm"].image
+
     environment: {
       CUDA_DEVICE_ORDER: "PCI_BUS_ID"
     }

@@ -9,10 +9,10 @@ tests: "mixtral-8x7b-instruct": assister: {
   depends_on: "substrate": true
 }
 
-imagespecs: "mixtral-8x7b-instruct": imagespecs["vllm"]
-
 services: "mixtral-8x7b-instruct": {
   instances: [string]: {
+    image_tag: imagespecs["vllm"].image
+
     environment: {
       CUDA_DEVICE_ORDER: "PCI_BUS_ID"
     }
