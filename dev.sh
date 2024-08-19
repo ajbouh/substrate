@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -exo pipefail
+set -eo pipefail
 
 HERE=$(cd $(dirname $0); pwd)
 
@@ -120,9 +120,7 @@ sudo_buildx() {
 }
 
 detect_dev_cue_tag_args() {
-  set +x
   if [ -n "$CUE_DEV_TAG_ARGS" ]; then
-    set -x
     return
   fi
 
@@ -157,12 +155,10 @@ detect_dev_cue_tag_args() {
     exit 2
   fi
   CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t cue_defs=$CUE_DEV_DEFS"
-
-
-  set -x
 }
 
 print_rendered_cue_dev_expr_as() {
+  set +x
   format=$1
   shift
 
@@ -173,9 +169,11 @@ print_rendered_cue_dev_expr_as() {
     $CUE_DEV_TAG_ARGS \
     $CUE_DEV_PACKAGE \
     "$@"
+  set -x
 }
 
 write_rendered_cue_dev_expr_as() {
+  set +x
   format=$1
   dest=$2
   shift 2
@@ -183,22 +181,24 @@ write_rendered_cue_dev_expr_as() {
   detect_dev_cue_tag_args
 
   mkdir -p $(dirname $dest)
-  [ ! -e $docker_compose_yml ] || mv -f $docker_compose_yml $docker_compose_yml.old
+  [ ! -e $dest ] || mv -f $dest $dest.old
   cue export --trace --all-errors --verbose \
     --out $format \
-    --outfile $docker_compose_yml \
+    --outfile $dest \
     $CUE_DEV_TAG_ARGS \
     $CUE_DEV_PACKAGE \
     "$@"
+  set -x
 }
 
 check_cue_dev_expr_as_cue() {
+  set +x
   detect_dev_cue_tag_args
-
   cue def --strict --trace --all-errors --verbose --inline-imports --simplify \
     $CUE_DEV_PACKAGE \
     $CUE_DEV_TAG_ARGS \
     "$@" > /dev/null
+  set -x
 }
 
 docker_compose() {
@@ -210,21 +210,11 @@ docker_compose() {
     -f $docker_compose_yml "$@"
 }
 
-sudo_buildx_bake() {
-  docker_compose_yml=$1
-  shift
-  sudo_buildx bake \
-    --progress=tty \
-    --metadata-file=$docker_compose_yml.metadata.json \
-    -f $docker_compose_yml "$@"
-}
-
 make_docker_compose_yml() {
   suffix=$1
   expr=$2
   shift 2
   docker_compose_yml=$HERE/.gen/docker/$NAMESPACE-$suffix.yml
-  mkdir -p $(dirname $docker_compose_yml)
   write_rendered_cue_dev_expr_as yaml $docker_compose_yml -e $expr "$@"
   echo $docker_compose_yml
 }
@@ -299,31 +289,94 @@ write_os_container_units_overlay() {
   done
 }
 
-build_images() {
-  DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.buildx_bake_docker_compose')
+built_image_refs_from_metadata() {
+  set +x
+  buildx_bake_metadata_file="$1"
+  print_rendered_cue_dev_expr_as text -t "buildx_bake_metadata=$(cat $buildx_bake_metadata_file)" -e '#out.buildx_bake_image_refs'
+  set -x
+}
+
+built_image_ids_from_metadata() {
+  set +x
+  buildx_bake_metadata_file="$1"
+  print_rendered_cue_dev_expr_as text -t "buildx_bake_metadata=$(cat $buildx_bake_metadata_file)" -e '#out.buildx_bake_image_ids'
+  set -x
+}
+
+built_imagespecs_from_metadata_and_image_ids() {
+  # set +x
+  buildx_bake_metadata_file="$1"
+  shift
+  print_rendered_cue_dev_expr_as text -t "buildx_bake_metadata=$(cat $buildx_bake_metadata_file)" -t "buildx_bake_needed_image_ids=$@" -e '#out.buildx_bake_imagespecs'
+  # set -x
+}
+
+build_images_and_write_to_root_imagestore() {
+  docker_compose_file="$1"
+  shift
+
   sudo_buildx bake \
     --progress=tty \
-    --metadata-file=$DOCKER_COMPOSE_FILE.metadata.json \
-    --load \
-    -f $DOCKER_COMPOSE_FILE "$@" >&2
+    -f $docker_compose_file \
+    --metadata-file=${docker_compose_file}.metadata.json \
+    '--set=*.output=type=docker,oci-mediatypes=true' \
+    "$@" >&2
 
   status=$?
   if [ $status -ne 0 ]; then
     exit $status
   fi
+}
 
-  cat $DOCKER_COMPOSE_FILE.metadata.json
+build_images() {
+  docker_compose_file="$1"
+  shift
+
+  sudo_buildx bake \
+    --progress=tty \
+    -f $docker_compose_file \
+    --metadata-file=${docker_compose_file}.metadata.json \
+    '--set=*.output=type=image,store=true,name-canonical=true' \
+    "$@" >&2
+
+  status=$?
+  if [ $status -ne 0 ]; then
+    exit $status
+  fi
 }
 
 write_images_to_root_imagestore() {
-  IMAGES=$@
-  for image in $IMAGES; do
-    image_id=$($PODMAN image inspect $image -f '{{.ID}}')
+  docker_compose_file="$1"
+  buildx_bake_metadata_file="$2"
+  shift 2
+
+  needed_image_ids=()
+
+  IMAGE_IDS=$@
+  for image_id in $IMAGE_IDS; do
     if ! sudo $PODMAN image exists $image_id 1>&2; then
-      $PODMAN save $image_id | sudo $PODMAN load 1>&2
-      echo $image
+      needed_image_ids+=("$image_id")
     fi
   done
+
+  if [ ${#needed_image_ids[@]} -gt 0 ]; then
+    # figure out which images are missing
+    needed_images=$(built_imagespecs_from_metadata_and_image_ids "$buildx_bake_metadata_file" "${needed_image_ids[@]}")
+
+    # expect a noop to for the build, but now we need to load them into podman
+    # try loading them in with the same type we had
+    # use oci-mediatypes=true to get the same digest from build_images.
+    sudo_buildx bake \
+      --progress=tty \
+      -f "$docker_compose_file" \
+      '--set=*.output=type=docker,oci-mediatypes=true' \
+      $needed_images
+
+    # and then print
+    for needed_image in $needed_images; do
+      echo $needed_image
+    done
+  fi
 }
 
 write_images_to_imagestore() {
@@ -372,14 +425,13 @@ systemd_logs() {
   journalctl -xfeu substrate.service
 }
 
-built_images_from_metadata() {
-  print_rendered_cue_dev_expr_as text -t "buildx_bake_metadata=${1}" -e '#out.buildx_bake_image_refs'
-}
-
 write_image_ids_file() {
   GEN_IMAGE_IDS=.gen/cue/image_ids.cue
   mkdir -p $(dirname $GEN_IMAGE_IDS)
-  print_rendered_cue_dev_expr_as text -t "buildx_bake_metadata=${1}" -e '#out.buildx_bake_image_ids_file' | tee >&2 -a $GEN_IMAGE_IDS
+  buildx_bake_metadata_file="$1"
+  set +x
+  print_rendered_cue_dev_expr_as text -t "buildx_bake_metadata=$(cat $buildx_bake_metadata_file)" -e '#out.buildx_bake_image_ids_file' | tee >&2 -a $GEN_IMAGE_IDS
+  set -x
   # use mv to make it atomic
   mv $GEN_IMAGE_IDS defs/image_ids.cue
 }
@@ -394,18 +446,24 @@ systemd_reload() {
 
   check_cue_dev_expr_as_cue
 
-  built_images_metadata="$(build_images $containers)"
+  docker_compose_file=$(make_docker_compose_yml substrate '#out.buildx_bake_docker_compose')
 
-  write_image_ids_file "$built_images_metadata"
-  built_images=$(built_images_from_metadata "$built_images_metadata")
+  # This is disabled now because it doesn't work properly yet.
+  # build_images $docker_compose_file $containers
+  # built_image_ids=$(built_image_ids_from_metadata "$docker_compose_file.metadata.json")
+  # changed_images=$(write_images_to_root_imagestore $docker_compose_file "$docker_compose_file.metadata.json" $built_image_ids)
 
-  changed_images=$(write_images_to_root_imagestore $built_images)
+  # This is less efficient than we'd like, but it works. We don't want to reload all tarballs on every build.
+  build_images_and_write_to_root_imagestore $docker_compose_file $containers
+  changed_images=$(built_image_refs_from_metadata "$docker_compose_file.metadata.json")
   echo changed_images=$changed_images
+
+  write_image_ids_file "$docker_compose_file.metadata.json"
 
   write_os_resourcedirs_overlay
 
   # show overrides before we replace anything (as a sort of poor man's backup)
-  systemd-delta
+  systemd-delta --no-pager
 
   # reconstruct the parts of the overlay we can safely reload.
   RELOAD_OVERLAY_BASEDIR=os/gen/overlay.d/reload
@@ -458,12 +516,13 @@ os_oob_make() {
 
   check_cue_dev_expr_as_cue
 
-  built_images_metadata="$(build_images)"
-  built_images=$(built_images_from_metadata "$built_images_metadata")
+  docker_compose_file=$(make_docker_compose_yml substrate '#out.buildx_bake_docker_compose')
+  build_images $docker_compose_file
+  built_image_refs=$(built_image_refs_from_metadata "$docker_compose_file.metadata.json")
 
   sudo rm -rf os/gen/oob/imagestore
   mkdir -p os/gen/oob/imagestore
-  write_images_to_imagestore os/gen/oob/imagestore $built_images
+  write_images_to_imagestore os/gen/oob/imagestore $built_image_refs
   
   mkdir -p os/src/config/live/oob
   cosa shell sudo mksquashfs gen/oob src/config/live/oob/oob.squashfs -noappend -wildcards -no-recovery -comp zstd
@@ -511,6 +570,7 @@ write_latest_iso() {
   sudo dd if=$src of=$dst bs=4M conv=fdatasync status=progress
 }
 
+set +x
 case "$1" in
   cosa)
     shift
@@ -584,7 +644,9 @@ case "$1" in
     check_cue_dev_expr_as_cue
  
     DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.buildx_bake_docker_compose')
-    sudo_buildx_bake $DOCKER_COMPOSE_FILE "$@"
+    sudo_buildx bake \
+      --progress=tty \
+      -f DOCKER_COMPOSE_FILE "$@"
     ;;
   test)
     shift
