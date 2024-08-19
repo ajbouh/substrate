@@ -18,7 +18,7 @@ type Aggregate struct {
 	Delegates []Delegate
 	Sources   []Source
 
-	Entries []Entry
+	Entries []*Entry
 }
 
 func (s *Aggregate) AsDynamicSource(ctx context.Context) *DynamicSource {
@@ -28,7 +28,10 @@ func (s *Aggregate) AsDynamicSource(ctx context.Context) *DynamicSource {
 		sources = append(sources, s.Commands(ctx))
 	}
 
-	entries := append([]Entry(nil), s.Entries...)
+	entries := make([]Entry, 0, len(s.Entries))
+	for _, entry := range s.Entries {
+		entries = append(entries, *entry)
+	}
 
 	if len(entries) > 0 {
 		sources = append(sources, &StaticSource[Aggregate]{Entries: entries})
