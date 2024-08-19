@@ -9,10 +9,10 @@ tests: "phi-2": assister: {
   depends_on: "substrate": true
 }
 
-imagespecs: "phi-2": imagespecs["vllm"]
-
 services: "phi-2": {
   instances: [string]: {
+    image_tag: imagespecs["vllm"].image
+
     environment: {
       CUDA_DEVICE_ORDER: "PCI_BUS_ID"
     }
