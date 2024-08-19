@@ -30,7 +30,34 @@ import (
   resourcedir_fetch_podman_run_options: [string]: string
 }
 
+let buildx_bake_metadata_image_digest_key = "containerimage.config.digest"
 #out: buildx_bake_metadata_raw: string | *"" @tag(buildx_bake_metadata)
+#out: buildx_bake_needed_image_ids_raw: string | *"" @tag(buildx_bake_needed_image_ids)
+
+let dedupe_strings = {
+  list: [...string]
+  _set: {for i, e in list { (e): true }}
+  #out: [for e, b in _set { e, }]
+}
+
+// buildx_bake_metadata ?: {
+//   "buildx.build.warnings": _
+//   [string]: {
+//     "buildx.build.provenance": _
+//     "buildx.build.ref": string
+//     "containerimage.config.digest": string // only seems to be present if we load or push.
+//     "containerimage.descriptor": {
+//       "annotations": {
+//         "config.digest": string
+//         "org.opencontainers.image.created": string
+//       }
+//       "digest": string
+//       "mediaType": string
+//       "size": int
+//     }
+//     "containerimage.digest": string
+//   }
+// }
 
 if #out.buildx_bake_metadata_raw != "" {
   #out: buildx_bake_metadata: json.Unmarshal(#out.buildx_bake_metadata_raw)
@@ -39,10 +66,29 @@ if #out.buildx_bake_metadata_raw != "" {
       imagespecs[key].image,
     }
   ], "\n")
+  #out: buildx_bake_image_ids: strings.Join((dedupe_strings & {list: [
+    for key, def in #out.buildx_bake_metadata if imagespecs[key] != _|_ {
+      def[buildx_bake_metadata_image_digest_key],
+    }
+  ]}).#out, "\n")
+
+  if #out.buildx_bake_needed_image_ids_raw != "" {
+    #out: buildx_bake_needed_image_ids: strings.Split(#out.buildx_bake_needed_image_ids_raw, " ")
+    #out: buildx_bake_imagespecs: strings.Join([
+      for i, image_id in #out.buildx_bake_needed_image_ids {
+        for key, def in #out.buildx_bake_metadata {
+          if def[buildx_bake_metadata_image_digest_key] == image_id {
+            key,
+          }
+        }
+      }
+    ], "\n")
+  }
+
   #out: buildx_bake_image_ids_file: strings.Join([
     "package defs",
     for key, def in imagespecs if (enable[key]) {
-       "image_ids: \"\(def.image)\": \"\(#out.buildx_bake_metadata[key]["containerimage.config.digest"])\"",
+       "image_ids: \"\(def.image)\": \"\(#out.buildx_bake_metadata[key][buildx_bake_metadata_image_digest_key])\"",
     }
   ], "\n")
 }
