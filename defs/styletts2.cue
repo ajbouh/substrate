@@ -1,6 +1,6 @@
 package defs
 
-enable: "styletts2": true
+enable: "styletts2": false
 
 live_edit: "styletts2": bool
 
