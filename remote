@@ -56,6 +56,8 @@ push() {
 
   ssh $REMOTE_HOST "mkdir -p $REMOTE_ROOT && git -C $REMOTE_ROOT init . && git -C $REMOTE_ROOT config receive.denyCurrentBranch ignore"
   ssh $REMOTE_HOST "sudo chown -R $REMOTE_USER:$REMOTE_USER $REMOTE_ROOT"
+  # remove the ready file before we make any other changes to it. this prevents file watching logic from seeing a partial sync. expect something else to put it back.
+  ssh $REMOTE_HOST "rm -f $REMOTE_ROOT/defs/ready"
   git push --force ssh://${REMOTE_HOST}${REMOTE_ROOT}/.git +HEAD:$REMOTE_BRANCH
   ssh $REMOTE_HOST "cd $REMOTE_ROOT && git reset --hard $REMOTE_BRANCH && git clean -fd"
   ssh $REMOTE_HOST "git -C $REMOTE_ROOT rev-parse HEAD > $REMOTE_DIGEST_LAST_HEAD"
