@@ -22,7 +22,10 @@ func main() {
 		Main{},
 		&httpframework.Framework{},
 		&httpframework.StripPrefix{Prefix: prefix},
-		&commands.HTTPHandler{Route: "/commands"},
+		&commands.HTTPHandler{
+			Debug: true,
+			Route: "/commands",
+		},
 		&commands.Aggregate{},
 		httpframework.Route{
 			Route:   "GET /js/",
