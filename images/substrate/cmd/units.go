@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 
+	"cuelang.org/go/cue"
 	cueerrors "cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
@@ -254,10 +255,35 @@ func (l *PinnedInstances) Refresh(defSet *defset.DefSet) {
 	fresh := map[string]freshPin{}
 
 	l.mu.Lock()
-	for _, serviceDef := range defSet.ServicesDefs {
-		for instanceName, instanceDef := range serviceDef.Instances {
+	for _, serviceCueValue := range defSet.ServicesCueValues {
+		instancesValue := serviceCueValue.LookupPath(cue.MakePath(cue.Str("instances")))
+
+		instances, err := instancesValue.Fields()
+		if err != nil {
+			slog.Info("error looking up if service instances", "err", err.Error())
+			continue
+		}
+
+		for instances.Next() {
+			sel := instances.Selector()
+			if !sel.IsString() {
+				continue
+			}
+			instanceName := sel.Unquoted()
+
+			pinnedValue := instances.Value().LookupPath(cue.MakePath(cue.Str("pinned")))
+			if !pinnedValue.Exists() {
+				continue
+			}
+
+			pinned, err := pinnedValue.Bool()
+			if err != nil {
+				slog.Info("error determining if service instance is pinned", "instanceName", instanceName, "err", err.Error())
+				continue
+			}
+
 			cancel := l.pins[instanceName]
-			if instanceDef.Pinned {
+			if pinned {
 				if cancel == nil {
 					var ctx context.Context
 					// TODO should this be l.ctx?

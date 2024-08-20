@@ -70,10 +70,6 @@ type ServiceSpawnParameterSchema struct {
 	Optional    bool                      `json:"optional,omitempty"`
 }
 
-type ServiceDef struct {
-	Instances map[string]*ServiceInstanceDef `json:"instances,omitempty"`
-}
-
 type ServiceInstanceDef struct {
 	Image        string                         `json:"image"`
 	Environment  map[string]string              `json:"environment,omitempty"`

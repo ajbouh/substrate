@@ -323,15 +323,6 @@ func (h *Handler) newApiHandler() http.Handler {
 		return result[0], http.StatusOK, nil
 	})
 
-	handle("GET", "/substrate/v1/services", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
-		services, err := h.DefSetLoader.Load().AllServiceInstanceSpawnDefs(req.Context())
-		if err != nil {
-			return nil, http.StatusInternalServerError, err
-		}
-
-		return services, http.StatusOK, nil
-	})
-
 	handle("GET", "/substrate/v1/spaces", func(req *http.Request, p httprouter.Params) (interface{}, int, error) {
 		query := req.URL.Query()
 		result, err := h.DB.ListSpaces(req.Context(), &substratedb.SpaceListQuery{
