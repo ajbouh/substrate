@@ -11,7 +11,7 @@ export type Def = {
 };
 export type DefIndex = Record<string, Def>;
 
-type Args = Record<string, any>;
+export type Args = Record<string, any>;
 
 export type Commands = {
 	index: Promise<DefIndex>;

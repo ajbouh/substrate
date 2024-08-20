@@ -2,10 +2,15 @@
 
 <script lang="ts">
 	import type { Commands, Def, DefIndex, Call } from '$lib/defs.ts';
-	import { ReflectCommands } from './substrate-r0.js';
 	import Command from './Command.svelte';
 	import Prompt from './Prompt.svelte';
-	let { commands = null as Commands | null, open = $bindable(false) } = $props();
+
+	let {
+		commands = null as Commands | null,
+		open = $bindable(false),
+		suggest = (input: string, index: DefIndex) => Promise.resolve([] as Call[])
+	} = $props();
+
 	let results: { command: string; properties: Record<string, any>; result: any }[] = $state([]);
 	async function run(command: string, properties: Record<string, any>) {
 		if (!commands) return;
@@ -24,24 +29,14 @@
 		let lower = search.toLowerCase();
 		return key.toLowerCase().includes(lower) || def.description.toLowerCase().includes(lower);
 	}
-	let items = $derived.by(() => {
-		// TODO can use the search as a natural-language input to AI-matcher
-		// this can return richer results, ranking, filling props, etc.
-		return Object.entries(index).filter(([key, value]) => filter(key, value));
-	});
-	let toolCall = new ReflectCommands('https://substrate.home.arpa/tool-call/commands');
-	async function suggest(input: string): Call[] {
-		if (!input) return [];
-		const r = await toolCall.run('suggest', { input, commands: index });
-		return r.choices;
-	}
 	let suggestions = $derived.by(async () => {
-		const choices = await suggest(search);
+		const choices = await suggest(search, index);
 		const top = choices.flatMap((call) => {
 			const def = index[call.command];
 			if (!def) return [];
 			return [[call.command, def, call.parameters]];
 		});
+		// TODO include simple text filter
 		const rest = Object.entries(index)
 			.filter(([key]) => !top.some(([k]) => k === key))
 			.map(([key, def]) => [key, def, {}]);

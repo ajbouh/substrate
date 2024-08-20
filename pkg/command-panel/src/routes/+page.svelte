@@ -1,11 +1,14 @@
 <script lang="ts">
-	import { CommandPanel } from '$lib';
-	// For vanilla JS, assigning the commands would look something like:
-	// document.querySelector('command-panel').commands = substrate.r0.commands;
+	import type { DefIndex, Call } from '$lib/defs.ts';
+	import { CommandPanel, ReflectCommands } from '$lib';
 
-	// In a normal Svelte project you could import and use the Svelte component,
-	// though we want this to test using it as a custom element.
-	// So, bind:this on the element seems to work better with hot module reloading.
+	let toolCall = new ReflectCommands('https://substrate.home.arpa/tool-call/commands');
+	async function suggest(input: string, commands: DefIndex): Promise<Call[]> {
+		if (!input) return [];
+		const r = await toolCall.run('suggest', { input, commands });
+		return r.choices;
+	}
+
 	let commands = {
 		async run(name: string, params: Record<string, any>) {
 			console.log('Running command', name, params);
@@ -97,7 +100,7 @@
 	<h1>Welcome to your library project</h1>
 
 	<!-- <command-panel bind:this={panel}></command-panel> -->
-	<CommandPanel {commands} open />
+	<CommandPanel {commands} {suggest} open />
 </section>
 
 <style>
