@@ -46,7 +46,7 @@ func (l *Loader) Serve(ctx context.Context) {
 }
 
 func (l *Loader) loadDefSet(files map[string]string, cueLoadConfigWithFiles *load.Config, err error) *DefSet {
-	cueContext := cuecontext.New()
+	cueContext := cuecontext.New(cuecontext.EvaluatorVersion(cuecontext.EvalV3))
 	cueMu := &CueMutex{}
 
 	sds := &DefSet{
