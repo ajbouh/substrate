@@ -13,7 +13,6 @@ import (
 
 type DefSet struct {
 	ServicesCueValues map[string]cue.Value
-	ServicesDefs      map[string]*activityspec.ServiceDef
 	RootValue         cue.Value
 
 	serviceSpawnCueValueLRU *lru.Cache[string, cue.Value]
@@ -46,22 +45,6 @@ func (s *DefSet) ResolveServiceByName(ctx context.Context, serviceName string) (
 		return nil, nil
 	}
 	return decodeServiceInstanceSpawnDef(v)
-}
-
-func (s *DefSet) AllServiceInstanceSpawnDefs(ctx context.Context) (map[string]*activityspec.ServiceInstanceDef, error) {
-	s.CueMu.Lock()
-	defer s.CueMu.Unlock()
-
-	// use JSON encoding to defensively clone s.Services
-	services := map[string]*activityspec.ServiceInstanceDef{}
-	for k, v := range s.ServicesCueValues {
-		def, err := decodeServiceInstanceSpawnDef(v)
-		if err != nil {
-			return nil, err
-		}
-		services[k] = def
-	}
-	return services, nil
 }
 
 func (s *DefSet) LookupServiceInstanceJSON(ctx context.Context, serviceName, instanceName string, path cue.Path) ([]byte, error) {

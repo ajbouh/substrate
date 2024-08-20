@@ -12,7 +12,6 @@ import (
 	cueerrors "cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
 
-	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 	"github.com/ajbouh/substrate/pkg/cueloader"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
@@ -51,7 +50,6 @@ func (l *Loader) loadDefSet(files map[string]string, cueLoadConfigWithFiles *loa
 
 	sds := &DefSet{
 		ServicesCueValues: map[string]cue.Value{},
-		ServicesDefs:      map[string]*activityspec.ServiceDef{},
 		CueMu:             cueMu,
 		CueContext:        cueContext,
 		Layout:            l.Layout,
@@ -83,7 +81,7 @@ func (l *Loader) loadDefSet(files map[string]string, cueLoadConfigWithFiles *loa
 
 	fields, err := value.Fields()
 	if err != nil {
-		sds.Err = fmt.Errorf("error decoding service fields: %w", err)
+		sds.Err = fmt.Errorf("error discovering service fields: %w", err)
 		return sds
 	}
 
@@ -96,14 +94,6 @@ func (l *Loader) loadDefSet(files map[string]string, cueLoadConfigWithFiles *loa
 		serviceDefCueValue := fields.Value()
 
 		err := serviceDefCueValue.Validate()
-		if err == nil {
-			serviceDef := &activityspec.ServiceDef{}
-			err = serviceDefCueValue.Decode(&serviceDef)
-			if err == nil {
-				sds.ServicesDefs[serviceName] = serviceDef
-			}
-		}
-
 		if err != nil {
 			errs := cueerrors.Errors(err)
 			messages := make([]string, 0, len(errs))
