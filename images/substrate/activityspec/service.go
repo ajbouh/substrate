@@ -71,11 +71,11 @@ type ServiceSpawnParameterSchema struct {
 }
 
 type ServiceInstanceDef struct {
-	Image        string                         `json:"image"`
-	Environment  map[string]string              `json:"environment,omitempty"`
-	Command      []string                       `json:"command,omitempty"`
-	ResourceDirs map[string]ResourceDirDef      `json:"resourcedirs,omitempty"`
-	Mounts       []ServiceInstanceDefSpawnMount `json:"mounts,omitempty"`
+	Image        string                                  `json:"image"`
+	Environment  map[string]string                       `json:"environment,omitempty"`
+	Command      []string                                `json:"command,omitempty"`
+	ResourceDirs map[string]string                       `json:"resourcedirs,omitempty"`
+	Mounts       map[string]ServiceInstanceDefSpawnMount `json:"mounts,omitempty"`
 
 	URLPrefix string `json:"url_prefix,omitempty"`
 
@@ -90,14 +90,6 @@ type ServiceInstanceDefSpawnMount struct {
 	Source      string `json:"source"`
 	Destination string `json:"destination"`
 	Mode        string `json:"mode,omitempty"`
-}
-
-type ResourceDirDef string
-
-func (s ResourceDirDef) SHA256() string {
-	d := sha256.New()
-	d.Write([]byte(s))
-	return hex.EncodeToString(d.Sum(nil))
 }
 
 type ServiceSpawnParameterRequest string

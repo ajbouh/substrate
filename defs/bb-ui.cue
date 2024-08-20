@@ -15,10 +15,10 @@ imagespecs: "bb-ui": {
 services: "bb-ui": {
   instances: [string]: {
     if live_edit["bb-ui"] {
-      mounts: [
-        { source: "\(#var.host_source_directory)/images/bb-ui/docs", destination: "/app/docs", mode: "rw" },
-        { source: "\(#var.host_source_directory)/images/bb-ui/observablehq.config.ts", destination: "/app/observablehq.config.ts", mode: "ro" },
-      ]
+      mounts: {
+        "/app/docs": { source: "\(#var.host_source_directory)/images/bb-ui/docs", mode: "rw" }
+        "/app/observablehq.config.ts": { source: "\(#var.host_source_directory)/images/bb-ui/observablehq.config.ts", mode: "ro" }
+      }
     }
   }
 }

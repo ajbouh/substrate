@@ -55,7 +55,6 @@ push() {
   remote_sanity_check
 
   ssh $REMOTE_HOST "mkdir -p $REMOTE_ROOT && git -C $REMOTE_ROOT init . && git -C $REMOTE_ROOT config receive.denyCurrentBranch ignore"
-  ssh $REMOTE_HOST -t "[ ! -e /var/lib/resourcedirs ] || ((mount | grep -q $REMOTE_ROOT/os/gen/oob/resourcedirs) || (mkdir -p $REMOTE_ROOT/os/gen/oob/resourcedirs && sudo chown -R core:core /var/lib/resourcedirs && sudo mount --bind /var/lib/resourcedirs source/os/gen/oob/resourcedirs))"
   ssh $REMOTE_HOST "sudo chown -R $REMOTE_USER:$REMOTE_USER $REMOTE_ROOT"
   git push --force ssh://${REMOTE_HOST}${REMOTE_ROOT}/.git +HEAD:$REMOTE_BRANCH
   ssh $REMOTE_HOST "cd $REMOTE_ROOT && git reset --hard $REMOTE_BRANCH && git clean -fd"

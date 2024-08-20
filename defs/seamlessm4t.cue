@@ -50,9 +50,9 @@ services: "seamlessm4t": {
     ]
 
     if live_edit["seamlessm4t"] {
-      mounts: [
-        { source: "\(#var.host_source_directory)/images/seamlessm4t", destination: "/app/", mode: "ro" },
-      ]
+      mounts: {
+        "/app/": { source: "\(#var.host_source_directory)/images/seamlessm4t", mode: "ro" }
+      }
     }
   }
 }

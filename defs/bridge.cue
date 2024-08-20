@@ -28,9 +28,9 @@ live_edit: "bridge": bool
 
 if live_edit["bridge"] {
   services: "bridge": spawn: {
-    mounts: [
-      { source: "\(#var.host_source_directory)/images/bridge/ui", destination: "/go/src/github.com/ajbouh/substrate/images/bridge/ui", mode: "ro" },
-      { source: "\(#var.host_source_directory)/images/bridge/assistant/prompts", destination: "/go/src/github.com/ajbouh/substrate/images/bridge/assistant/prompts", mode: "ro" },
-    ]
+    mounts: {
+      "/go/src/github.com/ajbouh/substrate/images/bridge/ui": { source: "\(#var.host_source_directory)/images/bridge/ui", mode: "ro" }
+      "/go/src/github.com/ajbouh/substrate/images/bridge/assistant/prompts": { source: "\(#var.host_source_directory)/images/bridge/assistant/prompts", mode: "ro" }
+    }
   }
 }

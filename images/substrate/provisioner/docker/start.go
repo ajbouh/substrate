@@ -2,10 +2,8 @@ package dockerprovisioner
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
-	"path"
 	"time"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
@@ -31,10 +29,6 @@ type P struct {
 	internalNetworkName string
 	externalNetworkName string
 
-	hostResourceDirsRoot string
-	hostResourceDirsPath []string
-	containerResourceDir string
-
 	waitForReadyTimeout time.Duration
 	waitForReadyTick    time.Duration
 
@@ -43,19 +37,16 @@ type P struct {
 
 var _ provisioner.Driver = (*P)(nil)
 
-func New(cli *client.Client, namespace, internalNetworkName, externalNetworkName, hostResourceDirsRoot string, hostResourceDirsPath []string, prep func(h *container.HostConfig)) *P {
+func New(cli *client.Client, namespace, internalNetworkName, externalNetworkName string, prep func(h *container.HostConfig)) *P {
 	return &P{
-		cli:                  cli,
-		namespace:            namespace,
-		internalNetworkName:  internalNetworkName,
-		externalNetworkName:  externalNetworkName,
-		hostResourceDirsRoot: hostResourceDirsRoot,
-		hostResourceDirsPath: hostResourceDirsPath,
-		containerResourceDir: "/res",
-		waitForReadyTimeout:  2 * time.Minute,
-		waitForReadyTick:     500 * time.Millisecond,
-		generation:           ulid.Make().String(),
-		prep:                 prep,
+		cli:                 cli,
+		namespace:           namespace,
+		internalNetworkName: internalNetworkName,
+		externalNetworkName: externalNetworkName,
+		waitForReadyTimeout: 2 * time.Minute,
+		waitForReadyTick:    500 * time.Millisecond,
+		generation:          ulid.Make().String(),
+		prep:                prep,
 	}
 }
 
@@ -86,45 +77,6 @@ func (p *P) dumpLogs(ctx context.Context, containerID string) error {
 	}
 
 	return err
-}
-
-func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error) {
-	rdMainPath := path.Join(p.hostResourceDirsRoot, rd.SHA256())
-	if _, err := os.Stat(rdMainPath); err == nil {
-		return rdMainPath, nil
-	} else if errors.Is(err, os.ErrNotExist) {
-		return rdMainPath, err
-	}
-
-	// Use existing from path, otherwise fallback to main
-	for _, rdRoot := range p.hostResourceDirsPath {
-		rdPath := path.Join(rdRoot, rd.SHA256())
-		if _, err := os.Stat(rdPath); err == nil {
-			return rdPath, nil
-		} else if errors.Is(err, os.ErrNotExist) {
-			return rdPath, err
-		}
-	}
-
-	return rdMainPath, nil
-}
-
-func (p *P) prepareResourceDirsMounts(as *activityspec.ServiceSpawnResolution) ([]mount.Mount, error) {
-	mounts := make([]mount.Mount, 0, len(as.ServiceInstanceDef.ResourceDirs))
-	for alias, rd := range as.ServiceInstanceDef.ResourceDirs {
-		rdPath, err := p.findResourceDir(rd)
-		if err != nil {
-			return nil, err
-		}
-		mounts = append(mounts, mount.Mount{
-			Type:     mount.TypeBind,
-			Source:   rdPath,
-			Target:   path.Join(p.containerResourceDir, alias),
-			ReadOnly: true,
-		})
-	}
-
-	return mounts, nil
 }
 
 func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) (*activityspec.ServiceSpawnResponse, error) {
@@ -186,20 +138,13 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		}
 		h.Mounts = append(h.Mounts,
 			mount.Mount{
-				Type:     mount.TypeBind,
+				Type:     mount.Type(m.Type),
 				Source:   m.Source,
 				Target:   m.Destination,
 				ReadOnly: readOnly,
 			},
 		)
 	}
-
-	resourcedirMounts, err := p.prepareResourceDirsMounts(as)
-	if err != nil {
-		return nil, err
-	}
-
-	h.Mounts = append(h.Mounts, resourcedirMounts...)
 
 	// Pull PORT out of env, so it can be used for port forwarding.
 	// TODO consider using configured portmappings instead of this weird approach.

@@ -3,7 +3,6 @@ package defs
 #var: {
   host_docker_socket: string
   host_substratefs_root: string
-  host_resourcedirs_root: string
 }
 
 enable: "vscode-server": true
@@ -48,14 +47,13 @@ imagespecs: "vscode-server": {
     #home,
   ]
 
-  mounts: [
-    {source: #home, destination: #home},
-    {source: #var.host_docker_socket, destination: environment.#docker_socket},
-    {source: #var.host_substratefs_root, destination: #var.host_substratefs_root},
-    {source: #var.host_resourcedirs_root, destination: #var.host_resourcedirs_root},
-  ]
+  mounts: {
+    (#home): {source: #home}
+    (environment.#docker_socket): {source: #var.host_docker_socket}
+    (#var.host_substratefs_root): {source: #var.host_substratefs_root}
+  }
 
-  #systemd_units: {
+  #systemd_quadlet_units: {
     "vscode-server.container": {
       Unit: {
         Requires: ["podman.socket"]

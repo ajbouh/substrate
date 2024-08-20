@@ -29,9 +29,9 @@ services: "styletts2": {
     ]
 
     if live_edit["styletts2"] {
-      mounts: [
-        { source: "\(#var.host_source_directory)/images/styletts2", destination: "/app/", mode: "ro" },
-      ]
+      mounts: {
+        "/app/": { source: "\(#var.host_source_directory)/images/styletts2", mode: "ro" }
+      }
     }
   }
 }

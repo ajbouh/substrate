@@ -6,9 +6,9 @@ test_templates: translator: {
     dockerfile: "images/tests/translator/Dockerfile"
   }
 
-  mounts: [
-    { source: "\(#var.host_source_directory)/images/tests/translator", destination: "/test" },
-  ]
+  mounts: {
+    "/test": { source: "\(#var.host_source_directory)/images/tests/translator" }
+  }
   command: [ "go", "run", "/test/test.go" ]
 
   environment: URL: string

@@ -16,7 +16,7 @@ daemons: "mediamtx": {
     // MTX_WEBRTCADDITIONALHOSTS: string
   }
 
-  #systemd_units: {
+  #systemd_quadlet_units: {
     "mediamtx.container": {
       Install: {
         WantedBy: ["multi-user.target", "default.target"]

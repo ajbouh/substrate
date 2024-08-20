@@ -112,21 +112,18 @@ import (
     resourcedirs: [alias=string]: string
     resourcedirs: {...}
 
-    mounts: [
-      ...{
-        type: string | *"bind"
-        source ?: string
-        destination: string
-        mode: string | *"rw"
-      }
-    ]
+    mounts: [destination=string]: {
+      type: string | *"bind"
+      source ?: string
+      "destination": string & destination
+      mode: string | *"rw"
+    }
 
     exports ?: {
       commands ?: _
       data ?: _
       claims ?: _
     }
-
 
     // for name, parameter in parameters {
     //   if parameter.type == "space" {
