@@ -165,6 +165,7 @@ print_rendered_cue_dev_expr_as() {
 
   detect_dev_cue_tag_args
 
+  set +x
   cue export \
     --out $format \
     $CUE_DEV_TAG_ARGS \
@@ -211,13 +212,9 @@ docker_compose() {
     -f $docker_compose_yml "$@"
 }
 
-make_docker_compose_yml() {
+pick_docker_compose_yml() {
   suffix=$1
-  expr=$2
-  shift 2
-  docker_compose_yml=$HERE/.gen/docker/$NAMESPACE-$suffix.yml
-  write_rendered_cue_dev_expr_as yaml $docker_compose_yml -e $expr "$@"
-  echo $docker_compose_yml
+  echo $HERE/.gen/docker/$NAMESPACE-$suffix.yml
 }
 
 ensure_init_ostree_repo() {
@@ -447,7 +444,8 @@ systemd_reload() {
 
   check_cue_dev_expr_as_cue
 
-  docker_compose_file=$(make_docker_compose_yml substrate '#out.buildx_bake_docker_compose')
+  docker_compose_file=$(pick_docker_compose_yml substrate)
+  write_rendered_cue_dev_expr_as yaml $docker_compose_file -e '#out.buildx_bake_docker_compose'
 
   # This is disabled now because it doesn't work properly yet.
   # build_images $docker_compose_file $containers
@@ -517,7 +515,8 @@ os_oob_make() {
 
   check_cue_dev_expr_as_cue
 
-  docker_compose_file=$(make_docker_compose_yml substrate '#out.buildx_bake_docker_compose')
+  docker_compose_file=$(pick_docker_compose_yml substrate)
+  write_rendered_cue_dev_expr_as yaml $docker_compose_file -e '#out.buildx_bake_docker_compose'
   build_images $docker_compose_file
   built_image_refs=$(built_image_refs_from_metadata "$docker_compose_file.metadata.json")
 
@@ -587,13 +586,17 @@ case "$1" in
     ;;
   expr-dump)
     shift
-    print_cue_dev_expr
+    set_os_vars
+    set_live_edit_vars
+    set +x
+    print_rendered_cue_dev_expr_as cue -e "$@"
     ;;
   write-image-ids)
     shift
     set_os_vars
     set_live_edit_vars
-    write_image_ids_file
+    docker_compose_file=$(pick_docker_compose_yml substrate)
+    write_image_ids_file "$docker_compose_file.metadata.json"
     write_ready_file
     ;;
   reload|systemd-reload)
@@ -644,10 +647,11 @@ case "$1" in
     set_docker_vars
     check_cue_dev_expr_as_cue
  
-    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.buildx_bake_docker_compose')
+    DOCKER_COMPOSE_FILE=$(pick_docker_compose_yml substrate)
+    write_rendered_cue_dev_expr_as yaml $DOCKER_COMPOSE_FILE -e '#out.buildx_bake_docker_compose'
     sudo_buildx bake \
       --progress=tty \
-      -f DOCKER_COMPOSE_FILE "$@"
+      -f $DOCKER_COMPOSE_FILE "$@"
     ;;
   test)
     shift
@@ -663,7 +667,8 @@ case "$1" in
 
     set_docker_vars
     check_cue_dev_expr_as_cue
-    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
+    DOCKER_COMPOSE_FILE=$(pick_docker_compose_yml substrate)
+    write_rendered_cue_dev_expr_as yaml $DOCKER_COMPOSE_FILE -e '#out.docker_compose'
     export COMPOSE_PROFILES
     docker_compose $DOCKER_COMPOSE_FILE up \
       --always-recreate-deps \
@@ -685,21 +690,4 @@ case "$1" in
       -it \
       tests.$1
     ;;
-  docker-compose-up)
-    shift
-    set_docker_vars
-    DOCKER_SERVICES=$@
-    check_cue_dev_expr_as_cue
- 
-    DOCKER_COMPOSE_FILE=$(make_docker_compose_yml substrate '#out.docker_compose')
-    docker_compose $DOCKER_COMPOSE_FILE --profile daemons --profile default build
-    docker_compose $DOCKER_COMPOSE_FILE --profile resourcedirs build
-    docker_compose $DOCKER_COMPOSE_FILE --profile resourcedirs up
-    docker_compose $DOCKER_COMPOSE_FILE --profile daemons up \
-        --always-recreate-deps \
-        --remove-orphans \
-        --force-recreate \
-        $DOCKER_SERVICES
-    ;;
 esac
-
