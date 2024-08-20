@@ -165,12 +165,16 @@ print_rendered_cue_dev_expr_as() {
 
   detect_dev_cue_tag_args
 
-  set +x
+  set -x
   cue export \
     --out $format \
     $CUE_DEV_TAG_ARGS \
     $CUE_DEV_PACKAGE \
     "$@"
+  status=$?
+  if [ $status -ne 0 ]; then
+    exit $status
+  fi
   set -x
 }
 
@@ -481,7 +485,7 @@ systemd_reload() {
   sudo systemctl daemon-reload
 
   # show overrides
-  systemd-delta
+  systemd-delta --no-pager
 
   # HB it would be better to run this on the overlay dir *before* we copy it. how do we do that?
   /usr/libexec/podman/quadlet --dryrun

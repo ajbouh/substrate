@@ -14,6 +14,8 @@ tests: "airoboros-l2-13b-2.2": assister: {
   depends_on: "substrate": true
 }
 
+resourcedirs: "huggingface:model:TheBloke/airoboros-l2-13b-gpt4-2.0-AWQ:cd4642fa384abee24063063644a06bbb4119102a": _
+
 services: "airoboros-l2-13b-2.2": {
   instances: [string]: {
     image_tag: imagespecs["vllm"].image
@@ -25,9 +27,7 @@ services: "airoboros-l2-13b-2.2": {
     }
 
     resourcedirs: {
-      model: {
-        id: "huggingface:model:TheBloke/airoboros-l2-13b-gpt4-2.0-AWQ:cd4642fa384abee24063063644a06bbb4119102a"
-      }
+      model: "huggingface:model:TheBloke/airoboros-l2-13b-gpt4-2.0-AWQ:cd4642fa384abee24063063644a06bbb4119102a"
     }
 
     command: [

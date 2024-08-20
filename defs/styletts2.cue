@@ -9,12 +9,12 @@ imagespecs: "styletts2": {
   build: dockerfile: "images/styletts2/Dockerfile"
 }
 
+resourcedirs: "huggingface:model:yl4579/StyleTTS2-LibriTTS:d2ca3f14cf019cd2da653c74564e04f8e1f5c5ab": _
+
 services: "styletts2": {
   instances: [string]: {
     resourcedirs: {
-      model: {
-        id: "huggingface:model:yl4579/StyleTTS2-LibriTTS:d2ca3f14cf019cd2da653c74564e04f8e1f5c5ab"
-      }
+      model: "huggingface:model:yl4579/StyleTTS2-LibriTTS:d2ca3f14cf019cd2da653c74564e04f8e1f5c5ab"
     }
 
     environment: {

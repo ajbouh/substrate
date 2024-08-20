@@ -9,6 +9,8 @@ tests: "llama-3-8b-instruct": assister: {
   depends_on: "substrate": true
 }
 
+resourcedirs: "huggingface:model:unsloth/llama-3-8b-Instruct:67c72164837acade483ce50f80b7cc27e94c9668": _
+
 services: "llama-3-8b-instruct": {
   instances: [string]: {
     image_tag: imagespecs["vllm"].image
@@ -18,9 +20,7 @@ services: "llama-3-8b-instruct": {
     }
 
     resourcedirs: {
-      model: {
-        id: "huggingface:model:unsloth/llama-3-8b-Instruct:67c72164837acade483ce50f80b7cc27e94c9668"
-      }
+      model: "huggingface:model:unsloth/llama-3-8b-Instruct:67c72164837acade483ce50f80b7cc27e94c9668"
     }
 
     command: [

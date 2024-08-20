@@ -109,11 +109,8 @@ import (
 
     url_prefix ?: string
 
-    resourcedirs: [alias=string]: {
-      id: string
-      sha256: string
-      // todo include containerspec so it can be fetched at runtime
-    }
+    resourcedirs: [alias=string]: string
+    resourcedirs: {...}
 
     mounts: [
       ...{

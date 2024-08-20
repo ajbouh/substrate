@@ -1,8 +1,8 @@
 package defs
 
 import (
-  "encoding/hex"
   cryptosha256 "crypto/sha256"
+  "encoding/hex"
 
   service "github.com/ajbouh/substrate/defs/substrate:service"
   call "github.com/ajbouh/substrate/defs/substrate:call"
@@ -93,15 +93,22 @@ tests: [key=string]: [suitealias=string]: #TestDef
 
 imagespecs: [key=string] ?: imagespec.#ImageSpec
 
-// a way to reuse image names
-
 // for binding image_tags to image_ids
 // default to the ref itself in case image_ids is missing.
 image_ids ?: [ref=string]: string
 
 resourcedirs: [id=string]: {
   #containerspec: containerspec.#ContainerSpec
+  "id": string & id
+  sha256: hex.Encode(cryptosha256.Sum256(id))
   #imagespec: imagespec.#ImageSpec
+}
+
+// helper for resolving image tag to image id
+resolve_image_id: {
+  image_tag: string
+  if image_ids == _|_ { image: image_tag }
+  if image_ids != _|_ { image: image_ids[image_tag] }
 }
 
 services: [key=string]: service & {
@@ -110,25 +117,18 @@ services: [key=string]: service & {
   instances: [string]: {
     image_tag: string | *imagespecs[key].image
 
-    if image_ids == _|_ {
-      image: image_tag
-    }
+    image: (resolve_image_id & {"image_tag": image_tag}).image
 
-    if image_ids != _|_ {
-      image: image_ids[image_tag]
-    }
-
-    "resourcedirs": [alias=string]: {
-      id: string
-      sha256: hex.Encode(cryptosha256.Sum256(id))
-    }
+    // TODO we should be able to delete this now...
     // This is so we can turn services into JSON. It should really be done inside of
     // substrate.go during boot so that nesting will work properly.
     "environment": SUBSTRATE_URL_PREFIX: string | *"/\(key)"
   }
 }
 
-
 calls: [key=string]: [id=string]: call.#HTTPCall
 
-daemons: [key=string]: containerspec.#ContainerSpec
+daemons: [key=string]: containerspec.#ContainerSpec & {
+  image_tag: string | *imagespecs[key].image
+  image: (resolve_image_id & {"image_tag": image_tag}).image
+}

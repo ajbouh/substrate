@@ -27,6 +27,8 @@ imagespecs: "seamlessm4t": {
   build: dockerfile: "images/seamlessm4t/Dockerfile"
 }
 
+resourcedirs: "huggingface:model:facebook/seamless-m4t-v2-large:f9c8e845d2655d96ed6377dc48efbcfdd97c410f": _
+
 services: "seamlessm4t": {
   instances: [string]: {
     environment: {
@@ -37,9 +39,7 @@ services: "seamlessm4t": {
       LOG_LEVEL: "debug"
     }
     resourcedirs: {
-      model: {
-        id: "huggingface:model:facebook/seamless-m4t-v2-large:f9c8e845d2655d96ed6377dc48efbcfdd97c410f"
-      }
+      model: "huggingface:model:facebook/seamless-m4t-v2-large:f9c8e845d2655d96ed6377dc48efbcfdd97c410f"
     }
 
     command: [

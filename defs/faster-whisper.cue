@@ -31,6 +31,9 @@ imagespecs: "faster-whisper": {
   build: dockerfile: "images/faster-whisper/Dockerfile"
 }
 
+resourcedirs: "huggingface:model:Systran/faster-whisper-tiny:d90ca5fe260221311c53c58e660288d3deb8d356": _
+resourcedirs: "huggingface:model:Systran/faster-whisper-large-v3:edaa852ec7e145841d8ffdb056a99866b5f0a478": _
+
 services: "faster-whisper": {
   instances: [string]: {
     environment: {
@@ -41,15 +44,9 @@ services: "faster-whisper": {
     command: ["--port", environment.PORT]
 
     resourcedirs: {
-      tiny: {
-        id: "huggingface:model:Systran/faster-whisper-tiny:d90ca5fe260221311c53c58e660288d3deb8d356"
-      }
-      // "large-v2": {
-      //   id: "huggingface:model:Systran/faster-whisper-large-v2:f0fe81560cb8b68660e564f55dd99207059c092e"
-      // }
-      "large-v3": {
-        id: "huggingface:model:Systran/faster-whisper-large-v3:edaa852ec7e145841d8ffdb056a99866b5f0a478"
-      }
+      tiny: "huggingface:model:Systran/faster-whisper-tiny:d90ca5fe260221311c53c58e660288d3deb8d356"
+      // "large-v2": "huggingface:model:Systran/faster-whisper-large-v2:f0fe81560cb8b68660e564f55dd99207059c092e"
+      "large-v3": "huggingface:model:Systran/faster-whisper-large-v3:edaa852ec7e145841d8ffdb056a99866b5f0a478"
     }
 
     if system.#cuda_memory_total_mb > 0 {

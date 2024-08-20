@@ -9,6 +9,8 @@ tests: "llama-3-70b-instruct-awq": assister: {
   depends_on: "substrate": true
 }
 
+resourcedirs: "huggingface:model:casperhansen/llama-3-70b-instruct-awq:e578178ea893ca5e3326afd15da5aefa37e84d69": _
+
 services: "llama-3-70b-instruct-awq": {
   instances: [string]: {
     image_tag: imagespecs["vllm"].image
@@ -18,9 +20,7 @@ services: "llama-3-70b-instruct-awq": {
     }
 
     resourcedirs: {
-      model: {
-        id: "huggingface:model:casperhansen/llama-3-70b-instruct-awq:e578178ea893ca5e3326afd15da5aefa37e84d69"
-      }
+      model: "huggingface:model:casperhansen/llama-3-70b-instruct-awq:e578178ea893ca5e3326afd15da5aefa37e84d69"
     }
 
     command: [

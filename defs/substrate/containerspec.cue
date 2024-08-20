@@ -23,6 +23,8 @@ import (
 
   mounts ?: [...#Mount]
 
+  image_tag ?: string
+
   #systemd_units ?: [string]: systemd.#Unit
 }
 
@@ -40,7 +42,7 @@ import (
     [=~"\\.image$"]: quadlet.#Image
     [=~"\\.container$"]: quadlet.#Container
 
-    "\(#name).container" ?: Container: {
+    "\(#name).container": Container: {
       Pull: string | *"never"
       Image: #containerspec.image
       ContainerName: #name

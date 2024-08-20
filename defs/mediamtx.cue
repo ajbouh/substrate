@@ -11,7 +11,7 @@ imagespecs: "mediamtx": {
 
 daemons: "mediamtx": {
   environment: {
-    PORT: string
+    // PORT: string
     // Set MTX_WEBRTCADDITIONALHOSTS to additional IP addresses
     // MTX_WEBRTCADDITIONALHOSTS: string
   }

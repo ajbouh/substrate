@@ -9,6 +9,8 @@ tests: "phi-2": assister: {
   depends_on: "substrate": true
 }
 
+resourcedirs: "huggingface:model:microsoft/phi-2:b10c3eba545ad279e7208ee3a5d644566f001670": _
+
 services: "phi-2": {
   instances: [string]: {
     image_tag: imagespecs["vllm"].image
@@ -18,9 +20,7 @@ services: "phi-2": {
     }
 
     resourcedirs: {
-      model: {
-        id: "huggingface:model:microsoft/phi-2:b10c3eba545ad279e7208ee3a5d644566f001670"
-      }
+      model: "huggingface:model:microsoft/phi-2:b10c3eba545ad279e7208ee3a5d644566f001670"
     }
 
     command: [

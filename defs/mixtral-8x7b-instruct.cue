@@ -9,6 +9,8 @@ tests: "mixtral-8x7b-instruct": assister: {
   depends_on: "substrate": true
 }
 
+resourcedirs: "huggingface:model:casperhansen/mixtral-instruct-awq:0a898130957afe22021bbaf807f50f6bbce88201": _
+
 services: "mixtral-8x7b-instruct": {
   instances: [string]: {
     image_tag: imagespecs["vllm"].image
@@ -18,9 +20,7 @@ services: "mixtral-8x7b-instruct": {
     }
 
     resourcedirs: {
-      model: {
-        id: "huggingface:model:casperhansen/mixtral-instruct-awq:0a898130957afe22021bbaf807f50f6bbce88201"
-      }
+      model: "huggingface:model:casperhansen/mixtral-instruct-awq:0a898130957afe22021bbaf807f50f6bbce88201"
     }
 
     command: [
