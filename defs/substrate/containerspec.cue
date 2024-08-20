@@ -22,6 +22,8 @@ import (
   environment: [string]: string
 
   mounts ?: [...#Mount]
+
+  #systemd_units ?: [string]: systemd.#Unit
 }
 
 #SystemdUnits: {

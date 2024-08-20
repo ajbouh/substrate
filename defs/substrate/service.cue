@@ -81,7 +81,13 @@ import (
   instances: [string]: {
     parameters: [string]: #ServiceDefSpawnParameter
     parameters_digest: string | *"unknown"
-    parameters_digest: hex.Encode(cryptosha256.Sum256(json.Marshal(parameters)))
+    _parameters_json: json.Marshal(parameters)
+    if _parameters_json == _|_ {
+      parameters_digest: "invalid"
+    }
+    if _parameters_json != _|_ {
+      parameters_digest: hex.Encode(cryptosha256.Sum256(_parameters_json))
+    }
   
     ephemeral ?: bool | *false
     privileged ?: bool | *false
