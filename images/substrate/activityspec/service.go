@@ -92,11 +92,12 @@ type ServiceInstanceDefSpawnMount struct {
 	Mode        string `json:"mode,omitempty"`
 }
 
-type ResourceDirDef struct {
-	ID     string `json:"id"`
-	SHA256 string `json:"sha256"`
+type ResourceDirDef string
 
-	// TODO enough information to fetch at runtime should be included as fields here...
+func (s ResourceDirDef) SHA256() string {
+	d := sha256.New()
+	d.Write([]byte(s))
+	return hex.EncodeToString(d.Sum(nil))
 }
 
 type ServiceSpawnParameterRequest string

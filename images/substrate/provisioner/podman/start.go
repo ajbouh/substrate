@@ -87,7 +87,7 @@ func (p *P) dumpLogs(ctx context.Context, prefix, containerID string) error {
 }
 
 func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error) {
-	rdMainPath := path.Join(p.hostResourceDirsRoot, rd.SHA256)
+	rdMainPath := path.Join(p.hostResourceDirsRoot, rd.SHA256())
 	if _, err := os.Stat(rdMainPath); err == nil {
 		return rdMainPath, nil
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -96,7 +96,7 @@ func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error) {
 
 	// Use existing from path, otherwise fallback to main
 	for _, rdRoot := range p.hostResourceDirsPath {
-		rdPath := path.Join(rdRoot, rd.SHA256)
+		rdPath := path.Join(rdRoot, rd.SHA256())
 		if _, err := os.Stat(rdPath); err == nil {
 			return rdPath, nil
 		} else if !errors.Is(err, os.ErrNotExist) {
