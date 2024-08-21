@@ -3,10 +3,16 @@
 	import { CommandPanel, ReflectCommands } from '$lib';
 
 	let toolCall = new ReflectCommands('https://substrate.home.arpa/tool-call/commands');
-	async function suggest(input: string, commands: DefIndex): Promise<Call[]> {
-		if (!input) return [];
+	async function suggest(input: string, commands: DefIndex) {
+		if (!input) {
+			return Object.entries(commands).map(([key, def]) => [key, def, {}]);
+		}
 		const r = await toolCall.run('suggest', { input, commands });
-		return r.choices;
+		return r.choices.flatMap((call: Call) => {
+			const def = commands[call.command];
+			if (!def) return [];
+			return [[call.command, def, call.parameters]];
+		});
 	}
 
 	let commands = {
@@ -100,7 +106,7 @@
 	<h1>Welcome to your library project</h1>
 
 	<!-- <command-panel bind:this={panel}></command-panel> -->
-	<CommandPanel {commands} {suggest} open />
+	<CommandPanel {commands} />
 </section>
 
 <style>

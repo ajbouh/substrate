@@ -9,16 +9,34 @@
   <script src="./webrtc/localmedia.js"></script>
   <link rel="stylesheet" href="./ui/session.css" />
 </head>
-<body class="flex flex-row bg-gray-900 text-white antialiased">
+<body>
+  <div id="body" class="flex flex-row bg-gray-900 text-white antialiased"></div>
   <script type="module">
 
-import {ReflectCommands} from "./ui/substrate-r0.js";
+import {ReflectCommands} from './ui/command-panel.js';
 import {Session} from "./ui/session.js";
 import {Topbar} from "./ui/topbar.js";
 import {decodeMessage} from "./ui/bridge.js";
 import {Session as SFU} from "./webrtc/session.js";
 
-window.substrate.r0.commands = new ReflectCommands();
+let toolCall = new ReflectCommands('https://substrate.home.arpa/tool-call/commands');
+async function suggest(input, commands) {
+  if (!input) {
+    return Object.entries(commands).map(([key, def]) => [key, def, {}]);
+  }
+  const r = await toolCall.run('suggest', { input, commands });
+  return r.choices.flatMap((call) => {
+    const def = commands[call.command];
+    if (!def) return [];
+    return [[call.command, def, call.parameters]];
+  });
+}
+
+const commands = new ReflectCommands(window.location.href);
+window.substrate = {r0: {commands}};
+const panel = document.querySelector("command-panel");
+panel.commands = commands;
+panel.suggest = suggest;
 
 let webSocketURL = (() => {
   let u = new URL(`ws://${location.host}${location.pathname}`);
@@ -95,7 +113,7 @@ dataWS.onmessage = e => {
   }, 0);
 }
 
-m.mount(document.body, {
+m.mount(document.querySelector("#body"), {
   view: () => [
     m("div", {"class":"flex flex-col h-screen grow"},
       m(Topbar, {localMedia: initLocalMedia(), shareScreen, activeSession: viewModel.activeSession}),
@@ -105,7 +123,7 @@ m.mount(document.body, {
     ),
   ],
 });
-
   </script>
+  <command-panel></command-panel>
 </body>
 </html>
