@@ -6,7 +6,8 @@ HERE=$(cd $(dirname $0); pwd)
 
 : ${NAMESPACE:=substrate-nobody}
 
-export CUE_EXPERIMENT=evalv3
+# TODO Try EvalV3 again in the next cuelang release after v0.10.0
+# export CUE_EXPERIMENT=evalv3
 CUE_VERSION="0.10.0"
 CUE_PREFIX=cue_v${CUE_VERSION}_
 CUE_NATIVE_SUFFIX=$(uname -s | tr "[:upper:]" "[:lower:]")_$(uname -m)
