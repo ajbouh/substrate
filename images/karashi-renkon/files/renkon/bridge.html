@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"> 
+  </head>
+  <body>
+    <div id="renkon">
+      <link rel="stylesheet" href="./bridge/session.css" />
+      <script type="reactive">
+        const bridgeModule = import("./bridge/bridge.js");
+        const preactModule = import('https://unpkg.com/htm/preact/standalone.module.js');
+        const html = preactModule.html;
+        const render = preactModule.render;
+        const entries = document.querySelector("#entries");
+
+	window.top.postMessage({event: "appReady"});
+
+	const sessionSpec = (() => document.querySelector("#sessionName").textContent)(Events.click("setSessionButton"));
+
+        const socket = Behaviors.collect(undefined, Events.change(sessionSpec), (old, sessionSpec) => {
+          if (old) {
+            old.close();
+          }
+          const w = new bridgeModule.BridgeConnection(sessionSpec);
+          w.setupDataWS();
+          return w;
+        });
+
+        const bridge = ((w) => {
+          console.log("bridge", w);
+          if (w) {
+            return w.getBridge();
+          };
+        })(Events.change(socket));
+
+        const deviceChange = Events.receiver();
+        const muteButton = Events.click("mic-mute");
+        const systemAudioButton = Events.click("system-audio");
+
+        const audioEnabled = Behaviors.collect(true, muteButton, (a, b) => !a);
+
+        const localMedia = ((bridgeModule, sessionSpec) => {
+          return bridgeModule.initLocalMedia(sessionSpec).then((media) => {
+            media.ondevicechange = () => Events.send(deviceChange, media.audioDevices);
+            return media;
+          });
+        })(bridgeModule, sessionSpec, Events.click("logo"));
+
+        const formatTime = bridgeModule.formatTime;
+        const ev = Events.next(bridge());
+
+        const transcript = ev.value.entries.map(entryMapper);
+
+        const newEntries = Behaviors.collect({length: 0, list: []}, ev,
+          (current, ev) => {
+            const entries = ev.value?.entries;
+            const length = entries?.length || 0;
+            if (length <= current.length) {return current;}
+            return {length, list: entries.slice(current.length)};
+        });
+
+        const messenger = ((newEntries) => {
+            const list = newEntries.list;
+            if (!list || list.length !== 1) {return;}
+            const words = list[0].words.map(w => w.word);
+            console.log("sending newEntries", words.join(" "));
+            Events.message("renkonMessage", {sentence: words.join(" ")});
+        })(newEntries);
+
+        const entryMapper = ((html, formatTime) => (attrs) => {return html`
+          <div class="entry" data-start="${attrs.span.start}" data-end="${attrs.span.end}">
+            <div class="left">
+              <div class="time">${formatTime(attrs.start)} - ${formatTime(attrs.end)}</div>
+            </div>
+            <div class="line" style="background-color: ${attrs.lineColor}">
+              <div class="right ${attrs.isAssistant ? 'assistant' : ''}">
+                <div class="text text-teal-500 space-x-4">
+                  ${attrs.speakers.length === 0 ? 'unknown' : attrs.speakers.map(s => html`<span class="text-${s.color} data-speaker-id="${s.id}>${s.name}</span>`)}
+                </div>
+              <div class="text ${!attrs.final ? 'text-gray-400' : 'test-slate-300'}" lang="${attrs.lang}">
+                ${attrs.words.map(w => {return html`<span class="" data-start="${w.start}" data-end="${w.end}">${w.word}</span>`})}
+              </div>
+                ${attrs.translations.map(translation => {
+                  return html`
+                    <div class="text text-cyan-500" lang="${translation.lang}">${translation.text}</div>`;
+                })}
+              </div>
+            </div>
+          </div>`})(html, formatTime);
+
+        render(transcript, entries);
+
+        const scroll = (() => {
+          const elt = document.getElementById("entries");
+          if (elt && elt.lastChild) {
+            elt.lastChild.scrollIntoView({ block: "end", behavior: 'smooth' })
+          }
+        })(transcript);
+
+        const audioChange = ((localMedia) => (evt) => localMedia.setAudioSource(evt.target.value))(localMedia);
+
+        const audioSelect = ((localMedia, deviceChange) => {
+          return html`<select onchange=${audioChange} name="mic" id="mic" class="py-2 px-3 pr-9 border border-gray-600 rounded-md text-md focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-gray-400">
+            ${deviceChange.map(device => html`<option value="${device.deviceId}">${device.label}</option>`)}
+          </select>`;
+        })(localMedia, deviceChange);
+
+        const muteChange = ((localMedia, audioEnabled) => {
+          localMedia.audioEnabled = audioEnabled;
+          document.querySelector("#mic-mute").textContent = audioEnabled ? "Mute" : "Unmute";
+        })(localMedia, audioEnabled);
+
+        const systemAudioChange = ((bridgeModule, localMedia, _button) => {
+          bridgeModule.shareScreen();
+        })(bridgeModule, localMedia, systemAudioButton);
+
+        render(audioSelect, document.querySelector("#mic-container"));
+
+      </script>
+      <div class="bg-gray-900 text-white antialiased flex flex-row" style="height: 100%">
+        <div id="sidebar" class="w-64 h-screen border-r-2 border-gray-800">
+          <div class="flex flex-wrap align-center px-6 py-4">
+            <h1 id="logo" class="py-1 text-xl font-bold grow">bridge</h1>
+          </div>
+	  <div id="sessionNameHolder">
+	    <div contentEditable id="sessionName">https://substrate.home.arpa/bridge2;sessions=sp-01J3RNVME3RQ0PK06XYCCJJZ9P/sessions/cqi40g0ri6qs73d5i5e0</div>
+	    <button id="setSessionButton">Set</button>
+	  </div>
+          <div id="sessions"></div>
+        </div>
+        <div class="flex flex-col grow">
+          <div id="topbar" class="flex flex-wrap px-6 py-4">
+            <div class="py-1 text-xl font-bold">2024/7/17</div>
+            <div class="grow">&nbsp;</div>
+            <div id="mic-controls" class="flex space-x-2">
+              <div id="mic-container"></div>
+              <button name="mic-mute" id="mic-mute" class="p-2 border border-gray-600 rounded-md text-md focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-gray-400">Mute</button>
+              <button id="system-audio" class="p-2 border border-gray-600 rounded-md text-md focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-gray-400">Send System Audio</button>
+            </div>
+          </div>
+          <div id="entries" style="height:100%; overflow: scroll"></div>
+        </div>
+      </div>
+    </div>
+    <script type="module">
+      import("./renkon.js").then((mod) => mod.view());
+    </script>
+  </body>
+</html>
