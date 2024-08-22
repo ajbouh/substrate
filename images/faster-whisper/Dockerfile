@@ -11,7 +11,8 @@ WORKDIR /app
 
 # Install the dependencies
 COPY images/faster-whisper/requirements.txt .
-RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+  pip install -r requirements.txt
 
 # Copy the source code to the container
 COPY images/faster-whisper/. .

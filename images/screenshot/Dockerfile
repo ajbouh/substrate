@@ -2,7 +2,8 @@ FROM docker.io/library/golang:1.22 AS build
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/screenshot
 ADD images/screenshot/go.mod images/screenshot/go.sum ./
-RUN --mount=type=cache,target=/go/pkg/mod go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+  go mod download
 
 COPY images/screenshot/. .
 RUN CGO_ENABLED=0 GOOS=linux go build \

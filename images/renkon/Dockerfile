@@ -13,11 +13,13 @@ FROM docker.io/library/golang:1.22 AS go-build
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
 COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+  go mod download
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/renkon/
 COPY images/renkon/go.mod images/renkon/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+  go mod download
 
 WORKDIR /go/src/
 COPY pkg/toolkit/. github.com/ajbouh/substrate/pkg/toolkit/
