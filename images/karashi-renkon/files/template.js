@@ -1,4 +1,4 @@
-const useChromestage = !!new URL(window.location.href).searchParams.get("useChromestage")
+const useChromestage = !new URL(window.location.href).searchParams.get("noChromestage")
 
 let ID = 0;
 
