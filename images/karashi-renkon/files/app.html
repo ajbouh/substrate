@@ -20,6 +20,53 @@
 
       window._production = ".";
 
+      export class StaticCommands {
+        constructor(commands) {
+            const index = {},
+            runners = {};
+            for (const [
+                name,
+                { description, parameters, returns, run },
+            ] of Object.entries(commands)) {
+                runners[name] = (parameters) => run(parameters);
+                index[name] = { description, parameters, returns };
+            }
+            this.index = Promise.resolve(index);
+            this.runners = runners;
+        }
+        async run(command, parameters) {
+            return await this.runners[command](parameters);
+        }
+      }
+
+
+      window.substrate = {
+	  r0: {
+              commands: {
+		  index: Promise.resolve({}),
+		  async run(command, parameters) { throw new Error("No commands available") },
+              },
+              setCommands(commands) {
+		  this.commands = new StaticCommands(commands)
+              },
+	  }
+      };
+
+      window.substrate.r0.setCommands({
+          invoke: {
+            description: "invoke a karashi-renkon command",
+            parameters: {
+                command: {
+                    type: "string",
+                    description: "command name"
+                }
+            },
+            run: (obj) => {
+                console.log(obj)
+            },
+        },
+    })
+
       window.onload = makeMain("boards.p", {
           autoSleep: false,
           tps: 2,
