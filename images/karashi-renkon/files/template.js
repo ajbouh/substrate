@@ -2,6 +2,30 @@ const useChromestage = !new URL(window.location.href).searchParams.get("noChrome
 
 let ID = 0;
 
+async function fetchChromestageDebuggerURL(chromestageURL) {
+    const r = await fetch(chromestageURL + "/json/version/")
+    const {
+        webSocketDebuggerUrl,
+    } = await r.json()
+
+    const ws = new URL(webSocketDebuggerUrl)
+    ws.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    ws.hostname = window.location.hostname
+    ws.port = window.location.port
+    console.log({websocketURL: ws.toString()})
+
+    const devtools = new URL(webSocketDebuggerUrl)
+    devtools.protocol = window.location.protocol
+    devtools.hostname = window.location.hostname
+    devtools.port = window.location.port
+    devtools.pathname = '/' + devtools.pathname.split('/')[1] + "/devtools/inspector.html"
+    devtools.searchParams.append(ws.protocol === 'wss:' ? 'wss' : 'ws', ws.toString().slice(ws.protocol.length + 2))
+
+    const o = {ws: ws.toString(), devtools: devtools.toString()}
+    console.log("dev tools:", o.devtools)
+    return o.devtools
+}
+
 function defineChromestage({width, height}) {
     let id = ID++
     const chromestageURL = new URL(`/chromestage;id=${id};w=${width};h=${height}`, window.location.href).toString()
@@ -10,6 +34,8 @@ function defineChromestage({width, height}) {
     const chromstageCommands = chromestageURL + "/commands"
     const chromstageVNC = chromestageURL + "/vnc/"
     const chromestageExports = chromestageURL + "/exports"
+
+    fetchChromestageDebuggerURL(chromestageURL)
 
     const iframe = document.createElement('iframe')
     iframe.width = width

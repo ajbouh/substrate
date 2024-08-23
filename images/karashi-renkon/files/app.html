@@ -41,15 +41,15 @@
 
 
       window.substrate = {
-	  r0: {
+          r0: {
               commands: {
-		  index: Promise.resolve({}),
-		  async run(command, parameters) { throw new Error("No commands available") },
+                  index: Promise.resolve({}),
+                  async run(command, parameters) { throw new Error("No commands available") },
               },
               setCommands(commands) {
-		  this.commands = new StaticCommands(commands)
+                  this.commands = new StaticCommands(commands)
               },
-	  }
+          }
       };
 
       window.substrate.r0.setCommands({
@@ -63,7 +63,10 @@
             },
             run: (obj) => {
                 console.log(obj)
-            },
+                if (window.pasteUpView) {
+                    window.pastetUpView.call("PasteUpView", "invoke", obj);
+                }
+           },
         },
     })
 

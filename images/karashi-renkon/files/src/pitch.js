@@ -373,6 +373,7 @@ class TransformView {
 
         window.topView.requestInitialization(this, "TransformView", "setup");
         console.log("TransformView.init");
+        window.transformView = this;
     }
 
     setup() {
@@ -2549,6 +2550,7 @@ class PasteUpView {
         this.setup();
 
         console.log("PasteUpView.init");
+        window.pasteUpView = this;
     }
 
     setup() {
@@ -3220,6 +3222,32 @@ class PasteUpView {
         } else if (data.action === "copyObject") {
         } else if (data.action === "moveObjectEdges") {
         } else if (data.action === "bringToFront") {
+        }
+    }
+
+    invoke(obj) {
+        let command = obj.command;
+        let params = {...obj};
+        delete params.command;
+        console.log("invoke", obj);
+        let payload = {
+            x: 10000,
+            y: 10000,
+            width: 800,
+            height: 600,
+            viewId: this.viewId,
+            type: "custom",
+            url: null,
+            appInfo: null,
+            ...params
+        };
+        
+        if (command === "open") {
+            this.publish(this.parentNode.model.id, "newIFrame", payload);
+        } else if (command === "trashObject") {
+        } else if (command === "copyObject") {
+        } else if (command === "moveObjectEdges") {
+        } else if (command === "bringToFront") {
         }
     }
 

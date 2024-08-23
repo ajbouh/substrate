@@ -1,0 +1,40 @@
+<!DOCTYPE HTML>
+<html lang="en" style="height: 100%">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+    <script type="module">
+      export class ReflectCommands {
+	  constructor(url) {
+	      this.url = url || window.location.href;
+	  }
+
+	  get index() {
+	      return fetch(this.url, { method: "REFLECT" }).then((resp) => resp.json());
+	  }
+
+	  async run(command, parameters) {
+	      return await fetch(this.url, {
+		  method: "POST",
+		  headers: { "Content-Type": "application/json" },
+		  body: JSON.stringify({ command, parameters }),
+	      }).then((resp) => resp.json());
+	  }
+      }
+
+      const rc = new ReflectCommands("https://substrate.home.arpa/chromestage;id=0;w=800;h=600/commands")
+
+      rc.run("page:invoke", {
+	  command: "open",
+	  type: "custom",
+	  x: 10000,
+	  y: 10000,
+	  width: 800,
+	  height: 600,
+	  url: null
+      });
+    </script>
+</head>
+<body style="margin: 0px; touch-action: manipulation">
+    <div id="croquet-root" style="width: 100%; height: 100%"></div>
+</body></html>
