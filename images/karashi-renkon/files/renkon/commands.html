@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"> 
+  </head>
+  <body>
+   <div id="renkon">
+      <script type="reactive">
+        const preactModule = import('./commands/preact.standalone.module.js');
+        const html = preactModule.html;
+        const render = preactModule.render;
+        const output = document.querySelector("#output");
+
+        const commands = import("./commands/commands.js");
+        const suggest = import("./commands/suggest.js");
+
+        const commandList = new commands.StaticCommands({
+          "newIFrame": {
+            "description": "open a frame",
+              "parameters": {
+                  "x": {type: "number", description: "x coordinate of the new window"},
+                  "y": {type: "number", description: "y coordinate of the new window"},
+              },
+            "returns": {
+              "ok": {type: "boolean", description: "true if the frame was opened successfully"},
+            },
+          },
+          "moveFrame": {
+            "description": "move a frame by some amount",
+            "parameters": {
+              "name": {type: "string", description: "name of the frame to move"},
+              "x": {type: "number", description: "amount to move horizonally"},
+              "y": {type: "number", description: "amount to move vertically"},
+            },
+            "returns": {
+              "ok": {type: "boolean"},
+            },
+          },
+          //"delete a frame named something",
+          //"bring a frame named something to front".
+        });
+
+        const suggester = new suggest.Suggester(
+          "https://substrate.home.arpa/tool-call/commands",
+          commandList,
+        );
+
+        window.top.postMessage({event: "appReady"});
+
+        const suggestion = suggester.suggest(command);
+
+        ((suggestion) => {
+            const choice = suggestion[0];
+            console.log("choice chocie", choice);
+            if (!choice) {return;}
+            Events.message("renkonMessage", {command: choice});
+        })(suggestion);
+
+        const responses = Behaviors.collect([], suggestion, (a, b) => {
+            console.log("resp", b);
+            if (!Array.isArray(b) || b.length === 0) {return a;}
+            return [...a, `${JSON.stringify(b)}`];
+        });
+
+        document.querySelector("#output").textContent = Events.change(responses);
+
+        const command = Events.collect(undefined, Events.or(networkRequest, enter), (_old, request) => request);
+          
+        const networkRequest = Events.listener(window, "message", (evt) => {
+            if (!evt.data?.event?.startsWith("renkon:")) {return;}
+            console.log("command interpreter:", evt);
+            return evt.data.data;
+        });
+
+        const enter = Events.listener(document.querySelector("#input"), "keydown", (evt) => {
+            if (evt.key === "Enter") {
+              evt.preventDefault();
+              evt.stopPropagation();
+              console.log("enter");
+                return evt.target.textContent;
+            }
+        });
+      </script>
+      <div id="words" style="height:0px;"></div>
+      <div style="height: 20px;"></div>
+      <div id="out"></div>
+      <div id="output"></div>
+      <div id="inputRow">
+        <div id="input" contenteditable></div>
+        <button id="abort">X</button>
+      </div>
+      <style>
+        #inputRow {
+            display:flex;
+            align-items: center;
+        }
+        #input {
+            border: 1px solid #aaa;
+            border-radius: 24px;
+            background-color: #eee;
+            width:600px;
+            min-height: 48px;
+            height: fit-content;
+            padding: 10px;
+            padding-right: 40px;
+            margin-top: 20px;
+        }
+
+        #abort {
+            border-radius: 50%;
+            border: 1px outset #888;
+            width: 24px;
+            height: 24px;
+            position: relative;
+            left: -36px;
+        }
+
+        #output {
+            border: 1px solid #eee;
+            border-radius: 24px;
+            width: 600px;
+            min-height: 48px;
+            height: fit-content;
+            padding: 10px;
+            padding-right: 40px;
+        }
+
+        #out {
+            width: 600px;
+            height: fit-content;
+            padding-top: 10px;
+        }
+
+        #responses:empty {
+          min-height: 0px;
+        }
+
+        .log {
+            border: 1px solid #eee;
+            border-radius: 24px;
+            background-color:#e8e8e8;
+            width: 600px;
+            min-height: 48px;
+            height: fit-content;
+            padding: 10px;
+            padding-right: 40px;
+            margin-top: 5px;
+        }
+      </style>
+   </div>
+   <script type="module">
+     import("./renkon.js").then((mod) => mod.view());
+    </script>
+  </body>
+</html>
