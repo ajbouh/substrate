@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { DefIndex, Call } from '$lib/defs.ts';
-	import { CommandPanel, ReflectCommands } from '$lib';
+	import { CommandPanel, ReflectCommands, IFrameCommands } from '$lib';
 
 	let toolCall = new ReflectCommands('https://substrate.home.arpa/tool-call/commands');
 	async function suggest(input: string, commands: DefIndex) {
@@ -15,97 +15,39 @@
 		});
 	}
 
-	let commands = {
-		async run(name: string, params: Record<string, any>) {
-			console.log('Running command', name, params);
-			await new Promise((resolve) => setTimeout(resolve, 1000));
-			return 'ok';
-		},
-		index: Promise.resolve({
-			'assistant:add': {
-				description: 'Add an assistant to the session',
-				parameters: {
-					name: { description: "The assistant's name", name: 'name', type: 'string' },
-					prompt_template: {
-						description: 'Template for assistant prompts',
-						name: 'prompt_template',
-						type: 'string'
-					}
-				},
-				returns: {
-					success: {
-						description: 'True if the assistant was added successfully',
-						name: 'success',
-						type: 'boolean'
-					}
-				}
-			},
-			'assistant:remove': {
-				description: 'Remove an assistant from the session',
-				parameters: {
-					name: { description: "The assistant's name", name: 'name', type: 'string' }
-				},
-				returns: {
-					success: {
-						description: 'True if the assistant was removed successfully',
-						name: 'success',
-						type: 'boolean'
-					}
-				}
-			},
-			'workingset:add_url': {
-				description: 'Add a URL to the working set',
-				parameters: {
-					key: {
-						description:
-							'Unique key for the URL. Lower case letters, numbers, and underscores allowed.',
-						name: 'key',
-						type: 'string'
-					},
-					url: {
-						description:
-							'URL to add to working set. Should be fully qualified with the URL scheme.',
-						name: 'url',
-						type: 'string'
-					}
-				},
-				returns: {
-					error: {
-						description: 'Description of the error when success is false',
-						name: 'error',
-						type: 'string'
-					},
-					success: {
-						description: 'True if the URL was added successfully',
-						name: 'success',
-						type: 'boolean'
-					}
-				}
-			},
-			'workingset:list': {
-				description: 'List the URLs in the working set',
-				returns: {
-					urls: {
-						description: 'List of URLs in the working set',
-						name: 'urls',
-						type: 'map[string]string'
-					}
-				}
-			}
-		})
-	};
-	let panel;
+	let commands = $state();
+	let iframe;
+	let iframeReady = $state(false);
 	$effect(() => {
-		if (panel) {
-			panel.commands = commands;
+		if (!iframe || iframeReady) {
+			return;
+		}
+		iframeReady = true;
+		iframe.addEventListener('load', () => {
+			// TODO when loading a new page, we should reset the commands
+			commands = new IFrameCommands(expectedOrigin, iframe);
+		});
+	});
+	let location = $state('');
+	let expectedOrigin = $derived.by(() => {
+		try {
+			const url = new URL(location);
+			return url.origin;
+		} catch (e) {
+			return '';
 		}
 	});
 </script>
 
 <section>
-	<h1>Welcome to your library project</h1>
+	<input type="text" bind:value={location} /><button
+		disabled={!iframeReady}
+		onclick={() => {
+			iframe.src = location;
+		}}>Go</button
+	>
+	<iframe bind:this={iframe} width="100%" height="400"></iframe>
 
-	<!-- <command-panel bind:this={panel}></command-panel> -->
 	<CommandPanel {commands} />
 </section>
 
