@@ -12,41 +12,30 @@ import (
 	"tractor.dev/toolkit-go/engine/daemon"
 )
 
+type HourlyReturns struct {
+	Forecast map[string]any `json:"forecast" desc:"The forecast for the next 24 hours."`
+}
+
 func main() {
 	prefix := os.Getenv("SUBSTRATE_URL_PREFIX")
 	engine.Run(
 		Main{},
 		&httpframework.Framework{},
 		&httpframework.StripPrefix{Prefix: prefix},
-		&commands.HTTPHandler{
+		&commands.HTTPSourceHandler{
 			Debug: true,
 			Route: "/",
 		},
 		&commands.Aggregate{},
-		commands.NewStaticSource[any](
-			[]commands.Entry{{
-				Name: "hourly",
-				Def: commands.Def{
-					Description: "Get the weather forecast for next 24 hours in a given ZIP code.",
-					Parameters: commands.FieldDefs{
-						"zip_code": {
-							Name:        "zip_code",
-							Type:        "string",
-							Description: "The 5-digit US ZIP code.",
-						},
-					},
-					Returns: commands.FieldDefs{
-						"forecast": {
-							Name: "forecast",
-							// Type:        "string",
-							Description: "The forecast for the next 24 hours.",
-						},
-					},
-				},
-				Run: func(ctx context.Context, p commands.Fields) (commands.Fields, error) {
-					// zip := p.String("zip")
-					return commands.Fields{
-						"forecast": map[string]any{
+		commands.List(
+			commands.Command(
+				"hourly",
+				"Get the weather forecast for next 24 hours in a given ZIP code.",
+				func(ctx context.Context, t *struct{}, args struct {
+					ZipCode string `json:"zip_code" desc:"The 5-digit US ZIP code."`
+				}) (HourlyReturns, error) {
+					return HourlyReturns{
+						Forecast: map[string]any{
 							"current": map[string]any{
 								"time":           "2022-01-01T15:00",
 								"temperature_2m": 2.4,
@@ -60,8 +49,7 @@ func main() {
 							},
 						},
 					}, nil
-				},
-			}},
+				}),
 		),
 	)
 }

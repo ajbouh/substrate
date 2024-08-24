@@ -14,6 +14,7 @@ services: "jupyverse": {
     preview: "index.ipynb"
   }
 
+  // TODO make it a command
   activities: {
     open: {
       activity: "user:open"

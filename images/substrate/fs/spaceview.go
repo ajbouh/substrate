@@ -67,6 +67,21 @@ func ParseViewRequest(v string, forceReadOnly bool) *SpaceViewRequest {
 	}
 }
 
+func (r *SpaceViewRequest) Spec() string {
+	suffix := ""
+	if r.ReadOnly {
+		suffix = ":ro"
+	}
+	if r.SpaceBaseRef != nil {
+		return spaceViewForkPrefix + *r.SpaceBaseRef + suffix
+	}
+	if r.SpaceAlias != nil {
+		return spaceViewAliasPrefix + *r.SpaceAlias + suffix
+	}
+
+	return r.SpaceID + suffix
+}
+
 func (l *Layout) ResolveSpaceView(ctx context.Context, s string, forceReadOnly bool, ownerIfCreation string) (*activityspec.SpaceView, error) {
 	var err error
 

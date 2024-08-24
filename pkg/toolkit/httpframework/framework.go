@@ -73,7 +73,7 @@ func (f *Framework) Serve(ctx context.Context) {
 func (f *Framework) InitializeDaemon() error {
 	f.mux = http.NewServeMux()
 	for _, c := range f.Contributors {
-		f.Log.Info("adding handlers", "contributor", c)
+		f.Log.Info("adding handlers", "contributortype", fmt.Sprintf("%T", c), "contributor", c)
 		c.ContributeHTTP(f.mux)
 	}
 

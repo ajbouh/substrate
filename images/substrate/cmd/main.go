@@ -30,8 +30,10 @@ import (
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
 	podmanprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/podman"
 	"github.com/ajbouh/substrate/pkg/cueloader"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/exports"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
+	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
 )
@@ -87,6 +89,7 @@ func main() {
 
 	engine.Run(
 		&service.Service{
+			BaseURL:       origin,
 			ExportsRoute:  "/substrate/v1/exports",
 			CommandsRoute: "/substrate",
 		},
@@ -131,7 +134,7 @@ func main() {
 					return true
 				},
 				// Enable Debugging for testing, consider disabling in production
-				Debug: true,
+				// Debug: true,
 			},
 		},
 
@@ -159,8 +162,33 @@ func main() {
 			InternalSubstrateOrigin: internalSubstrateOrigin,
 		},
 
-		&notify.Slot[DefSetExports]{},
-		&exports.LoaderSource[*DefSetExports]{},
+		&notify.Slot[DefSetCommands]{},
+		&commands.LoaderDelegate[*DefSetCommands]{},
+		notify.On(func(ctx context.Context,
+			e *defset.DefSet,
+			t *struct {
+				Slot           *notify.Slot[DefSetCommands]
+				ExportsChanged []notify.Notifier[exports.Changed]
+				HTTPClient     httpframework.HTTPClient
+			}) {
+			commands := DefSetCommands{
+				HTTPClient: t.HTTPClient,
+			}
+			err := e.DecodeLookupPath(cue.MakePath(cue.Str("commands")), &commands.DefsMap)
+			if err != nil {
+				log.Printf("err on update: %s", fmtErr(err))
+				t.Slot.StoreWithContext(ctx, nil)
+				return
+			}
+
+			slog.Info("commands from defset", "commands", commands)
+			t.Slot.StoreWithContext(ctx, &commands)
+			slog.Info("stored commands from defset")
+
+			// commands changed, so exports changed.
+			notify.Notify(ctx, t.ExportsChanged, exports.Changed{})
+		}),
+
 		&notify.Slot[provisioner.InstancesRoot]{},
 		&exports.LoaderSource[*provisioner.InstancesRoot]{},
 		notify.On(func(
@@ -226,20 +254,6 @@ func main() {
 		notify.On(func(ctx context.Context, e *defset.DefSet, provisionerCache *provisioner.Cache) {
 			provisionerCache.Refresh()
 		}),
-		notify.On(func(ctx context.Context, e *defset.DefSet, exportsSlot *notify.Slot[DefSetExports]) {
-			exports := map[string]any{}
-			err := e.DecodeLookupPath(cue.MakePath(cue.Str("exports")), &exports)
-			if err != nil {
-				log.Printf("err on update: %s", fmtErr(err))
-				exportsSlot.StoreWithContext(ctx, nil)
-				return
-			}
-
-			slog.Info("exports from defset", "exports", exports)
-			dse := DefSetExports(exports)
-			exportsSlot.StoreWithContext(ctx, &dse)
-			slog.Info("stored exports from defset")
-		}),
 		notify.On(func(ctx context.Context, e *defset.DefSet, pinnedServices *PinnedInstances) {
 			pinnedServices.Refresh(e)
 		}),
@@ -267,11 +281,28 @@ func main() {
 	)
 }
 
-type DefSetExports map[string]any
+type DefSetCommands struct {
+	DefsMap map[string]commands.DefIndex
 
-func (m *DefSetExports) Exports(ctx context.Context) (any, error) {
-	if m == nil {
-		return nil, nil
-	}
-	return *m, nil
+	HTTPClient httpframework.HTTPClient
+}
+
+var _ commands.Delegate = (*DefSetCommands)(nil)
+
+func (m *DefSetCommands) Commands(ctx context.Context) commands.Source {
+	return commands.Dynamic(nil, func() []commands.Source {
+		sources := []commands.Source{}
+		if m != nil {
+			for k, v := range m.DefsMap {
+				sources = append(sources, commands.Prefixed(
+					k+":",
+					&commands.DefIndexRunner{
+						Defs:   v,
+						Client: m.HTTPClient,
+					},
+				))
+			}
+		}
+		return sources
+	})
 }

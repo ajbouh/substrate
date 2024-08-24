@@ -23,7 +23,7 @@ export class ReflectCommands {
   }
 
   get index() {
-    return fetch(this.url, { method: "REFLECT" }).then((resp) => resp.json());
+    return fetch(this.url, { method: "REFLECT" }).then((resp) => resp.json()).then(body => body.commands);
   }
 
   async run(command, parameters) {

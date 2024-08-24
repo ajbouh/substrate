@@ -63,80 +63,43 @@ type Agent struct {
 	NewClient         func(name, promptTemplate string) (Client, error)
 }
 
+type Void struct{}
+
 func (a *Agent) Commands(ctx context.Context) commands.Source {
 	sess := a.Session
-	return &commands.PrefixedSource[*commands.StaticSource[Agent]]{
-		Prefix: "assistant:",
-		Source: commands.NewStaticSource[Agent]([]commands.Entry{
-			{Name: "add",
-				Def: commands.Def{
-					Description: "Add an assistant to the session",
-					Parameters: commands.FieldDefs{
-						"name": {
-							Name:        "name",
-							Type:        "string",
-							Description: "The assistant's name",
-						},
-						"prompt_template": {
-							Name:        "prompt_template",
-							Type:        "string",
-							Description: "Template for assistant prompts",
-						},
-					},
-					Returns: commands.FieldDefs{
-						"success": {
-							Name:        "success",
-							Type:        "boolean",
-							Description: "True if the assistant was added successfully",
-						},
-					},
-				},
-				Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
-					name := args.String("name")
-					name = strings.ToLower(name)
-					prompt := args.String("prompt_template")
-					if prompt == "" {
-						var err error
-						prompt, err = DefaultPromptTemplateForName(name)
-						if err != nil {
-							return nil, err
-						}
+	return commands.Prefixed("assistant:", commands.List(
+		commands.Command(
+			"add",
+			"Add an assistant to the session",
+			func(ctx context.Context, t *struct{}, args struct {
+				Name           string `json:"name" desc:"The assistant's name"`
+				PromptTemplate string `json:"prompt_template" desc:"Template for assistant prompts"`
+			}) (Void, error) {
+				name := args.Name
+				name = strings.ToLower(name)
+				prompt := args.PromptTemplate
+				if prompt == "" {
+					var err error
+					prompt, err = DefaultPromptTemplateForName(name)
+					if err != nil {
+						return Void{}, err
 					}
-					AddAssistant(sess.SpanNow(), name, prompt)
-					return commands.Fields{
-						"success": true,
-					}, nil
-				},
-			},
-			{Name: "remove",
-				Def: commands.Def{
-					Description: "Remove an assistant from the session",
-					Parameters: commands.FieldDefs{
-						"name": {
-							Name:        "name",
-							Type:        "string",
-							Description: "The assistant's name",
-						},
-					},
-					Returns: commands.FieldDefs{
-						"success": {
-							Name:        "success",
-							Type:        "boolean",
-							Description: "True if the assistant was removed successfully",
-						},
-					},
-				},
-				Run: func(ctx context.Context, args commands.Fields) (commands.Fields, error) {
-					name := args.String("name")
-					name = strings.ToLower(name)
-					RemoveAssistant(sess.SpanNow(), name)
-					return commands.Fields{
-						"success": true,
-					}, nil
-				},
-			},
-		}),
-	}
+				}
+				AddAssistant(sess.SpanNow(), name, prompt)
+				return Void{}, nil
+			}),
+		commands.Command(
+			"remove",
+			"Remove an assistant from the session",
+			func(ctx context.Context, t *struct{}, args struct {
+				Name string `json:"name" desc:"The assistant's name"`
+			}) (Void, error) {
+				name := args.Name
+				name = strings.ToLower(name)
+				RemoveAssistant(sess.SpanNow(), name)
+				return Void{}, nil
+			}),
+	))
 }
 func (a *Agent) Initialize() {
 	sess := a.Session

@@ -2,93 +2,53 @@ package commands
 
 import (
 	"context"
-	"errors"
-	"log"
 )
 
-type Delegate interface {
-	Commands(ctx context.Context) Source
+func Dynamic(xform DefTransformFunc, sources func() []Source) *DynamicSource {
+	return &DynamicSource{
+		ReflectTransform: xform,
+		Sources:          sources,
+	}
 }
 
-type Wrapper interface {
-	WrapsCommandsSource() Source
+func List(sources ...Source) *DynamicSource {
+	return &DynamicSource{
+		Sources: func() []Source { return sources },
+	}
 }
 
-type Aggregate struct {
-	Delegates []Delegate
-	Sources   []Source
-
-	Entries []*Entry
+type DynamicReflector struct {
+	Reflectors       func() []Reflector
+	ReflectTransform DefTransformFunc
 }
 
-func (s *Aggregate) AsDynamicSource(ctx context.Context) *DynamicSource {
-	sources := append([]Source(nil), s.Sources...)
+var _ Reflector = (*DynamicReflector)(nil)
 
-	for _, s := range s.Delegates {
-		sources = append(sources, s.Commands(ctx))
-	}
+func (c *DynamicReflector) Reflect(ctx context.Context) (DefIndex, error) {
+	return Reflect(ctx, c.ReflectTransform, c.Reflectors()...)
+}
 
-	entries := make([]Entry, 0, len(s.Entries))
-	for _, entry := range s.Entries {
-		entries = append(entries, *entry)
-	}
+type DynamicRunner struct {
+	Runners func() []Runner
+}
 
-	if len(entries) > 0 {
-		sources = append(sources, &StaticSource[Aggregate]{Entries: entries})
-	}
+var _ Runner = (*DynamicRunner)(nil)
 
-	wrapped := map[Source]struct{}{}
-	for _, source := range sources {
-		if wr, ok := source.(Wrapper); ok {
-			wrapped[wr.WrapsCommandsSource()] = struct{}{}
-		}
-	}
-
-	src := &DynamicSource{}
-
-	for _, source := range sources {
-		if _, ok := wrapped[source]; !ok {
-			src.Sources = append(src.Sources, source)
-		}
-	}
-
-	return src
+func (c *DynamicRunner) Run(ctx context.Context, name string, p Fields) (Fields, error) {
+	return Run(ctx, name, p, c.Runners()...)
 }
 
 type DynamicSource struct {
-	Sources []Source
+	Sources          func() []Source
+	ReflectTransform DefTransformFunc
 }
 
 var _ Source = (*DynamicSource)(nil)
 
 func (c *DynamicSource) Reflect(ctx context.Context) (DefIndex, error) {
-	ci := DefIndex{}
-	for _, src := range c.Sources {
-		dci, err := src.Reflect(ctx)
-		if errors.Is(err, ErrReflectNotSupported) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		for k, v := range dci {
-			ci[k] = v
-		}
-	}
-
-	return ci, nil
+	return Reflect(ctx, c.ReflectTransform, c.Sources()...)
 }
 
 func (c *DynamicSource) Run(ctx context.Context, name string, p Fields) (Fields, error) {
-	for _, src := range c.Sources {
-		log.Printf("Dynamic command %s running... parameters:%#v", name, p)
-		var err error
-		defer log.Printf("Dynamic command %s done. err:%s", name, err)
-		result, err := src.Run(ctx, name, p)
-		if err == nil || !errors.Is(err, ErrNoSuchCommand) {
-			return result, err
-		}
-	}
-
-	return nil, ErrNoSuchCommand
+	return Run(ctx, name, p, c.Sources()...)
 }

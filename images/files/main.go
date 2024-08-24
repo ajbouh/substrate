@@ -54,6 +54,7 @@ func main() {
 	engine.Run(
 		Main{},
 		&httpframework.Framework{},
+		&httpframework.RequestLogger{},
 		&httpframework.IdleTracker{
 			IdleAfter: 10 * time.Second,
 			IdleNow: func(at time.Time) {

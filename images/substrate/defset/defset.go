@@ -6,8 +6,6 @@ import (
 
 	"cuelang.org/go/cue"
 	lru "github.com/hashicorp/golang-lru/v2"
-
-	"github.com/ajbouh/substrate/images/substrate/activityspec"
 )
 
 type DefSet struct {
@@ -27,21 +25,11 @@ func (s *DefSet) Initialize() {
 	s.isConcreteLRU, _ = lru.New[string, bool](128)
 }
 
-func decodeServiceInstanceSpawnDef(service cue.Value) (*activityspec.ServiceInstanceDef, error) {
-	v := service.LookupPath(cue.MakePath(cue.Str("instances"), cue.AnyString))
-	var result activityspec.ServiceInstanceDef
-	return &result, v.Decode(&result)
-}
-
-func (s *DefSet) ResolveServiceByName(ctx context.Context, serviceName string) (*activityspec.ServiceInstanceDef, error) {
+func (s *DefSet) DecodeLookupPath(p cue.Path, target any) error {
 	s.CueMu.Lock()
 	defer s.CueMu.Unlock()
 
-	v, ok := s.ServicesCueValues[serviceName]
-	if !ok {
-		return nil, nil
-	}
-	return decodeServiceInstanceSpawnDef(v)
+	return s.RootValue.LookupPath(p).Decode(target)
 }
 
 func (s *DefSet) LookupServiceInstanceJSON(ctx context.Context, serviceName, instanceName string, path cue.Path) ([]byte, error) {

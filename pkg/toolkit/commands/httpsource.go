@@ -44,7 +44,14 @@ func (p HTTPSource) Reflect(ctx context.Context) (DefIndex, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status: %s", resp.Status)
 	}
-	return unmarshal[DefIndex](resp)
+
+	body, err := unmarshal[struct {
+		Commands DefIndex `json:"commands"`
+	}](resp)
+	if err != nil {
+		return nil, err
+	}
+	return body.Commands, nil
 }
 
 func (p HTTPSource) Run(ctx context.Context, name string, params Fields) (Fields, error) {
@@ -61,6 +68,9 @@ func (p HTTPSource) Run(ctx context.Context, name string, params Fields) (Fields
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := p.client().Do(req)
+	if err != nil {
+		return nil, err
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status: %s", resp.Status)
 	}

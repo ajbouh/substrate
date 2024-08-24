@@ -20,130 +20,117 @@ type TabCommands struct {
 
 var _ commands.Source = (*TabCommands)(nil)
 
+type Void struct{}
+
+type NavigateReturns struct {
+	Navigated bool   `json:"navigated"`
+	Lazy      bool   `json:"lazy"`
+	Previous  string `json:"previous"`
+	Current   string `json:"current"`
+}
+
 func (a *TabCommands) Initialize() {
-	a.Source = commands.NewStaticSource[TabCommands](
-		[]commands.Entry{
-			{
-				Name: "navigate",
-				Def: commands.Def{
-					Description: "Visit the given `url`",
-					Parameters: commands.FieldDefs{
-						"url": commands.FieldDef{
-							Type: "string",
-						},
-						"lazy": commands.FieldDef{
-							Type: "boolean",
-						},
+	a.Source = commands.List(
+		commands.Command(
+			"navigate",
+			"Visit the given `url`",
+			func(ctx context.Context, t *struct{}, args struct {
+				URL  string `json:"url"`
+				Lazy bool   `json:"lazy"`
+			}) (NavigateReturns, error) {
+				url := args.URL
+				var u string
+				lazy := args.Lazy
+				if lazy {
+					err := a.CDP.Run(chromedp.Location(&u))
+					if err != nil {
+						return NavigateReturns{}, err
+					}
+
+					if u == url {
+						return NavigateReturns{
+							Navigated: false,
+							Previous:  u,
+							Lazy:      lazy,
+							Current:   url,
+						}, nil
+					}
+				}
+
+				return NavigateReturns{
+					Navigated: true,
+					Lazy:      lazy,
+					Previous:  u,
+					Current:   url,
+				}, a.CDP.Run(chromedp.Navigate(url))
+			}),
+		commands.Command(
+			"reload",
+			"Reload the tab's current url",
+			func(ctx context.Context, t *struct{}, args struct{}) (Void, error) {
+				return Void{}, a.CDP.Run(chromedp.Reload())
+			}),
+		commands.Command(
+			"back",
+			"Go to the previous page",
+			func(ctx context.Context, t *struct{}, args struct{}) (Void, error) {
+				return Void{}, a.CDP.Run(chromedp.NavigateBack())
+			}),
+		commands.Command(
+			"evaluate",
+			"Evaluate given javascript",
+			func(ctx context.Context, t *struct{}, args struct {
+				JS string `json:"js"`
+			}) (map[string]any, error) {
+				var result map[string]any
+				return result, a.CDP.Run(chromedp.Evaluate(args.JS,
+					&result,
+					func(ep *runtime.EvaluateParams) *runtime.EvaluateParams {
+						return ep.WithAwaitPromise(true)
 					},
-				},
-				Run: func(_ context.Context, p commands.Fields) (commands.Fields, error) {
-					url := p.String("url")
-					var u string
-					lazy := p.Bool("lazy")
-					if lazy {
-						err := a.CDP.Run(chromedp.Location(&u))
-						if err != nil {
-							return nil, err
-						}
-
-						if u == url {
-							return commands.Fields{
-								"navigated": false,
-								"previous":  u,
-								"lazy":      lazy,
-								"current":   url,
-							}, nil
-						}
+				))
+			}),
+		commands.Command(
+			"scrollup",
+			"Scroll up",
+			func(ctx context.Context, t *struct{}, args struct{}) (Void, error) {
+				return Void{}, a.CDP.Run(chromedp.KeyEvent(kb.Shift + " "))
+			}),
+		commands.Command(
+			"scrolldown",
+			"Scroll down",
+			func(ctx context.Context, t *struct{}, args struct{}) (Void, error) {
+				return Void{}, a.CDP.Run(chromedp.KeyEvent(" "))
+			}),
+		commands.Command(
+			"click",
+			"Click on a link with the given `text`",
+			func(ctx context.Context, t *struct{}, args struct {
+				Timeout  string `json:"timeout"`
+				Selector string `json:"selector"`
+				Text     string `json:"text"`
+			}) (Void, error) {
+				cdp := a.CDP
+				timeout := args.Timeout
+				if timeout != "" {
+					dur, err := time.ParseDuration(timeout)
+					if err != nil {
+						return Void{}, err
 					}
 
-					return commands.Fields{
-						"navigated": true,
-						"lazy":      lazy,
-						"previous":  u,
-						"current":   url,
-					}, a.CDP.Run(chromedp.Navigate(url))
-				},
-			},
-			{
-				Name: "reload",
-				Def: commands.Def{
-					Description: "Reload the tab's current url",
-				},
-				Run: func(_ context.Context, p commands.Fields) (commands.Fields, error) {
-					return nil, a.CDP.Run(chromedp.Reload())
-				},
-			},
-			{
-				Name: "back",
-				Def: commands.Def{
-					Description: "Go to the previous page",
-				},
-				Run: func(_ context.Context, p commands.Fields) (commands.Fields, error) {
-					return nil, a.CDP.Run(chromedp.NavigateBack())
-				},
-			},
-			{
-				Name: "evaluate",
-				Def: commands.Def{
-					Description: "Evaluate given javascript",
-				},
-				Run: func(_ context.Context, p commands.Fields) (commands.Fields, error) {
-					var result commands.Fields
-					return result, a.CDP.Run(chromedp.Evaluate(p.String("js"),
-						&result,
-						func(ep *runtime.EvaluateParams) *runtime.EvaluateParams {
-							return ep.WithAwaitPromise(true)
-						},
-					),
-					)
-				},
-			},
-			{
-				Name: "scrollup",
-				Def: commands.Def{
-					Description: "Scroll up",
-				},
-				Run: func(_ context.Context, p commands.Fields) (commands.Fields, error) {
-					return nil, a.CDP.Run(chromedp.KeyEvent(kb.Shift + " "))
-				},
-			},
-			{
-				Name: "scrolldown",
-				Def: commands.Def{
-					Description: "Scroll down",
-				},
-				Run: func(_ context.Context, p commands.Fields) (commands.Fields, error) {
-					return nil, a.CDP.Run(chromedp.KeyEvent(" "))
-				},
-			},
-			{
-				Name: "click",
-				Def: commands.Def{
-					Description: "Click on a link with the given `text`",
-				},
-				Run: func(_ context.Context, p commands.Fields) (commands.Fields, error) {
-					cdp := a.CDP
-					timeout := p.String("timeout")
-					if timeout != "" {
-						dur, err := time.ParseDuration(timeout)
-						if err != nil {
-							return nil, err
-						}
+					cdp = cdp.WithTimeout(dur)
+					defer cdp.Terminate()
+				}
 
-						cdp = cdp.WithTimeout(dur)
-						defer cdp.Terminate()
+				selector := args.Selector
+				if selector != "" {
+					text := args.Text
+					if text != "" {
+						selector = fmt.Sprintf(`//a[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '%s')]`, text)
 					}
-
-					selector := p.String("selector")
-					if selector != "" {
-						text := p.String("text")
-						if text != "" {
-							selector = fmt.Sprintf(`//a[contains(translate(text(), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '%s')]`, text)
-						}
-					}
-					// return nil, chromedp.Run(ctx, chromedp.Click(selector, chromedp.NodeVisible))
-					return nil, cdp.Run(chromedp.Click(selector))
-				},
-			},
-		})
+				}
+				// return Void{}, chromedp.Run(ctx, chromedp.Click(selector, chromedp.NodeVisible))
+				return Void{}, cdp.Run(chromedp.Click(selector))
+			}),
+	)
 }
