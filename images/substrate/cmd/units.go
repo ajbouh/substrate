@@ -38,7 +38,6 @@ func cueDefsLoadTags() []string {
 		// Include enough config to interpret things again
 		"live_edit=" + liveEdit,
 		"namespace=" + mustGetenv("SUBSTRATE_NAMESPACE"),
-		"use_varset=" + mustGetenv("SUBSTRATE_USE_VARSET"),
 		"cue_defs=" + mustGetenv("SUBSTRATE_CUE_DEFS"),
 	}
 
