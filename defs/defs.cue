@@ -15,7 +15,6 @@ import (
   namespace: string @tag(namespace)
   cue_defs: string @tag(cue_defs)
   build_source_directory: string | *"" @tag(build_source_directory)
-  use_varset: string @tag(use_varset)
 
   host_substratefs_root: string
   host_source_directory: string
@@ -60,9 +59,7 @@ import (
 }
 
 #var: #Varset
-
-#use_varset: "substrateos" | "docker_compose" @tag(use_varset)
-#var: #varsets[#use_varset]
+#var: #varsets["substrateos"]
 
 enable: [string]: bool
 

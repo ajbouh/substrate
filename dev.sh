@@ -139,12 +139,6 @@ detect_dev_cue_tag_args() {
   fi
   CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t live_edit=$SUBSTRATE_LIVE_EDIT"
 
-  if [ -z "$USE_VARSET" ]; then
-    echo >&2 "USE_VARSET not set"
-    exit 2
-  fi
-  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t use_varset=$USE_VARSET"
-
   if [ -z "$BUILD_SOURCE_DIRECTORY" ]; then
     echo >&2 "BUILD_SOURCE_DIRECTORY not set"
     exit 2

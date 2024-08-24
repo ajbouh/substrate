@@ -69,7 +69,6 @@ daemons: "substrate": {
     if live_edit["substrate"] {
       "SUBSTRATE_CUE_DEFS_LIVE": substrate_cue_defs_live
     }
-    "SUBSTRATE_USE_VARSET": string | *#var.use_varset
     "SUBSTRATE_SOURCE_DIRECTORY": string | *#var.host_source_directory
 
     "ORIGIN": string
