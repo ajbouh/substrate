@@ -4,14 +4,12 @@
     CollectionSelection,
     ServiceSelection,
     SpaceSelection,
-    ActivitySelection,
     EventSelection,
   } from '$lib/entities'
   import CardGallery from '$lib/CardGallery.svelte'
   import ServiceCard from '$lib/ServiceCard.svelte'
   import CollectionCard from '$lib/CollectionCard.svelte'
   import SpaceCard from '$lib/SpaceCard.svelte'
-  import ActivityCard from '$lib/ActivityCard.svelte'
   import EventFeed from '$lib/EventFeed.svelte'
 
   const galleryConfig = {
@@ -39,14 +37,6 @@
         cards: entities,
       }),
     },
-    "activity": {
-      component: CardGallery,
-      props: (entities: ActivitySelection[]) => ({
-        Card: ActivityCard,
-        sortCardsBy: "created_at",
-        cards: entities,
-      }),
-    },
     "event": {
       component: EventFeed,
       props: (entities: EventSelection[]) => ({
@@ -58,14 +48,6 @@
 
   export let selections: EntitySelection[]
 </script>
-<!--
-  <NavHeader>
-    <CommandPaletteButton
-      slot="menu"
-      selection={{user: $user$}}
-    />
-  </NavHeader>
--->
 {#each selections as selection}
   {@const config = galleryConfig[selection.entityType]}
   <div class="mx-auto max-w-2xl py-16 px-4 sm:py-24 sm:px-6 lg:max-w-7xl lg:px-8 w-full">

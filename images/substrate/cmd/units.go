@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 
@@ -18,12 +17,8 @@ import (
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	"github.com/ajbouh/substrate/images/substrate/defset"
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
-	podmanprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/podman"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
-	"github.com/containers/podman/v4/pkg/bindings"
-	"github.com/containers/podman/v4/pkg/specgen"
-	specs "github.com/opencontainers/runtime-spec/specs-go"
 )
 
 func mustGetenv(name string) string {
@@ -32,47 +27,6 @@ func mustGetenv(name string) string {
 		log.Fatalf("%s not set", name)
 	}
 	return value
-}
-
-func newProvisioner(cudaAllowed bool) provisioner.Driver {
-	switch os.Getenv("SUBSTRATE_PROVISIONER") {
-	case "podman", "":
-		return newPodmanProvisioner(cudaAllowed)
-	}
-
-	return nil
-}
-
-func newPodmanProvisioner(cudaAllowed bool) *podmanprovisioner.P {
-	prep := func(s *specgen.SpecGenerator) {
-		s.SelinuxOpts = []string{
-			"disable",
-		}
-		if cudaAllowed {
-			s.Devices = []specs.LinuxDevice{
-				{
-					Path: "nvidia.com/gpu=all",
-				},
-			}
-		}
-	}
-
-	p := podmanprovisioner.New(
-		func(ctx context.Context) (context.Context, error) {
-			return bindings.NewConnection(ctx, os.Getenv("DOCKER_HOST"))
-		},
-		mustGetenv("SUBSTRATE_NAMESPACE"),
-		mustGetenv("SUBSTRATE_INTERNAL_NETWORK"),
-		mustGetenv("SUBSTRATE_EXTERNAL_NETWORK"),
-		prep,
-	)
-	ctx := context.Background()
-	go func() {
-		log.Printf("cleaning up...")
-		p.Cleanup(ctx)
-		log.Printf("clean up done")
-	}()
-	return p
 }
 
 func cueDefsLoadTags() []string {
@@ -285,23 +239,4 @@ func fmtErr(err error) string {
 		messages = append(messages, err.Error())
 	}
 	return strings.Join(messages, "\n")
-}
-
-func (m *Main) Serve(ctx context.Context) {
-	server := &http.Server{
-		Addr:    m.listenAddress,
-		Handler: m.Handler,
-	}
-
-	binaryPath, _ := os.Executable()
-	if binaryPath == "" {
-		binaryPath = "server"
-	}
-	log.Printf("%s listening on %q", filepath.Base(binaryPath), server.Addr)
-
-	if server.TLSConfig == nil {
-		log.Fatal(server.Serve(m.listen))
-	} else {
-		log.Fatal(server.ServeTLS(m.listen, "", ""))
-	}
 }

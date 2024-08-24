@@ -5,19 +5,22 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"tractor.dev/toolkit-go/engine"
-	"tractor.dev/toolkit-go/engine/cli"
-	"tractor.dev/toolkit-go/engine/daemon"
 
 	"cuelang.org/go/cue"
+	"github.com/containers/podman/v4/pkg/bindings"
+	"github.com/containers/podman/v4/pkg/specgen"
+	"github.com/oklog/ulid/v2"
+	specs "github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 
 	substratedb "github.com/ajbouh/substrate/images/substrate/db"
@@ -25,29 +28,13 @@ import (
 	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 	substratehttp "github.com/ajbouh/substrate/images/substrate/http"
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
+	podmanprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/podman"
 	"github.com/ajbouh/substrate/pkg/cueloader"
 	"github.com/ajbouh/substrate/pkg/toolkit/exports"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
+	"github.com/ajbouh/substrate/pkg/toolkit/service"
 )
-
-type Main struct {
-	listen        net.Listener
-	listenAddress string
-
-	Daemon  *daemon.Framework
-	Handler *substratehttp.Handler
-}
-
-func (m *Main) InitializeCLI(root *cli.Command) {
-	// a workaround for an unresolved issue in toolkit-go/engine
-	// for figuring out if its a CLI or a daemon program...
-	root.Run = func(ctx *cli.Context, args []string) {
-		if err := m.Daemon.Run(ctx); err != nil {
-			log.Fatal(err)
-		}
-	}
-}
 
 func main() {
 	// This is gross.
@@ -88,69 +75,92 @@ func main() {
 	// TODO stop hardcoding these
 	internalSubstrateOrigin := "http://substrate:8080"
 
-	listenAddress := ":" + os.Getenv("PORT")
-	ln, err := net.Listen("tcp", listenAddress)
-	if err != nil {
-		log.Fatalf("couldn't listen: %s", err)
-	}
-
 	// Informed by https://github.com/golang/go/issues/6785
 	ht := http.DefaultTransport.(*http.Transport)
 	ht.MaxConnsPerHost = 32
 	ht.DisableCompression = true
 
 	origin := mustGetenv("ORIGIN")
-
 	originURL, _ := url.Parse(origin)
-	originHostname := originURL.Hostname()
 
 	provisionerCache := &provisioner.Cache{}
 
 	engine.Run(
-		Main{
-			listen:        ln,
-			listenAddress: listenAddress,
+		&service.Service{
+			ExportsRoute:  "/substrate/v1/exports",
+			CommandsRoute: "/substrate",
 		},
-		newProvisioner(cudaAllowed),
+		&podmanprovisioner.P{
+			Connect: func(ctx context.Context) (context.Context, error) {
+				return bindings.NewConnection(ctx, os.Getenv("DOCKER_HOST"))
+			},
+			Namespace:           mustGetenv("SUBSTRATE_NAMESPACE"),
+			InternalNetwork:     mustGetenv("SUBSTRATE_INTERNAL_NETWORK"),
+			ExternalNetwork:     mustGetenv("SUBSTRATE_EXTERNAL_NETWORK"),
+			WaitForReadyTimeout: 2 * time.Minute,
+			WaitForReadyTick:    500 * time.Millisecond,
+			Generation:          ulid.Make().String(),
+			Prep: func(s *specgen.SpecGenerator) {
+				s.SelinuxOpts = []string{
+					"disable",
+				}
+				if cudaAllowed {
+					s.Devices = []specs.LinuxDevice{
+						{
+							Path: "nvidia.com/gpu=all",
+						},
+					}
+				}
+			},
+		},
 		db,
 		provisionerCache,
 		&httpevents.EventStream[*defset.DefSet]{
 			ContentType: "application/json",
 		},
 
-		httpevents.NewJSONRequester[exports.Exports]("PUT", os.Getenv("INTERNAL_SUBSTRATE_EXPORTS_URL")),
-		httpevents.NewJSONEventStream[exports.Exports](""),
-		notify.On(func(
-			ctx context.Context,
-			e exports.Changed,
-			t *struct {
-				Sources     []exports.Source
-				EventStream *httpevents.EventStream[exports.Exports]
-				Requester   *httpevents.Requester[exports.Exports]
+		// TODO how do we want to handle authentication for this?
+		&substratehttp.CORSMiddleware{
+			Options: cors.Options{
+				AllowCredentials: true,
+				AllowOriginRequestFunc: func(r *http.Request, origin string) bool {
+					slog.Info("AllowOriginFunc", "origin", origin, "url", r.URL.String())
+
+					// panic("CORS origin check not yet implemented")
+					// TODO actually implement
+					return true
+				},
+				// Enable Debugging for testing, consider disabling in production
+				Debug: true,
 			},
-		) {
-			if t.EventStream == nil && t.Requester == nil {
-				return
-			}
+		},
 
-			union, err := exports.Union(ctx, t.Sources)
-			if err != nil {
-				log.Printf("error computing exports: %#v", err)
-				return
-			}
+		&substratehttp.ActivitesHandler{
+			Prefix: "/substrate",
+		},
+		&substratehttp.CollectionsHandler{
+			Prefix: "/substrate",
+		},
+		&substratehttp.DefsHandler{
+			Prefix: "/substrate",
+		},
+		&substratehttp.EventsHandler{
+			Prefix: "/substrate",
+		},
+		&substratehttp.ExportsHandler{
+			Prefix: "/substrate",
+		},
+		&substratehttp.SpaceHandler{
+			Prefix: "/substrate",
+			User:   "user",
+		},
+		&substratehttp.ProxyHandler{
+			User:                    "user",
+			InternalSubstrateOrigin: internalSubstrateOrigin,
+		},
 
-			if t.EventStream != nil {
-				t.EventStream.Announce(union)
-			}
-			if t.Requester != nil {
-				go func() {
-					err := t.Requester.Do(ctx, union)
-					if err != nil {
-						slog.Info("Requester.Do", "err", err)
-					}
-				}()
-			}
-		}),
+		&notify.Slot[DefSetExports]{},
+		&exports.LoaderSource[*DefSetExports]{},
 		&notify.Slot[provisioner.InstancesRoot]{},
 		&exports.LoaderSource[*provisioner.InstancesRoot]{},
 		notify.On(func(
@@ -177,10 +187,6 @@ func main() {
 		}),
 
 		substratefs.NewLayout(mustGetenv("SUBSTRATEFS_ROOT")),
-		&substratehttp.Handler{
-			User:                    "user",
-			InternalSubstrateOrigin: internalSubstrateOrigin,
-		},
 		&notify.Slot[defset.DefSet]{},
 		&defset.Loader{
 			ServiceDefPath: cue.MakePath(cue.Str("services")),
@@ -204,7 +210,7 @@ func main() {
 					"SUBSTRATE_ORIGIN":          origin,
 					"PUBLIC_EXTERNAL_ORIGIN":    origin,
 					"ORIGIN":                    origin,
-					"ORIGIN_HOSTNAME":           originHostname,
+					"ORIGIN_HOSTNAME":           originURL.Hostname(),
 					"SUBSTRATE_MACHINE_ID":      machineID,
 					"INTERNAL_SUBSTRATE_ORIGIN": internalSubstrateOrigin,
 				},
@@ -219,6 +225,20 @@ func main() {
 		}),
 		notify.On(func(ctx context.Context, e *defset.DefSet, provisionerCache *provisioner.Cache) {
 			provisionerCache.Refresh()
+		}),
+		notify.On(func(ctx context.Context, e *defset.DefSet, exportsSlot *notify.Slot[DefSetExports]) {
+			exports := map[string]any{}
+			err := e.DecodeLookupPath(cue.MakePath(cue.Str("exports")), &exports)
+			if err != nil {
+				log.Printf("err on update: %s", fmtErr(err))
+				exportsSlot.StoreWithContext(ctx, nil)
+				return
+			}
+
+			slog.Info("exports from defset", "exports", exports)
+			dse := DefSetExports(exports)
+			exportsSlot.StoreWithContext(ctx, &dse)
+			slog.Info("stored exports from defset")
 		}),
 		notify.On(func(ctx context.Context, e *defset.DefSet, pinnedServices *PinnedInstances) {
 			pinnedServices.Refresh(e)
@@ -245,4 +265,13 @@ func main() {
 			}
 		}),
 	)
+}
+
+type DefSetExports map[string]any
+
+func (m *DefSetExports) Exports(ctx context.Context) (any, error) {
+	if m == nil {
+		return nil, nil
+	}
+	return *m, nil
 }

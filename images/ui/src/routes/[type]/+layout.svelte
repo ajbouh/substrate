@@ -1,7 +1,6 @@
 <script>
   import { getContext } from 'svelte'
   import { urls } from '$lib/activities'
-  import CommandPaletteButton from '$lib/CommandPaletteButton.svelte'
   import NavHeader from '$lib/NavHeader.svelte'
 
   const user$ = getContext('user')
@@ -10,10 +9,6 @@
 
 <div class="min-h-screen w-full flex-col flex">
 	<NavHeader>
-    <CommandPaletteButton
-      slot="menu"
-      selection={{user: $user$}}
-    />
     <nav class="flex items-center" aria-label="Breadcrumb">
       <h2 class="mt-2 text-xl font-medium leading-7 text-gray-900 sm:truncate sm:text-3xl sm:tracking-tight">
         <ol class="flex items-center space-x-2">

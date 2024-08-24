@@ -238,7 +238,7 @@ func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan provisi
 }
 
 func (p *P) containerStatusCheck(ctx context.Context, containerID string) (*ContainerStatusCheck, error) {
-	ctx, err := p.connect(ctx)
+	ctx, err := p.Connect(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -252,14 +252,14 @@ func (p *P) containerStatusCheck(ctx context.Context, containerID string) (*Cont
 	host, port := ipAndPortFromContainerJSON(containerJSON)
 
 	return &ContainerStatusCheck{
-		connect:             p.connect,
+		connect:             p.Connect,
 		host:                host,
 		port:                port,
 		containerID:         containerID,
 		containerJSON:       containerJSON,
 		containerJSONTime:   now,
-		waitForReadyTimeout: p.waitForReadyTimeout,
-		waitForReadyTick:    p.waitForReadyTick,
+		waitForReadyTimeout: p.WaitForReadyTimeout,
+		waitForReadyTick:    p.WaitForReadyTick,
 		readyMutex:          &sync.Mutex{},
 		ready:               &atomic.Bool{},
 	}, nil

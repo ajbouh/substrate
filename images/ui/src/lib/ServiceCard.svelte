@@ -1,6 +1,5 @@
 <script lang="ts">
   import { getContext } from 'svelte'
-  import CommandPaletteButton from '$lib/CommandPaletteButton.svelte'
   import { urls } from '$lib/activities'
 
   export let data
@@ -34,8 +33,5 @@
         class="truncate text-ellipsis"
         >{data.label}</a>
     </h3>
-    <CommandPaletteButton
-      selection={{user: $user$, service: data}}
-    />
   </div>
 </div>

@@ -3,6 +3,7 @@ package podmanprovisioner
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"time"
@@ -16,40 +17,33 @@ import (
 	"github.com/containers/podman/v4/pkg/bindings/containers"
 	"github.com/containers/podman/v4/pkg/specgen"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
-
-	ulid "github.com/oklog/ulid/v2"
 )
 
 type P struct {
-	connect func(ctx context.Context) (context.Context, error)
+	Connect func(ctx context.Context) (context.Context, error)
 
-	namespace  string
-	generation string
+	Namespace  string
+	Generation string
 
-	internalNetwork string
-	externalNetwork string
+	InternalNetwork string
+	ExternalNetwork string
 
-	waitForReadyTimeout time.Duration
-	waitForReadyTick    time.Duration
+	WaitForReadyTimeout time.Duration
+	WaitForReadyTick    time.Duration
 
 	containerTemplateInit singleflight.Group
 
-	prep func(h *specgen.SpecGenerator)
+	Prep func(h *specgen.SpecGenerator)
 }
 
 var _ provisioner.Driver = (*P)(nil)
 
-func New(connect func(ctx context.Context) (context.Context, error), namespace, internalNetwork, externalNetwork string, prep func(h *specgen.SpecGenerator)) *P {
-	return &P{
-		connect:             connect,
-		namespace:           namespace,
-		internalNetwork:     internalNetwork,
-		externalNetwork:     externalNetwork,
-		waitForReadyTimeout: 2 * time.Minute,
-		waitForReadyTick:    500 * time.Millisecond,
-		generation:          ulid.Make().String(),
-		prep:                prep,
-	}
+func (p *P) Serve(ctx context.Context) {
+	go func() {
+		log.Printf("cleaning up...")
+		p.Cleanup(ctx)
+		log.Printf("clean up done")
+	}()
 }
 
 const LabelSubstrateGeneration = "substrate.generation"
@@ -58,7 +52,7 @@ const LabelSubstrateActivity = "substrate.activity"
 const SubstrateNetworkNamePrefix = "substrate_network_"
 
 func (p *P) dumpLogs(ctx context.Context, prefix, containerID string) error {
-	ctx, err := p.connect(ctx)
+	ctx, err := p.Connect(ctx)
 	if err != nil {
 		return err
 	}
@@ -103,8 +97,35 @@ func (p *P) appendMount(ctx context.Context, s *specgen.SpecGenerator, m activit
 	return nil
 }
 
+func includeView(s *specgen.SpecGenerator, viewName string, includeSpaceIDInTarget bool, view *substratefs.SpaceView) {
+	targetPrefix := "/spaces/" + viewName
+	if includeSpaceIDInTarget {
+		targetPrefix += "/" + view.Tip.SpaceID.String()
+	}
+
+	treeMountOptions := []string{}
+	if view.IsReadOnly {
+		treeMountOptions = append(treeMountOptions, "ro")
+	}
+
+	s.Mounts = append(s.Mounts,
+		specs.Mount{
+			Type:        "bind",
+			Source:      view.TreePath(),
+			Destination: targetPrefix + "/tree",
+			Options:     treeMountOptions,
+		},
+		specs.Mount{
+			Type:        "bind",
+			Source:      view.OwnerFilePath(),
+			Destination: targetPrefix + "/owner",
+			Options:     []string{"ro"},
+		},
+	)
+}
+
 func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) (*activityspec.ServiceSpawnResponse, error) {
-	ctx, err := p.connect(ctx)
+	ctx, err := p.Connect(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error connecting: %w", err)
 	}
@@ -113,8 +134,8 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 
 	spec, _ := as.Format()
 	labels := map[string]string{
-		LabelSubstrateNamespace:  p.namespace,
-		LabelSubstrateGeneration: p.generation,
+		LabelSubstrateNamespace:  p.Namespace,
+		LabelSubstrateGeneration: p.Generation,
 		LabelSubstrateActivity:   spec,
 	}
 
@@ -150,39 +171,12 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	})
 	s.Init = as.ServiceInstanceDef.Init
 
-	if p.prep != nil {
-		p.prep(s)
+	if p.Prep != nil {
+		p.Prep(s)
 	}
 	s.Networks = map[string]nettypes.PerNetworkOptions{
-		p.internalNetwork: nettypes.PerNetworkOptions{},
-		p.externalNetwork: nettypes.PerNetworkOptions{},
-	}
-
-	includeView := func(viewName string, includeSpaceIDInTarget bool, view *substratefs.SpaceView) {
-		targetPrefix := "/spaces/" + viewName
-		if includeSpaceIDInTarget {
-			targetPrefix += "/" + view.Tip.SpaceID.String()
-		}
-
-		treeMountOptions := []string{}
-		if view.IsReadOnly {
-			treeMountOptions = append(treeMountOptions, "ro")
-		}
-
-		s.Mounts = append(s.Mounts,
-			specs.Mount{
-				Type:        "bind",
-				Source:      view.TreePath(),
-				Destination: targetPrefix + "/tree",
-				Options:     treeMountOptions,
-			},
-			specs.Mount{
-				Type:        "bind",
-				Source:      view.OwnerFilePath(),
-				Destination: targetPrefix + "/owner",
-				Options:     []string{"ro"},
-			},
-		)
+		p.InternalNetwork: nettypes.PerNetworkOptions{},
+		p.ExternalNetwork: nettypes.PerNetworkOptions{},
 	}
 
 	for _, m := range as.ServiceInstanceDef.Mounts {
@@ -215,10 +209,10 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	for parameterName, parameterValue := range as.Parameters {
 		switch {
 		case parameterValue.Space != nil:
-			includeView(parameterName, false, parameterValue.Space)
+			includeView(s, parameterName, false, parameterValue.Space)
 		case parameterValue.Spaces != nil:
 			for _, v := range *parameterValue.Spaces {
-				includeView(parameterName, true, &v)
+				includeView(s, parameterName, true, &v)
 			}
 		}
 	}

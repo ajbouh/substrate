@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"log"
 	"log/slog"
 	"os"
@@ -88,14 +90,25 @@ func (s *Service) initialize() {
 
 			union, err := exports.Union(ctx, t.Sources)
 			if err != nil {
-				log.Printf("error computing exports: %s", err.Error())
+				ute := &json.UnmarshalTypeError{}
+				if errors.As(err, &ute) {
+					log.Printf("error computing exports: %s: UnmarshalTypeError %v - %v - %v", err.Error(), ute.Value, ute.Type, ute.Offset)
+				} else {
+					log.Printf("error computing exports: %s", err.Error())
+				}
 				return
 			}
+
 			if t.EventStream != nil {
 				t.EventStream.Announce(union)
 			}
 			if t.Requester != nil {
-				go t.Requester.Do(ctx, union)
+				go func() {
+					err := t.Requester.Do(ctx, union)
+					if err != nil {
+						slog.Info("Requester.Do", "err", err)
+					}
+				}()
 			}
 		}),
 	).Units

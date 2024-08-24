@@ -18,7 +18,7 @@ func (p *P) Kill(
 	ctx context.Context,
 	name string,
 ) error {
-	ctx, err := p.connect(ctx)
+	ctx, err := p.Connect(ctx)
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,7 @@ func (p *P) Kill(
 func (p *P) Cleanup(
 	ctx context.Context,
 ) error {
-	ctx, err := p.connect(ctx)
+	ctx, err := p.Connect(ctx)
 	if err != nil {
 		return err
 	}
@@ -84,12 +84,12 @@ func (p *P) Cleanup(
 	removeContainers := []entities.ListContainer{}
 	for _, container := range cntrs {
 		containerNamespace := container.Labels[LabelSubstrateNamespace]
-		if containerNamespace == "" || containerNamespace != p.namespace {
+		if containerNamespace == "" || containerNamespace != p.Namespace {
 			continue
 		}
 
 		containerGeneration := container.Labels[LabelSubstrateGeneration]
-		if containerGeneration == "" || containerGeneration == p.generation {
+		if containerGeneration == "" || containerGeneration == p.Generation {
 			continue
 		}
 
@@ -133,12 +133,12 @@ func (p *P) Cleanup(
 	removeNetworks := []string{}
 	for _, net := range networks {
 		containerNamespace := net.Labels[LabelSubstrateNamespace]
-		if containerNamespace == "" || containerNamespace != p.namespace {
+		if containerNamespace == "" || containerNamespace != p.Namespace {
 			continue
 		}
 
 		networkGeneration := net.Labels[LabelSubstrateGeneration]
-		if networkGeneration == "" || networkGeneration == p.generation {
+		if networkGeneration == "" || networkGeneration == p.Generation {
 			continue
 		}
 

@@ -1,6 +1,5 @@
 <script lang="ts">
   import { getContext } from 'svelte'
-  import CommandPaletteButton from '$lib/CommandPaletteButton.svelte'
   import { urls } from '$lib/activities'
 
   export let data
@@ -37,9 +36,6 @@
         </span>
       </a>
     </h3>
-    <CommandPaletteButton
-      selection={{user: $user$, space: data}}
-    />
   </div>
   <div class="flex">
     <p class="flex-grow mt-1 font-medium text-sm text-gray-700"><a href="{urls.ui.user({user: owner})}">{isThisMine ? 'You' : owner}</a></p>

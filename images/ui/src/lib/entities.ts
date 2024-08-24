@@ -3,11 +3,9 @@ import { error } from '@sveltejs/kit'
 import {
   urls,
   fetchJSON,
-  processServices,
   processServiceSpecs,
   processSpaces,
   processEvents,
-  processActivities,
 } from '$lib/activities'
 
 export interface EntityListTruncation {
@@ -26,16 +24,10 @@ export type Collection = any
 export type Space = any
 export type Service = any
 export type Event = any
-export type Activity = any
 
 export interface CollectionSelection extends BaseEntitySelection {
   entityType: "collection"
   entities: Collection[]
-}
-
-export interface ActivitySelection extends BaseEntitySelection {
-  entityType: "activity"
-  entities: Activity[]
 }
 
 export interface SpaceSelection extends BaseEntitySelection {
@@ -53,7 +45,7 @@ export interface EventSelection extends BaseEntitySelection {
   entities: Event[]
 }
 
-export type EntitySelection = ServiceSelection | SpaceSelection | CollectionSelection | ActivitySelection | EventSelection
+export type EntitySelection = ServiceSelection | SpaceSelection | CollectionSelection | EventSelection
 
 export async function load({ params, url, fetch }) {
   console.log({ params, url })
@@ -132,31 +124,12 @@ export async function load({ params, url, fetch }) {
     }
   } else {
     switch (type) {
-      case "services": {
-        const services = await fetchJSON(fetch, urls.api.services({}))
-        selections.push({
-          entityType: "service",
-          entities: processServices(services),
-          label: `Services`,
-        })
-        break
-      }
       case "spaces": {
         const spaces = await fetchJSON(fetch, urls.api.spaces({}))
         selections.push({
           entityType: "space",
           entities: processSpaces(spaces),
           label: `Spaces`,
-        })
-        break
-      }
-      case "activities": {
-        const activities = await fetchJSON(fetch, urls.api.activities({}))
-        selections.push({
-          entityType: "activity",
-          // HACK we should exclude these "system" activities in a more principled way
-          entities: processActivities(activities.filter(({ activityspec }) => !/^(screenshot|files|visualizer)\[/.test(activityspec))),
-          label: `Activities`,
         })
         break
       }

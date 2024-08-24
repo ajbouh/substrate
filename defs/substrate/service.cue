@@ -28,53 +28,6 @@ import (
   optional ?: bool
 }
 
-#ActivityDefRequestSchema: {
-  [string]: {
-    type: "space" | "collection" | "file"
-    body ?: [...[...string]] | [...string]  // If true, set body to it. If a string[], set those top-level JSON fields with it. If string[][], set those JSON field selections to it.
-    path ?: true | string // If true, replace path with it. If a string, replace string in path with file
-    query ?: string | [...string] // Name OR list of names of query parameter
-    if type == "file" {
-      default ?: string
-    }
-  }
-}
-
-#ActivityDefResponseSchema: {
-  [key=string]: {
-    type: "space" | "collection" | "file"
-    from: "header" | *"body"
-    if from == "body" {
-      path: [...string] | *[key]
-    }
-    if from == "header" {
-      path: [string]
-    }
-  }
-}
-
-#ActivityDef: {
-  activity: "user:new-space" | "user:open" | "user:fork" | "user:collection:space" | "system:preview:space" | =~ "^system:preview:activity:[^:]+$"
-
-  label ?: string
-  description ?: string
-  after ?: [...string]
-  priority ?: int
-  image ?: string
-
-  request ?: {
-    interactive ?: bool
-    path ?: string
-    method: string | *"GET"
-
-    schema ?: #ActivityDefRequestSchema
-  }
-
-  response ?: {
-    schema ?: #ActivityDefResponseSchema
-  }
-}
-
 {
   name: string
 
@@ -133,6 +86,4 @@ import (
     //   }
     // }
   }
-
-  activities: [string]: #ActivityDef
 }
