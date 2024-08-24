@@ -8,8 +8,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/ajbouh/substrate/images/substrate/activityspec"
 )
 
 type DB struct {
@@ -182,10 +180,7 @@ type EventListRequest struct {
 }
 
 type Event struct {
-	// DockerSpawn  *dockerprovisioner.SpawnEvent  `json:"docker_spawn,omitempty"`
-	// DockerStatus *dockerprovisioner.StatusEvent `json:"docker_status,omitempty"`
-
-	Response *activityspec.ServiceSpawnResponse `json:"spawn_response"`
+	Response any `json:"spawn_response"`
 
 	ID           string    `json:"id"`
 	ActivitySpec string    `json:"viewspec,omitempty"`
