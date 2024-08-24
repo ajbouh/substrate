@@ -19,7 +19,8 @@ COPY images/chromestage/. github.com/ajbouh/substrate/images/chromestage/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/chromestage/
 
-RUN CGO_ENABLED=0 go build -o /chromestage ./cmd/chromestage
+RUN --mount=type=cache,target=/go/pkg/mod \
+  CGO_ENABLED=0 go build -o /chromestage ./cmd/chromestage
 
 #########
 

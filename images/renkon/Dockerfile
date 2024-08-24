@@ -29,7 +29,8 @@ WORKDIR /go/src/github.com/ajbouh/substrate/images/renkon
 
 COPY --from=npm-build /app/dist/renkon.js ./dist/
 
-RUN CGO_ENABLED=0 GOOS=linux go build \
+RUN --mount=type=cache,target=/go/pkg/mod \
+  CGO_ENABLED=0 GOOS=linux go build \
   -v \
   -installsuffix 'static' \
   -o /app/renkon .

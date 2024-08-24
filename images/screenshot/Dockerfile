@@ -6,7 +6,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
   go mod download
 
 COPY images/screenshot/. .
-RUN CGO_ENABLED=0 GOOS=linux go build \
+RUN --mount=type=cache,target=/go/pkg/mod \
+  CGO_ENABLED=0 GOOS=linux go build \
   -v \
   -installsuffix 'static' \
   -o /app ./

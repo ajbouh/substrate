@@ -16,7 +16,8 @@ COPY images/files/. github.com/ajbouh/substrate/images/files/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/files
 
-RUN CGO_ENABLED=0 GOOS=linux go build \
+RUN --mount=type=cache,target=/go/pkg/mod \
+  CGO_ENABLED=0 GOOS=linux go build \
   -v \
   -ldflags "-X main.version=1.6.1" \
   -installsuffix 'static' \

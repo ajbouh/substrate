@@ -14,7 +14,8 @@ COPY images/weather/. github.com/ajbouh/substrate/images/weather/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/weather
 
-RUN CGO_ENABLED=0 GOOS=linux go build \
+RUN  --mount=type=cache,target=/go/pkg/mod \
+  CGO_ENABLED=0 GOOS=linux go build \
   -v \
   -o /app .
 

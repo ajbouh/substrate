@@ -22,7 +22,8 @@ COPY pkg/toolkit/. github.com/ajbouh/substrate/pkg/toolkit/
 COPY images/bridge/. github.com/ajbouh/substrate/images/bridge/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge/
-RUN go build \
+RUN --mount=type=cache,target=/go/pkg/mod \
+  go build \
   -o /bridge ./cmd/bridge \
   && ldd /bridge \
   && true
