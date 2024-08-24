@@ -10,8 +10,6 @@ require (
 	github.com/ajbouh/substrate/pkg/toolkit v0.0.0-00010101000000-000000000000
 	github.com/containers/common v0.57.4
 	github.com/containers/podman/v4 v4.9.4
-	github.com/docker/docker v24.0.7+incompatible
-	github.com/docker/go-connections v0.4.1-0.20231031175723-0b8c1f4e07a0
 	github.com/elnormous/contenttype v1.0.4
 	github.com/go-playground/form/v4 v4.2.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
@@ -56,7 +54,9 @@ require (
 	github.com/disiqueira/gotree/v3 v3.0.2 // indirect
 	github.com/distribution/reference v0.5.0 // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
+	github.com/docker/docker v24.0.7+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.0 // indirect
+	github.com/docker/go-connections v0.4.1-0.20231031175723-0b8c1f4e07a0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emicklei/proto v1.13.2 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect

@@ -18,15 +18,11 @@ import (
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	"github.com/ajbouh/substrate/images/substrate/defset"
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
-	dockerprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/docker"
 	podmanprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/podman"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/containers/podman/v4/pkg/bindings"
 	"github.com/containers/podman/v4/pkg/specgen"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/mount"
-	"github.com/docker/docker/client"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 )
 
@@ -40,60 +36,11 @@ func mustGetenv(name string) string {
 
 func newProvisioner(cudaAllowed bool) provisioner.Driver {
 	switch os.Getenv("SUBSTRATE_PROVISIONER") {
-	case "docker":
-		return newDockerProvisioner(cudaAllowed)
 	case "podman", "":
 		return newPodmanProvisioner(cudaAllowed)
 	}
 
 	return nil
-}
-
-func newDockerProvisioner(cudaAllowed bool) *dockerprovisioner.P {
-	cli, err := client.NewEnvClient()
-	if err != nil {
-		log.Fatalf("error starting client: %s", err)
-	}
-
-	mounts := []mount.Mount{}
-	for _, m := range strings.Split(os.Getenv("SUBSTRATE_SERVICE_DOCKER_MOUNTS"), ",") {
-		source, target, ok := strings.Cut(m, ":")
-		if ok {
-			mounts = append(mounts, mount.Mount{
-				// Type:   mount.TypeBind,
-				Type:   mount.TypeVolume,
-				Source: source,
-				Target: target,
-			})
-		}
-	}
-
-	prep := func(h *container.HostConfig) {
-		h.Mounts = append(h.Mounts, mounts...)
-
-		if cudaAllowed {
-			h.DeviceRequests = append(h.DeviceRequests, container.DeviceRequest{
-				Driver:       "nvidia",
-				Count:        -1,
-				Capabilities: [][]string{{"gpu"}},
-			})
-		}
-	}
-
-	p := dockerprovisioner.New(
-		cli,
-		mustGetenv("SUBSTRATE_NAMESPACE"),
-		mustGetenv("SUBSTRATE_INTERNAL_NETWORK"),
-		mustGetenv("SUBSTRATE_EXTERNAL_NETWORK"),
-		prep,
-	)
-	ctx := context.Background()
-	go func() {
-		log.Printf("cleaning up...")
-		p.Cleanup(ctx)
-		log.Printf("clean up done")
-	}()
-	return p
 }
 
 func newPodmanProvisioner(cudaAllowed bool) *podmanprovisioner.P {
