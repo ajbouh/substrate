@@ -10,7 +10,6 @@ import (
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
-	"golang.org/x/sync/singleflight"
 
 	nettypes "github.com/containers/common/libnetwork/types"
 	"github.com/containers/podman/v4/pkg/bindings/containers"
@@ -29,8 +28,6 @@ type P struct {
 
 	WaitForReadyTimeout time.Duration
 	WaitForReadyTick    time.Duration
-
-	containerTemplateInit singleflight.Group
 
 	Prep func(h *specgen.SpecGenerator)
 }

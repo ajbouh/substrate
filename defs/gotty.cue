@@ -26,13 +26,8 @@ services: "gotty": {
     }
   }
 
+  // TODO make it a command, parameterize on space and with image to run within gotty
   activities: {
-    previewTerminal: {
-      activity: "system:preview:activity:gotty"
-      request: interactive: true
-      request: path: "/"
-      priority: 10
-    }
     terminal: {
       activity: "user:open"
       label: "open terminal"

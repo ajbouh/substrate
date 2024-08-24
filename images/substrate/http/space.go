@@ -7,6 +7,7 @@ import (
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	substratedb "github.com/ajbouh/substrate/images/substrate/db"
+	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 	"github.com/ajbouh/substrate/images/substrate/httputil"
 )
 
@@ -20,13 +21,13 @@ type SpaceHandler struct {
 func (h *SpaceHandler) ContributeHTTP(mux *http.ServeMux) {
 	handle(mux, fmt.Sprintf("POST %s/v1/spaces", h.Prefix), func(req *http.Request) (interface{}, int, error) {
 		// TODO should we allow setting an alias here?
-		r := &activityspec.SpaceViewRequest{}
+		r := &substratefs.SpaceViewRequest{}
 		status, err := httputil.ReadRequestBody(req, &r)
 		if err != nil {
 			return nil, status, err
 		}
 
-		view, err := h.SpaceViewResolver.ResolveSpaceView(req.Context(), r, h.User)
+		view, err := h.SpaceViewResolver.ResolveSpaceView(req.Context(), r.Spec(), false, h.User)
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}

@@ -5,6 +5,13 @@ import (
 	"strings"
 )
 
+func Prefixed[T Source](prefix string, source T) *PrefixedSource[T] {
+	return &PrefixedSource[T]{
+		Prefix: prefix,
+		Source: source,
+	}
+}
+
 type PrefixedSource[T Source] struct {
 	Prefix string
 	Source T
@@ -17,15 +24,7 @@ func (s *PrefixedSource[T]) WrapsCommandsSource() Source {
 }
 
 func (s *PrefixedSource[T]) Reflect(ctx context.Context) (DefIndex, error) {
-	index, err := s.Source.Reflect(ctx)
-	if err != nil {
-		return nil, err
-	}
-	ci := make(DefIndex, len(index))
-	for name, def := range index {
-		ci[s.Prefix+name] = def
-	}
-	return ci, nil
+	return Reflect(ctx, func(k string, v Def) (string, Def) { return s.Prefix + k, v }, s.Source)
 }
 
 func (s *PrefixedSource[T]) Run(ctx context.Context, name string, p Fields) (Fields, error) {

@@ -16,13 +16,18 @@ import (
 	"tractor.dev/toolkit-go/engine/daemon"
 )
 
+type SuggestReturns struct {
+	Prompt  string             `json:"prompt" desc:"The prompt provided to the tool suggestion model"`
+	Choices []commands.Request `json:"choices" desc:"The suggested commands"`
+}
+
 func main() {
 	prefix := os.Getenv("SUBSTRATE_URL_PREFIX")
 	engine.Run(
 		Main{},
 		&httpframework.Framework{},
 		&httpframework.StripPrefix{Prefix: prefix},
-		&commands.HTTPHandler{
+		&commands.HTTPSourceHandler{
 			Debug: true,
 			Route: "/commands",
 		},
@@ -31,46 +36,20 @@ func main() {
 			Route:   "GET /js/",
 			Handler: http.StripPrefix("/js", http.FileServer(http.FS(js.Dir))),
 		},
-		commands.NewStaticSource[any](
-			[]commands.Entry{{
-				Name: "suggest",
-				Def: commands.Def{
-					Description: "Suggest a command",
-					Parameters: commands.FieldDefs{
-						"input": {
-							Name:        "input",
-							Type:        "string",
-							Description: "The input to suggest a command for",
-						},
-						"commands": {
-							Name:        "commands",
-							Type:        "object",
-							Description: "The commands to suggest from",
-						},
-					},
-					Returns: commands.FieldDefs{
-						"prompt": {
-							Name:        "prompt",
-							Type:        "string",
-							Description: "The prompt provided to the tool suggestion model",
-						},
-						"choices": {
-							Name:        "choices",
-							Type:        "list",
-							Description: "The suggested commands",
-						},
-					},
-				},
-				Run: func(ctx context.Context, p commands.Fields) (commands.Fields, error) {
-					input := p.String("input")
-					cmds, err := convertJSON[commands.DefIndex](p["commands"])
-					if err != nil {
-						return nil, err
-					}
+		commands.List(
+			commands.Command(
+				"suggest",
+				"Suggest a command",
+				func(ctx context.Context, t *struct{}, args struct {
+					Input    string            `json:"input" desc:"The input to suggest a command for"`
+					Commands commands.DefIndex `json:"commands" desc:"The commands to suggest from"`
+				}) (SuggestReturns, error) {
+					input := args.Input
+					cmds := args.Commands
 					defs := translateDefs(cmds)
 					prompt, calls, err := tools.Suggest(input, defs)
 					if err != nil {
-						return nil, err
+						return SuggestReturns{}, err
 					}
 					reqs := make([]commands.Request, 0, len(calls))
 					for _, c := range calls {
@@ -79,12 +58,11 @@ func main() {
 							Parameters: c.Arguments,
 						})
 					}
-					return commands.Fields{
-						"prompt":  prompt,
-						"choices": reqs,
+					return SuggestReturns{
+						Prompt:  prompt,
+						Choices: reqs,
 					}, nil
-				},
-			}},
+				}),
 		),
 	)
 }

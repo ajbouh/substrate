@@ -3,7 +3,7 @@ package exports
 import (
 	"context"
 	"encoding/json"
-	"errors"
+	"fmt"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
@@ -16,14 +16,19 @@ type Changed struct{}
 
 type Exports any
 
+const maxMergeDepth = 64
+
 // assumes that src is a tree (no cycles)
-func deepMerge(dst, src map[string]any) map[string]any {
+func deepMerge(dst, src map[string]any, depth int) map[string]any {
+	if depth > maxMergeDepth {
+		panic(fmt.Sprintf("way too deep! %#v and %#v", dst, src))
+	}
 	for key, srcVal := range src {
 		if dstVal, ok := dst[key]; ok {
 			srcMap, srcMapOk := srcVal.(map[string]any)
 			dstMap, dstMapOk := dstVal.(map[string]any)
 			if srcMapOk && dstMapOk {
-				srcVal = deepMerge(dstMap, srcMap)
+				srcVal = deepMerge(dstMap, srcMap, depth+1)
 			}
 		}
 		dst[key] = srcVal
@@ -34,10 +39,13 @@ func deepMerge(dst, src map[string]any) map[string]any {
 
 // represents value as a recursive tree of map[string]any
 func mapifyViaJSON(v any) (map[string]any, error) {
-	b, err := json.Marshal(v)
+	var b []byte
+	var err error
+	b, err = json.Marshal(v)
 	if err != nil {
 		return nil, err
 	}
+
 	var m map[string]any
 	err = json.Unmarshal(b, &m)
 	if err != nil {
@@ -45,34 +53,6 @@ func mapifyViaJSON(v any) (map[string]any, error) {
 	}
 
 	return m, nil
-}
-
-func Union(ctx context.Context, sources []Source) (Exports, error) {
-	// If there's just one, export it as is
-	if len(sources) == 1 {
-		return sources[0].Exports(ctx)
-	}
-
-	// If we have more than one, merge them.
-	exports := map[string]any{}
-	var errs []error
-	for _, s := range sources {
-		exp, err := s.Exports(ctx)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-
-		m, err := mapifyViaJSON(exp)
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-
-		deepMerge(exports, m)
-	}
-
-	return exports, errors.Join(errs...)
 }
 
 type Loader[T any] interface {
@@ -91,4 +71,3 @@ func (e *LoaderSource[S]) Notify(ctx context.Context, s S) {
 func (e *LoaderSource[S]) Exports(ctx context.Context) (any, error) {
 	return e.Loader.Load().Exports(ctx)
 }
-

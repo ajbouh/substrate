@@ -6,6 +6,8 @@ import (
 	"errors"
 	"log"
 	"log/slog"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
@@ -44,6 +46,7 @@ type Service struct {
 
 	units []engine.Unit
 
+	BaseURL       string
 	ExportsRoute  string
 	CommandsRoute string
 }
@@ -59,8 +62,15 @@ func (s *Service) initialize() {
 		s.ExportsRoute = "/exports"
 	}
 
+	originURL, _ := url.Parse(s.BaseURL)
+
 	s.units = NewUnits(
 		&httpframework.Framework{},
+		&httpframework.HairpinHTTPClient{
+			Match: func(r *http.Request) bool {
+				return r.URL.OmitHost || (originURL != nil && originURL.Scheme == r.URL.Scheme && originURL.Host == r.URL.Host)
+			},
+		},
 		&httpframework.RequestLogger{},
 		&httpframework.StripPrefix{
 			Prefix: strings.TrimSuffix(os.Getenv("SUBSTRATE_URL_PREFIX"), "/"),
@@ -68,9 +78,10 @@ func (s *Service) initialize() {
 
 		&commands.Aggregate{},
 		&commands.ExportCommands{},
-		&commands.HTTPHandler{
-			Debug: true,
-			Route: s.CommandsRoute,
+		&commands.HTTPSourceHandler{
+			Debug:   true,
+			BaseURL: s.BaseURL,
+			Route:   s.CommandsRoute,
 		},
 
 		httpevents.NewJSONRequester[exports.Exports]("PUT", os.Getenv("INTERNAL_SUBSTRATE_EXPORTS_URL")),

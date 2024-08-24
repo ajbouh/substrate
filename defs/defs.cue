@@ -4,6 +4,7 @@ import (
   cryptosha256 "crypto/sha256"
   "encoding/hex"
 
+  command "github.com/ajbouh/substrate/defs/substrate:command"
   service "github.com/ajbouh/substrate/defs/substrate:service"
   call "github.com/ajbouh/substrate/defs/substrate:call"
   imagespec "github.com/ajbouh/substrate/defs/substrate:imagespec"
@@ -133,3 +134,5 @@ daemons: [key=string]: containerspec.#ContainerSpec & {
   image_tag: string | *imagespecs[key].image
   image: (resolve_image_id & {"image_tag": image_tag}).image
 }
+
+commands: [key=string]: [commandname=string]: {#name: commandname} & command.#Command

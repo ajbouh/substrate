@@ -157,7 +157,7 @@ type commandSourceRegistry struct {
 var _ tools.Registry = (*commandSourceRegistry)(nil)
 
 func (s *commandSourceRegistry) ListTools(ctx context.Context) ([]tools.Definition, error) {
-	def, err := s.Aggregate.AsDynamicSource(ctx).Reflect(ctx)
+	def, err := s.Aggregate.AsSource(ctx, nil).Reflect(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +189,7 @@ func (s *commandSourceRegistry) RunTool(ctx context.Context, call tools.Call[any
 	for k, v := range call.Arguments.(map[string]any) {
 		params[k] = v
 	}
-	ret, err := s.Aggregate.AsDynamicSource(ctx).Run(ctx, call.Name, params)
+	ret, err := s.Aggregate.AsSource(ctx, nil).Run(ctx, call.Name, params)
 	if err != nil {
 		return nil, err
 	}
