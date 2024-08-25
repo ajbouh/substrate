@@ -7,16 +7,14 @@ import (
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	substratedb "github.com/ajbouh/substrate/images/substrate/db"
-	"github.com/ajbouh/substrate/images/substrate/defset"
 	"github.com/ajbouh/substrate/images/substrate/httputil"
-	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
 type SpaceHandler struct {
-	Prefix       string
-	DB           *substratedb.DB
-	User         string
-	DefSetLoader notify.Loader[*defset.DefSet]
+	Prefix            string
+	DB                *substratedb.DB
+	User              string
+	SpaceViewResolver activityspec.SpaceViewResolver
 }
 
 func (h *SpaceHandler) ContributeHTTP(mux *http.ServeMux) {
@@ -28,7 +26,7 @@ func (h *SpaceHandler) ContributeHTTP(mux *http.ServeMux) {
 			return nil, status, err
 		}
 
-		view, err := h.DefSetLoader.Load().ResolveSpaceView(r, h.User)
+		view, err := h.SpaceViewResolver.ResolveSpaceView(req.Context(), r, h.User)
 		if err != nil {
 			return nil, http.StatusInternalServerError, err
 		}
@@ -38,25 +36,14 @@ func (h *SpaceHandler) ContributeHTTP(mux *http.ServeMux) {
 		var createdAt time.Time
 		if view.Creation != nil {
 			createdAt = view.Creation.Time
-			if view.Creation.Base != nil {
-				if view.Creation.Base.CheckpointRef != nil {
-					ref := view.Creation.Base.CheckpointRef.String()
-					forkedFromRef = &ref
-					id := view.Creation.Base.CheckpointRef.SpaceID.String()
-					forkedFromID = &id
-				}
-				if view.Creation.Base.TipRef != nil {
-					ref := view.Creation.Base.TipRef.String()
-					forkedFromRef = &ref
-					id := view.Creation.Base.TipRef.SpaceID.String()
-					forkedFromID = &id
-				}
-			}
+
+			forkedFromID = &view.Creation.ForkedFromID
+			forkedFromRef = &view.Creation.ForkedFromRef
 		}
 
 		err = h.DB.WriteSpace(req.Context(), &substratedb.Space{
 			Owner:         h.User,
-			ID:            view.Tip.SpaceID.String(),
+			ID:            view.SpaceID,
 			ForkedFromRef: forkedFromRef,
 			ForkedFromID:  forkedFromID,
 			CreatedAt:     createdAt,
@@ -73,7 +60,7 @@ func (h *SpaceHandler) ContributeHTTP(mux *http.ServeMux) {
 		return struct {
 			SpaceID string `json:"space"`
 		}{
-			SpaceID: view.Tip.String(),
+			SpaceID: view.SpaceID,
 		}, http.StatusOK, nil
 	})
 

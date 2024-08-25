@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
-	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
 	"golang.org/x/sync/singleflight"
 
@@ -97,31 +96,25 @@ func (p *P) appendMount(ctx context.Context, s *specgen.SpecGenerator, m activit
 	return nil
 }
 
-func includeView(s *specgen.SpecGenerator, viewName string, includeSpaceIDInTarget bool, view *substratefs.SpaceView) {
+func (p *P) includeView(ctx context.Context, s *specgen.SpecGenerator, viewName string, includeSpaceIDInTarget bool, view *activityspec.SpaceView) error {
 	targetPrefix := "/spaces/" + viewName
 	if includeSpaceIDInTarget {
-		targetPrefix += "/" + view.Tip.SpaceID.String()
+		targetPrefix += "/" + view.SpaceID
 	}
 
-	treeMountOptions := []string{}
-	if view.IsReadOnly {
-		treeMountOptions = append(treeMountOptions, "ro")
+	err := view.Await()
+	if err != nil {
+		return fmt.Errorf("error creating view err=%s", err)
 	}
 
-	s.Mounts = append(s.Mounts,
-		specs.Mount{
-			Type:        "bind",
-			Source:      view.TreePath(),
-			Destination: targetPrefix + "/tree",
-			Options:     treeMountOptions,
-		},
-		specs.Mount{
-			Type:        "bind",
-			Source:      view.OwnerFilePath(),
-			Destination: targetPrefix + "/owner",
-			Options:     []string{"ro"},
-		},
-	)
+	for _, m := range view.Mounts(targetPrefix) {
+		err := p.appendMount(ctx, s, m)
+		if err != nil {
+			return fmt.Errorf("error appending mount %#v: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) (*activityspec.ServiceSpawnResponse, error) {
@@ -209,10 +202,10 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	for parameterName, parameterValue := range as.Parameters {
 		switch {
 		case parameterValue.Space != nil:
-			includeView(s, parameterName, false, parameterValue.Space)
+			p.includeView(ctx, s, parameterName, false, parameterValue.Space)
 		case parameterValue.Spaces != nil:
 			for _, v := range *parameterValue.Spaces {
-				includeView(s, parameterName, true, &v)
+				p.includeView(ctx, s, parameterName, true, &v)
 			}
 		}
 	}

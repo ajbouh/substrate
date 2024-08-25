@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
@@ -15,8 +16,12 @@ type ExportsHandler struct {
 	ProvisionerCache *provisioner.Cache
 }
 
+func urlPathEscape(s string) string {
+	return strings.ReplaceAll(s, "/", "%2F")
+}
+
 func (h *ExportsHandler) modifyExports(ctx context.Context, viewspec, digest string, cb func(f provisioner.Fields) provisioner.Fields) (interface{}, int, error) {
-	views, _, err := activityspec.ParseServiceSpawnRequest(viewspec, false, "/"+viewspec)
+	views, err := activityspec.ParseServiceSpawnRequest(viewspec, false, "/"+urlPathEscape(viewspec))
 	if err != nil {
 		return nil, http.StatusBadRequest, err
 	}

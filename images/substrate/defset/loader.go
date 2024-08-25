@@ -12,7 +12,6 @@ import (
 	cueerrors "cuelang.org/go/cue/errors"
 	"cuelang.org/go/cue/load"
 
-	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 	"github.com/ajbouh/substrate/pkg/cueloader"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
@@ -28,9 +27,9 @@ func (m *CueMutex) Unlock() {
 }
 
 type Loader struct {
-	CueLoader      *cueloader.Loader
-	Config         *load.Config
-	Layout         *substratefs.Layout
+	CueLoader *cueloader.Loader
+	Config    *load.Config
+
 	ServiceDefPath cue.Path
 
 	DefSetSlot *notify.Slot[DefSet]
@@ -45,16 +44,12 @@ func (l *Loader) Serve(ctx context.Context) {
 }
 
 func (l *Loader) loadDefSet(files map[string]string, cueLoadConfigWithFiles *load.Config, err error) *DefSet {
-	// TODO Try EvalV3 again in the next cuelang release after v0.10.0
-	// cueContext := cuecontext.New(cuecontext.EvaluatorVersion(cuecontext.EvalV3))
-	cueContext := cuecontext.New()
-	cueMu := &CueMutex{}
-
 	sds := &DefSet{
 		ServicesCueValues: map[string]cue.Value{},
-		CueMu:             cueMu,
-		CueContext:        cueContext,
-		Layout:            l.Layout,
+		CueMu:             &CueMutex{},
+		// TODO Try EvalV3 again in the next cuelang release after v0.10.0
+		// cueContext := cuecontext.New(cuecontext.EvaluatorVersion(cuecontext.EvalV3))
+		CueContext: cuecontext.New(),
 	}
 	sds.Initialize()
 	if err != nil {
@@ -62,18 +57,17 @@ func (l *Loader) loadDefSet(files map[string]string, cueLoadConfigWithFiles *loa
 		return sds
 	}
 
-	load := l.CueLoader.LoadCue(cueMu, cueContext, cueLoadConfigWithFiles)
+	load := l.CueLoader.LoadCue(sds.CueMu, sds.CueContext, cueLoadConfigWithFiles)
 	if load.Err != nil {
 		sds.Err = fmt.Errorf("error loading cue defs: %w", load.Err)
 		return sds
 	}
 
-	sds.RootValue = load.Value
-
-	value := sds.RootValue.LookupPath(l.ServiceDefPath)
-
 	sds.CueMu.Lock()
 	defer sds.CueMu.Unlock()
+
+	sds.RootValue = load.Value
+	value := sds.RootValue.LookupPath(l.ServiceDefPath)
 
 	err = value.Validate()
 	if err != nil {

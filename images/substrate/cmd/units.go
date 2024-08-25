@@ -89,16 +89,17 @@ type ServiceSpawned struct {
 }
 
 type SpawnWithCurrentDefSet struct {
-	DefSetLoader    Loader[*defset.DefSet]
-	ProvisionDriver provisioner.Driver
-	ServiceSpawned  []notify.Notifier[ServiceSpawned]
+	DefSetLoader      Loader[*defset.DefSet]
+	ProvisionDriver   provisioner.Driver
+	SpaceViewResolver activityspec.SpaceViewResolver
+	ServiceSpawned    []notify.Notifier[ServiceSpawned]
 }
 
 func (l *SpawnWithCurrentDefSet) Spawn(ctx context.Context, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResponse, <-chan provisioner.Event, error) {
 	s := l.DefSetLoader.Load()
 	driver := l.ProvisionDriver
 
-	serviceSpawnResolution, err := s.ResolveService(ctx, req)
+	serviceSpawnResolution, err := s.ResolveService(ctx, l.SpaceViewResolver, req)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -122,7 +123,7 @@ func (l *SpawnWithCurrentDefSet) Shutdown(ctx context.Context, name string, reas
 }
 
 func (l *SpawnWithCurrentDefSet) Peek(ctx context.Context, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResolution, error) {
-	return l.DefSetLoader.Load().ResolveService(ctx, req)
+	return l.DefSetLoader.Load().ResolveService(ctx, l.SpaceViewResolver, req)
 }
 
 type PinnedInstances struct {

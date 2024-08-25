@@ -279,7 +279,7 @@ const spacesTable = "spaces"
 const createSpacesTable = `CREATE TABLE IF NOT EXISTS "spaces" (id TEXT, owner TEXT, alias TEXT, created_at_us INTEGER, deleted_at_us TEXT, forked_from_id TEXT, forked_from_ref TEXT, PRIMARY KEY (id), FOREIGN KEY (forked_from_id) REFERENCES spaces(id));`
 
 func (s *DB) WriteSpace(ctx context.Context, space *Space) error {
-	return s.dbExecContext(ctx, `INSERT INTO "spaces" (id, owner, created_at_us, forked_from_id, forked_from_ref) VALUES (?, ?, ?, ?, ?, ?)`,
+	return s.dbExecContext(ctx, `INSERT INTO "spaces" (id, owner, created_at_us, forked_from_id, forked_from_ref) VALUES (?, ?, ?, ?, ?)`,
 		space.ID, space.Owner, space.CreatedAt.UnixMicro(), space.ForkedFromID, space.ForkedFromRef)
 }
 

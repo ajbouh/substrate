@@ -1,59 +1,27 @@
 package activityspec
 
-import "strings"
+import (
+	"context"
+	"time"
+)
 
-type SpaceViewRequest struct {
-	SpaceAlias              *string `json:"space_alias,omitempty"`
-	SpaceID                 string  `json:"space,omitempty" form:"space,omitempty"`
-	SpaceBaseRef            *string `json:"space_base_ref,omitempty" form:"space_base_ref,omitempty"`
-	ReadOnly                bool    `json:"read_only,omitempty" form:"read_only,omitempty"`
-	CheckpointExistingFirst bool    `json:"checkpoint_existing_first,omitempty" form:"checkpoint_existing_first,omitempty"`
+type SpaceViewResolver interface {
+	IsSpaceViewConcrete(v string, t ServiceSpawnParameterType) bool
+	ResolveSpaceView(ctx context.Context, s string, forceReadOnly bool, ownerIfCreation string) (*SpaceView, error)
 }
 
-const spaceViewForkPrefix = "~"
-const spaceViewAliasPrefix = "$"
+type SpaceView struct {
+	SpaceID  string             `json:"space_id"`
+	ReadOnly bool               `json:"is_read_only,omitempty"`
+	Creation *SpaceViewCreation `json:"creation,omitempty"`
 
-// const spaceViewPlaceholder = "^"
-
-func ParseViewRequest(v string, forceReadOnly bool) *SpaceViewRequest {
-	readOnly := false
-	if strings.HasSuffix(v, ":ro") {
-		v = strings.TrimSuffix(v, ":ro")
-		readOnly = true
-	}
-	readOnly = forceReadOnly
-	if strings.HasPrefix(v, spaceViewForkPrefix) {
-		baseRef := strings.TrimPrefix(v, spaceViewForkPrefix)
-		return &SpaceViewRequest{
-			SpaceBaseRef: &baseRef,
-			ReadOnly:     readOnly,
-		}
-	}
-	if strings.HasPrefix(v, spaceViewAliasPrefix) {
-		alias := strings.TrimPrefix(v, spaceViewAliasPrefix)
-		return &SpaceViewRequest{
-			SpaceAlias: &alias,
-			ReadOnly:   readOnly,
-		}
-	}
-
-	return &SpaceViewRequest{
-		SpaceID:  v,
-		ReadOnly: readOnly,
-	}
+	Await  func() error                                             `json:"-"`
+	Mounts func(targetPrefix string) []ServiceInstanceDefSpawnMount `json:"-"`
 }
 
-func (r *SpaceViewRequest) Spec() string {
-	suffix := ""
-	if r.ReadOnly {
-		suffix = ":ro"
-	}
-	if r.SpaceBaseRef != nil {
-		return spaceViewForkPrefix + *r.SpaceBaseRef + suffix
-	}
-	if r.SpaceAlias != nil {
-		return spaceViewAliasPrefix + *r.SpaceAlias + suffix
-	}
+type SpaceViewCreation struct {
+	Time time.Time `json:"time"`
 
-	return r.SpaceID + suffix
+	ForkedFromRef string `json:"forked_from_ref,omitempty"`
+	ForkedFromID  string `json:"forked_from_id,omitempty"`
 }
