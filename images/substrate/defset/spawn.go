@@ -9,19 +9,18 @@ import (
 	"cuelang.org/go/cue"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
-	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 )
 
-func (s *DefSet) ResolveService(ctx context.Context, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResolution, error) {
+func (s *DefSet) ResolveService(ctx context.Context, sr activityspec.SpaceViewResolver, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResolution, error) {
 	serviceDefSpawnValue, err := s.resolveServiceDefSpawn(req)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.resolveServiceSpawn(req, serviceDefSpawnValue)
+	return s.resolveServiceSpawn(ctx, sr, req, serviceDefSpawnValue)
 }
 
-func (s *DefSet) IsConcrete(req *activityspec.ServiceSpawnRequest) (bool, error) {
+func (s *DefSet) IsConcrete(sr activityspec.SpaceViewResolver, req *activityspec.ServiceSpawnRequest) (bool, error) {
 	isConcrete, ok := s.isConcreteLRU.Get(req.CanonicalFormat)
 	if ok {
 		return isConcrete, nil
@@ -55,7 +54,7 @@ func (s *DefSet) IsConcrete(req *activityspec.ServiceSpawnRequest) (bool, error)
 			return false, err
 		}
 
-		if !req.Parameters[parameterName].IsConcrete(activityspec.ServiceSpawnParameterType(parameterType)) {
+		if !sr.IsSpaceViewConcrete(req.Parameters[parameterName], activityspec.ServiceSpawnParameterType(parameterType)) {
 			s.isConcreteLRU.Add(req.CanonicalFormat, false)
 			return false, nil
 		}
@@ -99,7 +98,7 @@ func (s *DefSet) resolveServiceDefSpawn(req *activityspec.ServiceSpawnRequest) (
 	for parameterName, parameterReq := range req.Parameters {
 		serviceDefSpawnValue = serviceDefSpawnValue.FillPath(
 			cue.MakePath(cue.Str("parameters"), cue.Str(parameterName), cue.Str("value")),
-			parameterReq.String(),
+			parameterReq,
 		)
 	}
 
@@ -107,37 +106,55 @@ func (s *DefSet) resolveServiceDefSpawn(req *activityspec.ServiceSpawnRequest) (
 	return serviceDefSpawnValue, nil
 }
 
-func (s *DefSet) resolveServiceSpawn(req *activityspec.ServiceSpawnRequest, serviceDefSpawnValue cue.Value) (*activityspec.ServiceSpawnResolution, error) {
-	s.CueMu.Lock()
-	defer s.CueMu.Unlock()
+// TODO move this logic directly into cue expressions. Seems weird and redundant to have it here.
+func (s *DefSet) resolveServiceSpawn(ctx context.Context, sr activityspec.SpaceViewResolver, req *activityspec.ServiceSpawnRequest, serviceDefSpawnValue cue.Value) (*activityspec.ServiceSpawnResolution, error) {
+	parameterTypes := map[string]string{}
+	parameters := activityspec.ServiceSpawnParameters{}
+	spawnDef := &activityspec.ServiceInstanceDef{}
 
-	parametersValue, err := serviceDefSpawnValue.LookupPath(cue.MakePath(cue.Str("parameters"))).Fields()
+	err := func() error {
+		s.CueMu.Lock()
+		defer s.CueMu.Unlock()
+
+		parametersValue, err := serviceDefSpawnValue.LookupPath(cue.MakePath(cue.Str("parameters"))).Fields()
+		if err != nil {
+			return fmt.Errorf("error decoding service parametersValue: %w", err)
+		}
+
+		for parametersValue.Next() {
+			sel := parametersValue.Selector()
+			if !sel.IsString() {
+				continue
+			}
+			parameterName := sel.Unquoted()
+
+			parameterType, err := parametersValue.Value().LookupPath(cue.MakePath(cue.Str("type"))).String()
+			if err != nil {
+				return err
+			}
+
+			parameterTypes[parameterName] = parameterType
+		}
+
+		err = serviceDefSpawnValue.Decode(spawnDef)
+		if err != nil {
+			return fmt.Errorf("error decoding ServiceDefSpawn: %w", err)
+		}
+
+		return nil
+	}()
 	if err != nil {
-		return nil, fmt.Errorf("error decoding service parametersValue: %w", err)
+		return nil, err
 	}
 
-	parameters := activityspec.ServiceSpawnParameters{}
-	for parametersValue.Next() {
-		sel := parametersValue.Selector()
-		if !sel.IsString() {
-			continue
-		}
-		parameterName := sel.Unquoted()
-
-		parameterType, err := parametersValue.Value().LookupPath(cue.MakePath(cue.Str("type"))).String()
-		if err != nil {
-			return nil, err
-		}
-
+	for parameterName, parameterType := range parameterTypes {
 		parameterReq := req.Parameters[parameterName]
 
 		switch activityspec.ServiceSpawnParameterType(parameterType) {
 		case activityspec.ServiceSpawnParameterTypeString:
-			s := parameterReq.String()
-			parameters[parameterName] = &activityspec.ServiceSpawnParameter{String: &s}
+			parameters[parameterName] = &activityspec.ServiceSpawnParameter{String: &parameterReq}
 		case activityspec.ServiceSpawnParameterTypeSpace:
-			space := parameterReq.Space(req.ForceReadOnly)
-			view, err := s.ResolveSpaceView(space, req.User)
+			view, err := sr.ResolveSpaceView(ctx, parameterReq, req.ForceReadOnly, req.User)
 			if err != nil {
 				return nil, err
 			}
@@ -146,10 +163,13 @@ func (s *DefSet) resolveServiceSpawn(req *activityspec.ServiceSpawnRequest, serv
 				parameters[parameterName] = &activityspec.ServiceSpawnParameter{Space: view}
 			}
 		case activityspec.ServiceSpawnParameterTypeSpaces:
-			spaces := parameterReq.Spaces(req.ForceReadOnly)
-			multi := make([]substratefs.SpaceView, 0, len(spaces))
-			for _, v := range spaces {
-				view, err := s.ResolveSpaceView(&v, req.User)
+			split := strings.Split(parameterReq, activityspec.SpaceViewMultiSep)
+			multi := []activityspec.SpaceView{}
+			for _, m := range split {
+				if m == "" {
+					continue
+				}
+				view, err := sr.ResolveSpaceView(ctx, m, req.ForceReadOnly, req.User)
 				if err != nil {
 					return nil, err
 				}
@@ -161,12 +181,6 @@ func (s *DefSet) resolveServiceSpawn(req *activityspec.ServiceSpawnRequest, serv
 
 			parameters[parameterName] = &activityspec.ServiceSpawnParameter{Spaces: &multi}
 		}
-	}
-
-	spawnDef := &activityspec.ServiceInstanceDef{}
-	err = serviceDefSpawnValue.Decode(spawnDef)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding ServiceDefSpawn: %w", err)
 	}
 
 	return &activityspec.ServiceSpawnResolution{

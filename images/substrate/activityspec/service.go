@@ -7,15 +7,12 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
-	"strconv"
 	"strings"
-
-	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 )
 
 type ServiceSpawnRequest struct {
 	ServiceName string
-	Parameters  ServiceSpawnParameterRequests
+	Parameters  map[string]string
 
 	URLPrefix     string
 	User          string
@@ -92,96 +89,26 @@ type ServiceInstanceDefSpawnMount struct {
 	Mode        string `json:"mode,omitempty"`
 }
 
-type ServiceSpawnParameterRequest string
-
-func (v ServiceSpawnParameterRequest) String() string {
-	return string(v)
-}
-
-func (v ServiceSpawnParameterRequest) IsConcrete(t ServiceSpawnParameterType) bool {
-	switch t {
-	case ServiceSpawnParameterTypeSpace:
-		return string(v) != "" && !strings.HasPrefix(string(v), spaceViewForkPrefix)
-	case ServiceSpawnParameterTypeSpaces:
-		for s := range v.Spaces(false) {
-			if string(s) == "" || strings.HasPrefix(string(s), spaceViewForkPrefix) {
-				return false
-			}
-		}
-	}
-
-	return true
-}
-
-func (v ServiceSpawnParameterRequest) Resource() *Resource {
-	var unit string
-	quantityRunes := []rune{}
-	for i, r := range v {
-		if r >= '0' || r <= '9' {
-			quantityRunes = append(quantityRunes, r)
-		} else {
-			unit = string(v)[i:]
-			break
-		}
-	}
-
-	quantity := uint64(1)
-	if len(quantityRunes) > 0 {
-		quantity, _ = strconv.ParseUint(string(quantityRunes), 10, 64)
-	}
-	return &Resource{
-		Unit:     unit,
-		Quantity: quantity,
-	}
-}
-
-func (v ServiceSpawnParameterRequest) Space(forceReadOnly bool) *SpaceViewRequest {
-	return ParseViewRequest(string(v), forceReadOnly)
-}
-
-func (v ServiceSpawnParameterRequest) Spaces(forceReadOnly bool) []SpaceViewRequest {
-	split := strings.Split(string(v), spaceViewMultiSep)
-	multi := []SpaceViewRequest{}
-	for _, m := range split {
-		if m == "" {
-			continue
-		}
-		multi = append(multi, *ParseViewRequest(m, forceReadOnly))
-	}
-
-	return multi
-}
-
-type ServiceSpawnParameterRequests map[string]ServiceSpawnParameterRequest
-
 type ServiceSpawnParameters map[string]*ServiceSpawnParameter
 
-type Resource struct {
-	Unit     string
-	Quantity uint64
-}
-
 type ServiceSpawnParameter struct {
-	String   *string
-	Resource *Resource
-	Space    *substratefs.SpaceView
-	Spaces   *[]substratefs.SpaceView
+	String *string
+	Space  *SpaceView
+	Spaces *[]SpaceView
 
 	Implicit bool
 }
 
-func fmtSpaceView(v *substratefs.SpaceView) string {
+func fmtSpaceView(v *SpaceView) string {
 	suffix := ""
-	if v.IsReadOnly {
+	if v.ReadOnly {
 		suffix = ":ro"
 	}
-	return v.Tip.String() + suffix
+	return v.SpaceID + suffix
 }
 
 func (p *ServiceSpawnParameter) Format() string {
 	switch {
-	case p.Resource != nil:
-		return strconv.FormatUint(p.Resource.Quantity, 10) + p.Resource.Unit
 	case p.String != nil:
 		return *p.String
 	case p.Space != nil:
@@ -194,7 +121,7 @@ func (p *ServiceSpawnParameter) Format() string {
 		}
 		// Canonicalize multi order
 		sort.Strings(multi)
-		return strings.Join(multi, spaceViewMultiSep)
+		return strings.Join(multi, SpaceViewMultiSep)
 	}
 
 	return ""
@@ -202,28 +129,20 @@ func (p *ServiceSpawnParameter) Format() string {
 
 const spaceViewCut = "="
 const spaceViewsSep = ";"
-const spaceViewMultiSep = ","
+const SpaceViewMultiSep = ","
 const viewspecParameterStart = ";"
 
-func ParseServiceSpawnRequest(spec string, forceReadOnly bool, spawnPrefix string) (*ServiceSpawnRequest, string, error) {
+func ParseServiceSpawnRequest(spec string, forceReadOnly bool, spawnPrefix string) (*ServiceSpawnRequest, error) {
 	var service string
 	var viewspec string
-	var path string
 
 	if strings.HasPrefix(spec, viewspecParameterStart) { // service is unknown!
 		viewspec = strings.TrimPrefix(spec, viewspecParameterStart)
-		viewspec, path, _ = strings.Cut(viewspec, "/")
-		path = "/" + path
 	} else {
-		var found bool
-		service, viewspec, found = strings.Cut(spec, viewspecParameterStart)
-		if found {
-			viewspec, path, _ = strings.Cut(viewspec, "/")
-			path = "/" + path
-		}
+		service, viewspec, _ = strings.Cut(spec, viewspecParameterStart)
 	}
 
-	params := ServiceSpawnParameterRequests{}
+	params := map[string]string{}
 	if viewspec != "" {
 		for _, fragment := range strings.Split(viewspec, spaceViewsSep) {
 			k, v, ok := strings.Cut(fragment, spaceViewCut)
@@ -231,7 +150,7 @@ func ParseServiceSpawnRequest(spec string, forceReadOnly bool, spawnPrefix strin
 				v = k
 				k = "data"
 			}
-			params[k] = ServiceSpawnParameterRequest(v)
+			params[k] = v
 		}
 	}
 
@@ -248,7 +167,7 @@ func ParseServiceSpawnRequest(spec string, forceReadOnly bool, spawnPrefix strin
 
 	// fmt.Printf("ParseServiceSpawnRequest %q %#v\n", spec, *r)
 
-	return r, path, nil
+	return r, nil
 }
 
 func (r *ServiceSpawnRequest) format() (string, bool) {
@@ -261,7 +180,7 @@ func (r *ServiceSpawnRequest) format() (string, bool) {
 			continue
 		}
 		// TODO consider canonicalizing spaces order...
-		fragments = append(fragments, k+spaceViewCut+params[k].String())
+		fragments = append(fragments, k+spaceViewCut+params[k])
 	}
 
 	if len(fragments) == 0 {

@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
-	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 
 	ulid "github.com/oklog/ulid/v2"
 )
@@ -41,24 +40,15 @@ loop:
 	now := time.Now()
 	nowTs := ulid.Timestamp(now)
 
-	visitSpace := func(viewName string, multi bool, view *substratefs.SpaceView) error {
-		spaceID := view.Tip.SpaceID.String()
+	visitSpace := func(viewName string, multi bool, view *activityspec.SpaceView) error {
+		spaceID := view.SpaceID
 
 		if view.Creation != nil {
-			var forkedFromRef *string
-			var forkedFromID *string
-			baseRef := view.Creation.Base
-			if baseRef != nil {
-				base := baseRef.String()
-				baseID := baseRef.TipRef.SpaceID.String()
-				forkedFromRef = &base
-				forkedFromID = &baseID
-			}
 			spaces = append(spaces, &Space{
 				Owner:         req.User,
 				ID:            spaceID,
-				ForkedFromRef: forkedFromRef,
-				ForkedFromID:  forkedFromID,
+				ForkedFromRef: &view.Creation.ForkedFromRef,
+				ForkedFromID:  &view.Creation.ForkedFromID,
 				CreatedAt:     now,
 			})
 		}

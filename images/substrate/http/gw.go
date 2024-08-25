@@ -20,8 +20,9 @@ type ProxyHandler struct {
 	InternalSubstrateOrigin string
 	User                    string
 
-	DefSetLoader     notify.Loader[*defset.DefSet]
-	ProvisionerCache *provisioner.Cache
+	SpaceViewResolver activityspec.SpaceViewResolver
+	DefSetLoader      notify.Loader[*defset.DefSet]
+	ProvisionerCache  *provisioner.Cache
 }
 
 func (h *ProxyHandler) ContributeHTTP(mux *http.ServeMux) {
@@ -91,20 +92,7 @@ func (h *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	}
 	req.URL.RawPath = ""
 
-	// Redirect to spec without ()s.
-	if activityspec.IsLegacyServiceSpawnRequestFormat(viewspec) {
-		views, path, err := activityspec.ParseLegacyServiceSpawnRequest(viewspec, false, "/"+viewspec)
-		if err != nil {
-			jsonrw := httputil.NewJSONResponseWriter(rw)
-			jsonrw(nil, http.StatusBadRequest, err)
-			return
-		}
-		modern := views.CanonicalFormat
-		http.RedirectHandler("/"+modern+path+rest, http.StatusFound).ServeHTTP(rw, req)
-		return
-	}
-
-	views, path, err := activityspec.ParseServiceSpawnRequest(viewspec, false, "/"+viewspec)
+	views, err := activityspec.ParseServiceSpawnRequest(viewspec, false, "/"+urlPathEscape(viewspec))
 	if err != nil {
 		jsonrw := httputil.NewJSONResponseWriter(rw)
 		jsonrw(nil, http.StatusBadRequest, err)
@@ -116,7 +104,7 @@ func (h *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	seemsConcrete := views.SeemsConcrete
 	concrete := seemsConcrete
 	if seemsConcrete {
-		concrete, err = defSet.IsConcrete(views)
+		concrete, err = defSet.IsConcrete(h.SpaceViewResolver, views)
 		if err != nil {
 			jsonrw := httputil.NewJSONResponseWriter(rw)
 			jsonrw(nil, http.StatusBadRequest, err)
@@ -140,7 +128,7 @@ func (h *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		}
 
 		concretized, _ := ssr.ServiceSpawnResolution.Format()
-		http.RedirectHandler("/"+concretized+path+rest, http.StatusFound).ServeHTTP(rw, req)
+		http.RedirectHandler("/"+concretized+"/"+rest, http.StatusFound).ServeHTTP(rw, req)
 		return
 	}
 
