@@ -4,12 +4,7 @@ import (
   "regexp"
 )
 
-enable: "huggingface-cli": true
 
-imagespecs: "huggingface-cli": {
-  image: "\(#var.image_prefix)huggingface-cli"
-  build: dockerfile: "images/huggingface-cli/Dockerfile"
-}
 
 resourcedirs: [id=(string & =~"^huggingface:[^:]+:[^:]+:[^:]+(:[^:]+)?$")]: {
   let m = regexp.FindSubmatch("^huggingface:([^:]+):([^:]+):([^:]+)(?::([^:]+))?$", id)
@@ -18,20 +13,18 @@ resourcedirs: [id=(string & =~"^huggingface:[^:]+:[^:]+:[^:]+(:[^:]+)?$")]: {
   let revision = m[3]
   let file = m[4]
 
-  #imagespec: imagespecs["huggingface-cli"]
-  #containerspec: {
-    command: [
-      "download",
-      "--repo-type", type,
-      "--revision", revision,
-      "--cache-dir", "/res/huggingface/cache",
-      "--local-dir", "/res/huggingface/local",
-      "--local-dir-use-symlinks", "True",
-      repo,
+  sha256: _
+  #imagespec: {
+    image: "\(#var.image_prefix)resourcedir-huggingface-\(sha256)"
+    build: dockerfile: "images/huggingface-cli/Dockerfile"
+    build: args: {
+      TYPE: type
+      REPO: repo
+      REVISION: revision
       if file != "" {
-        file,
+        FILE: file
       }
-    ]
+    }
   }
 }
 

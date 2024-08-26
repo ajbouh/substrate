@@ -12,6 +12,7 @@ use (
 	./images/substrate
 	./images/sys
 	./images/tool-call
+	./images/weather
 	./pkg/cueloader
 	./pkg/toolkit
 )

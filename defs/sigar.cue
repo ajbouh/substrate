@@ -14,9 +14,9 @@ services: "sigar": {
     environment: [string]: string
     url_prefix: environment.SUBSTRATE_URL_PREFIX
 
-    mounts: [
-      { source: "/proc", destination: "/hostproc", mode: "ro" },
-    ]
+    mounts: {
+      "/hostproc": { source: "/proc", mode: "ro" }
+    }
 
     exports: data: {
       system: {

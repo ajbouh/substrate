@@ -2,16 +2,15 @@ package podmanprovisioner
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
-	"path"
 	"strconv"
 	"time"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
+	"golang.org/x/sync/singleflight"
 
 	nettypes "github.com/containers/common/libnetwork/types"
 	"github.com/containers/podman/v4/pkg/bindings/containers"
@@ -30,31 +29,26 @@ type P struct {
 	internalNetwork string
 	externalNetwork string
 
-	hostResourceDirsRoot string
-	hostResourceDirsPath []string
-	containerResourceDir string
-
 	waitForReadyTimeout time.Duration
 	waitForReadyTick    time.Duration
+
+	containerTemplateInit singleflight.Group
 
 	prep func(h *specgen.SpecGenerator)
 }
 
 var _ provisioner.Driver = (*P)(nil)
 
-func New(connect func(ctx context.Context) (context.Context, error), namespace, internalNetwork, externalNetwork, hostResourceDirsRoot string, hostResourceDirsPath []string, prep func(h *specgen.SpecGenerator)) *P {
+func New(connect func(ctx context.Context) (context.Context, error), namespace, internalNetwork, externalNetwork string, prep func(h *specgen.SpecGenerator)) *P {
 	return &P{
-		connect:              connect,
-		namespace:            namespace,
-		internalNetwork:      internalNetwork,
-		externalNetwork:      externalNetwork,
-		hostResourceDirsRoot: hostResourceDirsRoot,
-		hostResourceDirsPath: hostResourceDirsPath,
-		containerResourceDir: "/res",
-		waitForReadyTimeout:  2 * time.Minute,
-		waitForReadyTick:     500 * time.Millisecond,
-		generation:           ulid.Make().String(),
-		prep:                 prep,
+		connect:             connect,
+		namespace:           namespace,
+		internalNetwork:     internalNetwork,
+		externalNetwork:     externalNetwork,
+		waitForReadyTimeout: 2 * time.Minute,
+		waitForReadyTick:    500 * time.Millisecond,
+		generation:          ulid.Make().String(),
+		prep:                prep,
 	}
 }
 
@@ -86,43 +80,27 @@ func (p *P) dumpLogs(ctx context.Context, prefix, containerID string) error {
 	return err
 }
 
-func (p *P) findResourceDir(rd activityspec.ResourceDirDef) (string, error) {
-	rdMainPath := path.Join(p.hostResourceDirsRoot, rd.SHA256())
-	if _, err := os.Stat(rdMainPath); err == nil {
-		return rdMainPath, nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return rdMainPath, err
-	}
-
-	// Use existing from path, otherwise fallback to main
-	for _, rdRoot := range p.hostResourceDirsPath {
-		rdPath := path.Join(rdRoot, rd.SHA256())
-		if _, err := os.Stat(rdPath); err == nil {
-			return rdPath, nil
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return rdPath, err
+func (p *P) appendMount(ctx context.Context, s *specgen.SpecGenerator, m activityspec.ServiceInstanceDefSpawnMount) error {
+	switch m.Type {
+	case "image":
+		iv := &specgen.ImageVolume{
+			Source:      m.Source,
+			Destination: m.Destination,
 		}
-	}
-
-	return rdMainPath, nil
-}
-
-func (p *P) prepareResourceDirsMounts(as *activityspec.ServiceSpawnResolution) ([]specs.Mount, error) {
-	mounts := make([]specs.Mount, 0, len(as.ServiceInstanceDef.ResourceDirs))
-	for alias, rd := range as.ServiceInstanceDef.ResourceDirs {
-		rdPath, err := p.findResourceDir(rd)
-		if err != nil {
-			return nil, err
+		if m.Mode == "rw" {
+			iv.ReadWrite = true
 		}
-		mounts = append(mounts, specs.Mount{
-			Type:        "bind",
-			Source:      rdPath,
-			Destination: path.Join(p.containerResourceDir, alias),
-			Options:     []string{"ro"},
-		})
+		s.ImageVolumes = append(s.ImageVolumes, iv)
+		return nil
 	}
 
-	return mounts, nil
+	s.Mounts = append(s.Mounts, specs.Mount{
+		Type:        m.Type,
+		Source:      m.Source,
+		Destination: m.Destination,
+		Options:     []string{m.Mode},
+	})
+	return nil
 }
 
 func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) (*activityspec.ServiceSpawnResponse, error) {
@@ -207,23 +185,12 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		)
 	}
 
-	resourcedirMounts, err := p.prepareResourceDirsMounts(as)
-	if err != nil {
-		return nil, fmt.Errorf("error preparing resourcedir mounts: %w", err)
-	}
-
 	for _, m := range as.ServiceInstanceDef.Mounts {
-		s.Mounts = append(s.Mounts,
-			specs.Mount{
-				Type:        m.Type,
-				Source:      m.Source,
-				Destination: m.Destination,
-				Options:     []string{m.Mode},
-			},
-		)
+		err := p.appendMount(ctx, s, m)
+		if err != nil {
+			return nil, fmt.Errorf("error appending mount %#v: %w", err)
+		}
 	}
-
-	s.Mounts = append(s.Mounts, resourcedirMounts...)
 
 	for k, v := range as.ServiceInstanceDef.Environment {
 		s.Env[k] = v
@@ -262,7 +229,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	}
 
 	if err := containers.Start(ctx, cResp.ID, nil); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error starting %s: %#v %w", cResp.ID, s, err)
 	}
 
 	// Stream logs to stderr

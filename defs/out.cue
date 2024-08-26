@@ -12,27 +12,39 @@ import (
 )
 
 #out: {
-  systemd_containers: [string]: systemd.#Unit
-  systemd_container_contents: [string]: string
-  systemd_container_basenames: string
+  systemd_quadlets: [string]: systemd.#Unit
+  systemd_quadlet_contents: [string]: string
+  systemd_quadlet_basenames: string
+
+  systemd_units: [string]: systemd.#Unit
+  systemd_unit_contents: [string]: string
+  systemd_unit_basenames: string
+
+  systemd_presets: [string]: systemd.#Preset
+  systemd_preset_contents: [string]: string
+  systemd_preset_basenames: string
+
+  #out: systemd_units_to_start: [string]: true
+  #out: systemd_units_to_start_text: string
 
   resourcedir_ids: [...string]
-
-  "resourcedir_fetches": [alias=string]: {
-    sha256: string
-    #containerspec: containerspec.#ContainerSpec
-    #imagespec: imagespec.#ImageSpec
-  }
-  "resourcedir_keys": string
-  resourcedir_fetch_podman_build_options: [string]: string
-  resourcedir_fetch_podman_run_options: [string]: string
+  resourcedir_image_tags_text: string
 }
 
-#out: resourcedir_keys: strings.Join(#out.resourcedir_ids, "\n")
-
 let buildx_bake_metadata_image_digest_key = "containerimage.config.digest"
+
 #out: buildx_bake_metadata_raw: string | *"" @tag(buildx_bake_metadata)
 #out: buildx_bake_needed_image_ids_raw: string | *"" @tag(buildx_bake_needed_image_ids)
+
+#out: buildx_bake_docker_compose_focus_raw: string @tag(buildx_bake_docker_compose_focus)
+if #out.buildx_bake_docker_compose_focus_raw != _|_ {
+  #out: buildx_bake_docker_compose_focus: { for key in strings.Split(#out.buildx_bake_docker_compose_focus_raw, " ") { (key): true } }
+}
+
+#out: buildx_bake_docker_compose_block_tags_raw: string @tag(buildx_bake_docker_compose_block_tags)
+if #out.buildx_bake_docker_compose_block_tags_raw != _|_ {
+  #out: buildx_bake_docker_compose_block_tags: { for key in strings.Split(#out.buildx_bake_docker_compose_block_tags_raw, " ") { (key): true } }
+}
 
 let dedupe_strings = {
   list: [...string]
@@ -102,49 +114,106 @@ if #out.buildx_bake_metadata_raw != "" {
   }
 ])
 
-for resourcedir_key in #out.resourcedir_ids {
-  let rddef = resourcedirs[resourcedir_key]
-  #out: resourcedir_fetches: (rddef.id): {
-    sha256: rddef.sha256
-    target: "\(#var.build_resourcedirs_root)/\(rddef.sha256)"
-    #containerspec: (resourcedirs[rddef.id].#containerspec & {
-      image: resourcedirs[rddef.id].#imagespec.image
-      // write to .build directory first
-      mounts: [{source: "\(#var.build_resourcedirs_root)/\(rddef.sha256).build", "destination": "/res", "mode": "Z"}]
-    })
-    #imagespec: resourcedirs[rddef.id].#imagespec
+#out: resourcedir_image_tags_text: strings.Join([
+  for resourcedir_id in #out.resourcedir_ids {
+    resourcedirs[resourcedir_id].image_tag
   }
-}
-
-#out: "buildx_bake_docker_compose": docker_compose & {
-  for key, def in imagespecs if (enable[key]) {
-    "services": (key): (imagespec.#DockerComposeService & {#imagespec: def}).#out
-  }
-
-  // for i, resourcedir_id in #out.resourcedir_ids {
-  //   let rdir = resourcedirs[resourcedir_id]
-  //   "services": "resourcedir-\(rdir.sha256)": (imagespec.#DockerComposeService & {#imagespec: rdir.#imagespec}).#out
-  // }
-}
-
-for key, def in daemons if (enable[key]) {
-  #out: "systemd_containers": (containerspec.#SystemdUnits & {#name: key, #containerspec: def}).#out
-}
-
-for basename, unit in #out.systemd_containers {
-  #out: "systemd_container_contents": (basename): (systemd.#render & {#unit: unit}).#out
-}
-
-#out: "systemd_container_basenames": strings.Join([
-  for key, def in #out.systemd_containers { key }
 ], "\n")
 
-for key, def in #out.resourcedir_fetches {
-  #out: "resourcedir_fetch_podman_build_options": (key): def.#imagespec.#podman_build_options
-  #out: "resourcedir_fetch_dirs": (key): strings.Join([def.#containerspec.mounts[0].source], " ")
-  #out: "resourcedir_fetch_podman_run_options": (key): (containerspec.#PodmanRunOptions & {
-    #containerspec: def.#containerspec
-  }).#out
+#out: "buildx_bake_docker_compose": docker_compose & {
+  // if we have nothing to focus on, include everything not blocked
+  if #out.buildx_bake_docker_compose_focus == _|_ {
+    for key, def in imagespecs if (enable[key]) {
+      if #out.buildx_bake_docker_compose_block_tags[def.image_tag] == _|_ {
+        "services": (key): (imagespec.#DockerComposeService & {#imagespec: def}).#out
+      }
+    }
+
+    for i, resourcedir_id in #out.resourcedir_ids {
+      let def = resourcedirs[resourcedir_id]
+      let key = "resourcedir-\(def.sha256)"
+      if #out.buildx_bake_docker_compose_block_tags[def.image_tag] == _|_ {
+        "services": (key): (imagespec.#DockerComposeService & {#imagespec: def.#imagespec}).#out
+      }
+    }
+  }
+
+  // if we have something to focus on, include those unless blocked
+  if #out.buildx_bake_docker_compose_focus != _|_ {
+    for key, def in imagespecs if (enable[key]) {
+      if #out.buildx_bake_docker_compose_focus[key] != _|_ &&  #out.buildx_bake_docker_compose_block_tags[def.image_tag] == _|_ {
+        "services": (key): (imagespec.#DockerComposeService & {#imagespec: def}).#out
+      }
+    }
+
+    for i, resourcedir_id in #out.resourcedir_ids {
+      let def = resourcedirs[resourcedir_id]
+      let key = "resourcedir-\(def.sha256)"
+      if #out.buildx_bake_docker_compose_focus[key] != _|_ &&  #out.buildx_bake_docker_compose_block_tags[def.image_tag] == _|_ {
+        "services": (key): (imagespec.#DockerComposeService & {#imagespec: def.#imagespec}).#out
+      }
+    }
+  }
 }
+
+let quadlet_basedirs = [
+  "/etc/containers/systemd",
+  "/usr/share/containers/systemd",
+]
+
+for key, def in daemons if (enable[key]) {
+  let quadlets = (containerspec.#SystemdQuadletUnits & {#name: key, #containerspec: def}).#out
+  let quadlet_service = "\(key).service"
+
+  #out: systemd_quadlets: quadlets
+  #out: systemd_units_to_start: (quadlet_service): true
+
+  // Add a watcher service to restart whenever the quadlets change
+  let watcher_units = (containerspec.#SystemdUnitWatcherUnits & {
+    #name: "\(key)-liveedit"
+    #target_unit: quadlet_service
+    #path_changed: list.Concat([
+      for quadlet_basedir in quadlet_basedirs {
+        [
+          for basename, quadlet in quadlets {
+            "\(quadlet_basedir)/\(basename)",
+          }
+        ]
+      }
+    ])
+  }).#out
+  #out: systemd_units: watcher_units
+
+  // add a preset enabling liveedit .path
+  #out: systemd_presets: "60-liveedit-paths.preset": {
+    ("\(key)-liveedit.path"): "enable"
+    ("\(key)-liveedit.service"): "enable"
+  }
+
+  #out: systemd_units_to_start: ("\(key)-liveedit.path"): true
+}
+
+// add a preset enabling all our .container files
+for basename, quadlet in #out.systemd_quadlets {
+  if basename =~ "\\.container$" {
+    #out: systemd_presets: "50-containers.preset": (quadlet.#systemd_service_name): "enable"
+  }
+}
+
+#out: systemd_quadlet_basenames: strings.Join([for basename, unit in #out.systemd_quadlets { basename }], "\n")
+#out: systemd_quadlet_contents: { for basename, unit in #out.systemd_quadlets { (basename): (systemd.#render_unit & {#unit: unit}).#out } }
+
+#out: systemd_unit_basenames: strings.Join([for basename, unit in #out.systemd_units { basename }], "\n")
+#out: systemd_unit_contents: { for basename, unit in #out.systemd_units { (basename): (systemd.#render_unit & {#unit: unit}).#out } }
+
+#out: systemd_preset_basenames: strings.Join([for basename, lines in #out.systemd_presets { basename }], "\n")
+#out: systemd_preset_contents: {
+  let preset_header = "Autogenerated by out.cue"
+  for basename, preset in #out.systemd_presets {
+    (basename): (systemd.#render_preset & {#preset: preset, #header: preset_header}).#out
+  }
+}
+
+#out: systemd_units_to_start_text: strings.Join([for unit, b in #out.systemd_units_to_start if b { unit }], "\n")
 
 #out: "calls": calls

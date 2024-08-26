@@ -15,10 +15,10 @@ imagespecs: "primers": {
 services: "primers": {
   instances: [string]: {
     if live_edit["primers"] {
-      mounts: [
-        { source: "\(#var.host_source_directory)/images/primers/docs", destination: "/app/docs", mode: "rw" },
-        { source: "\(#var.host_source_directory)/images/primers/observablehq.config.ts", destination: "/app/observablehq.config.ts", mode: "ro" },
-      ]
+      mounts: {
+        "/app/docs": { source: "\(#var.host_source_directory)/images/primers/docs", mode: "rw" }
+        "/app/observablehq.config.ts": { source: "\(#var.host_source_directory)/images/primers/observablehq.config.ts", mode: "ro" }
+      }
     }
   }
 }

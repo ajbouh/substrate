@@ -9,18 +9,21 @@ RUN apt-get update \
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
 COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg \
+  go mod download
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge/
 COPY images/bridge/go.mod images/bridge/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg \
+  go mod download
 
 WORKDIR /go/src/
 COPY pkg/toolkit/. github.com/ajbouh/substrate/pkg/toolkit/
 COPY images/bridge/. github.com/ajbouh/substrate/images/bridge/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/bridge/
-RUN go build \
+RUN --mount=type=cache,target=/go/pkg/mod \
+  go build \
   -o /bridge ./cmd/bridge \
   && ldd /bridge \
   && true

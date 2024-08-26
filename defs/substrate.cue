@@ -1,8 +1,6 @@
 package defs
 
 import (
-  "strings"
-
   quadlet "github.com/ajbouh/substrate/defs/podman:quadlet"
 )
 
@@ -13,14 +11,11 @@ import (
   host_source_directory: string
   
   host_docker_socket: string
-  host_resourcedirs_root: string
-  host_resourcedirs_path: string
   host_machine_id_file: string
 
   substrate: network_name_prefix: string | *""
   substrate: internal_network_name: string
   substrate: external_network_name: string
-  substrate: resourcedirs_root: string
   substrate: internal_port: int
   substrate: internal_host: string
   substrate: internal_protocol: string
@@ -83,31 +78,23 @@ daemons: "substrate": {
     "SUBSTRATE_NAMESPACE": #var.namespace
     "SUBSTRATE_INTERNAL_NETWORK": string | *#var.substrate.internal_network_name
     "SUBSTRATE_EXTERNAL_NETWORK": string | *#var.substrate.external_network_name
-    "SUBSTRATE_RESOURCEDIRS_ROOT": string | *#var.host_resourcedirs_root
-    "SUBSTRATE_RESOURCEDIRS_PATH": string | *#var.host_resourcedirs_path
 
     #docker_socket: "/var/run/docker.sock"
 
     "DOCKER_HOST": "unix://\(#docker_socket)"
   }
 
-  mounts: [
-    {source: "\(#var.namespace)-substrate_data", destination: substrate_data, type: "volume"},
-    {source: #var.host_substratefs_root, destination: #var.host_substratefs_root},
-    {source: #var.host_machine_id_file, destination: #var.host_machine_id_file},
-    {source: #var.host_docker_socket, destination: environment.#docker_socket},
-    {source: #var.host_resourcedirs_root, destination: #var.host_resourcedirs_root},
+  mounts: {
+    (substrate_data): {source: "\(#var.namespace)-substrate_data" , type: "volume"}
+    (#var.host_substratefs_root): {source: #var.host_substratefs_root}
+    (#var.host_machine_id_file): {source: #var.host_machine_id_file}
+    (environment.#docker_socket): {source: #var.host_docker_socket}
     if live_edit["substrate"] {
-      { source: "\(#var.host_source_directory)/\(#var.cue_defs)", destination: substrate_cue_defs_live },
+      (substrate_cue_defs_live): {source: "\(#var.host_source_directory)/\(#var.cue_defs)"}
     }
-    if #var.host_resourcedirs_path != "" {
-      for rddir in strings.Split(#var.host_resourcedirs_path, ":") {
-        {source: rddir, destination: rddir},
-      }
-    }
-  ]
+  }
 
-  #systemd_units: {
+  #systemd_quadlet_units: {
     "substrate-internal.network": quadlet.#Network & {
       Network: {
         Driver: "bridge"
@@ -125,8 +112,8 @@ daemons: "substrate": {
     }
     "substrate.container": {
       Unit: {
-        Requires: ["podman.socket", "nvidia-ctk-cdi-generate.service", "ensure-substratefs-root.service", "ensure-resourcedirs-root.service", "ensure-resourcedirs-path.service", "ensure-oob-imagestore.service"]
-        After: ["podman.socket", "nvidia-ctk-cdi-generate.service", "ensure-substratefs-root.service", "ensure-resourcedirs-root.service", "ensure-resourcedirs-path.service", "ensure-oob-imagestore.service"]
+        Requires: ["podman.socket", "nvidia-ctk-cdi-generate.service", "ensure-substratefs-root.service", "ensure-oob-imagestore.service"]
+        After: ["podman.socket", "nvidia-ctk-cdi-generate.service", "ensure-substratefs-root.service", "ensure-oob-imagestore.service"]
       }
       Install: {
         WantedBy: ["multi-user.target", "default.target"]

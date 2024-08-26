@@ -2,11 +2,13 @@ FROM docker.io/library/golang:1.22-bookworm AS source
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
 COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+  go mod download
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/nvml
 ADD images/nvml/go.mod images/nvml/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+  go mod download
 
 WORKDIR /go/src/
 COPY pkg/toolkit/. github.com/ajbouh/substrate/pkg/toolkit/
@@ -24,7 +26,6 @@ RUN apt update \
 # With the trick below, Go's build cache is kept between builds.
 # https://github.com/golang/go/issues/27719#issuecomment-514747274
 RUN --mount=type=cache,target=/go/pkg/mod \
-  --mount=type=cache,target=/root/.cache/go-build \
   go build \
   -tags "remote exclude_graphdriver_btrfs btrfs_noversion exclude_graphdriver_devicemapper containers_image_openpgp"\
   -v \

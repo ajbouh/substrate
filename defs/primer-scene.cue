@@ -30,9 +30,9 @@ services: "primer-scene": {
     ]
 
     if live_edit["primer-scene"] {
-      mounts: [
-        { source: "\(#var.host_source_directory)/images/primer-scene", destination: "/app/", mode: "ro" },
-      ]
+      mounts: {
+        "/app/": { source: "\(#var.host_source_directory)/images/primer-scene", mode: "ro" }
+      }
     }
   }
 }

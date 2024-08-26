@@ -15,7 +15,8 @@ WORKDIR /app
 COPY images/diarizer/requirements.txt /app/requirements.txt
 
 # Install the dependencies
-RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+  pip install -r requirements.txt
 
 # Copy the source code to the container
 COPY images/diarizer/. /app

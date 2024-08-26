@@ -6,9 +6,9 @@ test_templates: transcriber: {
     dockerfile: "images/tests/transcriber/Dockerfile"
   }
 
-  mounts: [
-    { source: "\(#var.host_source_directory)/images/tests/transcriber", destination: "/test" },
-  ]
+  mounts: {
+    "/test": {source: "\(#var.host_source_directory)/images/tests/transcriber"}
+  }
   command: [ "go", "run", "/test/test.go" ]
 
   environment: URL: string

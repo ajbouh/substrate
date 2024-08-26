@@ -18,11 +18,13 @@ FROM docker.io/library/golang:1.22-bookworm AS source
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
 COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+  go mod download
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/sys
 ADD images/sys/go.mod images/sys/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+  go mod download
 
 WORKDIR /go/src/
 COPY pkg/toolkit/. github.com/ajbouh/substrate/pkg/toolkit/
@@ -35,7 +37,6 @@ FROM source AS build
 # With the trick below, Go's build cache is kept between builds.
 # https://github.com/golang/go/issues/27719#issuecomment-514747274
 RUN --mount=type=cache,target=/go/pkg/mod \
-  --mount=type=cache,target=/root/.cache/go-build \
   go build \
   -v \
   -o /substrated-defs-sys ./cmd/sys

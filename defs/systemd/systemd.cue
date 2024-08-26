@@ -19,6 +19,12 @@ import (
   ...
 }
 
+// Three different directives are understood:
+// - "enable" may be used to enable units by default,
+// - "disable" to disable units by default, and
+// - "ignore" to ignore units and leave existing configuration intact.
+#Preset: [unitpattern=string]: "enable" | "disable" | "ignore"
+
 #render_section: {
   #section_name: string
   #section: #Section
@@ -48,7 +54,7 @@ import (
   ], "\n")
 }
 
-#render: {
+#render_unit: {
   #unit: #Unit
 
   #out: strings.Join([
@@ -57,6 +63,19 @@ import (
         #section_name: section_name
         #section: section
       }).#out,
+    }
+  ], "\n")
+}
+
+// https://man.archlinux.org/man/systemd.preset.5.en
+#render_preset: {
+  #header: string
+  #preset: #Preset
+
+  #out: strings.Join([
+    #header,
+    for unitpattern, directive in #preset {
+      "\(directive) \(unitpattern)"
     }
   ], "\n")
 }

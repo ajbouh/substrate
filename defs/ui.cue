@@ -17,10 +17,10 @@ services: "ui": {
     url_prefix: "/ui"
 
     if live_edit["ui"] {
-      mounts: [
-        { source: "\(#var.host_source_directory)/images/ui/static", destination: "/app/static", mode: "ro" },
-        { source: "\(#var.host_source_directory)/images/ui/src", destination: "/app/src", mode: "ro" },
-      ]
+      mounts: {
+        "/app/static": { source: "\(#var.host_source_directory)/images/ui/static", mode: "ro" }
+        "/app/src": { source: "\(#var.host_source_directory)/images/ui/src", mode: "ro" }
+      }
     }
   }
 }

@@ -138,7 +138,7 @@ func main() {
 				log.Printf("error computing exports: %#v", err)
 				return
 			}
-			slog.Info("preparing export union", "union", union)
+
 			if t.EventStream != nil {
 				t.EventStream.Announce(union)
 			}

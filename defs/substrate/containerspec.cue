@@ -21,20 +21,53 @@ import (
 
   environment: [string]: string
 
-  mounts ?: [...#Mount]
+  mounts ?: [destination=string]: #Mount & {"destination": destination}
 
   image_tag ?: string
 
-  #systemd_units ?: [string]: systemd.#Unit
+  #systemd_quadlet_units ?: [basename=string]: systemd.#Unit
 }
 
-#SystemdUnits: {
+#SystemdUnitWatcherUnits: {
+  #name: string
+  #target_unit: string
+  #path_changed: [...string]
+  #path_modified: [...string]
+
+  #out: {
+    [string]: systemd.#Unit
+
+    "\(#name).service": {
+      Unit: Description: "\(#target_unit) restarter"
+
+      Service: {
+        Type: "oneshot"
+        ExecStart: "/usr/bin/systemctl restart \(#target_unit)"
+      }
+
+      Install: WantedBy: ["multi-user.target"]
+    }
+
+    "\(#name).path": {
+      if #path_changed != _|_ {
+        Path: PathChanged: #path_changed
+      }
+      if #path_modified != _|_ {
+        Path: PathModified: #path_modified
+      }
+      Path: Unit: "\(#name).service"
+      Install: WantedBy: ["multi-user.target"]
+    }
+  }
+}
+
+#SystemdQuadletUnits: {
   #containerspec: #ContainerSpec
   #name: string
 
   #out: {
-    if #containerspec.#systemd_units != _|_ {
-      #containerspec.#systemd_units
+    if #containerspec.#systemd_quadlet_units != _|_ {
+      #containerspec.#systemd_quadlet_units
     }
 
     [string]: systemd.#Unit
@@ -42,6 +75,7 @@ import (
     [=~"\\.image$"]: quadlet.#Image
     [=~"\\.container$"]: quadlet.#Container
 
+    "\(#name).container": #systemd_service_name: "\(#name).service"
     "\(#name).container": Container: {
       Pull: string | *"never"
       Image: #containerspec.image
@@ -52,7 +86,7 @@ import (
       }
       if #containerspec.mounts != _|_ {
         Mount: [
-          for mount in #containerspec.mounts {
+          for _, mount in #containerspec.mounts {
             strings.Join([
               if mount.type != _|_ {
                 "type=\(mount.type)",
@@ -85,7 +119,7 @@ import (
       "--env=\(k)=\(v)",
     }
     if #containerspec.mounts != _|_ {
-      for mount in #containerspec.mounts {
+      for _, mount in #containerspec.mounts {
         strings.Join([
           if mount.type != _|_ {
             "type=\(mount.type)",

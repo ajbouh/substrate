@@ -1,0 +1,20 @@
+<!DOCTYPE HTML>
+<html lang="en" style="height: 100%">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+    <script type="module">
+      import {defineWebstage} from "./template.js";
+      window.chromestage = defineWebstage({width: 800, height: 600})
+      document.querySelector('#container').append(chromestage.element)
+      window.chromestageExports = await chromestage.exports()
+      console.log(chromestageExports)
+      document.querySelector('#output').innerText = JSON.stringify(chromestageExports)
+      const myURL = new URL(window.location);
+      const yourURL = `${myURL.origin}/karashi-renkon/app.html${myURL.search}`;
+      window.chromestage.run('tab:navigate', {url: yourURL.toString()});
+    </script>
+</head>
+<body style="margin: 0px; touch-action: manipulation">
+<div id="container"></div>
+<pre id="output" style="width: 100%; text-wrap: wrap;""></pre>

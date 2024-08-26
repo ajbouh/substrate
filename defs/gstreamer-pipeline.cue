@@ -26,8 +26,8 @@ services: "gstreamer-pipeline": {
 
     privileged: true
 
-    mounts: [
-      { source: "/dev/dri", destination: "/dev/dri", mode: "rw" },
-    ]
+    mounts: {
+      "/dev/dri": { source: "/dev/dri", mode: "rw" }
+    }
   }
 }

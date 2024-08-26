@@ -6,9 +6,9 @@ test_templates: assister: {
     dockerfile: "images/tests/assister/Dockerfile"
   }
 
-  mounts: [
-    { source: "\(#var.host_source_directory)/images/tests/assister", destination: "/test" },
-  ]
+  mounts: {
+    "/test": { source: "\(#var.host_source_directory)/images/tests/assister"}
+  }
   command: [ "/venv/bin/python", "/test/fcheck.py" ]
 
   environment: URL: string

@@ -2,11 +2,13 @@ FROM docker.io/library/golang:1.22.2 AS build
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
 COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+  go mod download
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/tool-call/
 COPY images/tool-call/go.mod images/tool-call/go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+  go mod download
 
 WORKDIR /go/src/
 COPY pkg/toolkit/. github.com/ajbouh/substrate/pkg/toolkit/
@@ -14,7 +16,8 @@ COPY images/tool-call/. github.com/ajbouh/substrate/images/tool-call/
 
 WORKDIR /go/src/github.com/ajbouh/substrate/images/tool-call
 
-RUN CGO_ENABLED=0 GOOS=linux go build \
+RUN --mount=type=cache,target=/go/pkg/mod \
+  CGO_ENABLED=0 GOOS=linux go build \
   -v \
   -o /app .
 
