@@ -37,7 +37,7 @@ window.substrate = {r0: {commands}};
 const panel = document.querySelector("command-panel");
 panel.commands = commands;
 panel.suggest = suggest;
-provideCommandsToIFrameParent('http://localhost:5173', commands);
+provideCommandsToIFrameParent('https://substrate.home.arpa', commands);
 
 let webSocketURL = (() => {
   let u = new URL(`ws://${location.host}${location.pathname}`);

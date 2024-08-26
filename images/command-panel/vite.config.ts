@@ -1,9 +1,12 @@
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig } from 'vitest/config';
 
-export default defineConfig({
-	plugins: [sveltekit()],
-	test: {
-		include: ['src/**/*.{test,spec}.{js,ts}']
-	}
-});
+/** @type {import('vite').UserConfig} */
+const config = {
+	server: {
+		port: +(process.env.PORT || 5173),
+		strictPort: true,
+	},
+	plugins: [sveltekit()]
+};
+
+export default config;
