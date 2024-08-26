@@ -3226,23 +3226,31 @@ class PasteUpView {
     }
 
     invoke(obj) {
+        // one idea is to reject an invoke command that does not have all required parameters.
         let command = obj.command;
         let params = {...obj};
         delete params.command;
         console.log("invoke", obj);
-        let payload = {
-            x: 10000,
-            y: 10000,
-            width: 800,
-            height: 600,
-            viewId: this.viewId,
-            type: "custom",
-            url: null,
-            appInfo: null,
-            ...params
-        };
-        
+        let pad = window.topView.querySelector("#pad");
+
         if (command === "open") {
+            let visibleRect = pad.call("TransformView", "getVisibleScalerRect");
+            console.log(visibleRect);
+
+            let width = params.width !== undefined ? params.width : visibleRect.width * 0.8;
+            let height = params.width !== undefined ? params.width : visibleRect.height * 0.8;
+        
+            let x = params.x !== undefined ? params.x : (visibleRect.x + visibleRect.width / 2) - width / 2;
+            let y = params.y !== undefined ? params.y : (visibleRect.y + visibleRect.height / 2) - height / 2;
+            let payload = {
+                x,
+                y,
+                width,
+                height,
+                viewId: this.viewId,
+                type: params.type || "custom",
+                url: params.url || null,
+            };
             this.publish(this.parentNode.model.id, "newIFrame", payload);
         } else if (command === "trashObject") {
         } else if (command === "copyObject") {
