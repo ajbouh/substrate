@@ -17,10 +17,10 @@ services: "command-panel": {
     url_prefix: "/command-panel"
 
     if live_edit["command-panel"] {
-      mounts: [
-        { source: "\(#var.host_source_directory)/images/command-panel/static", destination: "/app/static", mode: "ro" },
-        { source: "\(#var.host_source_directory)/images/command-panel/src", destination: "/app/src", mode: "ro" },
-      ]
+      mounts: {
+        "/app/static": { source: "\(#var.host_source_directory)/images/command-panel/static", mode: "ro" },
+        "/app/src": { source: "\(#var.host_source_directory)/images/command-panel/src", mode: "ro" },
+      }
     }
   }
 }
