@@ -3218,10 +3218,6 @@ class PasteUpView {
                 },
             };
             this.publish(this.parentNode.model.id, "newIFrame", payload);
-        } else if (data.action === "trashObject") {
-        } else if (data.action === "copyObject") {
-        } else if (data.action === "moveObjectEdges") {
-        } else if (data.action === "bringToFront") {
         }
     }
 
@@ -3252,9 +3248,35 @@ class PasteUpView {
                 url: params.url || null,
             };
             this.publish(this.parentNode.model.id, "newIFrame", payload);
-        } else if (command === "trashObject") {
-        } else if (command === "copyObject") {
-        } else if (command === "moveObjectEdges") {
+        } else if (command === "trash") {
+            // window.pasteUpView.call("PasteUpView", "invoke", {command: "trash", id: '0048'});
+            let targetInfo = this.model.newElementRef(params.id);
+            this.publish(this.sessionId, "trashObject", {target: targetInfo, viewId: this.viewId});
+        } else if (command === "move") {
+            // window.pasteUpView.call("PasteUpView", "invoke", {command: "move", id: '0048', x: 10000})
+            let frameInfo = this.model.newElementRef(params.id);
+            let frame = this.model.getElement(frameInfo);
+            if (!frame) {return;}
+            let targetInfo = frame._get("target");
+            let target = this.model.getElement(targetInfo);
+            let transform = frame.getTransform();
+            params.frameInfo = frameInfo;
+            params.target = targetInfo;
+            params.viewId = this.viewId;
+            if (params.x === undefined) {
+                params.x = transform[4];
+            }
+            if (params.y === undefined) {
+                params.y = transform[5];
+            }
+            if (params.width === undefined) {
+                params.width = parseFloat(target.style.getPropertyValue("width"));
+            }
+            if (params.height === undefined) {
+                params.height = parseFloat(target.style.getPropertyValue("height"));
+            }
+            this.publish(this.sessionId, "moveAndResizeObject", params);
+            this.publish(this.sessionId, "resizeOrMoveEnd", params);
         } else if (command === "bringToFront") {
         }
     }
