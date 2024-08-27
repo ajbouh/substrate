@@ -15,25 +15,40 @@
 		});
 	}
 
-	let location = $state('');
-	let iframe_src = $state('');
-	let commands = $derived.by(() => {
-		if (!iframe_src) {
-			return null;
+	let commands = $state();
+	let iframe;
+	let iframeReady = $state(false);
+	$effect(() => {
+		if (!iframe || iframeReady) {
+			return;
 		}
-		return new ReflectCommands(iframe_src);
+		iframeReady = true;
+		iframe.addEventListener('load', () => {
+			// TODO when loading a new page, we should reset the commands
+			commands = new IFrameCommands(expectedOrigin, iframe);
+		});
+	});
+	let location = $state('');
+	let expectedOrigin = $derived.by(() => {
+		try {
+			const url = new URL(location);
+			return url.origin;
+		} catch (e) {
+			return '';
+		}
 	});
 </script>
 
 <section>
 	<input type="text" bind:value={location} /><button
+		disabled={!iframeReady}
 		onclick={() => {
-			iframe_src = location;
+			iframe.src = location;
 		}}>Go</button
 	>
-	<iframe src={iframe_src} width="100%" height="400"></iframe>
+	<iframe bind:this={iframe} width="100%" height="400"></iframe>
 
-	<CommandPanel {commands} {suggest} />
+	<CommandPanel {commands} />
 </section>
 
 <style>
