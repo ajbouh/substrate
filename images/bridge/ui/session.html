@@ -13,7 +13,7 @@
   <div id="body" class="flex flex-row bg-gray-900 text-white antialiased"></div>
   <script type="module">
 
-import {ReflectCommands} from './ui/command-panel.js';
+import {ReflectCommands, provideCommandsToIFrameParent} from './ui/command-panel.js';
 import {Session} from "./ui/session.js";
 import {Topbar} from "./ui/topbar.js";
 import {decodeMessage} from "./ui/bridge.js";
@@ -37,6 +37,7 @@ window.substrate = {r0: {commands}};
 const panel = document.querySelector("command-panel");
 panel.commands = commands;
 panel.suggest = suggest;
+provideCommandsToIFrameParent('https://substrate.home.arpa', commands);
 
 let webSocketURL = (() => {
   let u = new URL(`ws://${location.host}${location.pathname}`);
