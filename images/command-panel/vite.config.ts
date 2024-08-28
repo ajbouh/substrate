@@ -4,7 +4,7 @@ import { sveltekit } from '@sveltejs/kit/vite';
 const config = {
 	server: {
 		port: +(process.env.PORT || 5173),
-		strictPort: true,
+		strictPort: true
 	},
 	plugins: [sveltekit()]
 };
