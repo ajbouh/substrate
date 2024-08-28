@@ -15,8 +15,8 @@
 		});
 	}
 
-	let location = $state('http://localhost:8081');
-	let iframe_src = $state(location);
+	let location = $state('');
+	let iframe_src = $state('');
 	let commands = $derived.by(() => {
 		if (!iframe_src) {
 			return null;
