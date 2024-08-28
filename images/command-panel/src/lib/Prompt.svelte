@@ -3,17 +3,23 @@
 		search = $bindable(''),
 		selected = $bindable(null),
 		numitems,
-		onenter = () => {}
+		onenter = () => {},
+		onfocus = null,
+		onblur = null,
 	}: {
 		search: string;
 		selected: number | null;
 		numitems: number;
 		onenter: (selected: number) => void;
+		onfocus: null | (() => void);
+		onblur: null | (() => void);
 	} = $props();
+	$inspect('numitems', numitems);
 	function onkeydown(event: KeyboardEvent) {
 		switch (event.key) {
 			case 'ArrowUp':
 				event.preventDefault();
+				console.log('event', event);
 				if (numitems == 0) {
 					selected = null;
 					return;
@@ -48,7 +54,7 @@
 </script>
 
 <div class="search">
-	<input {onkeydown} type="search" bind:value={search} />
+	<input {onkeydown} {onfocus} {onblur} type="search" bind:value={search} placeholder="Search commands..." />
 </div>
 
 <style>
