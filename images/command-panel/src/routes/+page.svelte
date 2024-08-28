@@ -37,7 +37,7 @@
 </section>
 
 <section>
-	<CommandPanel {commands} {suggest} />
+	<CommandPanel {commands} {suggest} expand />
 </section>
 
 <style>
