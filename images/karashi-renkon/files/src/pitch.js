@@ -3218,35 +3218,65 @@ class PasteUpView {
                 },
             };
             this.publish(this.parentNode.model.id, "newIFrame", payload);
-        } else if (data.action === "trashObject") {
-        } else if (data.action === "copyObject") {
-        } else if (data.action === "moveObjectEdges") {
-        } else if (data.action === "bringToFront") {
         }
     }
 
     invoke(obj) {
+        // one idea is to reject an invoke command that does not have all required parameters.
         let command = obj.command;
         let params = {...obj};
         delete params.command;
         console.log("invoke", obj);
-        let payload = {
-            x: 10000,
-            y: 10000,
-            width: 800,
-            height: 600,
-            viewId: this.viewId,
-            type: "custom",
-            url: null,
-            appInfo: null,
-            ...params
-        };
-        
+        let pad = window.topView.querySelector("#pad");
+
         if (command === "open") {
+            let visibleRect = pad.call("TransformView", "getVisibleScalerRect");
+            console.log(visibleRect);
+
+            let width = params.width !== undefined ? params.width : visibleRect.width * 0.8;
+            let height = params.width !== undefined ? params.width : visibleRect.height * 0.8;
+
+            let x = params.x !== undefined ? params.x : (visibleRect.x + visibleRect.width / 2) - width / 2;
+            let y = params.y !== undefined ? params.y : (visibleRect.y + visibleRect.height / 2) - height / 2;
+            let payload = {
+                x,
+                y,
+                width,
+                height,
+                viewId: this.viewId,
+                type: params.type || "custom",
+                url: params.url || null,
+            };
             this.publish(this.parentNode.model.id, "newIFrame", payload);
-        } else if (command === "trashObject") {
-        } else if (command === "copyObject") {
-        } else if (command === "moveObjectEdges") {
+        } else if (command === "trash") {
+            // window.pasteUpView.call("PasteUpView", "invoke", {command: "trash", id: '0048'});
+            let targetInfo = this.model.newElementRef(params.id);
+            this.publish(this.sessionId, "trashObject", {target: targetInfo, viewId: this.viewId});
+        } else if (command === "move") {
+            // window.pasteUpView.call("PasteUpView", "invoke", {command: "move", id: '0048', x: 10000})
+            let frameInfo = this.model.newElementRef(params.id);
+            let frame = this.model.getElement(frameInfo);
+            if (!frame) {return;}
+            let targetInfo = frame._get("target");
+            let target = this.model.getElement(targetInfo);
+            let transform = frame.getTransform();
+            params.frameInfo = frameInfo;
+            params.target = targetInfo;
+            params.viewId = this.viewId;
+            if (params.x === undefined) {
+                params.x = transform[4];
+            }
+            if (params.y === undefined) {
+                params.y = transform[5];
+            }
+            if (params.width === undefined) {
+                params.width = parseFloat(target.style.getPropertyValue("width"));
+            }
+            if (params.height === undefined) {
+                params.height = parseFloat(target.style.getPropertyValue("height"));
+            }
+            this.publish(this.sessionId, "moveAndResizeObject", params);
+            this.publish(this.sessionId, "resizeOrMoveEnd", params);
         } else if (command === "bringToFront") {
         }
     }
