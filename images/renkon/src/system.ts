@@ -1,7 +1,8 @@
-import { basicSetup, EditorView } from "codemirror"
+import { basicSetup, EditorView } from "codemirror";
+
 //import { html, htmlLanguage } from "https://esm.sh/@codemirror/lang-html@v6.4.9"
 //import { javascript } from "https://esm.sh/@codemirror/lang-javascript@v6.0.1"
-import {setupProgram, evaluator, ProgramState} from "./language";
+import {ProgramState} from "./language";
 import { getContentFromHTML, loadFile, makeHTMLFromContent, saveFile } from "./load";
 
 let myResizeHandler: (() => void) | null;
@@ -67,7 +68,7 @@ function resizeHandler() {
     }
 }
 
-export function view() {
+export function view(optApp?:any) {
     const url = new URL(window.location.toString());
     let maybeDoc = url.searchParams.get("doc");
     let semi;
@@ -81,7 +82,7 @@ export function view() {
     let hideEditor = url.searchParams.get("hideEditor");
 
     const renkon:HTMLElement = document.body.querySelector("#renkon")!;
-    const programState = new ProgramState(Date.now());
+    const programState = new ProgramState(Date.now(), optApp);
     (window as any).programState = programState;
     let {dock, editorView} = createEditorDock(renkon, programState);
     if (hideEditor) {
@@ -162,9 +163,9 @@ function update(renkon:HTMLElement, editorView:EditorView, programState: Program
     renkon.innerHTML = editorView.state.doc.toString();
     let scripts = [...renkon.querySelectorAll("script[type='reactive']")] as HTMLScriptElement[];
     let text = scripts.map((s) => s.textContent).filter((s) => s);
-    setupProgram(text as string[], programState);
+    programState.setupProgram(text as string[]);
     if (programState.evaluatorRunning === 0) {
-        evaluator(programState);
+        programState.evaluator();
     }
 }
 
