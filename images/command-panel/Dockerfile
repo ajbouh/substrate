@@ -17,6 +17,7 @@ FROM node AS dev
 WORKDIR /app
 RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
 COPY --from=deps /app/ ./
+COPY --from=build /app/.svelte-kit/__package__ ./.svelte-kit/__package__
 COPY images/command-panel/*.sh images/command-panel/*.js images/command-panel/*.ts images/command-panel/*.json images/command-panel/*.cjs images/command-panel/.npmrc ./
 
 ENTRYPOINT ["npm", "run", "dev", "--", "--host=0.0.0.0"]

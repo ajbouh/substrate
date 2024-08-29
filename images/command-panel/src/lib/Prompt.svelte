@@ -1,26 +1,25 @@
 <script lang="ts" generics="T">
-	import type { Snippet } from 'svelte';
 	let {
 		search = $bindable(''),
 		selected = $bindable(null),
-		items,
-		row
+		numitems,
+		onenter = () => {},
+		onfocus = null,
+		onblur = null,
 	}: {
 		search: string;
 		selected: number | null;
-		items: Promise<T[]>;
-		row: Snippet<[T, boolean]>;
+		numitems: number;
+		onenter: (selected: number) => void;
+		onfocus: null | (() => void);
+		onblur: null | (() => void);
 	} = $props();
-	// TODO keyboard nav
-	let numitems = 0;
-	$effect(() => {
-		items.then((x) => {
-			numitems = x.length;
-		});
-	});
+	$inspect('numitems', numitems);
 	function onkeydown(event: KeyboardEvent) {
 		switch (event.key) {
 			case 'ArrowUp':
+				event.preventDefault();
+				console.log('event', event);
 				if (numitems == 0) {
 					selected = null;
 					return;
@@ -32,6 +31,7 @@
 				}
 				break;
 			case 'ArrowDown':
+				event.preventDefault();
 				if (numitems == 0) {
 					selected = null;
 					return;
@@ -42,6 +42,11 @@
 					selected = (selected + 1) % numitems;
 				}
 				break;
+			case 'Enter':
+				event.preventDefault();
+				if (selected !== null) {
+					onenter(selected);
+				}
 			default:
 				break;
 		}
@@ -49,11 +54,11 @@
 </script>
 
 <div class="search">
-	<input {onkeydown} type="search" bind:value={search} placeholder="Search commands..." />
+	<input {onkeydown} {onfocus} {onblur} type="search" bind:value={search} placeholder="Search commands..." />
 </div>
 
-{#await items then items}
-	{#each items as item, idx (item)}
-		{@render row(item, selected === idx)}
-	{/each}
-{/await}
+<style>
+	input {
+		width: 100%;
+	}
+</style>

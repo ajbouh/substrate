@@ -1,9 +1,9 @@
 <script lang="ts">
 	import type { DefIndex, Call } from '$lib/defs.ts';
-	import { CommandPanel, ReflectCommands, IFrameCommands } from '$lib';
+	import { CommandPanel, ReflectCommands } from '$lib';
 
 	let toolCall = new ReflectCommands('https://substrate.home.arpa/tool-call/commands');
-	async function suggest(input: string, commands: DefIndex) {
+	async function toolSuggest(input: string, commands: DefIndex) {
 		if (!input) {
 			return Object.entries(commands).map(([key, def]) => [key, def, {}]);
 		}
@@ -15,44 +15,33 @@
 		});
 	}
 
-	let commands = $state();
-	let iframe;
-	let iframeReady = $state(false);
-	$effect(() => {
-		if (!iframe || iframeReady) {
-			return;
-		}
-		iframeReady = true;
-		iframe.addEventListener('load', () => {
-			// TODO when loading a new page, we should reset the commands
-			commands = new IFrameCommands(expectedOrigin, iframe);
-		});
-	});
 	let location = $state('');
-	let expectedOrigin = $derived.by(() => {
-		try {
-			const url = new URL(location);
-			return url.origin;
-		} catch (e) {
-			return '';
+	let iframe_src = $state('');
+	let commands = $derived.by(() => {
+		if (!iframe_src) {
+			return null;
 		}
+		return new ReflectCommands(iframe_src);
 	});
+
+	let suggest = toolSuggest;
 </script>
 
 <section>
 	<input type="text" bind:value={location} /><button
-		disabled={!iframeReady}
 		onclick={() => {
-			iframe.src = location;
+			iframe_src = location;
 		}}>Go</button
 	>
-	<iframe bind:this={iframe} width="100%" height="400"></iframe>
+	<iframe src={iframe_src} width="100%" height="400"></iframe>
+</section>
 
-	<CommandPanel {commands} />
+<section>
+	<CommandPanel {commands} {suggest} expand />
 </section>
 
 <style>
-	:global(body) {
-		background: blue;
+	section {
+		height: 50dvh;
 	}
 </style>
