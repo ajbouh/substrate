@@ -30,7 +30,7 @@ func (p *SessionStoragePaths) File(scope ...string) string {
 
 func fatal(err error) {
 	if err != nil {
-		log.Fatalf("FATAL", err)
+		log.Fatal("FATAL", err)
 	}
 }
 

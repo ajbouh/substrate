@@ -3,6 +3,7 @@ package tracks
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -231,6 +232,14 @@ func (s *Session) Tracks() []*Track {
 		return true
 	})
 	return out
+}
+
+func (s *Session) Track(id ID) *Track {
+	track, ok := s.tracks.Load(id)
+	if !ok {
+		return nil
+	}
+	return track.(*Track)
 }
 
 func (s *Session) SpanNow() Span {
@@ -512,6 +521,31 @@ func (s *filteredSpan) Length() time.Duration {
 
 func (s *filteredSpan) Track() *Track {
 	return s.track
+}
+
+type jsonEvent struct {
+	EventMeta `json:",inline"`
+	Data      json.RawMessage `json:"data"`
+}
+
+func RecordJSONEvent(track *Track, jsonData []byte) (*Event, error) {
+	var je jsonEvent
+	if err := json.Unmarshal(jsonData, &je); err != nil {
+		return nil, err
+	}
+	if je.ID != "" {
+		return nil, fmt.Errorf("ID field is not allowed in JSON event")
+	}
+	// TODO if start/end are missing, do we default to Now()?
+	typ, ok := eventTypes[je.Type]
+	if !ok {
+		return nil, fmt.Errorf("unknown event type %q", je.Type)
+	}
+	s := track.Span(je.Start, je.End)
+	data := reflect.New(typ)
+	json.Unmarshal(je.Data, data.Interface())
+	event := track.record(je.Type, s, data.Elem().Interface())
+	return &event, nil
 }
 
 var eventTypes = map[string]reflect.Type{}
