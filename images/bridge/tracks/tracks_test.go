@@ -53,6 +53,38 @@ func TestTrack(t *testing.T) {
 	)
 }
 
+func TestJSONEvent(t *testing.T) {
+	session := &Session{}
+	rate := beep.SampleRate(48000)
+	track := session.NewTrackAt(0, beep.Format{
+		SampleRate:  rate,
+		NumChannels: 2,
+		Precision:   2,
+	})
+	track.AddAudio(generators.Silence(rate.N(10 * time.Millisecond)))
+	assert.DeepEqual(t, []Event(nil), track.Events("text"))
+
+	_, err := RecordJSONEvent(track, []byte(`{
+		"type": "text",
+		"start": 0,
+		"end": 10000000,
+		"data": "foo-one"
+	}`))
+	require.NoError(t, err)
+
+	// recordTextEvent(track, "foo-one")
+	types := track.EventTypes()
+	assert.DeepEqual(t, []string{"text"}, types)
+
+	assert.DeepEqual(t,
+		[]Event{
+			{EventMeta: EventMeta{Start: 0, End: Timestamp(10 * time.Millisecond), Type: "text"}, Data: "foo-one"},
+		},
+		track.Events("text"),
+		eqopts, cmpopts.IgnoreFields(Track{}, "ID"), cmpopts.IgnoreFields(Event{}, "ID"),
+	)
+}
+
 func assertCBORRoundTrip[T any](t *testing.T, in T, opts ...cmp.Option) {
 	t.Helper()
 	data, err := cbor.Marshal(in)
@@ -103,7 +135,7 @@ func TestSerializeSession(t *testing.T) {
 	var session2 Session
 	require.NoError(t, cbor.Unmarshal(out, &session2))
 
-	assert.DeepEqual(t, session.snapshot(), session2.snapshot(), eqopts)
+	assert.DeepEqual(t, session.Snapshot(), session2.Snapshot(), eqopts)
 }
 
 func audioGenerator(t *testing.T) beep.Streamer {

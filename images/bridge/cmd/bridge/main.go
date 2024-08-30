@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -277,6 +278,37 @@ type SessionHandler struct {
 	Session *tracks.Session
 }
 
+func (m *SessionHandler) addEvent(w http.ResponseWriter, r *http.Request) {
+	for _, t := range m.Session.Tracks() {
+		log.Printf("track: %s", t.ID)
+	}
+	trackID := tracks.ID(r.PathValue("track_id"))
+	track := m.Session.Track(trackID)
+	if track == nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	defer r.Body.Close()
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("error reading body: %s", err), http.StatusInternalServerError)
+		return
+	}
+	event, err := tracks.RecordJSONEvent(track, body)
+	if err != nil {
+		// TODO check for unknown event type or JSON parse errors
+		http.Error(w, fmt.Sprintf("error recording event: %s", err), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	err = json.NewEncoder(w).Encode(map[string]any{
+		"id": event.ID,
+	})
+	if err != nil {
+		panic(err)
+	}
+}
+
 func (m *SessionHandler) serveSessionText(w http.ResponseWriter, r *http.Request) {
 	snapshot := m.Session.Snapshot()
 	tmpl, err := template.New("session.tmpl.txt").
@@ -346,4 +378,5 @@ func (m *SFURoute) ContributeHTTP(mux *http.ServeMux) {
 func (m *SessionHandler) ContributeHTTP(mux *http.ServeMux) {
 	mux.HandleFunc("GET /data", m.serveSessionUpdates)
 	mux.HandleFunc("GET /text", m.serveSessionText)
+	mux.HandleFunc("POST /tracks/{track_id}", m.addEvent)
 }
