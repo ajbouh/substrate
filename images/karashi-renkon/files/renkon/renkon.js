@@ -5806,6 +5806,8 @@ const exceptionSink = /* @__PURE__ */ Facet.define();
 const updateListener = /* @__PURE__ */ Facet.define();
 const inputHandler$1 = /* @__PURE__ */ Facet.define();
 const focusChangeEffect = /* @__PURE__ */ Facet.define();
+const clipboardInputFilter = /* @__PURE__ */ Facet.define();
+const clipboardOutputFilter = /* @__PURE__ */ Facet.define();
 const perLineTextDirection = /* @__PURE__ */ Facet.define({
   combine: (values) => values.some((x) => x)
 });
@@ -7698,7 +7700,13 @@ function capturePaste(view2) {
     doPaste(view2, target.value);
   }, 50);
 }
+function textFilter(state, facet, text) {
+  for (let filter of state.facet(facet))
+    text = filter(text, state);
+  return text;
+}
 function doPaste(view2, input) {
+  input = textFilter(view2.state, clipboardInputFilter, input);
   let { state } = view2, changes, i = 1, text = state.toText(input);
   let byLine = text.lines == state.selection.ranges.length;
   let linewise = lastLinewiseCopy != null && state.selection.ranges.every((r) => r.empty) && lastLinewiseCopy == text.toString();
@@ -7875,7 +7883,7 @@ handlers.dragstart = (view2, event) => {
     inputState.mouseSelection.dragging = true;
   inputState.draggedContent = range;
   if (event.dataTransfer) {
-    event.dataTransfer.setData("Text", view2.state.sliceDoc(range.from, range.to));
+    event.dataTransfer.setData("Text", textFilter(view2.state, clipboardOutputFilter, view2.state.sliceDoc(range.from, range.to)));
     event.dataTransfer.effectAllowed = "copyMove";
   }
   return false;
@@ -7885,6 +7893,7 @@ handlers.dragend = (view2) => {
   return false;
 };
 function dropText(view2, event, text, direct) {
+  text = textFilter(view2.state, clipboardInputFilter, text);
   if (!text)
     return;
   let dropPos = view2.posAtCoords({ x: event.clientX, y: event.clientY }, false);
@@ -7979,7 +7988,7 @@ function copiedRange(state) {
     }
     linewise = true;
   }
-  return { text: content2.join(state.lineBreak), ranges, linewise };
+  return { text: textFilter(state, clipboardOutputFilter, content2.join(state.lineBreak)), ranges, linewise };
 }
 let lastLinewiseCopy = null;
 handlers.copy = handlers.cut = (view2, event) => {
@@ -11196,6 +11205,8 @@ class EditorView {
 }
 EditorView.styleModule = styleModule;
 EditorView.inputHandler = inputHandler$1;
+EditorView.clipboardInputFilter = clipboardInputFilter;
+EditorView.clipboardOutputFilter = clipboardOutputFilter;
 EditorView.scrollHandler = scrollHandler;
 EditorView.focusChangeEffect = focusChangeEffect;
 EditorView.perLineTextDirection = perLineTextDirection;
@@ -12812,8 +12823,13 @@ class HoverPlugin {
 }
 const tooltipMargin = 4;
 function isInTooltip(tooltip, event) {
-  let rect = tooltip.getBoundingClientRect();
-  return event.clientX >= rect.left - tooltipMargin && event.clientX <= rect.right + tooltipMargin && event.clientY >= rect.top - tooltipMargin && event.clientY <= rect.bottom + tooltipMargin;
+  let { left, right, top: top2, bottom } = tooltip.getBoundingClientRect(), arrow;
+  if (arrow = tooltip.querySelector(".cm-tooltip-arrow")) {
+    let arrowRect = arrow.getBoundingClientRect();
+    top2 = Math.min(arrowRect.top, top2);
+    bottom = Math.max(arrowRect.bottom, bottom);
+  }
+  return event.clientX >= left - tooltipMargin && event.clientX <= right + tooltipMargin && event.clientY >= top2 - tooltipMargin && event.clientY <= bottom + tooltipMargin;
 }
 function isOverRange(view2, from, to, x, y, margin) {
   let rect = view2.scrollDOM.getBoundingClientRect();
@@ -28847,9 +28863,6 @@ function eventBody(options) {
   }
   return new UserEvent(record);
 }
-function registerEvent(state, receiver, value) {
-  state.changeList.set(receiver, value);
-}
 function renkonify(func, optSystem) {
   const programState = new ProgramState(Date.now(), optSystem);
   const { params, returnArray, output } = getFunctionBody(func.toString());
@@ -28915,7 +28928,7 @@ const Events = {
       return new CollectStream(undefined, varName, (_a, b) => updater(b), false);
   },*/
   send(state, receiver, value) {
-    registerEvent(state, receiver, value);
+    state.registerEvent(receiver, value);
     return new SendEvent();
   },
   receiver() {
@@ -29027,7 +29040,6 @@ class ProgramState {
     this.noTicking = false;
   }
   evaluator() {
-    if (this.evaluatorRunning !== 0) return;
     this.evaluatorRunning = window.requestAnimationFrame(() => this.evaluator());
     try {
       this.evaluate(Date.now());
@@ -29275,6 +29287,12 @@ class ProgramState {
   }
   baseVarName(varName) {
     return varName[0] !== "$" ? varName : varName.slice(1);
+  }
+  registerEvent(receiver, value) {
+    this.changeList.set(receiver, value);
+    if (this.noTicking) {
+      this.noTickingEvaluator();
+    }
   }
   setResolved(varName, value) {
     this.resolved.set(varName, value);
