@@ -78,6 +78,9 @@ func (s *Service) initialize() {
 
 		&commands.Aggregate{},
 		&commands.ExportCommands{},
+		&commands.HTTPResourceReflectHandler{
+			BaseURL: s.BaseURL,
+		},
 		&commands.HTTPSourceHandler{
 			Debug:   true,
 			BaseURL: s.BaseURL,
