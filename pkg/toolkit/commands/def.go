@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"strings"
 )
 
 type Def struct {
@@ -41,6 +42,14 @@ type RunFieldDef struct {
 }
 
 type DefIndex map[string]Def
+
+func (c DefIndex) String() string {
+	keys := make([]string, 0, len(c))
+	for k := range c {
+		keys = append(keys, k)
+	}
+	return "DefIndex[" + strings.Join(keys, ",") + "]"
+}
 
 func (c DefIndex) Reflect(ctx context.Context) (DefIndex, error) {
 	ci := DefIndex{}

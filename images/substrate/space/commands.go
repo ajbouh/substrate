@@ -3,8 +3,10 @@ package space
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
+	"path"
 	"time"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
@@ -15,6 +17,7 @@ import (
 	"github.com/containers/image/v5/types"
 	"github.com/containers/podman/v4/pkg/bindings/containers"
 	"github.com/containers/podman/v4/pkg/bindings/images"
+	"tractor.dev/toolkit-go/engine/fs"
 )
 
 type Void struct{}
@@ -25,9 +28,9 @@ type GetSpacesReturns struct {
 	Spaces []activityspec.SpaceEntry `json:"spaces"`
 }
 
-var QueryCommand = commands.Command(
-	"space:query",
-	"List all spaces",
+var QueryCommand = commands.HTTPCommand(
+	"space:query", "List all spaces",
+	"GET /substrate/v1/spaces", "/substrate/v1/spaces/{space}",
 	func(ctx context.Context,
 		t *struct {
 			SpaceQueriers []activityspec.SpaceQuerier
@@ -46,18 +49,40 @@ var QueryCommand = commands.Command(
 		return returns, nil
 	})
 
-var DeleteCommand = commands.Command(
-	"space:delete",
-	"Delete a space",
+type SpaceAsFS interface {
+	SpaceAsFS(ctx context.Context, spaceID string, readOnly bool) (fs.FS, error)
+}
+
+type SpaceURLs interface {
+	SpaceTreePathURLFunc(spaceID, path string) string
+	SpaceURLFunc(spaceID string) string
+}
+
+type SpaceDeleter interface {
+	DeleteSpace(ctx context.Context, spaceID string) error
+}
+
+type SpawnLinkQuerier interface {
+	QuerySpawnLinks(ctx context.Context, spaceID string) (map[string]links.Link, error)
+}
+
+var _ SpaceURLs = (*SpacesViaContainerFilesystems)(nil)
+var _ SpawnLinkQuerier = (*SpacesViaContainerFilesystems)(nil)
+var _ SpaceDeleter = (*SpacesViaContainerFilesystems)(nil)
+var _ SpaceAsFS = (*SpacesViaContainerFilesystems)(nil)
+
+var DeleteCommand = commands.HTTPCommand(
+	"space:delete", "Delete a space",
+	"DELETE /substrate/v1/spaces/{space}", "/substrate/v1/spaces/{space}",
 	func(ctx context.Context,
 		t *struct {
-			SpacesViaContainerFilesystems *SpacesViaContainerFilesystems
+			SpaceDeleter SpaceDeleter
 		},
 		args struct {
 			Space string `json:"space" path:"space"`
 		},
 	) (Void, error) {
-		err := t.SpacesViaContainerFilesystems.DeleteSpace(ctx, args.Space)
+		err := t.SpaceDeleter.DeleteSpace(ctx, args.Space)
 		if errors.Is(err, activityspec.ErrNotFound) {
 			return void, &commands.HTTPStatusError{Status: http.StatusNotFound}
 		}
@@ -65,12 +90,125 @@ var DeleteCommand = commands.Command(
 		return void, err
 	})
 
-var GetCommand = commands.Command(
-	"space:get",
-	"Get a space",
+var ReadCommand = commands.Command(
+	"space:tree:read-blob",
+	"Read a file",
 	func(ctx context.Context,
 		t *struct {
-			SpacesViaContainerFilesystems *SpacesViaContainerFilesystems
+			SpacesViaContainerFilesystems SpaceAsFS
+		},
+		args struct {
+			Space  string `json:"space" path:"space"`
+			Path   string `json:"path" path:"path"`
+			Writer http.ResponseWriter
+		},
+	) (Void, error) {
+		fsys, err := t.SpacesViaContainerFilesystems.SpaceAsFS(ctx, args.Space, false)
+		if err != nil {
+			return void, err
+		}
+
+		data, err := fs.ReadFile(fsys, args.Path)
+		if err != nil {
+			return void, err
+		}
+
+		_, err = args.Writer.Write(data)
+		return void, err
+
+	})
+
+var WriteCommand = commands.HTTPCommand(
+	"space:tree:write-blob", "Write a file",
+	"PUT /substrate/v1/spaces/{space}/tree/{path...}", "/substrate/v1/spaces/{space}/tree/{path...}",
+	func(ctx context.Context,
+		t *struct {
+			SpaceAsFS SpaceAsFS
+		},
+		args struct {
+			Space string `json:"space" path:"space"`
+			Path  string `json:"path" path:"path"`
+			Body  io.ReadCloser
+		},
+	) (Void, error) {
+		defer args.Body.Close()
+
+		fsys, err := t.SpaceAsFS.SpaceAsFS(ctx, args.Space, false)
+		if err != nil {
+			return void, err
+		}
+
+		data, err := io.ReadAll(args.Body)
+		if err != nil {
+			return void, err
+		}
+
+		return void, fs.WriteFile(fsys, args.Path, data, 0644)
+	})
+
+var QueryLinksTreePathCommand = commands.HTTPCommand(
+	"links:query", "List links",
+	"GET /substrate/v1/spaces/{space}/links/tree", "/substrate/v1/spaces/{space}/tree",
+	func(ctx context.Context,
+		t *struct {
+			SpaceAsFS SpaceAsFS
+			SpaceURLs SpaceURLs
+		},
+		args struct {
+			Space string `json:"space" path:"space"`
+			Path  string `json:"path" path:"path"`
+		},
+	) (LinksQueryReturns, error) {
+		slog.Info("QueryLinksTreePathCommand", "t", t, "t.SpaceAsFS", t.SpaceAsFS, "args", args)
+		l := LinksQueryReturns{
+			Links: links.Links{},
+		}
+
+		fsys, err := t.SpaceAsFS.SpaceAsFS(ctx, args.Space, false)
+		if err != nil {
+			return l, err
+		}
+
+		stat, err := fs.Stat(fsys, args.Path)
+		if err != nil {
+			return l, err
+		}
+
+		if stat.IsDir() {
+			entries, err := fs.ReadDir(fsys, args.Path)
+			if err != nil {
+				return l, err
+			}
+
+			for _, entry := range entries {
+				l.Links["child/"+entry.Name()] = links.Link{
+					Rel:  "child",
+					HREF: t.SpaceURLs.SpaceTreePathURLFunc(args.Space, args.Path+"/"+entry.Name()),
+				}
+			}
+		}
+
+		if args.Path != "/" && args.Path != "" {
+			l.Links["parent"] = links.Link{
+				Rel:  "parent",
+				HREF: t.SpaceURLs.SpaceTreePathURLFunc(args.Space, path.Dir(args.Path)),
+			}
+		}
+
+		l.Links["space"] = links.Link{
+			Rel:  "space",
+			HREF: t.SpaceURLs.SpaceURLFunc(args.Space),
+		}
+
+		return l, nil
+	})
+
+var GetCommand = commands.HTTPCommand(
+	"space:get", "Get a space",
+	"GET /substrate/v1/spaces/{space}", "/substrate/v1/spaces/{space}",
+	func(ctx context.Context,
+		t *struct {
+			SpacesViaContainerFilesystems activityspec.SpaceViewResolver
 		},
 		args struct {
 			Space string `json:"space" path:"space"`
@@ -116,21 +254,31 @@ type LinksQueryReturns struct {
 	Links links.Links `json:"links"`
 }
 
-var LinksQueryCommand = commands.Command(
-	"links:query",
-	"",
+var LinksQueryCommand = commands.HTTPCommand(
+	"links:query", "",
+	"GET /substrate/v1/spaces/{space}/links", "/substrate/v1/spaces/{space}",
 	func(ctx context.Context,
 		t *struct {
-			SpacesViaContainerFilesystems *SpacesViaContainerFilesystems
+			SpawnLinkQuerier SpawnLinkQuerier
+			SpaceURLs        SpaceURLs
 		},
 		args struct {
 			SpaceID string `json:"space" path:"space"`
 		},
 	) (LinksQueryReturns, error) {
-		links, err := t.SpacesViaContainerFilesystems.QuerySpawnLinks(ctx, args.SpaceID)
-		return LinksQueryReturns{
-			Links: links,
-		}, err
+		l := LinksQueryReturns{}
+		var err error
+		l.Links, err = t.SpawnLinkQuerier.QuerySpawnLinks(ctx, args.SpaceID)
+		if err != nil {
+			return l, err
+		}
+
+		l.Links["tree"] = links.Link{
+			Rel:  "tree",
+			HREF: t.SpaceURLs.SpaceTreePathURLFunc(args.SpaceID, ""),
+		}
+
+		return l, nil
 	},
 )
 
@@ -164,9 +312,9 @@ type CommitReturns struct {
 	Commits []RefCommit
 }
 
-var CommitCommand = commands.Command(
-	"space:commit",
-	"Commit and optionally push a space",
+var CommitCommand = commands.HTTPCommand(
+	"space:commit", "Commit and optionally push a space",
+	"POST /substrate/v1/spaces/{space}/commit", "/substrate/v1/spaces/{space}",
 	func(ctx context.Context,
 		t *struct {
 			P                             *podmanprovisioner.P

@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/ajbouh/substrate/pkg/toolkit/links"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
@@ -111,6 +112,23 @@ func (r *Cache) AllInstanceExports() *InstancesRoot {
 	// slog.Info("Cache.AllInstanceExports()", "r.entries.Size()", r.entries.Size(), "i", i, "len(root.Instances)", len(root.Instances), "root", root)
 
 	return root
+}
+
+func (r *Cache) QueryLinks(ctx context.Context, asr *activityspec.ServiceSpawnRequest) (links.Links, error) {
+	// log.Printf("UpdateOutgoing...")
+	// defer log.Printf("UpdateOutgoing... done")
+
+	requestCacheKey, concrete := asr.CanonicalFormat, asr.SeemsConcrete
+	if !concrete {
+		return nil, fmt.Errorf("viewspec must be concrete")
+	}
+
+	entry, _ := r.entries.Load(requestCacheKey)
+	if entry == nil {
+		return nil, fmt.Errorf("no active entry: %s", requestCacheKey)
+	}
+
+	return entry.QueryLinks(ctx)
 }
 
 func (r *Cache) UpdateOutgoing(ctx context.Context, asr *activityspec.ServiceSpawnRequest, digest string, cb func(f Fields) Fields) error {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"reflect"
 	"strings"
 
@@ -23,58 +22,143 @@ func Command[Target any, Params any, Returns any](name, desc string, f func(ctx 
 	}
 }
 
+func HTTPCommand[Target any, Params any, Returns any](
+	name, desc string,
+	pattern, reflectPath string,
+	f func(ctx context.Context, t *Target, p Params) (Returns, error),
+) *CommandFunc[Target, Params, Returns] {
+	var method string
+	method, resourcePath, ok := strings.Cut(pattern, " ")
+	if !ok {
+		resourcePath = method
+		method = ""
+	}
+
+	if reflectPath == "" {
+		reflectPath = resourcePath
+	}
+
+	return &CommandFunc[Target, Params, Returns]{
+		Name: name,
+		Desc: desc,
+		Func: f,
+
+		HTTPMethod:              method,
+		HTTPResourcePath:        resourcePath,
+		HTTPResourceReflectPath: reflectPath,
+	}
+}
+
 var _ Reflector = (*CommandFunc[any, any, any])(nil)
 var _ Runner = (*CommandFunc[any, any, any])(nil)
-
-type HTTPStatusError struct {
-	Err     error
-	Status  int
-	Message string
-}
-
-var _ error = (*HTTPStatusError)(nil)
-
-func (h *HTTPStatusError) Error() string {
-	var message string
-	if h.Message != "" {
-		message = ": " + h.Message
-	}
-	if h.Err == nil {
-		return fmt.Sprintf("HTTP Status %d%s", h.Status, message)
-	}
-	return fmt.Sprintf("HTTP Status %d%s: %s", h.Status, message, h.Err.Error())
-}
-
-func (h *HTTPStatusError) Unwrap() error {
-	return h.Err
-}
+var _ Source = (*CommandFunc[any, any, any])(nil)
 
 type CommandFunc[Target any, Params any, Returns any] struct {
 	Target *Target
 	Name   string
 	Desc   string
 	Func   func(ctx context.Context, t *Target, p Params) (Returns, error)
+
+	HTTPMethod              string
+	HTTPResourcePath        string
+	HTTPResourceReflectPath string
 }
 
-func (r *CommandFunc[Target, Params, Returns]) ParamsType() reflect.Type {
-	return reflect.TypeFor[Params]()
-}
+var _ Reflector = (*CommandFunc[any, any, any])(nil)
+var _ Source = (*CommandFunc[any, any, any])(nil)
+var _ engine.Depender = (*CommandFunc[any, any, any])(nil)
+var _ HTTPResource = (*CommandFunc[any, any, any])(nil)
+var _ HTTPResourceReflect = (*CommandFunc[any, any, any])(nil)
 
-func (r *CommandFunc[Target, Params, Returns]) ReturnsType() reflect.Type {
-	return reflect.TypeFor[Returns]()
-}
-
-func treatAsVoid(t reflect.Type) bool {
-	return t.Kind() == reflect.Struct && len(reflect.VisibleFields(t)) == 0
+func (r *CommandFunc[Target, Params, Returns]) String() string {
+	return "*CommandFunc[" + r.Name + "]"
 }
 
 func (r *CommandFunc[Target, Params, Returns]) Assembly() []engine.Unit {
 	target, units, ok := xengine.AssemblyForPossiblyAnonymousTarget[Target]()
+	slog.Info("CommandFunc[Target, Params, Returns].Assembly", "r", reflect.TypeOf(r).String(), "target", target, "units", units, "ok", ok)
+
 	if ok {
 		r.Target = target
 	}
 	return units
+}
 
+func (r *CommandFunc[Target, Params, Returns]) Initialize() {
+	slog.Info("CommandFunc[Target, Params, Returns].Initialize", "r", reflect.TypeOf(r).String(), "target", r.Target)
+}
+
+func (r *CommandFunc[Target, Params, Returns]) GetHTTPResourceReflectPath() string {
+	return r.HTTPResourceReflectPath
+}
+
+func (r *CommandFunc[Target, Params, Returns]) GetHTTPPattern() string {
+	if r.HTTPResourcePath == "" {
+		return ""
+	}
+
+	return r.HTTPMethod + " " + r.HTTPResourcePath
+}
+
+func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
+	if r.HTTPResourcePath == "" {
+		return nil
+	}
+
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		slog.Info("CommandFunc[Target, Params, Returns].HandlerFunc", "r", reflect.TypeOf(r).String(), "target", r.Target)
+
+		paramsType := reflect.TypeFor[Params]()
+		returnsType := reflect.TypeFor[Returns]()
+
+		shouldUnmarshalRequestBody := func() bool {
+			switch req.Method {
+			case http.MethodGet, http.MethodHead, http.MethodTrace, http.MethodConnect, http.MethodDelete:
+				return false
+			}
+
+			if req.ContentLength == 0 || req.Body == nil {
+				return false
+			}
+
+			return !treatAsVoid(paramsType)
+		}
+
+		params := Fields{}
+
+		if shouldUnmarshalRequestBody() {
+			defer req.Body.Close()
+			err := json.NewDecoder(req.Body).Decode(&params)
+			if err != nil {
+				http.Error(w, fmt.Sprintf(`{"message": %q}`, err.Error()), http.StatusBadRequest)
+				return
+			}
+		}
+
+		err := populateRequestBasedFields(w, req, paramsType, params)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"message": %q}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		v, err := r.Run(req.Context(), "", params)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(`{"message": %q}`, err.Error()), http.StatusInternalServerError)
+			return
+		}
+
+		if !treatAsVoid(returnsType) {
+			err := json.NewEncoder(w).Encode(v)
+			if err != nil {
+				http.Error(w, fmt.Sprintf(`{"message": %q}`, err.Error()), http.StatusInternalServerError)
+				return
+			}
+		}
+	})
+}
+
+func treatAsVoid(t reflect.Type) bool {
+	return t == nil || t.Kind() == reflect.Struct && len(reflect.VisibleFields(t)) == 0
 }
 
 func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (DefIndex, error) {
@@ -114,12 +198,55 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (Def
 		return nil, err
 	}
 
+	def := Def{
+		Description: r.Desc,
+		Parameters:  params,
+		Returns:     returns,
+	}
+
+	if r.HTTPResourcePath != "" {
+		def.Run = &RunDef{
+			HTTP: &RunHTTPDef{
+				Returns:    map[string]RunFieldDef{},
+				Parameters: map[string]RunFieldDef{},
+				Request: RunHTTPRequestDef{
+					Headers: map[string][]string{
+						"Content-Type": {"application/json"},
+					},
+					URL:    r.HTTPResourcePath,
+					Method: r.HTTPMethod,
+				},
+			},
+		}
+
+		for field := range returns {
+			def.Run.HTTP.Returns[field] = RunFieldDef{Path: `response.body.` + field}
+		}
+
+		if paramsType.Kind() == reflect.Struct {
+			for _, field := range reflect.VisibleFields(paramsType) {
+				jsonTag, ok := field.Tag.Lookup("json")
+				if !ok {
+					continue
+				}
+				fieldName, _, _ := strings.Cut(jsonTag, ",")
+				if fieldName == "-" {
+					continue
+				}
+
+				fieldPath := `request.body.` + fieldName
+				if pathVar, ok := field.Tag.Lookup("path"); ok {
+					fieldPath = `request.url.path.` + pathVar
+				} else if queryVar, ok := field.Tag.Lookup("query"); ok {
+					fieldPath = `request.query.` + queryVar
+				}
+				def.Run.HTTP.Parameters[fieldName] = RunFieldDef{Path: fieldPath}
+			}
+		}
+	}
+
 	return DefIndex{
-		r.Name: Def{
-			Description: r.Desc,
-			Parameters:  params,
-			Returns:     returns,
-		},
+		r.Name: def,
 	}, nil
 }
 
@@ -132,7 +259,7 @@ func (r *CommandFunc[Target, Params, Returns]) Run(ctx context.Context, name str
 
 	params := new(Params)
 
-	if !treatAsVoid(r.ParamsType()) {
+	if !treatAsVoid(reflect.TypeFor[Params]()) {
 		b, err := json.Marshal(pfields)
 		if err != nil {
 			return nil, err
@@ -150,7 +277,7 @@ func (r *CommandFunc[Target, Params, Returns]) Run(ctx context.Context, name str
 	}
 
 	rfields := Fields{}
-	if !treatAsVoid(r.ReturnsType()) {
+	if !treatAsVoid(reflect.TypeFor[Returns]()) {
 		b, err := json.Marshal(returns)
 		if err != nil {
 			return nil, err
@@ -163,124 +290,4 @@ func (r *CommandFunc[Target, Params, Returns]) Run(ctx context.Context, name str
 	}
 
 	return rfields, nil
-}
-
-func FieldDefsFromStructFields(fields []reflect.StructField) FieldDefs {
-	fieldDefs := FieldDefs{}
-	for _, p := range fields {
-		var field string
-		if jsonTag, ok := p.Tag.Lookup("json"); ok {
-			if jsonTag == "-" {
-				continue
-			}
-			field, _, _ = strings.Cut(jsonTag, ",")
-		} else {
-			field = p.Name
-		}
-
-		fieldDef := FieldDef{
-			Type: p.Type.String(),
-		}
-		if descTag, ok := p.Tag.Lookup("desc"); ok {
-			fieldDef.Description = descTag
-		}
-
-		fieldDefs[field] = fieldDef
-	}
-
-	return fieldDefs
-}
-
-type PathValuer interface {
-	PathValue(key string) string
-}
-
-func getPathValueForField(field reflect.StructField, r *http.Request) (any, bool, error) {
-	key, ok := field.Tag.Lookup("path")
-	if !ok {
-		return nil, false, nil
-	}
-
-	if field.Type.Kind() != reflect.String {
-		return nil, false, fmt.Errorf(`bad type for field with path struct tag %#v; must be string`, field)
-	}
-
-	pathValue := r.PathValue(key)
-	return pathValue, true, nil
-}
-
-func getQueryValueForField(field reflect.StructField, q url.Values) (any, bool, error) {
-	key, ok := field.Tag.Lookup("query")
-	if !ok {
-		return nil, false, nil
-	}
-
-	queryValue, ok := q[key]
-	if !ok {
-		return nil, false, nil
-	}
-
-	switch field.Type.Kind() {
-	case reflect.String:
-		return queryValue[0], true, nil
-	case reflect.Slice:
-		if field.Type.Elem().Kind() == reflect.String {
-			return queryValue, true, nil
-		}
-	case reflect.Pointer:
-		switch field.Type.Elem().Kind() {
-		case reflect.String:
-			return queryValue[0], true, nil
-		}
-	}
-
-	return nil, false, fmt.Errorf(`bad type for field with query struct tag %#v; must be string or *string or []string`, field)
-}
-
-func getRequestBasedField(field reflect.StructField, r *http.Request, q url.Values) (string, any, bool, error) {
-	var val any
-	val, ok, err := getPathValueForField(field, r)
-	if err != nil {
-		return "", val, false, err
-	}
-
-	if !ok {
-		val, ok, err = getQueryValueForField(field, q)
-		if err != nil {
-			return "", val, false, err
-		}
-	}
-
-	if !ok {
-		return "", val, false, nil
-	}
-
-	jsonTag, jsonTagOK := field.Tag.Lookup("json")
-	if !jsonTagOK {
-		return field.Name, val, true, nil
-	}
-
-	fieldName, _, _ := strings.Cut(jsonTag, ",")
-	return fieldName, val, ok, err
-}
-
-func populateRequestBasedFields(r *http.Request, paramsType reflect.Type, params Fields) error {
-	slog.Info("populateRequestBasedFields", "params", params, "paramsType", paramsType, "paramsTypeKind", paramsType.Kind())
-
-	if paramsType.Kind() == reflect.Struct {
-		query := r.URL.Query()
-		for _, field := range reflect.VisibleFields(paramsType) {
-			fieldName, val, ok, err := getRequestBasedField(field, r, query)
-			if err != nil {
-				return err
-			}
-			if !ok || fieldName == "-" {
-				continue
-			}
-
-			params[fieldName] = val
-		}
-	}
-
-	return nil
 }

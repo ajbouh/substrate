@@ -129,6 +129,22 @@ const spaceViewsSep = ";"
 const SpaceViewMultiSep = ","
 const viewspecParameterStart = ";"
 
+func urlPathEscape(s string) string {
+	return strings.ReplaceAll(s, "/", "%2F")
+}
+
+func NewSpawnRequest(service string, parameters map[string]string) *ServiceSpawnRequest {
+	r := &ServiceSpawnRequest{
+		ServiceName: service,
+		Parameters:  parameters,
+	}
+
+	r.CanonicalFormat, r.SeemsConcrete = r.format()
+	r.URLPrefix = "/" + urlPathEscape(r.CanonicalFormat)
+
+	return r
+}
+
 func ParseServiceSpawnRequest(spec string, forceReadOnly bool, spawnPrefix string) (*ServiceSpawnRequest, error) {
 	var service string
 	var viewspec string

@@ -92,9 +92,8 @@ func main() {
 
 	units := []engine.Unit{
 		&service.Service{
-			BaseURL:       origin,
-			ExportsRoute:  "/substrate/v1/exports",
-			CommandsRoute: "/",
+			BaseURL:      origin,
+			ExportsRoute: "/substrate/v1/exports",
 		},
 		&podmanprovisioner.P{
 			Connect: func(ctx context.Context) (context.Context, error) {
@@ -127,37 +126,25 @@ func main() {
 
 		&InstanceLinks{},
 
-		&SpacesLinkQuerier{
+		&RootSpacesLinkQuerier{
 			SpaceURL: func(space string) string {
 				return "/substrate/v1/spaces/" + space
 			},
 		},
-		&commands.HTTPResourceCommand{
-			Pattern: "GET /substrate/v1/spaces",
-			Handler: space.QueryCommand,
-		},
-		&commands.HTTPResourceCommand{
-			Pattern: "POST /substrate/v1/spaces",
-			Handler: space.NewCommand,
-		},
-		&commands.HTTPResourceCommand{
-			ReflectPath: "/substrate/v1/spaces/{space}",
-			Pattern:     "POST /substrate/v1/spaces/{space}/commit",
-			Handler:     space.CommitCommand,
-		},
-		&commands.HTTPResourceCommand{
-			ReflectPath: "/substrate/v1/spaces/{space}",
-			Pattern:     "GET /substrate/v1/spaces/{space}/links",
-			Handler:     space.LinksQueryCommand,
-		},
-		&commands.HTTPResourceCommand{
-			Pattern: "DELETE /substrate/v1/spaces/{space}",
-			Handler: space.DeleteCommand,
-		},
-		&commands.HTTPResourceCommand{
-			Pattern: "GET /substrate/v1/spaces/{space}",
-			Handler: space.GetCommand,
-		},
+		space.CommitCommand,
+		space.LinksQueryCommand,
+		space.QueryLinksTreePathCommand,
+		space.DeleteCommand,
+		space.GetCommand,
+		space.WriteCommand,
+		substratehttp.ViewspecLinksCommand,
+
+		&space.SpacesFileTree{},
+
+		provisioner.NewCommand,
+		space.QueryCommand,
+		space.NewCommand,
+		substratehttp.EvalCommand,
 
 		// TODO how do we want to handle authentication for this?
 		&substratehttp.CORSMiddleware{
@@ -194,6 +181,7 @@ func main() {
 			User:                    "user",
 			InternalSubstrateOrigin: internalSubstrateOrigin,
 		},
+		&Broker{},
 
 		&notify.Slot[DefSetCommands]{},
 		&commands.LoaderDelegate[*DefSetCommands]{},
@@ -330,21 +318,21 @@ func main() {
 		}),
 	}
 
-	evalHandler := &substratehttp.EvalHandler{
-		Prefix: "/substrate",
-	}
-	units = append(units, evalHandler)
-	units = append(units, evalHandler.Units()...)
-
 	engine.Run(units...)
 }
 
-type SpacesLinkQuerier struct {
+func urlPathEscape(s string) string {
+	return strings.ReplaceAll(s, "/", "%2F")
+}
+
+type RootSpacesLinkQuerier struct {
 	SpaceURL      func(space string) string
 	SpaceQueriers []activityspec.SpaceQuerier
 }
 
-func (s *SpacesLinkQuerier) QueryLinks(ctx context.Context) (links.Links, error) {
+var _ links.Querier = (*RootSpacesLinkQuerier)(nil)
+
+func (s *RootSpacesLinkQuerier) QueryLinks(ctx context.Context) (links.Links, error) {
 	e := links.Links{}
 
 	for _, lister := range s.SpaceQueriers {
@@ -355,8 +343,8 @@ func (s *SpacesLinkQuerier) QueryLinks(ctx context.Context) (links.Links, error)
 
 		for _, space := range spaces {
 			e["space/"+space.SpaceID] = links.Link{
-				Rel: "space",
-				URL: s.SpaceURL(space.SpaceID),
+				Rel:  "space",
+				HREF: s.SpaceURL(space.SpaceID),
 				Attributes: map[string]any{
 					"space:created_at": space.CreatedAt,
 				},
@@ -366,8 +354,6 @@ func (s *SpacesLinkQuerier) QueryLinks(ctx context.Context) (links.Links, error)
 
 	return e, nil
 }
-
-var _ links.Querier = (*SpacesLinkQuerier)(nil)
 
 type DefSetCommands struct {
 	DefsMap map[string]commands.DefIndex
@@ -406,8 +392,8 @@ func (m *InstanceLinks) QueryLinks(ctx context.Context) (links.Links, error) {
 	ents := links.Links{}
 	for k, v := range root.Instances {
 		ents["instance/"+k] = links.Link{
-			Rel: "instance",
-			URL: "/" + k,
+			Rel:  "instance",
+			HREF: "/" + k + "/",
 			Attributes: map[string]any{
 				"instance:service": v.ServiceName,
 			},
@@ -415,4 +401,100 @@ func (m *InstanceLinks) QueryLinks(ctx context.Context) (links.Links, error) {
 	}
 
 	return ents, nil
+}
+
+type Broker struct {
+	SpaceID string
+
+	DefSetLoader               Loader[*defset.DefSet]
+	HTTPResourceReflectHandler *commands.HTTPResourceReflectHandler
+}
+
+var _ commands.Reflector = (*Broker)(nil)
+
+func (b *Broker) CloneWithSpace(spaceID string) *Broker {
+	return &Broker{
+		SpaceID:                    spaceID,
+		DefSetLoader:               b.DefSetLoader,
+		HTTPResourceReflectHandler: b.HTTPResourceReflectHandler,
+	}
+}
+
+func (b *Broker) Reflect(ctx context.Context) (commands.DefIndex, error) {
+	// slog.Info("Broker.Reflect()")
+	// return commands.DefIndex{}, nil
+
+	bindings := map[string]commands.BindEntry{}
+
+	err := EachInstanceTemplate(b.DefSetLoader.Load(), func(serviceName string, template *struct {
+		Parameters map[string]struct {
+			Type string `json:"type"`
+		} `json:"parameters"`
+	}) {
+		// slog.Info("Broker.Reflect()", "serviceName", serviceName, "template", *template)
+
+		var spaceParams []string
+		var idParams []string
+		var otherParams []string
+		for name, p := range template.Parameters {
+			switch p.Type {
+			case "space":
+				spaceParams = append(spaceParams, name)
+				continue
+			case "string":
+				if name == "id" {
+					idParams = append(idParams, name)
+				}
+				continue
+			}
+
+			otherParams = append(otherParams, name)
+		}
+
+		// We're looking for services that we can spawn that need either a single id *and/or* a single space
+		points := 0
+		if len(spaceParams) == 1 {
+			points++
+		}
+		if len(idParams) == 1 {
+			points++
+		}
+
+		// slog.Info("Broker.Reflect()", "serviceName", serviceName, "template", *template, "points", points, "spaceParams", spaceParams, "idParams", idParams, "otherParams", otherParams)
+		if points == 0 {
+			return
+		}
+
+		parameters := map[string]string{}
+		for _, idParam := range idParams {
+			// Use a blank id to implicitly request a new id.
+			parameters[idParam] = ""
+		}
+		// Use a blank space to implicitly request a new space.
+		for _, spaceParam := range spaceParams {
+			parameters[spaceParam] = b.SpaceID
+		}
+
+		// slog.Info("Broker.Reflect()", "serviceName", serviceName, "template", *template, "points", points, "spaceParams", spaceParams, "idParams", idParams, "otherParams", otherParams, "parameters", parameters)
+
+		// For now we skip services that take *any other parameters* beyond these two. In the future
+		// we might want to do something fancy with binding to support accepting just the unset
+		// spawn parameters as command parameters. But not right now.
+		if len(otherParams) > 0 {
+			return
+		}
+
+		// we should now be left with services
+		bindings["new:"+serviceName] = commands.BindEntry{
+			Command: "new:instance",
+			Parameters: commands.Fields{
+				"service":    serviceName,
+				"parameters": parameters,
+			},
+		}
+	})
+	if err != nil {
+		slog.Info("error while broker discovering instances", "err", err)
+	}
+	return commands.Bind(b.HTTPResourceReflectHandler.ReflectorForPathFuncExcluding(b), bindings)
 }

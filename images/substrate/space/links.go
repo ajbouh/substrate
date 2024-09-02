@@ -17,8 +17,8 @@ import (
 
 func (p *SpacesViaContainerFilesystems) WriteSpawnLink(ctx context.Context, activityspec, parameterName, spaceID string) error {
 	link := links.Link{
-		Rel: "spawn",
-		URL: "/" + activityspec + "/",
+		Rel:  "spawn",
+		HREF: "/" + activityspec + "/",
 		Attributes: map[string]any{
 			"spawn:parameter": parameterName,
 		},
@@ -55,7 +55,7 @@ func (p *SpacesViaContainerFilesystems) WriteSpawnLink(ctx context.Context, acti
 	return os.WriteFile(linkPath, linkData, 0644)
 }
 
-func (p *SpacesViaContainerFilesystems) QuerySpawnLinks(ctx context.Context, spaceID string) (links.Links, error) {
+func (p *SpacesViaContainerFilesystems) QuerySpawnLinks(ctx context.Context, spaceID string) (map[string]links.Link, error) {
 	slog.Info("QuerySpawnLinks", "spaceID", spaceID)
 	ctx, err := p.P.Connect(ctx)
 	if err != nil {
@@ -77,13 +77,18 @@ func (p *SpacesViaContainerFilesystems) QuerySpawnLinks(ctx context.Context, spa
 		return nil, err
 	}
 
+	l := links.Links{}
+
 	linksDir := path.Join(mountPath, ".substrate", "links")
 	linkEntries, err := os.ReadDir(linksDir)
+	if errors.Is(err, os.ErrNotExist) {
+		return l, nil
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
-	l := links.Links{}
 	var errs []error
 	for _, entry := range linkEntries {
 		if entry.IsDir() {
@@ -95,6 +100,10 @@ func (p *SpacesViaContainerFilesystems) QuerySpawnLinks(ctx context.Context, spa
 		}
 		linkName := strings.TrimSuffix(linkFileName, ".json")
 		b, err := os.ReadFile(path.Join(linksDir, linkFileName))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+
 		if err != nil {
 			errs = append(errs, err)
 			continue

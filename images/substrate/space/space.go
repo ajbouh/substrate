@@ -17,6 +17,10 @@ import (
 	"github.com/containers/podman/v4/pkg/specgen"
 	"github.com/oklog/ulid/v2"
 	"golang.org/x/sync/singleflight"
+	"tractor.dev/toolkit-go/engine/fs"
+	"tractor.dev/toolkit-go/engine/fs/localfs"
+	"tractor.dev/toolkit-go/engine/fs/readonlyfs"
+	"tractor.dev/toolkit-go/engine/fs/workingpathfs"
 )
 
 const LabelSubstrateContainerRole = "substrate:role"
@@ -34,6 +38,9 @@ type SpacesViaContainerFilesystems struct {
 	P            *podmanprovisioner.P
 	DefSetLoader notify.Loader[*defset.DefSet]
 
+	// SpaceTreePathURLFunc func(spaceID, path string) string
+	// SpaceURLFunc         func(spaceID string) string
+
 	containerLegacyGroup   singleflight.Group
 	containerIDSpaceMounts *provisioner.OnceMap[string]
 }
@@ -47,6 +54,14 @@ func boolPtr(b bool) *bool {
 
 func (p *SpacesViaContainerFilesystems) Initialize() {
 	p.containerIDSpaceMounts = provisioner.NewOnceMap[string]()
+}
+
+func (p *SpacesViaContainerFilesystems) SpaceTreePathURLFunc(spaceID, path string) string {
+	return "/substrate/v1/spaces/" + spaceID + "/tree" + path
+}
+
+func (p *SpacesViaContainerFilesystems) SpaceURLFunc(spaceID string) string {
+	return "/substrate/v1/spaces/" + spaceID
 }
 
 func (p *SpacesViaContainerFilesystems) createContainerSpecForSpace(imageID, spaceID string) (*specgen.SpecGenerator, string) {
@@ -155,6 +170,35 @@ func (p *SpacesViaContainerFilesystems) resolveExistingSpaceViewForSpaceID(ctx c
 	return "", nil, nil
 }
 
+func (p *SpacesViaContainerFilesystems) SpaceAsFS(ctx context.Context, spaceID string, readOnly bool) (fs.FS, error) {
+	ctx, err := p.P.Connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	containerID, _, err := p.resolveExistingSpaceViewForSpaceID(ctx, spaceID, false)
+	if err != nil {
+		return nil, err
+	}
+
+	if containerID == "" {
+		return nil, activityspec.ErrNotFound
+	}
+
+	mountPath, err := p.resolveContainerIDMountPath(ctx, containerID)
+	if err != nil {
+		return nil, err
+	}
+
+	fsys := workingpathfs.New(localfs.New(), mountPath)
+
+	if readOnly {
+		return readonlyfs.New(fsys), nil
+	}
+
+	return fsys, nil
+}
+
 func (p *SpacesViaContainerFilesystems) ResolveSpaceView(ctx context.Context, spaceID string, forceReadOnly bool, createAllowed bool, ownerIfCreation string) (*activityspec.SpaceView, error) {
 	readOnly := forceReadOnly
 
@@ -165,6 +209,7 @@ func (p *SpacesViaContainerFilesystems) ResolveSpaceView(ctx context.Context, sp
 		return nil, err
 	}
 
+	// This makes it easy to request a *new* space.
 	if spaceID == "" || spaceID == "scratch" || spaceID == "fork:scratch" {
 		var newSpaceImage string
 		err := p.DefSetLoader.Load().DecodeLookupPath(cue.MakePath(cue.Def("#var"), cue.Str("substrate"), cue.Str("new_space_image")), &newSpaceImage)

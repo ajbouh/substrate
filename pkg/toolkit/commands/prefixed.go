@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"fmt"
 	"strings"
 )
 
@@ -18,6 +19,10 @@ type PrefixedSource[T Source] struct {
 }
 
 var _ Source = (*PrefixedSource[Source])(nil)
+
+func (s *PrefixedSource[T]) String() string {
+	return "*PrefixedSource[" + s.Prefix + " " + fmt.Sprintf("%v", s.Source) + "]"
+}
 
 func (s *PrefixedSource[T]) WrapsCommandsSource() Source {
 	return s.Source

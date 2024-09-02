@@ -3,22 +3,10 @@ package commands
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"log"
 	"net/http"
 	"strings"
 )
-
-type HTTPSourceHandler struct {
-	Debug     bool
-	Aggregate *Aggregate
-
-	BaseURL string
-	Route   string
-
-	// Temporary feature until everything is using REFLECT
-	GetEnabled bool
-}
 
 func EnsureRunHTTPRequestURLHasAHost(baseURL string) DefTransformFunc {
 	return func(commandName string, commandDef Def) (string, Def) {
@@ -35,7 +23,7 @@ func EnsureRunHTTPRequestURLHasAHost(baseURL string) DefTransformFunc {
 	}
 }
 
-func EnsureRunHTTPField(route string) DefTransformFunc {
+func EnsureRunHTTPField(method, route string) DefTransformFunc {
 	return func(commandName string, commandDef Def) (string, Def) {
 		// for each command, populate any missing run fields. this provides enough information for
 		// someone to "run" the associated command through this handler.
@@ -49,7 +37,7 @@ func EnsureRunHTTPField(route string) DefTransformFunc {
 				Returns:    map[string]RunFieldDef{},
 				Request: RunHTTPRequestDef{
 					URL:    route,
-					Method: "POST",
+					Method: method,
 					Headers: map[string][]string{
 						"Content-Type": {"application/json"},
 					},
@@ -69,37 +57,6 @@ func EnsureRunHTTPField(route string) DefTransformFunc {
 		}
 
 		return commandName, commandDef
-	}
-}
-
-func (c *HTTPSourceHandler) ContributeHTTP(mux *http.ServeMux) {
-	if c.Route != "" {
-		runner := c.Aggregate.AsRunner(context.Background())
-		reflector := c.Aggregate.AsReflector(context.Background(),
-			DefTransforms(EnsureRunHTTPField(c.Route), EnsureRunHTTPRequestURLHasAHost(c.BaseURL)),
-		)
-
-		route := c.Route
-		if strings.HasSuffix(route, "/") {
-			route = route + "{$}"
-		}
-
-		runHandler := &HTTPRunHandler{
-			Debug:     c.Debug,
-			Runner:    runner,
-			Reflector: reflector,
-		}
-		mux.Handle("POST "+route, runHandler)
-
-		reflectHandler := &HTTPReflectHandler{
-			Debug:     c.Debug,
-			Route:     route,
-			Reflector: reflector,
-		}
-		mux.Handle("REFLECT "+route, reflectHandler)
-		if c.GetEnabled {
-			mux.Handle("GET "+route, reflectHandler)
-		}
 	}
 }
 
@@ -134,10 +91,24 @@ type HTTPReflectHandler struct {
 	ReflectRequestTransform func(r *http.Request, name string, def Def) (string, Def)
 }
 
+type contextKey string
+
+var httprequestKey = contextKey("httprequest")
+
+func HTTPRequest(ctx context.Context) *http.Request {
+	v, ok := ctx.Value(httprequestKey).(*http.Request)
+	if ok {
+		return v
+	}
+	return nil
+}
+
 func (c *HTTPReflectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h := w.Header()
 	h.Set("Content-Type", "application/json")
-	commands, err := c.Reflector.Reflect(r.Context())
+	ctx := r.Context()
+	ctx = context.WithValue(ctx, httprequestKey, r)
+	commands, err := c.Reflector.Reflect(ctx)
 	if err != nil {
 		serveError(c.Debug, w, err, http.StatusInternalServerError, nil)
 		return
@@ -158,49 +129,6 @@ func (c *HTTPReflectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		serveError(c.Debug, w, err, http.StatusInternalServerError, nil)
-		return
-	}
-	w.Write(b)
-}
-
-type HTTPRunHandler struct {
-	Debug     bool
-	Runner    Runner
-	Reflector Reflector
-}
-
-func (c *HTTPRunHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var commandRequest Request
-	var errMsg map[string]any
-	defer r.Body.Close()
-	b, err := io.ReadAll(r.Body)
-	if err != nil {
-		serveError(c.Debug, w, err, http.StatusBadRequest, errMsg)
-		return
-	}
-
-	err = json.Unmarshal(b, &commandRequest)
-	if err != nil {
-		serveError(c.Debug, w, err, http.StatusBadRequest, errMsg)
-		return
-	}
-
-	source := c.Runner
-	res, err := source.Run(r.Context(), commandRequest.Command, commandRequest.Parameters)
-	if err != nil {
-		if c.Reflector != nil {
-			commands, commandsErr := c.Reflector.Reflect(r.Context())
-			if commandsErr == nil {
-				errMsg = map[string]any{"commands": commands}
-			}
-		}
-		serveError(c.Debug, w, err, http.StatusInternalServerError, errMsg)
-		return
-	}
-
-	b, err = json.Marshal(res)
-	if err != nil {
-		serveError(c.Debug, w, err, http.StatusInternalServerError, errMsg)
 		return
 	}
 	w.Write(b)

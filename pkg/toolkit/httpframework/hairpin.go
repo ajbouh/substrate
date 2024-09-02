@@ -1,6 +1,7 @@
 package httpframework
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 )
@@ -30,11 +31,13 @@ func (c *HairpinHTTPClient) ContributeHTTP(m *http.ServeMux) {
 }
 
 func (c *HairpinHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	if !c.Match(req) {
+	match := c.Match(req)
+	slog.Info("HairpinHTTPClient.Do()", "method", req.Method, "url", req.URL.String(), "path", req.URL.Path, "host", req.URL.Host, "match", match)
+	if !match {
 		return c.Fallback.Do(req)
 	}
 
-	h, _ := c.Mux.Handler(req)
+	var h http.Handler = c.Mux
 	for _, m := range c.Middleware {
 		h = m.WrapHTTP(h)
 	}

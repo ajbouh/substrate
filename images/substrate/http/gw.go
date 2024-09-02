@@ -61,12 +61,13 @@ func (h *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	// log.Printf("Handler serveProxyRequest %#v", h)
 	// log.Printf("%s %s %s", req.RemoteAddr, req.Method, req.URL.String())
 	start := time.Now()
-	defer func() {
-		slog.Info("request", "remoteaddr", req.RemoteAddr, "method", req.Method, "url", req.URL.String(), "dur", time.Since(start))
-	}()
 
 	viewspec := req.PathValue("viewspec")
 	rest := req.PathValue("rest")
+
+	defer func() {
+		slog.Info("request", "remoteaddr", req.RemoteAddr, "method", req.Method, "url", req.URL.String(), "viewspec", viewspec, "rest", rest, "dur", time.Since(start))
+	}()
 
 	cookies := req.Cookies()
 	req.Header.Del("Cookie")

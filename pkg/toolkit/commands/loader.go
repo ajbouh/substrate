@@ -25,5 +25,7 @@ type LoaderDelegate[S Delegate] struct {
 }
 
 func (e *LoaderDelegate[S]) Commands(ctx context.Context) Source {
-	return e.Loader.Load().Commands(ctx)
+	return Dynamic(nil, func() []Source {
+		return []Source{e.Loader.Load().Commands(ctx)}
+	})
 }

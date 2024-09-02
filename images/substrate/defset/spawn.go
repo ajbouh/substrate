@@ -9,6 +9,7 @@ import (
 	"cuelang.org/go/cue"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/oklog/ulid/v2"
 )
 
 func (s *DefSet) ResolveService(ctx context.Context, sr activityspec.SpaceViewResolver, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResolution, error) {
@@ -152,6 +153,10 @@ func (s *DefSet) resolveServiceSpawn(ctx context.Context, sr activityspec.SpaceV
 
 		switch activityspec.ServiceSpawnParameterType(parameterType) {
 		case activityspec.ServiceSpawnParameterTypeString:
+			// This makes it easy to request a *new* id.
+			if parameterName == "id" && parameterReq == "" {
+				parameterReq = "id-" + ulid.Make().String()
+			}
 			parameters[parameterName] = &activityspec.ServiceSpawnParameter{String: &parameterReq}
 		case activityspec.ServiceSpawnParameterTypeSpace:
 			view, err := sr.ResolveSpaceView(ctx, parameterReq, req.ForceReadOnly, true, req.User)

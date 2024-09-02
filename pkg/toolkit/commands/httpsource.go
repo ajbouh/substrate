@@ -10,12 +10,12 @@ import (
 
 type HTTPSource struct {
 	Endpoint string
-	Client   *http.Client
+	Client   HTTPClient
 }
 
 var _ Source = HTTPSource{}
 
-func (p HTTPSource) client() *http.Client {
+func (p HTTPSource) client() HTTPClient {
 	if p.Client == nil {
 		return http.DefaultClient
 	}

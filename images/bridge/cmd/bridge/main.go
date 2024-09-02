@@ -67,9 +67,7 @@ func main() {
 	}
 
 	engine.Run(
-		&service.Service{
-			CommandsRoute: "/",
-		},
+		&service.Service{},
 		&SessionHandler{},
 		sfu.NewSession(),
 		&PeerComponent{

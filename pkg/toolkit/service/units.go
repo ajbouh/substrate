@@ -47,17 +47,12 @@ type Service struct {
 
 	units []engine.Unit
 
-	BaseURL       string
-	ExportsRoute  string
-	CommandsRoute string
+	BaseURL      string
+	ExportsRoute string
 }
 
 func (s *Service) initialize() {
 	log.Printf("Service.initialize()")
-
-	if s.CommandsRoute == "" {
-		s.CommandsRoute = "/"
-	}
 
 	if s.ExportsRoute == "" {
 		s.ExportsRoute = "/exports"
@@ -68,8 +63,9 @@ func (s *Service) initialize() {
 	s.units = NewUnits(
 		&httpframework.Framework{},
 		&httpframework.HairpinHTTPClient{
+			Fallback: http.DefaultClient,
 			Match: func(r *http.Request) bool {
-				return r.URL.OmitHost || (originURL != nil && originURL.Scheme == r.URL.Scheme && originURL.Host == r.URL.Host)
+				return r.URL.Host == "" || (originURL != nil && originURL.Scheme == r.URL.Scheme && originURL.Host == r.URL.Host)
 			},
 		},
 		&httpframework.RequestLogger{},
@@ -83,12 +79,14 @@ func (s *Service) initialize() {
 		&commands.Aggregate{},
 		&commands.ExportCommands{},
 		&commands.HTTPResourceReflectHandler{
-			BaseURL: s.BaseURL,
-		},
-		&commands.HTTPSourceHandler{
 			Debug:   true,
 			BaseURL: s.BaseURL,
-			Route:   s.CommandsRoute,
+
+			DefaultHTTPResourceReflectPath: "/",
+		},
+		&commands.HTTPRunHandler{
+			Debug:                 true,
+			CatchallRunnerPattern: "POST /{$}",
 		},
 
 		httpevents.NewJSONRequester[exports.Exports]("PUT", os.Getenv("INTERNAL_SUBSTRATE_EXPORTS_URL")),

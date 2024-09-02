@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/ajbouh/substrate/pkg/toolkit/links"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
@@ -145,6 +146,31 @@ func (e *CachingSingleServiceProvisioner) Peek() *Sample {
 	}
 
 	return sample
+}
+
+var _ links.Querier = (*CachingSingleServiceProvisioner)(nil)
+
+func (e *CachingSingleServiceProvisioner) QueryLinks(ctx context.Context) (links.Links, error) {
+	l := links.Links{}
+	gen := e.gen.Load()
+	if gen == nil {
+		return l, nil
+	}
+
+	for k, v := range gen.provisioned.ServiceSpawnResolution.Parameters {
+		switch {
+		case v.Space != nil:
+			l["parameter/"+k] = links.Link{
+				Rel:  "space",
+				HREF: "/substrate/v1/spaces/" + v.Space.SpaceID,
+				Attributes: map[string]any{
+					"spawn:parameter": k,
+				},
+			}
+		}
+	}
+
+	return l, nil
 }
 
 func (c *CachingSingleServiceProvisioner) UpdateOutgoing(ctx context.Context, digest string, cb func(fields Fields) Fields) error {

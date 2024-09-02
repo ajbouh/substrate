@@ -87,6 +87,7 @@ daemons: "substrate": {
 
   mounts: {
     (substrate_data): {source: "\(#var.namespace)-substrate_data" , type: "volume"}
+    "/var/lib/containers/storage": {source: "/var/lib/containers/storage"}
     (#var.host_substratefs_root): {source: #var.host_substratefs_root}
     (#var.host_machine_id_file): {source: #var.host_machine_id_file}
     (environment.#docker_socket): {source: #var.host_docker_socket}

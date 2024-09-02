@@ -141,6 +141,70 @@ func (l *PinnedInstances) Serve(ctx context.Context) {
 	l.ctx = ctx
 }
 
+func EachInstance[T any](defSet *defset.DefSet, f func(serviceName string, instanceName string, instanceValue *T)) error {
+	var errs []error
+
+	defSet.CueMu.Lock()
+	defer defSet.CueMu.Unlock()
+
+	for serviceName, serviceCueValue := range defSet.ServicesCueValues {
+		instances, err := serviceCueValue.LookupPath(cue.MakePath(cue.Str("instances"))).Fields()
+		if err != nil {
+			errs = append(errs, fmt.Errorf("error looking up instances: %w", err))
+			continue
+		}
+
+		for instances.Next() {
+			var instanceName string
+			var t *T
+
+			sel := instances.Selector()
+			if !sel.IsString() {
+				continue
+			}
+			instanceName = sel.Unquoted()
+
+			t = new(T)
+			err := instances.Value().Decode(&t)
+			if err != nil {
+				errs = append(errs, err)
+				t = nil
+			}
+
+			if t != nil {
+				defSet.CueMu.Unlock()
+				f(serviceName, instanceName, t)
+				defSet.CueMu.Lock()
+			}
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
+func EachInstanceTemplate[T any](defSet *defset.DefSet, f func(serviceName string, instanceTemplate *T)) error {
+	var errs []error
+	defSet.CueMu.Lock()
+	defer defSet.CueMu.Unlock()
+
+	for serviceName, serviceCueValue := range defSet.ServicesCueValues {
+		t := new(T)
+		err := serviceCueValue.LookupPath(cue.MakePath(cue.Str("instances"), cue.AnyString)).Decode(&t)
+		if err != nil {
+			errs = append(errs, err)
+			t = nil
+		}
+
+		if t != nil {
+			defSet.CueMu.Unlock()
+			f(serviceName, t)
+			defSet.CueMu.Lock()
+		}
+	}
+
+	return errors.Join(errs...)
+}
+
 func (l *PinnedInstances) Refresh(defSet *defset.DefSet) {
 	// copy forward, delete whatever's left in stale
 	stale := l.pins
@@ -152,62 +216,39 @@ func (l *PinnedInstances) Refresh(defSet *defset.DefSet) {
 	fresh := map[string]freshPin{}
 
 	l.mu.Lock()
-	for _, serviceCueValue := range defSet.ServicesCueValues {
-		instancesValue := serviceCueValue.LookupPath(cue.MakePath(cue.Str("instances")))
-
-		instances, err := instancesValue.Fields()
-		if err != nil {
-			slog.Info("error looking up if service instances", "err", err.Error())
-			continue
+	err := EachInstance(defSet, func(serviceName, instanceName string, instanceValue *struct {
+		Pinned bool `json:"pinned"`
+	}) {
+		cancel := l.pins[instanceName]
+		if instanceValue.Pinned {
+			if cancel == nil {
+				var ctx context.Context
+				// TODO should this be l.ctx?
+				ctx, cancel = context.WithCancelCause(context.Background())
+				fresh[instanceName] = freshPin{ctx: ctx, cancel: cancel}
+				go func() {
+					<-ctx.Done()
+					// TODO show this as an error if it is one.
+					slog.Info("pinned service instance connection gone", "instanceName", instanceName, "err", ctx.Err())
+				}()
+			} else {
+				// if it's still pinned, it's not stale!
+				slog.Info("pinned service instance still here", "instanceName", instanceName)
+				delete(stale, instanceName)
+			}
+			pins[instanceName] = cancel
 		}
-
-		for instances.Next() {
-			sel := instances.Selector()
-			if !sel.IsString() {
-				continue
-			}
-			instanceName := sel.Unquoted()
-
-			pinnedValue := instances.Value().LookupPath(cue.MakePath(cue.Str("pinned")))
-			if !pinnedValue.Exists() {
-				continue
-			}
-
-			pinned, err := pinnedValue.Bool()
-			if err != nil {
-				slog.Info("error determining if service instance is pinned", "instanceName", instanceName, "err", err.Error())
-				continue
-			}
-
-			cancel := l.pins[instanceName]
-			if pinned {
-				if cancel == nil {
-					var ctx context.Context
-					// TODO should this be l.ctx?
-					ctx, cancel = context.WithCancelCause(context.Background())
-					fresh[instanceName] = freshPin{ctx: ctx, cancel: cancel}
-					go func() {
-						<-ctx.Done()
-						// TODO show this as an error if it is one.
-						slog.Info("pinned service instance connection gone", "instanceName", instanceName, "err", ctx.Err())
-					}()
-				} else {
-					// if it's still pinned, it's not stale!
-					slog.Info("pinned service instance still here", "instanceName", instanceName)
-					delete(stale, instanceName)
-				}
-				pins[instanceName] = cancel
-			}
+	})
+	if err != nil {
+		slog.Info("error looking for pinned services", "err", err)
+	} else {
+		// remember pins and cancel stales
+		l.pins = pins
+		for instanceName, cancel := range stale {
+			slog.Info("cancelling now-unpinned service instance", "instanceName", instanceName)
+			cancel(fmt.Errorf("unpinned"))
 		}
 	}
-
-	// remember pins and cancel stales
-	l.pins = pins
-	for instanceName, cancel := range stale {
-		slog.Info("cancelling now-unpinned service instance", "instanceName", instanceName)
-		cancel(fmt.Errorf("unpinned"))
-	}
-
 	l.mu.Unlock()
 
 	for instanceName, p := range fresh {
