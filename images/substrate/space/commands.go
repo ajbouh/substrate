@@ -126,9 +126,9 @@ var WriteCommand = commands.HTTPCommand(
 			SpaceAsFS SpaceAsFS
 		},
 		args struct {
-			Space string `json:"space" path:"space"`
-			Path  string `json:"path" path:"path"`
-			Body  io.ReadCloser
+			Space string        `json:"space" path:"space"`
+			Path  string        `json:"path" path:"path"`
+			Body  io.ReadCloser `json:"-"`
 		},
 	) (Void, error) {
 		defer args.Body.Close()

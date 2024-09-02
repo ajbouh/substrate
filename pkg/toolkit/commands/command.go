@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -127,8 +128,8 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 		params := Fields{}
 
 		if shouldUnmarshalRequestBody() {
-			defer req.Body.Close()
 			err := json.NewDecoder(req.Body).Decode(&params)
+			req.Body.Close()
 			if err != nil {
 				http.Error(w, fmt.Sprintf(`{"message": %q}`, err.Error()), http.StatusBadRequest)
 				return
@@ -143,7 +144,12 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 
 		v, err := r.Run(req.Context(), "", params)
 		if err != nil {
-			http.Error(w, fmt.Sprintf(`{"message": %q}`, err.Error()), http.StatusInternalServerError)
+			status := http.StatusInternalServerError
+			var statusErr *HTTPStatusError
+			if errors.As(err, &statusErr) {
+				status = statusErr.Status
+			}
+			http.Error(w, fmt.Sprintf(`{"message": %q}`, err.Error()), status)
 			return
 		}
 
@@ -158,7 +164,32 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 }
 
 func treatAsVoid(t reflect.Type) bool {
-	return t == nil || t.Kind() == reflect.Struct && len(reflect.VisibleFields(t)) == 0
+	if t == nil || t.Kind() == reflect.Struct {
+		return true
+	}
+
+	fields := reflect.VisibleFields(t)
+	if len(fields) == 0 {
+		return true
+	}
+
+	for _, field := range fields {
+		if _, ok := field.Tag.Lookup("path"); !ok {
+			continue
+		}
+
+		if _, ok := field.Tag.Lookup("query"); !ok {
+			continue
+		}
+
+		if tag, ok := field.Tag.Lookup("json"); !ok || tag == "-" {
+			continue
+		}
+
+		return false
+	}
+
+	return true
 }
 
 func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (DefIndex, error) {
@@ -268,6 +299,20 @@ func (r *CommandFunc[Target, Params, Returns]) Run(ctx context.Context, name str
 		err = json.Unmarshal(b, &params)
 		if err != nil {
 			return nil, err
+		}
+	}
+
+	if len(pfields) > 0 {
+		paramsValue := reflect.ValueOf(params).Elem()
+		// copy any fields that can't be serialized as json, like io.ReadCloser and http.ResponseWriter
+		for _, field := range reflect.VisibleFields(reflect.TypeFor[Params]()) {
+			if tag, ok := field.Tag.Lookup("json"); ok && tag == "-" {
+				pvalue := pfields[field.Name]
+				if pvalue == nil {
+					continue
+				}
+				paramsValue.FieldByIndex(field.Index).Set(reflect.ValueOf(pvalue))
+			}
 		}
 	}
 

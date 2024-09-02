@@ -99,9 +99,7 @@ func getRequestBasedField(field reflect.StructField, w http.ResponseWriter, r *h
 		// maybe one of the fields can accept the request Body itself (e.g. if it is io.Reader)!
 		bodyValue := reflect.ValueOf(r.Body)
 		if bodyValue.Type().AssignableTo(field.Type) {
-			ok = true
-			val = r.Body
-			err = nil
+			return field.Name, r.Body, true, nil
 		}
 	}
 
@@ -109,9 +107,7 @@ func getRequestBasedField(field reflect.StructField, w http.ResponseWriter, r *h
 		// maybe one of the fields can accept the response writer itself (e.g. if it is http.ResponseWriter)!
 		responseWriterValue := reflect.ValueOf(w)
 		if responseWriterValue.Type().AssignableTo(field.Type) {
-			ok = true
-			val = w
-			err = nil
+			return field.Name, w, true, nil
 		}
 	}
 	if !ok {
