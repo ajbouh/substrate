@@ -48,6 +48,11 @@ func Bind(resolveReflector func(string) Reflector, commands map[string]BindEntry
 			return nil, fmt.Errorf("error resolving command %q using BindEntry %#v: %w", command, bindEntry, ErrNoSuchCommand)
 		}
 
+		def, err = def.Clone()
+		if err != nil {
+			return bound, err
+		}
+
 		parameters, returns := bindEntry.Parameters, bindEntry.Returns
 
 		if parameters != nil || returns != nil {

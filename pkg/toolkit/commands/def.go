@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 )
 
@@ -11,6 +12,16 @@ type Def struct {
 	Returns     FieldDefs `json:"returns,omitempty"`
 
 	Run *RunDef `json:"run,omitempty"`
+}
+
+func (r Def) Clone() (Def, error) {
+	var def Def
+	b, err := json.Marshal(r)
+	if err != nil {
+		return def, err
+	}
+
+	return def, json.Unmarshal(b, &def)
 }
 
 type RunDef struct {
