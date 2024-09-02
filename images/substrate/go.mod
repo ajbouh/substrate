@@ -8,8 +8,8 @@ require (
 	cuelang.org/go v0.10.0
 	github.com/ajbouh/substrate/pkg/cueloader v0.0.0-00010101000000-000000000000
 	github.com/ajbouh/substrate/pkg/toolkit v0.0.0-00010101000000-000000000000
-	github.com/containers/common v0.57.4
-	github.com/containers/podman/v4 v4.9.4
+	github.com/containers/common v0.56.0
+	github.com/containers/podman/v4 v4.7.2
 	github.com/elnormous/contenttype v1.0.4
 	github.com/go-playground/form/v4 v4.2.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
@@ -41,7 +41,7 @@ require (
 	github.com/containerd/containerd v1.7.9 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.15.1 // indirect
-	github.com/containers/buildah v1.33.7 // indirect
+	github.com/containers/buildah v1.32.3 // indirect
 	github.com/containers/image/v5 v5.29.2 // indirect
 	github.com/containers/libtrust v0.0.0-20230121012942-c1716e8a8d01 // indirect
 	github.com/containers/ocicrypt v1.1.9 // indirect
@@ -101,7 +101,6 @@ require (
 	github.com/moby/term v0.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
-	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/nxadm/tail v1.4.11 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
