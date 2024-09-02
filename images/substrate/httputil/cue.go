@@ -9,7 +9,7 @@ import (
 	"github.com/elnormous/contenttype"
 )
 
-func WriteCueValue(req *http.Request, v cue.Value) (int, []byte) {
+func WriteCueValueForRequest(req *http.Request, v cue.Value) (int, []byte) {
 	availableMediaTypes := []contenttype.MediaType{
 		contenttype.NewMediaType("application/json"),
 		contenttype.NewMediaType("application/json; charset=utf-8"),
@@ -22,7 +22,11 @@ func WriteCueValue(req *http.Request, v cue.Value) (int, []byte) {
 		return http.StatusUnsupportedMediaType, []byte(fmt.Sprintf(`{"message": %q}`, err.Error()))
 	}
 
-	switch accepted.Type + "/" + accepted.Subtype {
+	return WriteCueValue(accepted.Type+"/"+accepted.Subtype, v)
+}
+
+func WriteCueValue(acceptedType string, v cue.Value) (int, []byte) {
+	switch acceptedType {
 	case "application/json":
 		b, err := v.MarshalJSON()
 		if err != nil {

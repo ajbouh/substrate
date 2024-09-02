@@ -87,7 +87,7 @@ func main() {
 
 	provisionerCache := &provisioner.Cache{}
 
-	engine.Run(
+	units := []engine.Unit{
 		&service.Service{
 			BaseURL:       origin,
 			ExportsRoute:  "/substrate/v1/exports",
@@ -278,7 +278,15 @@ func main() {
 				}
 			}
 		}),
-	)
+	}
+
+	evalHandler := &substratehttp.EvalHandler{
+		Prefix: "/substrate",
+	}
+	units = append(units, evalHandler)
+	units = append(units, evalHandler.Units()...)
+
+	engine.Run(units...)
 }
 
 type DefSetCommands struct {
