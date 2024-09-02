@@ -50,8 +50,8 @@ export async function fetchJSON<T=any> (fetch: any, url: string, options?: any):
   return body
 }
 
-export function processSpaces(spaces: any[]) {
-  return spaces.map(space => ({...space, created_at: new Date(Date.parse(space.created_at))}))
+export function processSpaces(spaces: {spaces: any[]}) {
+  return spaces?.spaces.map(space => ({space: space.space_id, created_at: new Date(Date.parse(space.created_at))})) || []
 }
 
 export function processServiceSpecs(servicespecs: any[]) {

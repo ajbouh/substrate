@@ -18,8 +18,8 @@ services: "primer-scene": {
 
     environment: {
       PORT: string
-      MAINFILE: "/spaces/d/tree/\(parameters.mainfile.value)"
-      RENDER_DIR: "/spaces/d/tree/render"
+      MAINFILE: "/spaces/d/\(parameters.mainfile.value)"
+      RENDER_DIR: "/spaces/d/render"
     }
 
     command: [

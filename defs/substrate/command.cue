@@ -38,7 +38,6 @@ package command
         }
     } | *{
         http: {
-            parameters
             request: {
                 method: "POST"
                 headers: "Content-Type": ["application/json"]

@@ -19,6 +19,8 @@ import (
   substrate: internal_port: int
   substrate: internal_host: string
   substrate: internal_protocol: string
+
+  substrate: new_space_image: string
 }
 
 enable: "substrate": true

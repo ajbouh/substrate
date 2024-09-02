@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 )
@@ -19,7 +18,6 @@ func createTables(ctx context.Context, db *sql.DB) error {
 	tables := []string{
 		createActivitiesTable,
 		createEventsTable,
-		createSpacesTable,
 		createCollectionMembershipsTable,
 	}
 
@@ -115,43 +113,6 @@ func (s *DB) ListActivities(ctx context.Context, request *ActivityListRequest) (
 	}
 
 	return results, rows.Err()
-}
-
-type SpaceListingPatch struct {
-	ID string `json:"id"`
-
-	Owner *string `json:"owner,omitempty"`
-	Alias *string `json:"alias,omitempty"`
-}
-
-type SpaceWhere struct {
-	Owner         *string
-	Alias         *string
-	ID            *string
-	ForkedFromID  *string
-	ForkedFromRef *string
-
-	CollectionMembership *CollectionMembershipWhere
-}
-
-type SpaceListQuery struct {
-	SpaceWhere
-
-	SelectNestedCollections *CollectionMembershipWhere
-
-	Limit   *Limit
-	OrderBy *OrderBy
-}
-
-type Space struct {
-	Owner string `json:"owner"`
-	ID    string `json:"space"`
-
-	CreatedAt     time.Time `json:"created_at"`
-	ForkedFromID  *string   `json:"forked_from_id,omitempty"`
-	ForkedFromRef *string   `json:"forked_from_ref,omitempty"`
-
-	Memberships []*SpaceCollectionMembership `json:"memberships"`
 }
 
 type SpaceCollectionMembership struct {
@@ -275,14 +236,6 @@ func (s *DB) ListEvents(ctx context.Context, request *EventListRequest) ([]*Even
 	return results, rows.Err()
 }
 
-const spacesTable = "spaces"
-const createSpacesTable = `CREATE TABLE IF NOT EXISTS "spaces" (id TEXT, owner TEXT, alias TEXT, created_at_us INTEGER, deleted_at_us TEXT, forked_from_id TEXT, forked_from_ref TEXT, PRIMARY KEY (id), FOREIGN KEY (forked_from_id) REFERENCES spaces(id));`
-
-func (s *DB) WriteSpace(ctx context.Context, space *Space) error {
-	return s.dbExecContext(ctx, `INSERT INTO "spaces" (id, owner, created_at_us, forked_from_id, forked_from_ref) VALUES (?, ?, ?, ?, ?)`,
-		space.ID, space.Owner, space.CreatedAt.UnixMicro(), space.ForkedFromID, space.ForkedFromRef)
-}
-
 func (w *CollectionMembershipWhere) AppendWhere(query *Query) bool {
 	modified := false
 
@@ -350,193 +303,6 @@ func (w *CollectionMembershipWhere) AppendWhere(query *Query) bool {
 	}
 
 	return modified
-}
-
-func (w *SpaceWhere) AppendWhere(query *Query) bool {
-	modified := false
-
-	if w.Owner != nil {
-		query.Where = append(query.Where, spacesTable+".owner = ?")
-		query.WhereValues = append(query.WhereValues, *w.Owner)
-	}
-	if w.Alias != nil {
-		query.Where = append(query.Where, spacesTable+".alias = ?")
-		query.WhereValues = append(query.WhereValues, *w.Alias)
-	}
-	if w.ID != nil {
-		query.Where = append(query.Where, spacesTable+".id = ?")
-		query.WhereValues = append(query.WhereValues, *w.ID)
-	}
-	if w.ForkedFromID != nil {
-		query.Where = append(query.Where, spacesTable+".forked_from_id = ?")
-		query.WhereValues = append(query.WhereValues, *w.ForkedFromID)
-	}
-	if w.ForkedFromRef != nil {
-		query.Where = append(query.Where, spacesTable+".forked_from_ref = ?")
-		query.WhereValues = append(query.WhereValues, *w.ForkedFromRef)
-	}
-
-	if w.CollectionMembership != nil {
-		if w.CollectionMembership.AppendWhere(query) {
-			modified = true
-			query.WherePredicates[spacesTable+".id = collection_memberships.space_id"] = true
-		}
-	}
-
-	if modified {
-		query.FromTablesNamed[spacesTable] = spacesTable
-	}
-
-	return modified
-}
-
-func (s *DB) PatchSpace(ctx context.Context, patch *SpaceListingPatch) error {
-	set := []string{}
-	values := []any{}
-	if patch.Owner != nil {
-		set = append(set, `owner = ?`)
-		values = append(values, *patch.Owner)
-	}
-	if patch.Alias != nil {
-		// TODO need to update substratefs entry too!
-		set = append(set, `alias = ?`)
-		values = append(values, *patch.Alias)
-	}
-	query := []string{
-		`UPDATE "spaces" SET`, strings.Join(set, ", "), "WHERE id = ?",
-	}
-	values = append(values, patch.ID)
-
-	return s.dbExecContext(ctx, strings.Join(query, ""), values...)
-}
-
-func (s *DB) DeleteSpace(ctx context.Context, request *SpaceWhere) error {
-	query := &Query{
-		Preamble:        []string{`DELETE`},
-		FromTablesNamed: map[string]string{spacesTable: spacesTable},
-		WherePredicates: map[string]bool{},
-	}
-	request.AppendWhere(query)
-
-	q, values := query.Render()
-	return s.dbExecContext(ctx, q, values...)
-}
-
-func (s *DB) ListSpaces(ctx context.Context, request *SpaceListQuery) ([]*Space, error) {
-	query := &Query{
-		Select:          []string{"id", "owner", "created_at_us", "forked_from_id", "forked_from_ref"},
-		FromTablesNamed: map[string]string{spacesTable: spacesTable},
-		WherePredicates: map[string]bool{},
-		OrderByColumn:   "created_at",
-		OrderBy:         request.OrderBy,
-		Limit:           request.Limit,
-	}
-	if request.SelectNestedCollections != nil {
-		rootAlias := "root"
-		nested := &Query{
-			// Select: []string{`json_group_array(json(collection_memberships.membership))`},
-			// FromTablesNamed: map[string]string{
-			// 	collectionMembershipsTable: collectionMembershipsTable,
-			// },
-			// WherePredicates: map[string]bool{
-			// 	spacesTable + ".id = " + collectionMembershipsTable + ".space_id": true,
-			// },
-
-			Select: []string{`json_group_array(json_object('root', json(root.membership), 'space', json(collection_memberships.membership)))`},
-			FromTablesNamed: map[string]string{
-				collectionMembershipsTable: collectionMembershipsTable,
-			},
-			LeftJoin: []string{
-				collectionMembershipsTable + " " + rootAlias + " ON",
-				rootAlias + ".collection_name = " + collectionMembershipsTable + ".collection_name", "AND",
-				rootAlias + ".collection_owner = " + collectionMembershipsTable + ".collection_owner", "AND",
-				rootAlias + ".space_id IS NULL", "AND",
-				rootAlias + ".servicespec IS NULL",
-			},
-			WherePredicates: map[string]bool{
-				spacesTable + ".id = " + collectionMembershipsTable + ".space_id": true,
-			},
-		}
-		request.SelectNestedCollections.AppendWhere(nested)
-
-		// TODO define an "AppendSelect"
-		nestedQuery, nestedValues := nested.Render()
-		query.SelectValues = append(query.SelectValues, nestedValues...)
-		query.Select = append(query.Select, "("+nestedQuery+") as collections")
-	} else {
-		query.Select = append(query.Select, "null as collections")
-	}
-	request.AppendWhere(query)
-
-	q, values := query.Render()
-
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	rows, err := s.dbQueryContext(ctx, q, values...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	results := []*Space{}
-	for rows.Next() {
-		var o Space
-		var createdAt int64
-		var collectionsJSONB []byte
-		err := rows.Scan(&o.ID, &o.Owner, &createdAt, &o.ForkedFromID, &o.ForkedFromRef, &collectionsJSONB)
-		if err != nil {
-			return nil, err
-		}
-		o.CreatedAt = time.UnixMicro(createdAt)
-
-		if collectionsJSONB != nil {
-			// memberships := []*CollectionMembership{}
-			// err = json.Unmarshal(collectionsJSONB, &memberships)
-			// if err != nil {
-			// 	return nil, err
-			// }
-
-			// o.Memberships = make([]*SpaceCollectionMembership, 0, len(memberships))
-			// for _, membership := range memberships {
-			// 	scm := &SpaceCollectionMembership{
-			// 		CollectionOwner: membership.Owner,
-			// 		CollectionName:  membership.Name,
-			// 		Attributes:      membership.Attributes,
-			// 		IsPublic:        membership.IsPublic,
-			// 	}
-			// 	o.Memberships = append(o.Memberships, scm)
-			// }
-
-			memberships := []struct {
-				Root  *CollectionMembership `json:"root"`
-				Space *CollectionMembership `json:"space"`
-			}{}
-			err = json.Unmarshal(collectionsJSONB, &memberships)
-			if err != nil {
-				return nil, err
-			}
-
-			o.Memberships = make([]*SpaceCollectionMembership, 0, len(memberships))
-			for _, membership := range memberships {
-				scm := &SpaceCollectionMembership{
-					CollectionOwner: membership.Space.Owner,
-					CollectionName:  membership.Space.Name,
-					Attributes:      membership.Space.Attributes,
-					IsPublic:        membership.Space.IsPublic,
-				}
-				if membership.Root != nil {
-					scm.CollectionLabel = "???"
-					scm.CollectionAttributes = membership.Root.Attributes
-					scm.CollectionIsPublic = membership.Root.IsPublic
-				}
-				o.Memberships = append(o.Memberships, scm)
-			}
-		}
-		results = append(results, &o)
-	}
-
-	return results, rows.Err()
 }
 
 const collectionMembershipsTable = "collection_memberships"

@@ -33,6 +33,8 @@ import (
     internal_protocol: "http:"
     internal_network_name: "substrate-internal"
     external_network_name: "substrate-external"
+
+    new_space_image: string
   }
 }
 
@@ -100,6 +102,8 @@ resolve_image_id: {
   if image_ids == _|_ { image: image_tag }
   if image_ids != _|_ { image: image_ids[image_tag] }
 }
+
+#var: substrate: new_space_image: (resolve_image_id & {"image_tag": imagespecs["new-space"].image}).image
 
 services: [key=string]: service & {
   "name": key

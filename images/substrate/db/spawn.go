@@ -35,23 +35,15 @@ loop:
 
 	var err error
 
-	var spaces = []*Space{}
 	entropy := ulid.DefaultEntropy()
 	now := time.Now()
 	nowTs := ulid.Timestamp(now)
 
-	visitSpace := func(viewName string, multi bool, view *activityspec.SpaceView) error {
-		spaceID := view.SpaceID
+	spaceCount := 0
 
-		if view.Creation != nil {
-			spaces = append(spaces, &Space{
-				Owner:         req.User,
-				ID:            spaceID,
-				ForkedFromRef: &view.Creation.ForkedFromRef,
-				ForkedFromID:  &view.Creation.ForkedFromID,
-				CreatedAt:     now,
-			})
-		}
+	visitSpace := func(viewName string, multi bool, view *activityspec.SpaceView) error {
+		spaceCount++
+		spaceID := view.SpaceID
 
 		err := s.WriteCollectionMembership(ctx, &CollectionMembership{
 			Owner:       "system",
@@ -103,16 +95,9 @@ loop:
 		return err
 	}
 
-	for _, sp := range spaces {
-		err = s.WriteSpace(ctx, sp)
-		if err != nil {
-			return err
-		}
-	}
-
 	viewspec, _ := views.Format()
 
-	if !res.ServiceSpawnResolution.ServiceInstanceDef.Ephemeral && len(spaces) > 0 {
+	if !res.ServiceSpawnResolution.ServiceInstanceDef.Ephemeral && spaceCount > 0 {
 		err = s.WriteActivity(ctx, &Activity{
 			ActivitySpec: viewspec,
 			CreatedAt:    now,

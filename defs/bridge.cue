@@ -19,7 +19,7 @@ services: "bridge": {
       BRIDGE_TRANSCRIBE_URL: "http://substrate:8080/faster-whisper/v1/transcribe"
       BRIDGE_TRANSLATE_URL: "http://substrate:8080/seamlessm4t/v1/transcribe"
       BRIDGE_DIARIZE_URL: "http://substrate:8080/diarizer/v1/diarize"
-      BRIDGE_SESSION_DIR: "/spaces/sessions/tree/\(parameters.id.value)"
+      BRIDGE_SESSION_DIR: "/spaces/sessions/\(parameters.id.value)"
     }
   }
 }

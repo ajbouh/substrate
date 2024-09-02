@@ -15,8 +15,8 @@ function extractSpaces(event: any) {
         spaces = value.Spaces || (value.Space ? [value.Space] : [])
       }
       for (const space of spaces) {
-        let tip = (space.tip || space.Tip)
-        tip = tip.substring(0, tip.length-4)
+        let tip = (space.tip || space.Tip) || space.space_id
+        tip = tip.startsWith("sp-") ? tip.substring(0, tip.length-4) : tip
         if (space.creation) {
           created.push({
             space: tip,

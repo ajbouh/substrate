@@ -23,11 +23,8 @@ type ServiceSpawnRequest struct {
 }
 
 type ServiceSpawnResolution struct {
-	User string
-
-	ServiceName        string
-	Parameters         ServiceSpawnParameters `json:"parameters"`
-	GracePeriodSeconds *int                   `json:"grace_period_seconds,omitempty"`
+	ServiceName string
+	Parameters  ServiceSpawnParameters `json:"parameters"`
 
 	ServiceInstanceDef ServiceInstanceDef `json:"spawn"`
 }

@@ -1,6 +1,7 @@
 package substratefs
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	ulid "github.com/oklog/ulid/v2"
 )
 
@@ -75,6 +77,31 @@ func NewLayout(root string) *Layout {
 		AliasBasename: "alias",
 		OwnerBasename: "owner",
 	}
+}
+
+var _ activityspec.SpaceQuerier = (*Layout)(nil)
+
+func (l *Layout) QuerySpaces(ctx context.Context) ([]activityspec.SpaceEntry, error) {
+	entries, err := os.ReadDir(path.Join(l.RootPath, l.SpacesBasename))
+	if err != nil {
+		return nil, err
+	}
+
+	spaceIDs := make([]activityspec.SpaceEntry, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			info, err := entry.Info()
+			if err != nil {
+				return spaceIDs, err
+			}
+			spaceIDs = append(spaceIDs, activityspec.SpaceEntry{
+				SpaceID:   entry.Name(),
+				CreatedAt: info.ModTime().Format(time.RFC3339Nano),
+			})
+		}
+	}
+
+	return spaceIDs, nil
 }
 
 func (l *Layout) AliasPath(alias string) string {

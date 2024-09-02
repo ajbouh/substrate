@@ -67,22 +67,7 @@ func ParseViewRequest(v string, forceReadOnly bool) *SpaceViewRequest {
 	}
 }
 
-func (r *SpaceViewRequest) Spec() string {
-	suffix := ""
-	if r.ReadOnly {
-		suffix = ":ro"
-	}
-	if r.SpaceBaseRef != nil {
-		return spaceViewForkPrefix + *r.SpaceBaseRef + suffix
-	}
-	if r.SpaceAlias != nil {
-		return spaceViewAliasPrefix + *r.SpaceAlias + suffix
-	}
-
-	return r.SpaceID + suffix
-}
-
-func (l *Layout) ResolveSpaceView(ctx context.Context, s string, forceReadOnly bool, ownerIfCreation string) (*activityspec.SpaceView, error) {
+func (l *Layout) ResolveSpaceView(ctx context.Context, s string, forceReadOnly bool, createAllowed bool, ownerIfCreation string) (*activityspec.SpaceView, error) {
 	var err error
 
 	viewRequest := ParseViewRequest(s, forceReadOnly)
@@ -166,9 +151,7 @@ func (l *Layout) ResolveSpaceView(ctx context.Context, s string, forceReadOnly b
 
 	var creation *activityspec.SpaceViewCreation
 	if isNew {
-		creation = &activityspec.SpaceViewCreation{
-			Time: at,
-		}
+		creation = &activityspec.SpaceViewCreation{}
 
 		if base != nil {
 			if base.CheckpointRef != nil {

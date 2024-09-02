@@ -19,6 +19,7 @@ import (
 	"github.com/ajbouh/substrate/pkg/toolkit/exports"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
+	"github.com/ajbouh/substrate/pkg/toolkit/links"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
@@ -75,6 +76,9 @@ func (s *Service) initialize() {
 		&httpframework.StripPrefix{
 			Prefix: strings.TrimSuffix(os.Getenv("SUBSTRATE_URL_PREFIX"), "/"),
 		},
+
+		&links.Aggregate{},
+		&links.AggregateQuerierCommand{},
 
 		&commands.Aggregate{},
 		&commands.ExportCommands{},

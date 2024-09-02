@@ -4,7 +4,7 @@ set -ex
 
 MARKER=.firstrun
 NOTEBOOK=
-DATA=/spaces/data/tree
+DATA=/spaces/data
 
 if ! [ -e $DATA/$MARKER ]; then
   mkdir -p $DATA

@@ -64,7 +64,7 @@ func main() {
 		},
 		&fileHandler{
 			route:       prefix + "/raw/",
-			path:        "/spaces/data/tree",
+			path:        "/spaces/data",
 			allowUpload: allowUploadsFlag,
 			allowDelete: allowDeletesFlag,
 		},

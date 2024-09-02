@@ -42,7 +42,7 @@ app.get('/', (req, res) => {
   resetIdleTimeout()
   res.set('Content-Type', 'image/svg+xml')
   res.send(main({
-    rootPath: "spaces/data/tree",
+    rootPath: "spaces/data",
   }))
 
   // and again after it's complete

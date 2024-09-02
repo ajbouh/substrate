@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/ajbouh/substrate/images/substrate/defset"
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 
 	nettypes "github.com/containers/common/libnetwork/types"
 	"github.com/containers/podman/v4/pkg/bindings/containers"
@@ -30,6 +32,8 @@ type P struct {
 	WaitForReadyTick    time.Duration
 
 	Prep func(h *specgen.SpecGenerator)
+
+	DefSetLoader notify.Loader[*defset.DefSet]
 }
 
 var _ provisioner.Driver = (*P)(nil)

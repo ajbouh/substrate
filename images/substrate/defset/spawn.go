@@ -154,7 +154,7 @@ func (s *DefSet) resolveServiceSpawn(ctx context.Context, sr activityspec.SpaceV
 		case activityspec.ServiceSpawnParameterTypeString:
 			parameters[parameterName] = &activityspec.ServiceSpawnParameter{String: &parameterReq}
 		case activityspec.ServiceSpawnParameterTypeSpace:
-			view, err := sr.ResolveSpaceView(ctx, parameterReq, req.ForceReadOnly, req.User)
+			view, err := sr.ResolveSpaceView(ctx, parameterReq, req.ForceReadOnly, true, req.User)
 			if err != nil {
 				return nil, err
 			}
@@ -169,7 +169,7 @@ func (s *DefSet) resolveServiceSpawn(ctx context.Context, sr activityspec.SpaceV
 				if m == "" {
 					continue
 				}
-				view, err := sr.ResolveSpaceView(ctx, m, req.ForceReadOnly, req.User)
+				view, err := sr.ResolveSpaceView(ctx, m, req.ForceReadOnly, true, req.User)
 				if err != nil {
 					return nil, err
 				}

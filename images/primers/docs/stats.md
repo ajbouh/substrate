@@ -33,10 +33,17 @@ const [sys_raw_history, sys_raw_latest] = eventSourceMutable("/sys", d => ({...d
 const [sigar_raw_history, sigar_raw_latest] = eventSourceMutable("/sigar", d => ({...d.data, ts: Date(d.start_us / 1000)}))
 ```
 
+```js
+const [_, exports_latest] = eventSourceMutable("/substrate/v1/exports", d => d)
+```
 
+exports_latest
+```js
+exports_latest
+```
 
 ```js
-const [_, instances_latest] = eventSourceMutable("/substrate/v1/exports", d => d.data.instances)
+const instances_latest = exports_latest.data.instances
 ```
 
 ```js

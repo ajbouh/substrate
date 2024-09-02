@@ -256,7 +256,7 @@ func getRequestBasedField(field reflect.StructField, r *http.Request, q url.Valu
 	}
 
 	jsonTag, jsonTagOK := field.Tag.Lookup("json")
-	if jsonTagOK {
+	if !jsonTagOK {
 		return field.Name, val, true, nil
 	}
 

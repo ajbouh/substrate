@@ -70,4 +70,4 @@ You should notice you are redirected to another URL that includes a bit of text 
 
 You can visit this new URL in multiple browsers and see that each connection is to the same container instance.
 
-Anything stored in /spaces/data/tree will survive that container's restart.
+Anything stored in /spaces/data will survive that container's restart.

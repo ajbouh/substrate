@@ -23,17 +23,20 @@ import (
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 
+	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	substratedb "github.com/ajbouh/substrate/images/substrate/db"
 	"github.com/ajbouh/substrate/images/substrate/defset"
 	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 	substratehttp "github.com/ajbouh/substrate/images/substrate/http"
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
 	podmanprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/podman"
+	"github.com/ajbouh/substrate/images/substrate/space"
 	"github.com/ajbouh/substrate/pkg/cueloader"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/exports"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
+	"github.com/ajbouh/substrate/pkg/toolkit/links"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
 )
@@ -122,12 +125,46 @@ func main() {
 			ContentType: "application/json",
 		},
 
+		&InstanceLinks{},
+
+		&SpacesLinkQuerier{
+			SpaceURL: func(space string) string {
+				return "/substrate/v1/spaces/" + space
+			},
+		},
+		&commands.HTTPResourceCommand{
+			Pattern: "GET /substrate/v1/spaces",
+			Handler: space.QueryCommand,
+		},
+		&commands.HTTPResourceCommand{
+			Pattern: "POST /substrate/v1/spaces",
+			Handler: space.NewCommand,
+		},
+		&commands.HTTPResourceCommand{
+			ReflectPath: "/substrate/v1/spaces/{space}",
+			Pattern:     "POST /substrate/v1/spaces/{space}/commit",
+			Handler:     space.CommitCommand,
+		},
+		&commands.HTTPResourceCommand{
+			ReflectPath: "/substrate/v1/spaces/{space}",
+			Pattern:     "GET /substrate/v1/spaces/{space}/links",
+			Handler:     space.LinksQueryCommand,
+		},
+		&commands.HTTPResourceCommand{
+			Pattern: "DELETE /substrate/v1/spaces/{space}",
+			Handler: space.DeleteCommand,
+		},
+		&commands.HTTPResourceCommand{
+			Pattern: "GET /substrate/v1/spaces/{space}",
+			Handler: space.GetCommand,
+		},
+
 		// TODO how do we want to handle authentication for this?
 		&substratehttp.CORSMiddleware{
 			Options: cors.Options{
 				AllowCredentials: true,
 				AllowOriginRequestFunc: func(r *http.Request, origin string) bool {
-					slog.Info("AllowOriginFunc", "origin", origin, "url", r.URL.String())
+					// slog.Info("AllowOriginFunc", "origin", origin, "url", r.URL.String())
 
 					// panic("CORS origin check not yet implemented")
 					// TODO actually implement
@@ -152,10 +189,6 @@ func main() {
 		},
 		&substratehttp.ExportsHandler{
 			Prefix: "/substrate",
-		},
-		&substratehttp.SpaceHandler{
-			Prefix: "/substrate",
-			User:   "user",
 		},
 		&substratehttp.ProxyHandler{
 			User:                    "user",
@@ -214,7 +247,24 @@ func main() {
 			t.InstancesRootSlot.StoreWithContext(ctx, v)
 		}),
 
+		&space.SpacesViaContainerFilesystems{},
+		notify.On(func(ctx context.Context, e ServiceSpawned, svcf *space.SpacesViaContainerFilesystems) {
+			for name, p := range e.Res.ServiceSpawnResolution.Parameters {
+				switch {
+				case p.Space != nil:
+					spec, _ := e.Res.ServiceSpawnResolution.Format()
+					err = svcf.WriteSpawnLink(ctx, spec, name, p.Space.SpaceID)
+				case p.Spaces != nil:
+					// TODO
+				}
+			}
+			if err != nil {
+				log.Printf("error notifying ServiceSpawned listener: %s", err)
+			}
+		}),
+
 		substratefs.NewLayout(mustGetenv("SUBSTRATEFS_ROOT")),
+
 		&notify.Slot[defset.DefSet]{},
 		&defset.Loader{
 			ServiceDefPath: cue.MakePath(cue.Str("services")),
@@ -289,6 +339,36 @@ func main() {
 	engine.Run(units...)
 }
 
+type SpacesLinkQuerier struct {
+	SpaceURL      func(space string) string
+	SpaceQueriers []activityspec.SpaceQuerier
+}
+
+func (s *SpacesLinkQuerier) QueryLinks(ctx context.Context) (links.Links, error) {
+	e := links.Links{}
+
+	for _, lister := range s.SpaceQueriers {
+		spaces, err := lister.QuerySpaces(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, space := range spaces {
+			e["space/"+space.SpaceID] = links.Link{
+				Rel: "space",
+				URL: s.SpaceURL(space.SpaceID),
+				Attributes: map[string]any{
+					"space:created_at": space.CreatedAt,
+				},
+			}
+		}
+	}
+
+	return e, nil
+}
+
+var _ links.Querier = (*SpacesLinkQuerier)(nil)
+
 type DefSetCommands struct {
 	DefsMap map[string]commands.DefIndex
 
@@ -313,4 +393,26 @@ func (m *DefSetCommands) Commands(ctx context.Context) commands.Source {
 		}
 		return sources
 	})
+}
+
+type InstanceLinks struct {
+	ProvisionerCache *provisioner.Cache
+}
+
+var _ links.Querier = (*InstanceLinks)(nil)
+
+func (m *InstanceLinks) QueryLinks(ctx context.Context) (links.Links, error) {
+	root := m.ProvisionerCache.AllInstanceExports()
+	ents := links.Links{}
+	for k, v := range root.Instances {
+		ents["instance/"+k] = links.Link{
+			Rel: "instance",
+			URL: "/" + k,
+			Attributes: map[string]any{
+				"instance:service": v.ServiceName,
+			},
+		}
+	}
+
+	return ents, nil
 }

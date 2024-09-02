@@ -52,7 +52,6 @@ func (res *HTTPResourceCommand) ensureRunHTTPField(commandName string, commandDe
 				Headers: map[string][]string{
 					"Content-Type": {"application/json"},
 				},
-				Body: map[string]any{},
 			},
 		}
 	}
