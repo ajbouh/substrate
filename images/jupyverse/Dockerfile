@@ -29,7 +29,8 @@ COPY --from=quarto /opt/quarto /opt/quarto
 
 WORKDIR /content
 COPY images/jupyverse/requirements.jupyverse.txt .
-RUN pip install --no-cache-dir -r requirements.jupyverse.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+  pip install -r requirements.jupyverse.txt
 
 COPY images/jupyverse/run.sh .
 COPY images/jupyverse/jupyterconfig /content/jupyterconfig
