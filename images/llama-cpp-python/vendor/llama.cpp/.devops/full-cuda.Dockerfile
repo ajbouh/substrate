@@ -17,7 +17,8 @@ RUN apt-get update && \
 COPY requirements.txt   requirements.txt
 COPY requirements       requirements
 
-RUN pip install --upgrade pip setuptools wheel \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip setuptools wheel \
     && pip install -r requirements.txt
 
 WORKDIR /app

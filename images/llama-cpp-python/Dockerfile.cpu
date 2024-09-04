@@ -24,7 +24,8 @@ RUN cd vendor/llama.cpp \
     && git commit -m "Initial commit" --allow-empty
 
 # Install llama-cpp-python
-RUN pip install .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install .
 
 # Run the server
 ENTRYPOINT ["python3", "-m", "llama_cpp.server"]
