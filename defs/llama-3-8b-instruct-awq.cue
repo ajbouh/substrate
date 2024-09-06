@@ -30,6 +30,8 @@ services: "llama-3-8b-instruct-awq": {
       "--enforce-eager",
       "--dtype=half",
       "--quantization=awq",
+      "--gpu-memory-utilization=0.5",
+      "--max-model-len=4096",
     ]
   }
 }
