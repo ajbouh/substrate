@@ -91,7 +91,7 @@ func main() {
 		&service.Service{
 			BaseURL:       origin,
 			ExportsRoute:  "/substrate/v1/exports",
-			CommandsRoute: "/substrate",
+			CommandsRoute: "/",
 		},
 		&podmanprovisioner.P{
 			Connect: func(ctx context.Context) (context.Context, error) {

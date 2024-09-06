@@ -36,15 +36,15 @@ func (h *DefIndexRunner) Run(ctx context.Context, name string, params Fields) (F
 		return nil, ErrNoImplementation
 	}
 
-	return RunCommandHTTP(ctx, h.Client, def.Run.HTTP, params)
+	return RunCommandHTTP(ctx, h.Client, def.Run.Bind, def.Run.HTTP, params)
 }
 
-func RunCommandHTTP(ctx context.Context, client HTTPClient, rhd *RunHTTPDef, params Fields) (Fields, error) {
+func RunCommandHTTP(ctx context.Context, client HTTPClient, rbd *RunBindDef, rhd *RunHTTPDef, params Fields) (Fields, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
 
-	req, err := MarshalHTTPRequest(ctx, rhd, params)
+	req, err := MarshalHTTPRequest(ctx, rbd, rhd, params)
 	if err != nil {
 		return nil, err
 	}
@@ -54,10 +54,10 @@ func RunCommandHTTP(ctx context.Context, client HTTPClient, rhd *RunHTTPDef, par
 		return nil, err
 	}
 
-	return UnmarshalHTTPResponse(ctx, rhd, resp)
+	return UnmarshalHTTPResponse(ctx, rbd, rhd, resp)
 }
 
-func MarshalHTTPRequest(ctx context.Context, rhd *RunHTTPDef, params Fields) (*http.Request, error) {
+func MarshalHTTPRequest(ctx context.Context, rbd *RunBindDef, rhd *RunHTTPDef, params Fields) (*http.Request, error) {
 	body := rhd.Request.Body
 	headers := rhd.Request.Headers
 	query := rhd.Request.Query
@@ -76,9 +76,15 @@ func MarshalHTTPRequest(ctx context.Context, rhd *RunHTTPDef, params Fields) (*h
 	// def.Parameters
 	for k, pdef := range rhd.Parameters {
 		var v any
-		if pdef.Value != nil {
-			v = *pdef.Value
-		} else {
+
+		bound := false
+		if rbd.Parameters != nil {
+			if val, ok := rbd.Parameters[k]; ok {
+				bound = true
+				v = val
+			}
+		}
+		if !bound {
 			v = params[k]
 		}
 
@@ -113,7 +119,7 @@ func MarshalHTTPRequest(ctx context.Context, rhd *RunHTTPDef, params Fields) (*h
 	return req, nil
 }
 
-func UnmarshalHTTPResponse(ctx context.Context, rhd *RunHTTPDef, r *http.Response) (Fields, error) {
+func UnmarshalHTTPResponse(ctx context.Context, rbd *RunBindDef, rhd *RunHTTPDef, r *http.Response) (Fields, error) {
 	if r.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status: %s", r.Status)
 	}
@@ -136,9 +142,15 @@ func UnmarshalHTTPResponse(ctx context.Context, rhd *RunHTTPDef, r *http.Respons
 	// def.Returns
 	for k, rdef := range rhd.Returns {
 		var v any
-		if rdef.Value != nil {
-			v = *rdef.Value
-		} else {
+		bound := false
+		if rbd.Returns != nil {
+			if val, ok := rbd.Returns[k]; ok {
+				bound = true
+				v = val
+			}
+		}
+
+		if !bound {
 			v, err = scope.Get(rdef.Path)
 			if err != nil {
 				errs = append(errs, err)

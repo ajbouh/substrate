@@ -2,7 +2,7 @@
 	import type { DefIndex, Call } from '$lib/defs.ts';
 	import { CommandPanel, ReflectCommands, IFrameCommands } from '$lib';
 
-	let toolCall = new ReflectCommands('https://substrate.home.arpa/tool-call/commands');
+	let toolCall = new ReflectCommands('https://substrate.home.arpa/tool-call/');
 	async function suggest(input: string, commands: DefIndex) {
 		if (!input) {
 			return Object.entries(commands).map(([key, def]) => [key, def, {}]);
