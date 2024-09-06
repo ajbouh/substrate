@@ -123,14 +123,17 @@ import io
 import soundfile as sf
 
 def find_alpha_3(id, allowed=None):
-  found = pycountry.languages.lookup(id)
-  if not found:
-    return None, None
-  if found.alpha_3 and (allowed is None or (found.alpha_3 in allowed)):
-    return found.alpha_3, None
-  candidates = [l.alpha_3 for l in pycountry.languages if l.alpha_3 in allowed and found.name in l.name]
+    try:
+        found = pycountry.languages.lookup(id)
+    except LookupError:
+        return None, None
+    if not found:
+        return None, None
+    if found.alpha_3 and (allowed is None or (found.alpha_3 in allowed)):
+        return found.alpha_3, None
+    candidates = [l.alpha_3 for l in pycountry.languages if l.alpha_3 in allowed and found.name in l.name]
 
-  return None, candidates
+    return None, candidates
 
 def fuzzy_find_alpha_3(lang, kind):
     lang_in = lang
