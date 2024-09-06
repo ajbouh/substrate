@@ -1,5 +1,5 @@
 # https://gitlab.com/nvidia/container-images/cuda/-/blob/master/doc/supported-tags.md
-ARG CUDA_IMAGE="11.8.0-cudnn8-runtime-ubuntu22.04"
+ARG CUDA_IMAGE="12.2.2-cudnn8-runtime-ubuntu22.04"
 FROM docker.io/nvidia/cuda:${CUDA_IMAGE}
 
 RUN apt-get update \
