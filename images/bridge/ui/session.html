@@ -16,7 +16,7 @@
   // local dev, the rest of the page still loads.
 import {ReflectCommands, provideCommandsToIFrameParent} from 'https://substrate.home.arpa/command-panel/@fs/app/.svelte-kit/__package__/index.js';
 
-let toolCall = new ReflectCommands('https://substrate.home.arpa/tool-call/commands');
+let toolCall = new ReflectCommands('https://substrate.home.arpa/tool-call/');
 async function suggest(input, commands) {
   if (!input) {
     return Object.entries(commands).map(([key, def]) => [key, def, {}]);

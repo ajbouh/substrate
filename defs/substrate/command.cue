@@ -14,29 +14,26 @@ package command
         description ?: string
     }
     run: {
+        bind: {
+            parameters ?: [field=string]: _
+            returns ?: [field=string]: _
+        }
         http: {
             parameters ?: [field=string]: {
                 path: string | *"request.body.parameters.\(field)"
-                value ?: _
                 // path: request.query.x # only with get
                 // path: request.headers.x
             }
             returns ?: [field=string]: {
                 path: string | *"response.body.\(field)"
-                value ?: _
             }
             request: {
                 url ?: string
                 method ?: string | *"POST"
                 headers ?: [string]: [...string]
-                if method != "GET" && method != "HEAD" {
-                    body ?: {
-                        "command": #name
-                        "parameters": _
-                    }
-                }
                 // this is not fully descriptive
                 query ?: [string]: string
+                body: _
             }
         }
     } | *{

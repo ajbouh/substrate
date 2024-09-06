@@ -2,18 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"log"
 	"net/http"
-	"os"
 
 	"github.com/ajbouh/substrate/images/tool-call/js"
 	"github.com/ajbouh/substrate/images/tool-call/tools"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
+	"github.com/ajbouh/substrate/pkg/toolkit/service"
 	"tractor.dev/toolkit-go/engine"
-	"tractor.dev/toolkit-go/engine/cli"
-	"tractor.dev/toolkit-go/engine/daemon"
 )
 
 type SuggestReturns struct {
@@ -22,16 +18,8 @@ type SuggestReturns struct {
 }
 
 func main() {
-	prefix := os.Getenv("SUBSTRATE_URL_PREFIX")
 	engine.Run(
-		Main{},
-		&httpframework.Framework{},
-		&httpframework.StripPrefix{Prefix: prefix},
-		&commands.HTTPSourceHandler{
-			Debug: true,
-			Route: "/commands",
-		},
-		&commands.Aggregate{},
+		&service.Service{},
 		httpframework.Route{
 			Route:   "GET /js/",
 			Handler: http.StripPrefix("/js", http.FileServer(http.FS(js.Dir))),
@@ -89,28 +77,4 @@ func translateDefs(def commands.DefIndex) []tools.Definition {
 		td = append(td, d2)
 	}
 	return td
-}
-
-func convertJSON[T any](in any) (T, error) {
-	var out T
-	b, err := json.Marshal(in)
-	if err != nil {
-		return out, err
-	}
-	err = json.Unmarshal(b, &out)
-	return out, err
-}
-
-type Main struct {
-	Daemon *daemon.Framework
-}
-
-func (m *Main) InitializeCLI(root *cli.Command) {
-	// a workaround for an unresolved issue in toolkit-go/engine
-	// for figuring out if its a CLI or a daemon program...
-	root.Run = func(ctx *cli.Context, args []string) {
-		if err := m.Daemon.Run(ctx); err != nil {
-			log.Fatal(err)
-		}
-	}
 }

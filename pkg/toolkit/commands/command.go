@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -55,12 +56,12 @@ type CommandFunc[Target any, Params any, Returns any] struct {
 	Func   func(ctx context.Context, t *Target, p Params) (Returns, error)
 }
 
-func (r *CommandFunc[Target, Params, Returns]) ParamsAreVoid() bool {
-	return treatAsVoid(reflect.TypeFor[Params]())
+func (r *CommandFunc[Target, Params, Returns]) ParamsType() reflect.Type {
+	return reflect.TypeFor[Params]()
 }
 
-func (r *CommandFunc[Target, Params, Returns]) ReturnsAreVoid() bool {
-	return treatAsVoid(reflect.TypeFor[Returns]())
+func (r *CommandFunc[Target, Params, Returns]) ReturnsType() reflect.Type {
+	return reflect.TypeFor[Returns]()
 }
 
 func treatAsVoid(t reflect.Type) bool {
@@ -82,11 +83,14 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (Def
 	var params FieldDefs
 	paramsType := reflect.TypeFor[Params]()
 	switch paramsType.Kind() {
+	case reflect.Pointer:
+		params = FieldDefsFromStructFields(reflect.VisibleFields(paramsType.Elem()))
 	case reflect.Struct:
 		params = FieldDefsFromStructFields(reflect.VisibleFields(paramsType))
 	case reflect.Map:
 		params = FieldDefs{}
-	default:
+	}
+	if params == nil {
 		err = fmt.Errorf("params type %s is not a struct or a map for command named %q with func %T", paramsType.String(), r.Name, r.Func)
 	}
 	if err != nil {
@@ -95,12 +99,15 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (Def
 
 	var returns FieldDefs
 	returnsType := reflect.TypeFor[Returns]()
-	switch paramsType.Kind() {
+	switch returnsType.Kind() {
+	case reflect.Pointer:
+		returns = FieldDefsFromStructFields(reflect.VisibleFields(returnsType.Elem()))
 	case reflect.Struct:
-		returns = FieldDefsFromStructFields(reflect.VisibleFields(paramsType))
+		returns = FieldDefsFromStructFields(reflect.VisibleFields(returnsType))
 	case reflect.Map:
 		returns = FieldDefs{}
-	default:
+	}
+	if params == nil {
 		err = fmt.Errorf("returns type %s is not a struct or a map for command named %q with func %T", returnsType.String(), r.Name, r.Func)
 	}
 	if err != nil {
@@ -123,12 +130,9 @@ func (r *CommandFunc[Target, Params, Returns]) Run(ctx context.Context, name str
 
 	// Reserializing is kind of wasteful, but it's simple so fix it later once it matters.
 
-	paramsIsVoid := treatAsVoid(reflect.TypeFor[Params]())
-	returnsIsVoid := treatAsVoid(reflect.TypeFor[Returns]())
-
 	params := new(Params)
 
-	if !paramsIsVoid {
+	if !treatAsVoid(r.ParamsType()) {
 		b, err := json.Marshal(pfields)
 		if err != nil {
 			return nil, err
@@ -140,14 +144,14 @@ func (r *CommandFunc[Target, Params, Returns]) Run(ctx context.Context, name str
 		}
 	}
 
-	v, err := r.Func(ctx, r.Target, *params)
+	returns, err := r.Func(ctx, r.Target, *params)
 	if err != nil {
 		return nil, err
 	}
 
 	rfields := Fields{}
-	if !returnsIsVoid {
-		b, err := json.Marshal(v)
+	if !treatAsVoid(r.ReturnsType()) {
+		b, err := json.Marshal(returns)
 		if err != nil {
 			return nil, err
 		}
@@ -187,70 +191,94 @@ func FieldDefsFromStructFields(fields []reflect.StructField) FieldDefs {
 	return fieldDefs
 }
 
-func populatePathValueForField(value reflect.Value, field reflect.StructField, r *http.Request) (bool, error) {
+type PathValuer interface {
+	PathValue(key string) string
+}
+
+func getPathValueForField(field reflect.StructField, r *http.Request) (any, bool, error) {
 	key, ok := field.Tag.Lookup("path")
 	if !ok {
-		return false, nil
+		return nil, false, nil
 	}
 
 	if field.Type.Kind() != reflect.String {
-		return false, fmt.Errorf(`bad type for field with path struct tag %#v (%s); must be string`, field, value.Type().String())
+		return nil, false, fmt.Errorf(`bad type for field with path struct tag %#v; must be string`, field)
 	}
 
 	pathValue := r.PathValue(key)
-	value.FieldByIndex(field.Index).SetString(pathValue)
-	return true, nil
+	return pathValue, true, nil
 }
 
-func populateQueryValueForField(value reflect.Value, field reflect.StructField, q url.Values) (bool, error) {
+func getQueryValueForField(field reflect.StructField, q url.Values) (any, bool, error) {
 	key, ok := field.Tag.Lookup("query")
 	if !ok {
-		return false, nil
+		return nil, false, nil
 	}
 
 	queryValue, ok := q[key]
 	if !ok {
-		return false, nil
+		return nil, false, nil
 	}
 
 	switch field.Type.Kind() {
 	case reflect.String:
-		value.FieldByIndex(field.Index).SetString(queryValue[0])
-		return true, nil
+		return queryValue[0], true, nil
 	case reflect.Slice:
 		if field.Type.Elem().Kind() == reflect.String {
-			value.FieldByIndex(field.Index).Set(reflect.ValueOf(queryValue))
-			return true, nil
+			return queryValue, true, nil
 		}
 	case reflect.Pointer:
 		switch field.Type.Elem().Kind() {
 		case reflect.String:
-			value.FieldByIndex(field.Index).SetString(queryValue[0])
-			return true, nil
+			return queryValue[0], true, nil
 		}
 	}
 
-	return false, fmt.Errorf(`bad type for field with query struct tag %#v (%s); must be string or *string or []string`, field, value.Type().String())
+	return nil, false, fmt.Errorf(`bad type for field with query struct tag %#v; must be string or *string or []string`, field)
 }
 
-func populateRequestBasedFields[Params any](r *http.Request, params Params) error {
-	paramsValue := reflect.ValueOf(params)
-	paramsType := paramsValue.Type().Elem()
+func getRequestBasedField(field reflect.StructField, r *http.Request, q url.Values) (string, any, bool, error) {
+	var val any
+	val, ok, err := getPathValueForField(field, r)
+	if err != nil {
+		return "", val, false, err
+	}
+
+	if !ok {
+		val, ok, err = getQueryValueForField(field, q)
+		if err != nil {
+			return "", val, false, err
+		}
+	}
+
+	if !ok {
+		return "", val, false, nil
+	}
+
+	jsonTag, jsonTagOK := field.Tag.Lookup("json")
+	if jsonTagOK {
+		return field.Name, val, true, nil
+	}
+
+	fieldName, _, _ := strings.Cut(jsonTag, ",")
+	return fieldName, val, ok, err
+}
+
+func populateRequestBasedFields(r *http.Request, paramsType reflect.Type, params Fields) error {
+	slog.Info("populateRequestBasedFields", "params", params, "paramsType", paramsType, "paramsTypeKind", paramsType.Kind())
 
 	if paramsType.Kind() == reflect.Struct {
+		query := r.URL.Query()
 		for _, field := range reflect.VisibleFields(paramsType) {
-			ok, err := populatePathValueForField(paramsValue, field, r)
+			fieldName, val, ok, err := getRequestBasedField(field, r, query)
 			if err != nil {
 				return err
 			}
-			if ok {
+			if !ok || fieldName == "-" {
 				continue
 			}
 
-			_, err = populateQueryValueForField(paramsValue, field, r.URL.Query())
-			if err != nil {
-				return err
-			}
+			params[fieldName] = val
 		}
 	}
 

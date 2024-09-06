@@ -2,14 +2,10 @@ package main
 
 import (
 	"context"
-	"log"
-	"os"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
-	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
+	"github.com/ajbouh/substrate/pkg/toolkit/service"
 	"tractor.dev/toolkit-go/engine"
-	"tractor.dev/toolkit-go/engine/cli"
-	"tractor.dev/toolkit-go/engine/daemon"
 )
 
 type HourlyReturns struct {
@@ -17,16 +13,8 @@ type HourlyReturns struct {
 }
 
 func main() {
-	prefix := os.Getenv("SUBSTRATE_URL_PREFIX")
 	engine.Run(
-		Main{},
-		&httpframework.Framework{},
-		&httpframework.StripPrefix{Prefix: prefix},
-		&commands.HTTPSourceHandler{
-			Debug: true,
-			Route: "/",
-		},
-		&commands.Aggregate{},
+		&service.Service{},
 		commands.List(
 			commands.Command(
 				"hourly",
@@ -52,18 +40,4 @@ func main() {
 				}),
 		),
 	)
-}
-
-type Main struct {
-	Daemon *daemon.Framework
-}
-
-func (m *Main) InitializeCLI(root *cli.Command) {
-	// a workaround for an unresolved issue in toolkit-go/engine
-	// for figuring out if its a CLI or a daemon program...
-	root.Run = func(ctx *cli.Context, args []string) {
-		if err := m.Daemon.Run(ctx); err != nil {
-			log.Fatal(err)
-		}
-	}
 }

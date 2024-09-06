@@ -20,7 +20,17 @@ export class StaticCommands {
 export class ReflectCommand {
   constructor(name, def) {
     this.name = name
+    this.parameters = {}
     this.def = def
+
+    if (def.parameters) {
+      const bound = def.run?.bind?.parameters
+      for (const key in def.parameters) {
+        if (!bound || typeof bound[key] === "undefined") {
+          this.parameters[key] = def.parameters[key]
+        }
+      }
+    }
   }
 
   async run(parameters) {
@@ -34,7 +44,11 @@ export class ReflectCommands {
   }
 
   get index() {
-    return fetch(this.url, { method: "REFLECT" }).then((resp) => resp.json()).then(body => body.commands);
+    return fetch(this.url, { method: "REFLECT" }).then(async (resp) => {
+      await demandResponseIsOK(resp)
+      const body = await resp.json()
+      return body.commands
+    })
   }
 
   async reflect() {
@@ -63,8 +77,14 @@ function set(o, path, v) {
   o[last] = v
 }
 
+async function demandResponseIsOK(response) {
+  if (!response.ok) {
+    throw new Error(`response is not ok; status="${response.status} ${response.statusText}"; body=${JSON.stringify(await response.text())}`)
+  }
+}
+
 function prepareFetch({url, parameters, def}) {
-  let returns = async d => await d.json()
+  let returns = async d => (await demandResponseIsOK(d), await d.json())
   let input = def.request?.url || url
   let scope = {
     request: {
@@ -75,13 +95,17 @@ function prepareFetch({url, parameters, def}) {
     },
   }
 
-  console.log("before", scope)
+  console.log("before", {scope, def, parameters})
 
-  if (def.parameters) {
+  if (parameters) {
     // deep clone scope so we can modify as needed.
-    scope = JSON.stringify(JSON.parse(scope))
-    for (const [pname, p] of Object.entries(def.parameters || {})) {
-      set(scope, p.path, p.value !== undefined ? p.value : parameters[pname])
+    scope = JSON.parse(JSON.stringify(scope))
+    const bound = def.bind?.parameters || {}
+    for (const [pname, pval] of Object.entries(parameters || {})) {
+      if (!(pname in def.parameters)) {
+        continue
+      }
+      set(scope, def.parameters[pname].path, bound[pname] !== undefined ? bound[pname] : pval)
     }
   }
 
@@ -89,10 +113,12 @@ function prepareFetch({url, parameters, def}) {
 
   if (def.returns) {
     returns = async (response) => {
+      await demandResponseIsOK(response)
       const body = await response.json()
       const slotWithResponse = {...scope, response: {body}}
+      const bound = def.bind?.returns || {}
       return Object.fromEntries(Object.entries(def.returns).map(([k, v]) => {
-        return [k, v.value !== undefined ? v.value : get(slotWithResponse, v.path)]
+        return [k, bound[k] !== undefined ? bound[k] : get(slotWithResponse, v.path)]
       }))
     }
   }
@@ -117,7 +143,7 @@ function prepareFetch({url, parameters, def}) {
   return [input, init, returns]
 }
 
-export async function run({url, command, parameters}) {
+export async function run({url, command, parameters={}}) {
   var input, init, returns
   if (typeof command === 'string') {
     input = url
@@ -126,7 +152,7 @@ export async function run({url, command, parameters}) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command, parameters }),
     }
-    returns = async (d) => await d.json()
+    returns = async (d) => (await demandResponseIsOK(d), await d.json())
   } else if (command?.run?.http !== null) {
     [input, init, returns] = prepareFetch({url, parameters, def: command.run.http})
   } else {

@@ -64,7 +64,7 @@ func EnsureRunHTTPField(route string) DefTransformFunc {
 				commandDef.Run.HTTP.Parameters[field] = RunFieldDef{Path: `request.body.parameters.` + field}
 			}
 			for field := range commandDef.Returns {
-				commandDef.Run.HTTP.Returns[field] = RunFieldDef{Path: `request.body.returns.` + field}
+				commandDef.Run.HTTP.Returns[field] = RunFieldDef{Path: `response.body.` + field}
 			}
 		}
 
@@ -130,6 +130,8 @@ type HTTPReflectHandler struct {
 	Debug     bool
 	Reflector Reflector
 	Route     string
+
+	ReflectRequestTransform func(r *http.Request, name string, def Def) (string, Def)
 }
 
 func (c *HTTPReflectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -139,6 +141,16 @@ func (c *HTTPReflectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		serveError(c.Debug, w, err, http.StatusInternalServerError, nil)
 		return
+	}
+
+	if c.ReflectRequestTransform != nil {
+		transformedCommands := DefIndex{}
+		for name, def := range commands {
+			name, def = c.ReflectRequestTransform(r, name, def)
+			transformedCommands[name] = def
+		}
+
+		commands = transformedCommands
 	}
 
 	b, err := json.Marshal(map[string]any{

@@ -55,7 +55,7 @@ func (s *Service) initialize() {
 	log.Printf("Service.initialize()")
 
 	if s.CommandsRoute == "" {
-		s.CommandsRoute = "/commands"
+		s.CommandsRoute = "/"
 	}
 
 	if s.ExportsRoute == "" {
