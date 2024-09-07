@@ -1,10 +1,135 @@
-import torchaudio
-import torch
-from transformers import AutoProcessor, SeamlessM4Tv2Model
+from contextlib import contextmanager
+import base64
+import io
 import os
-import pycountry
+import tempfile
+import time
+from typing import Dict, List, Optional, Callable
+import urllib.request
 
-from translator import Request, Response, Segment, Word, new_v1_api_app
+from fastapi import FastAPI
+import pycountry
+from pydantic import BaseModel
+import soundfile as sf
+import torch
+import torchaudio
+from transformers import AutoProcessor, SeamlessM4Tv2Model
+
+class Word(BaseModel):
+    start: float
+    end: float
+    word: str
+    prob: float
+
+class Segment(BaseModel):
+    id: Optional[int]
+    seek: Optional[int]
+    start: Optional[float]
+    end: Optional[float]
+
+    speaker: Optional[str]
+
+    text: Optional[str]
+    # tokens: List[int]
+    temperature: Optional[float]
+    avg_logprob: Optional[float]
+    compression_ratio: Optional[float]
+    no_speech_prob: Optional[float]
+    words: Optional[List[Word]]
+
+    audio_data: Optional[bytes]
+
+class Response(BaseModel):
+    source_language: Optional[str]
+    source_language_prob: Optional[float]
+    target_language: Optional[str]
+    duration: Optional[float]
+    all_language_probs: Optional[Dict[str, float]]
+
+    segments: List[Segment]
+
+class AudioMetadata(BaseModel):
+    mime_type: Optional[str]
+    sample_rate: Optional[int]
+    channels: Optional[int]
+
+class Request(BaseModel):
+    audio_data: Optional[bytes]
+    audio_url: Optional[str]
+    audio_metadata: Optional[AudioMetadata]
+    task: Optional[str]
+
+    source_language: Optional[str]
+    target_language: Optional[str]
+    text: Optional[str]
+    segments: Optional[Segment]
+
+
+@contextmanager
+def download_url_to_tempfile(url, suffix):
+    with tempfile.NamedTemporaryFile(suffix=suffix) as tmp_file:
+        with urllib.request.urlopen(url) as response:
+            while True:
+                chunk = response.read(8192)  # Read in 8KB chunks
+                if not chunk:
+                    break
+                tmp_file.write(chunk)
+        tmp_file.flush()
+
+        yield tmp_file.name
+
+def torchaudio_load_url_or_data(
+    mime_type: Optional[str] = None,
+    url: Optional[str] = None,
+    base64_data: Optional[str] = None,
+):
+    format = None
+    if mime_type == 'audio/opus':
+        format = 'ogg'
+    elif mime_type == 'audio/ogg':
+        format = 'ogg'
+    elif mime_type == 'audio/wav':
+        format = 'wav'        
+
+    if url:
+        suffix = "." + format if format else None
+        with download_url_to_tempfile(url, suffix=suffix) as f:
+            return torchaudio.load(f, format=format)
+    else:
+        if not format:
+            raise Exception("unknown mime_type")
+
+        data = base64.b64decode(base64_data)
+        input: BinaryIO = io.BytesIO(data)
+        return torchaudio.load(input, format=format)
+
+def soundfile_read_url_or_data(
+    mime_type: Optional[str] = None,
+    url: Optional[str] = None,
+    base64_data: Optional[str] = None,
+    dtype = None,
+    channels = None,
+    samplerate = None,
+):
+    format = None
+    if mime_type == 'audio/opus':
+        format = 'ogg'
+    elif mime_type == 'audio/ogg':
+        format = 'ogg'
+    elif mime_type == 'audio/wav':
+        format = 'wav'        
+
+    if url:
+        suffix = "." + format if format else None
+        with download_url_to_tempfile(url, suffix=suffix) as f:
+            return sf.read(f, dtype=dtype)
+    else:
+        if not format:
+            raise Exception("unknown mime_type")
+
+        data = base64.b64decode(base64_data)
+        input: BinaryIO = io.BytesIO(data)
+        return sf.read(input, format=format, dtype=dtype, channels=channels, samplerate=samplerate)
 
 modelname = os.environ.get("MODEL", "facebook/seamless-m4t-v2-large")
 processor = AutoProcessor.from_pretrained(modelname)
@@ -118,10 +243,6 @@ supported = {
     "zul": {"label": "Zulu",                   "script": "Latn"}, #       | Sp, Tx | Tx     |
 }
 
-import base64
-import io
-import soundfile as sf
-
 def find_alpha_3(id, allowed=None):
     try:
         found = pycountry.languages.lookup(id)
@@ -151,38 +272,61 @@ def fuzzy_find_alpha_3(lang, kind):
 
     return lang
 
-def read_waveform(request: Request):
-    metadata = request.audio_metadata
-    data = base64.b64decode(request.audio_data)
-    buf = io.BytesIO(data)
-    if metadata and metadata.mime_type == 'audio/opus':
-        buf.name = 'file.opus'
-    else:
-        buf.name = 'file.wav'
+app = FastAPI(debug=True)
 
-    dtype = 'float32'
-    samplerate = metadata.sample_rate if metadata and metadata.sample_rate else None
-    channels = metadata.channels if metadata and metadata.channels else None
+def read_audio(request: Request):
+    sampling_rate = 16000
+    split_stereo = False
+    waveform, audio_sf = torchaudio_load_url_or_data(
+        mime_type=request.audio_metadata.mime_type if request.audio_metadata else None,
+        url=request.audio_url,
+        base64_data=request.audio_data,
+    )
 
-    waveform, samplerate = sf.read(buf, dtype=dtype, channels=channels, samplerate=samplerate)
-    return waveform, samplerate
+    if audio_sf != sampling_rate:
+        waveform = torchaudio.functional.resample(
+            waveform, orig_freq=audio_sf, new_freq=sampling_rate
+        )
 
+    if split_stereo:
+        return waveform[0], waveform[1]
+
+    return waveform.mean(0)
+
+# def read_audio(request: Request):
+#     sampling_rate = 16000
+
+#     waveform, audio_sf = soundfile_read_url_or_data(
+#         mime_type=request.audio_metadata.mime_type if request.audio_metadata else None,
+#         url=request.audio_url,
+#         base64_data=request.audio_data,
+#         dtype='float32',
+#         channels=request.audio_metadata.channels if request.audio_metadata and request.audio_metadata.channels else None,
+#         samplerate=request.audio_metadata.sample_rate if request.audio_metadata and request.audio_metadata.sample_rate else None,
+#     )
+
+#     if audio_sf != sampling_rate:
+#         waveform = torchaudio.functional.resample(
+#             torch.from_numpy(waveform), orig_freq=audio_sf, new_freq=sampling_rate
+#         )
+
+#     return waveform
+
+# "transcribe" is a bit of a misnomer here...
+@app.post('/v1/transcribe')
 def transcribe(request: Request) -> Response:
     tgt_lang = fuzzy_find_alpha_3(request.target_language or "eng", "target")
     duration = None
     translated_text = ""
 
-    if request.audio_data:
-        waveform, sample_rate = read_waveform(request)
-        n_samples = waveform.shape[0]
+    if request.audio_data or request.audio_url:
+        audio = read_audio(request)
+        n_samples = audio.shape[0]
+        duration = n_samples / 16_000 # hard coded sample rate
 
-        duration = n_samples / sample_rate
-
-        audio = torchaudio.functional.resample(torch.from_numpy(waveform), orig_freq=sample_rate, new_freq=16_000) # must be a 16 kHz waveform array
         audio_inputs = processor(audios=audio, return_tensors="pt")
         output_tokens = model.generate(**audio_inputs, tgt_lang=tgt_lang, text_num_beams=5, generate_speech=False)
         translated_text = processor.decode(output_tokens[0].tolist()[0], skip_special_tokens=True)
-
     elif request.text:
         src_lang = fuzzy_find_alpha_3(request.source_language or None, "source")
 
@@ -195,34 +339,15 @@ def transcribe(request: Request) -> Response:
             translated_text = ""
         duration = None
 
-
     return Response(
         source_language=request.source_language,
-        source_language_prob=None,
         target_language=request.target_language,
         duration=duration,
         segments=[
             Segment(
-                # id=segment.id,
-                # seek=segment.seek,
                 start=0.0,
                 end=duration,
                 text=str(translated_text),
-                # temperature=segment.temperature,
-                # avg_logprob=segment.avg_logprob,
-                # compression_ratio=segment.compression_ratio,
-                # no_speech_prob=segment.no_speech_prob,
-                # words=[
-                #     Word(
-                #         start=word.start,
-                #         end=word.end,
-                #         word=word.word,
-                #         prob=word.probability,
-                #     )
-                #     for word in segment.words
-                # ] if segment.words else None,
             )
         ],
     )
-
-app = new_v1_api_app(transcribe=transcribe)
