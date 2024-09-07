@@ -11,6 +11,56 @@ from faster_whisper import WhisperModel
 from pydantic import BaseModel
 import torchaudio
 
+class Word(BaseModel):
+    start: float
+    end: float
+    word: str
+    prob: float
+
+class Segment(BaseModel):
+    id: Optional[int]
+    seek: Optional[int]
+    start: Optional[float]
+    end: Optional[float]
+
+    speaker: Optional[str]
+
+    text: Optional[str]
+    # tokens: List[int]
+    temperature: Optional[float]
+    avg_logprob: Optional[float]
+    compression_ratio: Optional[float]
+    no_speech_prob: Optional[float]
+    words: Optional[List[Word]]
+
+    audio_data: Optional[bytes]
+
+class Response(BaseModel):
+    source_language: Optional[str]
+    source_language_prob: Optional[float]
+    target_language: Optional[str]
+    duration: Optional[float]
+    all_language_probs: Optional[Dict[str, float]]
+
+    segments: List[Segment]
+
+
+class AudioMetadata(BaseModel):
+    mime_type: Optional[str]
+    sample_rate: Optional[int]
+    channels: Optional[int]
+
+class Request(BaseModel):
+    audio_data: Optional[bytes]
+    audio_url: Optional[str]
+    audio_metadata: Optional[AudioMetadata]
+    task: str
+
+    source_language: Optional[str]
+    target_language: Optional[str]
+    text: Optional[str]
+    segments: Optional[Segment]
+
 @contextmanager
 def download_url_to_tempfile(url, suffix):
     with tempfile.NamedTemporaryFile(suffix=suffix) as tmp_file:
@@ -75,56 +125,6 @@ model = WhisperModel(
     compute_type=os.environ.get("MODEL_COMPUTE_TYPE", "int8"),
     local_files_only=True,
 )
-
-class Word(BaseModel):
-    start: float
-    end: float
-    word: str
-    prob: float
-
-class Segment(BaseModel):
-    id: Optional[int]
-    seek: Optional[int]
-    start: Optional[float]
-    end: Optional[float]
-
-    speaker: Optional[str]
-
-    text: Optional[str]
-    # tokens: List[int]
-    temperature: Optional[float]
-    avg_logprob: Optional[float]
-    compression_ratio: Optional[float]
-    no_speech_prob: Optional[float]
-    words: Optional[List[Word]]
-
-    audio_data: Optional[bytes]
-
-class Response(BaseModel):
-    source_language: Optional[str]
-    source_language_prob: Optional[float]
-    target_language: Optional[str]
-    duration: Optional[float]
-    all_language_probs: Optional[Dict[str, float]]
-
-    segments: List[Segment]
-
-
-class AudioMetadata(BaseModel):
-    mime_type: Optional[str]
-    sample_rate: Optional[int]
-    channels: Optional[int]
-
-class Request(BaseModel):
-    audio_data: Optional[bytes]
-    audio_url: Optional[str]
-    audio_metadata: Optional[AudioMetadata]
-    task: str
-
-    source_language: Optional[str]
-    target_language: Optional[str]
-    text: Optional[str]
-    segments: Optional[Segment]
 
 app = FastAPI(debug=True)
 
