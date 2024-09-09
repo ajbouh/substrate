@@ -26,7 +26,7 @@ type ObserveCallback = (notifier:(v:any) => void) => () => void;
 type EventBodyType = {
     forObserve: boolean;
     callback?: ObserveCallback;
-    eventHandler?: (evt:any) => any;
+    eventHandler?: (evt:any) => any | null;
     dom?: HTMLElement | string;
     type: EventType;
     eventName?: UserEventType,
@@ -35,7 +35,7 @@ type EventBodyType = {
 function eventBody(options:EventBodyType) {
     let {forObserve, callback, dom, eventName, eventHandler} = options;
     let record:QueueRecord = {queue:[]};
-    let myHandler: (evt:any) => any;
+    let myHandler: ((evt:any) => any) | null;
 
     let realDom:HTMLElement|undefined;
     if (typeof dom === "string") {
@@ -75,6 +75,9 @@ function eventBody(options:EventBodyType) {
         if (myHandler) {
             realDom.addEventListener(eventName, myHandler);
         }
+        if (eventHandler === null) {
+            realDom.removeEventListener(eventName, myHandler);
+        }
     }
 
     if (forObserve && callback) {
@@ -90,7 +93,7 @@ function eventBody(options:EventBodyType) {
         }
     }
 
-    return new UserEvent(record);;
+    return new UserEvent(record);
 }
 
 function renkonify(func:Function, optSystem?:any) {
@@ -194,7 +197,11 @@ const Behaviors = {
     },
     delay(varName:VarName, delay: number):DelayedEvent {
         return new DelayedEvent(delay, varName, true);
-    }
+    },
+    /*
+    startsWith(init:any, varName:VarName) {
+        return new CollectStream(init, varName, (_old, v) => v, true);
+    }*/
 }
 
 function topologicalSort(nodes:Array<ScriptCell>) {
@@ -468,29 +475,10 @@ export class ProgramState implements ProgramStateType {
             evStream.evaluate(this, node, inputArray, lastInputArray);
         }
     
-        // for all streams, check if it is an event.
-        // if it is resolved, its promise and resolved will be cleared
-    
-        const deleted:Set<VarName> = new Set();
         for (let [varName, stream] of this.streams) {
-            let maybeDeleted = stream.conclude(this, varName);
-            if (maybeDeleted) {
-                deleted.add(maybeDeleted);
-            }
+            stream.conclude(this, varName);
         }
-    
-        // This is not necessary I think. I just have to make sure that and remove this.
-        for (let varName of deleted) {
-            for (let [receipient, node] of this.nodes) {
-                const index = node.inputs.indexOf(varName);
-                if (index >= 0) {
-                    const inputArray = this.inputArray.get(receipient);
-                    if (inputArray) {
-                        inputArray[index] = undefined;
-                    }
-                }
-            }
-        }
+
         this.changeList.clear();
         return this.updated;
     }
