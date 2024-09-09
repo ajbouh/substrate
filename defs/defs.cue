@@ -132,4 +132,7 @@ daemons: [key=string]: containerspec.#ContainerSpec & {
   image: (resolve_image_id & {"image_tag": image_tag}).image
 }
 
+// "Templates" can be stored here
+#commands: [key=string]: [commandname=string]: {#name: commandname} & command.#Command
+
 commands: [key=string]: [commandname=string]: {#name: commandname} & command.#Command

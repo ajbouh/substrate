@@ -16,6 +16,10 @@ tests: "airoboros-l2-13b-2.2": assister: {
 
 resourcedirs: "huggingface:model:TheBloke/airoboros-l2-13b-gpt4-2.0-AWQ:cd4642fa384abee24063063644a06bbb4119102a": _
 
+commands: "airoboros-l2-13b-2.2": {
+  (#commands["vllm"] & {[string]: run: http: request: #base_url: "/airoboros-l2-13b-2.2"})
+}
+
 services: "airoboros-l2-13b-2.2": {
   instances: [string]: {
     image_tag: imagespecs["vllm"].image

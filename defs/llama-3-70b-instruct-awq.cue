@@ -11,6 +11,10 @@ tests: "llama-3-70b-instruct-awq": assister: {
 
 resourcedirs: "huggingface:model:casperhansen/llama-3-70b-instruct-awq:e578178ea893ca5e3326afd15da5aefa37e84d69": _
 
+commands: "llama-3-70b-instruct-awq": {
+  (#commands["vllm"] & {[string]: run: http: request: #base_url: "/llama-3-70b-instruct-awq"})
+}
+
 services: "llama-3-70b-instruct-awq": {
   instances: [string]: {
     image_tag: imagespecs["vllm"].image

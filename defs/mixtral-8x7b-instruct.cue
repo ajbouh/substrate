@@ -11,6 +11,10 @@ tests: "mixtral-8x7b-instruct": assister: {
 
 resourcedirs: "huggingface:model:casperhansen/mixtral-instruct-awq:0a898130957afe22021bbaf807f50f6bbce88201": _
 
+commands: "mixtral-8x7b-instruct": {
+  (#commands["vllm"] & {[string]: run: http: request: #base_url: "/mixtral-8x7b-instruct"})
+}
+
 services: "mixtral-8x7b-instruct": {
   instances: [string]: {
     image_tag: imagespecs["vllm"].image

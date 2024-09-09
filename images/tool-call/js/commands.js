@@ -83,41 +83,43 @@ async function demandResponseIsOK(response) {
   }
 }
 
-function prepareFetch({url, parameters, def}) {
+function prepareFetch({url, parameters={}, run: {bind = {}, http = {}} = {}}) {
   let returns = async d => (await demandResponseIsOK(d), await d.json())
-  let input = def.request?.url || url
+  let input = http.request?.url || url
   let scope = {
     request: {
-      method: def.request?.method || "POST",
-      body: def.request?.body,
-      headers: def.request?.headers || {},
-      query: def.request?.query || {},
+      method: http.request?.method || "POST",
+      body: http.request?.body,
+      headers: http.request?.headers || {},
+      query: http.request?.query || {},
     },
   }
 
-  console.log("before", {scope, def, parameters})
+  console.log("before", {scope, http, parameters})
 
-  if (parameters) {
-    // deep clone scope so we can modify as needed.
-    scope = JSON.parse(JSON.stringify(scope))
-    const bound = def.bind?.parameters || {}
-    for (const [pname, pval] of Object.entries(parameters || {})) {
-      if (!(pname in def.parameters)) {
-        continue
-      }
-      set(scope, def.parameters[pname].path, bound[pname] !== undefined ? bound[pname] : pval)
+  // deep clone scope so we can modify as needed.
+  scope = JSON.parse(JSON.stringify(scope))
+  const bound = bind?.parameters || {}
+  for (const pname in parameters) {
+    if (!(pname in http.parameters)) {
+      continue
     }
+    set(scope, http.parameters[pname].path, bound[pname] !== undefined ? bound[pname] : parameters[pname])
+  }
+
+  for (const pname in bound) {
+    set(scope, http.parameters[pname].path, bound[pname])
   }
 
   console.log("after", scope)
 
-  if (def.returns) {
+  if (http.returns) {
     returns = async (response) => {
       await demandResponseIsOK(response)
       const body = await response.json()
       const slotWithResponse = {...scope, response: {body}}
-      const bound = def.bind?.returns || {}
-      return Object.fromEntries(Object.entries(def.returns).map(([k, v]) => {
+      const bound = bind?.returns || {}
+      return Object.fromEntries(Object.entries(http.returns).map(([k, v]) => {
         return [k, bound[k] !== undefined ? bound[k] : get(slotWithResponse, v.path)]
       }))
     }
@@ -154,7 +156,7 @@ export async function run({url, command, parameters={}}) {
     }
     returns = async (d) => (await demandResponseIsOK(d), await d.json())
   } else if (command?.run?.http !== null) {
-    [input, init, returns] = prepareFetch({url, parameters, def: command.run.http})
+    [input, init, returns] = prepareFetch({url, parameters, run: command.run})
   } else {
     throw new Error(`invalid commands argument, must be string or {parameters, returns, run}: ${command}`)
   }
