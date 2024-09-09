@@ -27886,17 +27886,17 @@ class OrEvent extends Stream {
 class UserEvent extends Stream {
   constructor(record) {
     super(eventType, false);
-    __publicField(this, "cleanup");
     __publicField(this, "record");
-    this.cleanup = record.cleanup;
     this.record = record;
   }
   created(state, id) {
-    let stream = state.streams.get(id);
-    if (!stream) {
-      state.scratch.set(id, this.record);
-      stream = this;
+    state.streams.get(id);
+    let oldRecord = state.scratch.get(id);
+    if (oldRecord && oldRecord.cleanup && typeof oldRecord.cleanup === "function") {
+      oldRecord.cleanup();
+      oldRecord.cleanup = void 0;
     }
+    state.scratch.set(id, this.record);
     return this;
   }
   evaluate(state, node, _inputArray, _lastInputArray) {
@@ -28009,7 +28009,7 @@ class CollectStream extends Stream {
     if (inputValue !== void 0 && (!lastInputArray || inputValue !== lastInputArray[inputIndex])) {
       const newValue = this.updater(scratch.current, inputValue);
       if (newValue !== void 0) {
-        if (newValue.then) {
+        if (newValue !== null && newValue.then) {
           newValue.then((value) => {
             state.setResolved(node.id, { value, time: state.time });
             state.scratch.set(node.id, { current: value });
@@ -28848,6 +28848,9 @@ function eventBody(options) {
     if (myHandler) {
       realDom.addEventListener(eventName, myHandler);
     }
+    if (eventHandler === null) {
+      realDom.removeEventListener(eventName, myHandler);
+    }
   }
   if (forObserve && callback) {
     record.cleanup = callback(notifier);
@@ -28960,6 +28963,10 @@ const Behaviors = {
   delay(varName, delay) {
     return new DelayedEvent(delay, varName, true);
   }
+  /*
+  startsWith(init:any, varName:VarName) {
+      return new CollectStream(init, varName, (_old, v) => v, true);
+  }*/
 };
 function topologicalSort(nodes) {
   let order = [];
@@ -29200,23 +29207,8 @@ class ProgramState {
       const evStream = outputs;
       evStream.evaluate(this, node, inputArray, lastInputArray);
     }
-    const deleted = /* @__PURE__ */ new Set();
     for (let [varName, stream] of this.streams) {
-      let maybeDeleted = stream.conclude(this, varName);
-      if (maybeDeleted) {
-        deleted.add(maybeDeleted);
-      }
-    }
-    for (let varName of deleted) {
-      for (let [receipient, node] of this.nodes) {
-        const index = node.inputs.indexOf(varName);
-        if (index >= 0) {
-          const inputArray = this.inputArray.get(receipient);
-          if (inputArray) {
-            inputArray[index] = void 0;
-          }
-        }
-      }
+      stream.conclude(this, varName);
     }
     this.changeList.clear();
     return this.updated;
@@ -29393,6 +29385,7 @@ body {
 .dock #drawerButton {
     align-self: center;
     padding: 40px 8px 40px 8px;
+    cursor: pointer;
 }
 
 .dock #updateButton {
