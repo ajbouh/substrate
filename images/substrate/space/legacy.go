@@ -15,17 +15,9 @@ import (
 func (p *SpacesViaContainerFilesystems) resolveLegacySpaceView(ctx context.Context, spaceID string, readOnly bool) (*activityspec.SpaceView, error) {
 	slog.Info("resolveLegacySpaceView", "spaceID", spaceID, "readOnly", readOnly)
 	containerID, err, _ := p.containerLegacyGroup.Do(spaceID, func() (interface{}, error) {
-		// look for matching container
-		containerID, _, err := p.resolveExistingSpaceViewForSpaceID(ctx, spaceID, readOnly)
-		if err != nil {
-			return "", err
-		}
-
-		if containerID != "" {
-			return p.spaceViewFor(ctx, containerID, spaceID, readOnly)
-		}
-
 		var newSpaceImage string
+		var err error
+
 		err = p.DefSetLoader.Load().DecodeLookupPath(cue.MakePath(cue.Def("#var"), cue.Str("substrate"), cue.Str("new_space_image")), &newSpaceImage)
 		if err != nil {
 			return "", err

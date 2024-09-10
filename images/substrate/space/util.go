@@ -12,12 +12,13 @@ import (
 
 func checkContainerIDExists(ctx context.Context, containerID string) (bool, error) {
 	_, err := containers.Inspect(ctx, containerID, nil)
-	slog.Info("checkContainerIDExists", "containerID", containerID, "err", err)
+	slog.Info("checkContainerIDExists", "containerID", containerID, "err", err, "errors.Is(err, types.ErrContainerUnknown)", errors.Is(err, types.ErrContainerUnknown))
 	if errors.Is(err, types.ErrContainerUnknown) {
 		return false, nil
 	}
+	// ignore error for now.
 	if err != nil {
-		return false, err
+		return false, nil
 	}
 
 	return true, nil
