@@ -513,7 +513,7 @@ export function defineChromestage({width, height}) {
   console.log(`chromestage ${id}`, chromestageURL)
   fetchChromestageDebuggerURL(chromestageURL)
 
-  const chromstageCommands = chromestageURL + "/commands"
+  const chromstageCommands = chromestageURL + "/"
   const chromstageVNC = chromestageURL + "/vnc/"
 
   const iframe = document.createElement('iframe')
