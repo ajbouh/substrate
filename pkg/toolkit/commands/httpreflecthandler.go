@@ -6,10 +6,12 @@ import (
 	"log"
 	"net/http"
 	"strings"
+
+	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
 )
 
 func EnsureRunHTTPRequestURLHasAHost(baseURL string) DefTransformFunc {
-	return func(commandName string, commandDef Def) (string, Def) {
+	return func(ctx context.Context, commandName string, commandDef Def) (string, Def) {
 		if commandDef.Run == nil || commandDef.Run.HTTP == nil {
 			return commandName, commandDef
 		}
@@ -24,7 +26,7 @@ func EnsureRunHTTPRequestURLHasAHost(baseURL string) DefTransformFunc {
 }
 
 func EnsureRunHTTPField(method, route string) DefTransformFunc {
-	return func(commandName string, commandDef Def) (string, Def) {
+	return func(ctx context.Context, commandName string, commandDef Def) (string, Def) {
 		// for each command, populate any missing run fields. this provides enough information for
 		// someone to "run" the associated command through this handler.
 		if commandDef.Run == nil {
@@ -82,51 +84,85 @@ func serveError(debug bool, w http.ResponseWriter, err error, code int, msg map[
 	http.Error(w, `{"error": "unspecified"}`, code)
 }
 
-// TODO support the OpenAPI spec as a return type.
-type HTTPReflectHandler struct {
-	Debug     bool
-	Reflector Reflector
-	Route     string
-
-	ReflectRequestTransform func(r *http.Request, name string, def Def) (string, Def)
-}
-
 type contextKey string
 
-var httprequestKey = contextKey("httprequest")
+var pathvaluerKey = contextKey("pathvaluer")
 
-func HTTPRequest(ctx context.Context) *http.Request {
-	v, ok := ctx.Value(httprequestKey).(*http.Request)
+func WithPathValuer(ctx context.Context, v PathValuer) context.Context {
+	return context.WithValue(ctx, pathvaluerKey, v)
+}
+
+func ContextPathValuer(ctx context.Context) PathValuer {
+	v, ok := ctx.Value(pathvaluerKey).(PathValuer)
 	if ok {
 		return v
 	}
 	return nil
 }
 
+type HTTPReflectResponse struct {
+	Commands DefIndex `json:"commands"`
+}
+
+// TODO support the OpenAPI spec as a return type.
+type HTTPReflectAnnouncer struct {
+	Debug     bool
+	Reflector Reflector
+	Route     string
+
+	Context     context.Context
+	eventStream *httpevents.EventStream[HTTPReflectResponse]
+}
+
+func (c *HTTPReflectAnnouncer) Initialize() {
+	c.eventStream = httpevents.NewJSONEventStream[HTTPReflectResponse](c.Route)
+}
+
+func (c *HTTPReflectAnnouncer) Refresh() error {
+	commands, err := c.Reflector.Reflect(c.Context)
+	if err != nil {
+		return err
+	}
+
+	c.eventStream.Announce(HTTPReflectResponse{Commands: commands})
+	return nil
+}
+
+func (h *HTTPReflectAnnouncer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.eventStream.ServeHTTP(w, r)
+}
+
+// TODO support the OpenAPI spec as a return type.
+type HTTPReflectHandler struct {
+	Debug     bool
+	Reflector Reflector
+	Route     string
+}
+
+func (c *HTTPReflectHandler) reflect(ctx context.Context) (*HTTPReflectResponse, error) {
+	commands, err := c.Reflector.Reflect(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &HTTPReflectResponse{
+		Commands: commands,
+	}, nil
+}
+
 func (c *HTTPReflectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h := w.Header()
 	h.Set("Content-Type", "application/json")
 	ctx := r.Context()
-	ctx = context.WithValue(ctx, httprequestKey, r)
-	commands, err := c.Reflector.Reflect(ctx)
+	ctx = WithPathValuer(ctx, r)
+
+	response, err := c.reflect(ctx)
 	if err != nil {
 		serveError(c.Debug, w, err, http.StatusInternalServerError, nil)
 		return
 	}
 
-	if c.ReflectRequestTransform != nil {
-		transformedCommands := DefIndex{}
-		for name, def := range commands {
-			name, def = c.ReflectRequestTransform(r, name, def)
-			transformedCommands[name] = def
-		}
-
-		commands = transformedCommands
-	}
-
-	b, err := json.Marshal(map[string]any{
-		"commands": commands,
-	})
+	b, err := json.Marshal(response)
 	if err != nil {
 		serveError(c.Debug, w, err, http.StatusInternalServerError, nil)
 		return

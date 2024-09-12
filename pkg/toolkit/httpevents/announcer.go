@@ -52,7 +52,7 @@ func MarshalJSON[T any](t T) []byte {
 	}
 }
 
-func (a *EventStream[T]) ContributeHTTP(mux *http.ServeMux) {
+func (a *EventStream[T]) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	if a.Route != "" {
 		mux.Handle(a.Route, a)
 	}

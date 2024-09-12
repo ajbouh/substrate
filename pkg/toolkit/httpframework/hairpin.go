@@ -1,6 +1,7 @@
 package httpframework
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -44,7 +45,7 @@ func (c *HairpinHTTPClient) Initialize() {
 	}
 }
 
-func (c *HairpinHTTPClient) ContributeHTTP(m *http.ServeMux) {
+func (c *HairpinHTTPClient) ContributeHTTP(ctx context.Context, m *http.ServeMux) {
 	if c.Mux == nil {
 		c.Mux = m
 	}

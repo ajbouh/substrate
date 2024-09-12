@@ -14,6 +14,7 @@ type HTTPResourceReflectHandler struct {
 	Debug     bool
 	BaseURL   string
 	Aggregate *Aggregate
+	Log       *slog.Logger
 
 	HTTPRunHandler                 *HTTPRunHandler
 	DefaultHTTPResourceReflectPath string
@@ -58,9 +59,8 @@ func (h *HTTPResourceReflectHandler) ReflectorForPathFuncExcluding(excluding ...
 	}
 }
 
-func EnsureRunHTTPRequestURLIncludesPrefix(r *http.Request) DefTransformFunc {
-	return func(commandName string, commandDef Def) (string, Def) {
-		prefix := httpframework.ContextPrefix(r.Context())
+func EnsureRunHTTPRequestURLIncludesPrefix(prefix string) DefTransformFunc {
+	return func(ctx context.Context, commandName string, commandDef Def) (string, Def) {
 		if prefix == "" || commandDef.Run == nil || commandDef.Run.HTTP == nil {
 			return commandName, commandDef
 		}
@@ -74,9 +74,59 @@ func EnsureRunHTTPRequestURLIncludesPrefix(r *http.Request) DefTransformFunc {
 	}
 }
 
-func (h *HTTPResourceReflectHandler) ContributeHTTP(mux *http.ServeMux) {
+func (h *HTTPResourceReflectHandler) transformDef(ctx context.Context, name string, def Def) (string, Def) {
+	xform := DefTransforms(
+		// should only pick up commands that don't have a route set and are therefore top-level.
+		EnsureRunHTTPField(
+			h.HTTPRunHandler.CatchallRunnerMethod(),
+			h.HTTPRunHandler.CatchallRunnerPath(),
+		),
+	)
+
+	name, def = xform(ctx, name, def)
+
+	prefix := httpframework.ContextPrefix(ctx)
+	name, def = EnsureRunHTTPRequestURLIncludesPrefix(prefix)(ctx, name, def)
+	name, def = EnsureRunHTTPRequestURLHasAHost(h.BaseURL)(ctx, name, def)
+
+	var drop []string
+	for k, v := range def.Run.HTTP.Parameters {
+		if strings.HasPrefix(v.Path, "request.url.path.") {
+			urlPathValueName := strings.TrimPrefix(v.Path, "request.url.path.")
+			var pathValue string
+			var pathValueOK bool
+			if def.Run.Bind != nil && def.Run.Bind.Parameters != nil {
+				pathValue, pathValueOK = def.Run.Bind.Parameters[k].(string)
+				if pathValueOK {
+					delete(def.Run.Bind.Parameters, k)
+				}
+			}
+			if !pathValueOK {
+				pathValuer := ContextPathValuer(ctx)
+				pathValue = pathValuer.PathValue(urlPathValueName)
+			}
+
+			url := def.Run.HTTP.Request.URL
+			url = strings.ReplaceAll(url, "{"+urlPathValueName+"}", pathValue)
+			url = strings.ReplaceAll(url, "{"+urlPathValueName+"...}", pathValue)
+			def.Run.HTTP.Request.URL = url
+			delete(def.Parameters, k)
+			drop = append(drop, k)
+		}
+	}
+
+	for _, k := range drop {
+		delete(def.Run.HTTP.Parameters, k)
+	}
+
+	return name, def
+}
+
+func (h *HTTPResourceReflectHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	// group by path
 	h.ReflectorsPerRoute = Group(h.Aggregate.GatherReflectorsExcluding(context.Background(), nil), HTTPResourceReflectPath)
+
+	// rename the empty route to the given default reflect path
 	h.ReflectorsPerRoute[h.DefaultHTTPResourceReflectPath] = h.ReflectorsPerRoute[""]
 	delete(h.ReflectorsPerRoute, "")
 
@@ -96,57 +146,39 @@ func (h *HTTPResourceReflectHandler) ContributeHTTP(mux *http.ServeMux) {
 			pattern = pattern + "{$}"
 		}
 
-		xform := DefTransforms(
-			// should only pick up commands that don't have a route set and are therefore top-level.
-			EnsureRunHTTPField(
-				h.HTTPRunHandler.CatchallRunnerMethod(),
-				h.HTTPRunHandler.CatchallRunnerPath(),
-			),
-		)
-
 		slog.Info("HTTPResourceReflectHandlerContributeHTTP", "pattern", pattern)
 		mux.Handle(pattern, &HTTPReflectHandler{
 			Debug: h.Debug,
-			ReflectRequestTransform: func(r *http.Request, name string, def Def) (string, Def) {
-				// should probably raise this
-				name, def = xform(name, def)
-				name, def = EnsureRunHTTPRequestURLIncludesPrefix(r)(name, def)
-				name, def = EnsureRunHTTPRequestURLHasAHost(h.BaseURL)(name, def)
-
-				var drop []string
-				for k, v := range def.Run.HTTP.Parameters {
-					if strings.HasPrefix(v.Path, "request.url.path.") {
-						urlPathValueName := strings.TrimPrefix(v.Path, "request.url.path.")
-						var pathValue string
-						var pathValueOK bool
-						if def.Run.Bind != nil && def.Run.Bind.Parameters != nil {
-							pathValue, pathValueOK = def.Run.Bind.Parameters[k].(string)
-							if pathValueOK {
-								delete(def.Run.Bind.Parameters, k)
-							}
-						}
-						if !pathValueOK {
-							pathValue = r.PathValue(urlPathValueName)
-						}
-
-						url := def.Run.HTTP.Request.URL
-						url = strings.ReplaceAll(url, "{"+urlPathValueName+"}", pathValue)
-						url = strings.ReplaceAll(url, "{"+urlPathValueName+"...}", pathValue)
-						def.Run.HTTP.Request.URL = url
-						delete(def.Parameters, k)
-						drop = append(drop, k)
-					}
-				}
-
-				for _, k := range drop {
-					delete(def.Run.HTTP.Parameters, k)
-				}
-
-				return name, def
-			},
 			Reflector: &DynamicReflector{
-				Reflectors: func() []Reflector { return reflectors },
+				ReflectTransform: h.transformDef,
+				Reflectors:       func() []Reflector { return reflectors },
 			},
 		})
+
+		// // TODO enable below instead of above when we want to experiment with REFLECT being a stream
+		// mux.Handle(pattern, &httpframework.PathSingletonMux[*HTTPReflectAnnouncer]{
+		// 	RequestKey: func(r *http.Request) (string, context.Context, error) {
+		// 		// one reflect announcer for each URL
+
+		// 		ctx := context.Background()
+		// 		prefix := httpframework.ContextPrefix(ctx)
+		// 		// we need the PathValuer interface from request. in the future we might copy/reparse the pattern but for now
+		// 		// reuse this.
+		// 		ctx = WithPathValuer(ctx, r)
+		// 		ctx = httpframework.WithPrefix(ctx, prefix)
+		// 		return r.URL.String(), ctx, nil
+		// 	},
+		// 	KeyHandler: func(ctx context.Context, k string) (*HTTPReflectAnnouncer, error) {
+		// 		return &HTTPReflectAnnouncer{
+		// 			Debug:   h.Debug,
+		// 			Context: ctx,
+		// 			Reflector: &DynamicReflector{
+		// 				ReflectTransform: h.transformDef,
+		// 				Reflectors:       func() []Reflector { return reflectors },
+		// 			},
+		// 		}, nil
+		// 	},
+		// 	Log: h.Log,
+		// })
 	}
 }

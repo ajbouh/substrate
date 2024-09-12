@@ -11,21 +11,21 @@ var (
 	ErrReflectNotSupported = errors.New("reflect not supported")
 )
 
-type DefTransformFunc func(string, Def) (string, Def)
+type DefTransformFunc func(context.Context, string, Def) (string, Def)
 
 func DefTransforms(fs ...DefTransformFunc) DefTransformFunc {
-	return func(name string, def Def) (string, Def) {
+	return func(ctx context.Context, name string, def Def) (string, Def) {
 		for _, f := range fs {
-			name, def = f(name, def)
+			name, def = f(ctx, name, def)
 		}
 		return name, def
 	}
 }
 
-func TranformDefIndex(di DefIndex, xform DefTransformFunc) DefIndex {
+func TranformDefIndex(ctx context.Context, di DefIndex, xform DefTransformFunc) DefIndex {
 	m := DefIndex{}
 	for k, v := range di {
-		k, v = xform(k, v)
+		k, v = xform(ctx, k, v)
 		m[k] = v
 	}
 	return m
@@ -121,7 +121,7 @@ func Reflect[R Reflector](ctx context.Context, xform DefTransformFunc, reflector
 		}
 		for k, v := range dci {
 			if xform != nil {
-				k, v = xform(k, v)
+				k, v = xform(ctx, k, v)
 			}
 
 			// slog.Info("Reflector", "name", k, "command", fmt.Sprint(v))

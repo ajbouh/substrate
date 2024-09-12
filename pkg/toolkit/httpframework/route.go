@@ -1,6 +1,7 @@
 package httpframework
 
 import (
+	"context"
 	"net/http"
 )
 
@@ -10,7 +11,7 @@ type Route struct {
 	Handler http.Handler
 }
 
-func (c *Route) ContributeHTTP(mux *http.ServeMux) {
+func (c *Route) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	if c.Route != "" {
 		mux.Handle(c.Route, c.Handler)
 	}

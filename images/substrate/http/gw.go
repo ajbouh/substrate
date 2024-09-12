@@ -1,6 +1,7 @@
 package substratehttp
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"net/url"
@@ -13,7 +14,7 @@ type ProxyHandler struct {
 	ProvisionerCache *provisioner.Cache
 }
 
-func (h *ProxyHandler) ContributeHTTP(mux *http.ServeMux) {
+func (h *ProxyHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	// Use the referer to decide how to proxy requests for /favicon.ico
 	mux.Handle("GET /favicon.ico", http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if req.Header.Get("Referer") == "" {

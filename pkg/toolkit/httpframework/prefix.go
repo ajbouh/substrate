@@ -35,6 +35,18 @@ type StripPrefix struct {
 	Prefix string
 }
 
+func WithPrefix(ctx context.Context, prefix string) context.Context {
+	if prefix == "" {
+		return ctx
+	}
+
+	return context.WithValue(ctx, prefixKey, prefix)
+}
+
+func (m *StripPrefix) WithContext(ctx context.Context) context.Context {
+	return WithPrefix(ctx, m.Prefix)
+}
+
 func (m *StripPrefix) WrapHTTP(next http.Handler) http.Handler {
 	if m.Prefix == "" {
 		return next

@@ -37,7 +37,7 @@ func (c *HTTPRunHandler) CatchallRunnerPath() string {
 	return path
 }
 
-func (c *HTTPRunHandler) ContributeHTTP(mux *http.ServeMux) {
+func (c *HTTPRunHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	grouped := Group(c.Aggregate.GatherRunners(context.Background()), func(r Runner) string {
 		if resource, ok := r.(HTTPResource); ok {
 			pattern := resource.GetHTTPPattern()

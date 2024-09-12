@@ -1,6 +1,7 @@
 package units
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -15,7 +16,7 @@ type EventStreamHandler struct {
 
 // TODO this would be better if it were just another command, but commands can't stream back multiple responses yet.
 
-func (h *EventStreamHandler) ContributeHTTP(mux *http.ServeMux) {
+func (h *EventStreamHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	mux.Handle("GET /stream/events", h)
 	mux.Handle("POST /stream/events", h)
 }

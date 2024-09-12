@@ -33,7 +33,7 @@ func (h *ChromeDPProxy) Initialize() {
 	}
 }
 
-func (h *ChromeDPProxy) ContributeHTTP(mux *http.ServeMux) {
+func (h *ChromeDPProxy) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	mux.Handle("/json/version/", http.HandlerFunc(h.ServeHTTPUpstreamJSONVersion))
 	mux.Handle("/json/version", http.HandlerFunc(h.ServeHTTPUpstreamJSONVersion))
 	mux.Handle("/", h.reverseProxy)

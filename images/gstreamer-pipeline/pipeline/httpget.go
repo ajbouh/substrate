@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 )
@@ -9,7 +10,7 @@ type HTTPGetHandler struct {
 	Slots *PipelineSlotMap
 }
 
-func (h *HTTPGetHandler) ContributeHTTP(mux *http.ServeMux) {
+func (h *HTTPGetHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	mux.Handle("GET /", h)
 }
 

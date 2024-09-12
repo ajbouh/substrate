@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"html/template"
 	"log"
@@ -117,7 +118,7 @@ type fileHandler struct {
 	allowDelete bool
 }
 
-func (h *fileHandler) ContributeHTTP(mux *http.ServeMux) {
+func (h *fileHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	mux.Handle(h.route, h)
 }
 

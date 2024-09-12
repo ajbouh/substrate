@@ -388,7 +388,7 @@ type SFURoute struct {
 	SFU *sfu.Session
 }
 
-func (m *SFURoute) ContributeHTTP(mux *http.ServeMux) {
+func (m *SFURoute) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	mux.HandleFunc("GET /sfu", func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -404,7 +404,7 @@ func (m *SFURoute) ContributeHTTP(mux *http.ServeMux) {
 	})
 }
 
-func (m *SessionHandler) ContributeHTTP(mux *http.ServeMux) {
+func (m *SessionHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	mux.HandleFunc("GET /data", m.serveSessionUpdates)
 	mux.HandleFunc("GET /text", m.serveSessionText)
 	mux.HandleFunc("POST /tracks/{track_id}", m.addEvent)

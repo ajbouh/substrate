@@ -1,6 +1,7 @@
 package units
 
 import (
+	"context"
 	"net/http"
 
 	eventfs "github.com/ajbouh/substrate/images/events/fs"
@@ -13,7 +14,7 @@ type FSHandler struct {
 	Querier event.Querier
 }
 
-func (h *FSHandler) ContributeHTTP(mux *http.ServeMux) {
+func (h *FSHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	mux.Handle("/fs/", h)
 }
 

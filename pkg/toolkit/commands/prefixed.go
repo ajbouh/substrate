@@ -29,7 +29,7 @@ func (s *PrefixedSource[T]) WrapsCommandsSource() Source {
 }
 
 func (s *PrefixedSource[T]) Reflect(ctx context.Context) (DefIndex, error) {
-	return Reflect(ctx, func(k string, v Def) (string, Def) { return s.Prefix + k, v }, s.Source)
+	return Reflect(ctx, func(ctx context.Context, k string, v Def) (string, Def) { return s.Prefix + k, v }, s.Source)
 }
 
 func (s *PrefixedSource[T]) Run(ctx context.Context, name string, p Fields) (Fields, error) {

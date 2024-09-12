@@ -1,6 +1,7 @@
 package pipeline
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -11,7 +12,7 @@ type HTTPPatchHandler struct {
 	Slots *PipelineSlotMap
 }
 
-func (h *HTTPPatchHandler) ContributeHTTP(mux *http.ServeMux) {
+func (h *HTTPPatchHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	mux.Handle("PATCH /", h)
 }
 

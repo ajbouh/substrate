@@ -10,7 +10,7 @@ import (
 )
 
 type MuxContributor interface {
-	ContributeHTTP(mux *http.ServeMux)
+	ContributeHTTP(ctx context.Context, mux *http.ServeMux)
 }
 
 type Middleware interface {
@@ -71,10 +71,19 @@ func (f *Framework) Serve(ctx context.Context) {
 }
 
 func (f *Framework) InitializeDaemon() error {
+	ctx := context.Background()
+	for _, m := range f.Middleware {
+		if wrap, ok := m.(interface {
+			WithContext(ctx context.Context) context.Context
+		}); ok {
+			ctx = wrap.WithContext(ctx)
+		}
+	}
+
 	f.mux = http.NewServeMux()
 	for _, c := range f.Contributors {
 		f.Log.Info("adding handlers", "contributortype", fmt.Sprintf("%T", c), "contributor", c)
-		c.ContributeHTTP(f.mux)
+		c.ContributeHTTP(ctx, f.mux)
 	}
 
 	f.s = &http.Server{

@@ -58,7 +58,7 @@ func (p *SpaceCommands) Query(ctx context.Context, spaceID string) (commands.Def
 }
 
 func (p *SpaceCommands) Reflect(ctx context.Context) (commands.DefIndex, error) {
-	r := commands.HTTPRequest(ctx)
+	r := commands.ContextPathValuer(ctx)
 	if r == nil {
 		return nil, commands.ErrReflectNotSupported
 	}

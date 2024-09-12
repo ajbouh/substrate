@@ -18,7 +18,7 @@ type SpacesFileTree struct {
 
 var _ commands.HTTPResourceReflect = (*SpacesFileTree)(nil)
 
-func (x *SpacesFileTree) ContributeHTTP(mux *http.ServeMux) {
+func (x *SpacesFileTree) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	mux.Handle("/substrate/v1/spaces/{space}/tree/{path...}", x)
 }
 
@@ -27,13 +27,13 @@ func (x *SpacesFileTree) GetHTTPResourceReflectPath() string {
 }
 
 func (x *SpacesFileTree) Reflect(ctx context.Context) (commands.DefIndex, error) {
-	r := commands.HTTPRequest(ctx)
+	r := commands.ContextPathValuer(ctx)
 	if r == nil {
 		return commands.DefIndex{}, nil
 	}
 
 	spaceID := r.PathValue("space")
-	fsys, err := x.SpacesViaContainerFilesystems.SpaceAsFS(r.Context(), spaceID, false)
+	fsys, err := x.SpacesViaContainerFilesystems.SpaceAsFS(ctx, spaceID, false)
 	if err != nil {
 		return nil, err
 	}

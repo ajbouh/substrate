@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"log"
 	"net"
@@ -19,7 +20,7 @@ var upgrader = websocket.Upgrader{
 type NoVNCHandler struct {
 }
 
-func (h *NoVNCHandler) ContributeHTTP(mux *http.ServeMux) {
+func (h *NoVNCHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	mux.Handle("/vnc/ws", h)
 	mux.Handle("/vnc/", http.StripPrefix("/vnc", http.FileServer(http.Dir("/vnc"))))
 }

@@ -1,6 +1,7 @@
 package substratehttp
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -15,6 +16,6 @@ type DefsHandler struct {
 	DefSetLoader  notify.Loader[*defset.DefSet]
 }
 
-func (h *DefsHandler) ContributeHTTP(mux *http.ServeMux) {
+func (h *DefsHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	mux.Handle(fmt.Sprintf("GET %s/v1/defs", h.Prefix), h.DefsAnnouncer)
 }

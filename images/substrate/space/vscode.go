@@ -1,6 +1,7 @@
 package space
 
 import (
+	"context"
 	"io"
 	"net/http"
 
@@ -12,7 +13,7 @@ type VSCodeEditingForSpace struct {
 	SpaceAsFS SpaceAsFS
 }
 
-func (s *VSCodeEditingForSpace) ContributeHTTP(mux *http.ServeMux) {
+func (s *VSCodeEditingForSpace) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	mux.Handle("/substrate/v1/spaces/{space}/vscode/", s)
 }
 
