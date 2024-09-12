@@ -10,18 +10,18 @@ import (
 	"github.com/containers/storage/types"
 )
 
-func checkContainerIDExists(ctx context.Context, containerID string) (bool, error) {
-	_, err := containers.Inspect(ctx, containerID, nil)
-	slog.Info("checkContainerIDExists", "containerID", containerID, "err", err, "errors.Is(err, types.ErrContainerUnknown)", errors.Is(err, types.ErrContainerUnknown))
+func checkContainerIDExists(ctx context.Context, containerNameOrID string) (string, bool, error) {
+	c, err := containers.Inspect(ctx, containerNameOrID, nil)
+	slog.Info("checkContainerIDExists", "containerNameOrID", containerNameOrID, "err", err, "errors.Is(err, types.ErrContainerUnknown)", errors.Is(err, types.ErrContainerUnknown))
 	if errors.Is(err, types.ErrContainerUnknown) {
-		return false, nil
+		return "", false, nil
 	}
 	// ignore error for now.
 	if err != nil {
-		return false, nil
+		return "", false, nil
 	}
 
-	return true, nil
+	return c.ID, true, nil
 }
 
 func spaceGetLabels(ctx context.Context, id string) (map[string]string, error) {

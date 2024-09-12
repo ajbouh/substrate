@@ -124,23 +124,23 @@ func (p *SpacesViaContainerFilesystems) resolveExistingSpaceViewForSpaceID(ctx c
 	slog.Info("resolveExistingSpaceViewForSpaceID", "spaceID", spaceID)
 
 	if strings.HasPrefix(spaceID, spaceIDPrefix) {
-		found, err := checkContainerIDExists(ctx, spaceID)
+		containerID, found, err := checkContainerIDExists(ctx, spaceID)
 		if err != nil {
 			return "", nil, err
 		}
 		if found {
-			view, err := p.spaceViewFor(ctx, spaceID, spaceID, readOnly)
-			return spaceID, view, err
+			view, err := p.spaceViewFor(ctx, containerID, spaceID, readOnly)
+			return containerID, view, err
 		}
 
 		// try importing from legacy space source
 		view, err := p.resolveLegacySpaceView(ctx, spaceID, readOnly)
-		return spaceID, view, err
+		return containerID, view, err
 	}
 
 	if strings.HasPrefix(spaceID, cntrPrefix) {
 		id := strings.TrimPrefix(spaceID, cntrPrefix)
-		found, err := checkContainerIDExists(ctx, id)
+		containerID, found, err := checkContainerIDExists(ctx, id)
 		if err != nil {
 			return "", nil, err
 		}
@@ -148,8 +148,8 @@ func (p *SpacesViaContainerFilesystems) resolveExistingSpaceViewForSpaceID(ctx c
 			return "", nil, activityspec.ErrNotFound
 		}
 
-		view, err := p.spaceViewFor(ctx, id, spaceID, readOnly)
-		return id, view, err
+		view, err := p.spaceViewFor(ctx, containerID, spaceID, readOnly)
+		return containerID, view, err
 	}
 
 	return "", nil, nil
@@ -280,6 +280,6 @@ func (p *SpacesViaContainerFilesystems) resolveContainerIDMountPath(ctx context.
 		return "", mountErr
 	})
 
-	slog.Info("resolveMountedSpaceID", "containerID", containerID, "mount", mount, "err", err)
+	slog.Info("resolveContainerIDMountPath", "containerID", containerID, "mount", mount, "err", err)
 	return mount, err
 }
