@@ -23,24 +23,30 @@ type SpawnEventFields struct {
 	SpawnResponse activityspec.ServiceSpawnResponse `json:"spawn:response"`
 }
 
+type ServiceResolverWithCurrentDefSet struct {
+	DefSetLoader      Loader[*defset.DefSet]
+	SpaceViewResolver activityspec.SpaceViewResolver
+}
+
+var _ provisioner.ServiceResolver = (*ServiceResolverWithCurrentDefSet)(nil)
+
+func (l *ServiceResolverWithCurrentDefSet) ResolveService(ctx context.Context, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResolution, bool, error) {
+	return l.DefSetLoader.Load().ResolveService(ctx, l.SpaceViewResolver, req)
+}
+
 type SpawnWithCurrentDefSet struct {
 	DefSetLoader    Loader[*defset.DefSet]
 	ProvisionDriver provisioner.Driver
 	NotifyQueue     *notify.Queue
 
 	SpaceURLs           space.SpaceURLs
-	SpaceViewResolver   activityspec.SpaceViewResolver
 	SpawnEventNotifiers []notify.Notifier[SpawnEventFields]
 }
 
-func (l *SpawnWithCurrentDefSet) Spawn(ctx context.Context, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResponse, <-chan provisioner.Event, error) {
-	s := l.DefSetLoader.Load()
-	driver := l.ProvisionDriver
+var _ provisioner.Spawner = (*SpawnWithCurrentDefSet)(nil)
 
-	serviceSpawnResolution, err := s.ResolveService(ctx, l.SpaceViewResolver, req)
-	if err != nil {
-		return nil, nil, err
-	}
+func (l *SpawnWithCurrentDefSet) Spawn(ctx context.Context, req *activityspec.ServiceSpawnRequest, serviceSpawnResolution *activityspec.ServiceSpawnResolution) (*activityspec.ServiceSpawnResponse, <-chan provisioner.Event, error) {
+	driver := l.ProvisionDriver
 
 	serviceSpawnResponse, err := driver.Spawn(ctx, serviceSpawnResolution)
 	if err != nil {
@@ -91,8 +97,4 @@ func (l *SpawnWithCurrentDefSet) Spawn(ctx context.Context, req *activityspec.Se
 
 func (l *SpawnWithCurrentDefSet) Shutdown(ctx context.Context, name string, reason error) error {
 	return l.ProvisionDriver.Kill(ctx, name)
-}
-
-func (l *SpawnWithCurrentDefSet) Peek(ctx context.Context, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResolution, error) {
-	return l.DefSetLoader.Load().ResolveService(ctx, l.SpaceViewResolver, req)
 }

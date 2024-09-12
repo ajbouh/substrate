@@ -16,9 +16,12 @@ import (
 )
 
 type Spawner interface {
-	Spawn(ctx context.Context, ServiceSpawnRequest *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResponse, <-chan Event, error)
+	Spawn(context.Context, *activityspec.ServiceSpawnRequest, *activityspec.ServiceSpawnResolution) (*activityspec.ServiceSpawnResponse, <-chan Event, error)
 	Shutdown(ctx context.Context, name string, reason error) error
-	Peek(ctx context.Context, ServiceSpawnRequest *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResolution, error)
+}
+
+type ServiceResolver interface {
+	ResolveService(ctx context.Context, ServiceSpawnRequest *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResolution, bool, error)
 }
 
 type RequestEntry struct {
@@ -64,6 +67,7 @@ type CachingSingleServiceProvisioner struct {
 	Key string
 
 	Spawner             Spawner
+	ServiceResolver     ServiceResolver
 	ServiceSpawnRequest *activityspec.ServiceSpawnRequest
 
 	Log *slog.Logger
@@ -177,7 +181,7 @@ func (e *CachingSingleServiceProvisioner) PurgeIfChanged(ctx context.Context) (b
 	provisioned := gen.provisioned
 	cleanup := gen.cleanup
 
-	res, err := e.Spawner.Peek(ctx, e.ServiceSpawnRequest)
+	res, _, err := e.ServiceResolver.ResolveService(ctx, e.ServiceSpawnRequest)
 	if err != nil {
 		return false, gen, err
 	}
@@ -197,6 +201,17 @@ func (e *CachingSingleServiceProvisioner) PurgeIfChanged(ctx context.Context) (b
 	return false, gen, nil
 }
 
+type ConcretizationRequiredError struct {
+	ServiceSpawnRequest    activityspec.ServiceSpawnRequest
+	ServiceSpawnResolution activityspec.ServiceSpawnResolution
+}
+
+var _ error = (*ConcretizationRequiredError)(nil)
+
+func (e *ConcretizationRequiredError) Error() string {
+	return fmt.Sprintf("ConcretizationRequiredError: %#v -> %#v", e.ServiceSpawnRequest, e.ServiceSpawnResolution)
+}
+
 func (e *CachingSingleServiceProvisioner) Ensure(ctx context.Context) (*Provisioning, error) {
 	// slog.Info("CachingSingleServiceProvisioner.Ensure()", "key", e.Key, "instance", e)
 
@@ -214,9 +229,21 @@ func (e *CachingSingleServiceProvisioner) Ensure(ctx context.Context) (*Provisio
 		return provisioning, nil
 	}
 
+	sreso, varying, err := e.ServiceResolver.ResolveService(ctx, e.ServiceSpawnRequest)
+	if err != nil {
+		return nil, fmt.Errorf("error resolving: %w", err)
+	}
+
+	if varying {
+		return nil, &ConcretizationRequiredError{
+			ServiceSpawnRequest:    *e.ServiceSpawnRequest,
+			ServiceSpawnResolution: *sreso,
+		}
+	}
+
 	streamCtx, streamCancel := context.WithCancel(context.Background())
 
-	sres, ch, err := e.Spawner.Spawn(streamCtx, e.ServiceSpawnRequest)
+	sres, ch, err := e.Spawner.Spawn(streamCtx, e.ServiceSpawnRequest, sreso)
 	if err != nil {
 		streamCancel()
 		return nil, fmt.Errorf("error spawning: %w", err)

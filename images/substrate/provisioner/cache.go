@@ -2,6 +2,7 @@ package provisioner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -16,7 +17,8 @@ type Cache struct {
 
 	ctx context.Context
 
-	Spawner Spawner
+	Spawner         Spawner
+	ServiceResolver ServiceResolver
 
 	Log *slog.Logger
 }
@@ -120,6 +122,7 @@ func (r *Cache) Ensure(ctx context.Context, asr *activityspec.ServiceSpawnReques
 			Key:                 requestCacheKey,
 			Spawner:             r.Spawner,
 			ServiceSpawnRequest: asr,
+			ServiceResolver:     r.ServiceResolver,
 			Log:                 r.Log,
 		}
 		cssp.Initialize()
@@ -134,6 +137,14 @@ func (r *Cache) ServeProxiedHTTP(asr *activityspec.ServiceSpawnRequest, rw http.
 
 	entry, err := r.Ensure(rq.Context(), asr)
 	if err != nil {
+		var cre = new(ConcretizationRequiredError)
+		if errors.As(err, &cre) {
+			concretized, _ := cre.ServiceSpawnResolution.Format()
+			rest := rq.PathValue("rest")
+			http.RedirectHandler("/"+concretized+"/"+rest, http.StatusFound).ServeHTTP(rw, rq)
+			return
+		}
+
 		newDoomedHandler(http.StatusBadRequest, err, rw)
 		return
 	}

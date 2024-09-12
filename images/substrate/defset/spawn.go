@@ -12,59 +12,6 @@ import (
 	"github.com/oklog/ulid/v2"
 )
 
-func (s *DefSet) ResolveService(ctx context.Context, sr activityspec.SpaceViewResolver, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResolution, error) {
-	serviceDefSpawnValue, err := s.resolveServiceDefSpawn(req)
-	if err != nil {
-		return nil, err
-	}
-
-	return s.resolveServiceSpawn(ctx, sr, req, serviceDefSpawnValue)
-}
-
-func (s *DefSet) IsConcrete(sr activityspec.SpaceViewResolver, req *activityspec.ServiceSpawnRequest) (bool, error) {
-	isConcrete, ok := s.isConcreteLRU.Get(req.CanonicalFormat)
-	if ok {
-		return isConcrete, nil
-	}
-
-	serviceDefSpawnValue, err := s.resolveServiceDefSpawn(req)
-	if err != nil {
-		s.isConcreteLRU.Add(req.CanonicalFormat, false)
-		return false, err
-	}
-
-	s.CueMu.Lock()
-	defer s.CueMu.Unlock()
-
-	parametersValue, err := serviceDefSpawnValue.LookupPath(cue.MakePath(cue.Str("parameters"))).Fields()
-	if err != nil {
-		s.isConcreteLRU.Add(req.CanonicalFormat, false)
-		return false, fmt.Errorf("error decoding service parametersValue: %w", err)
-	}
-
-	for parametersValue.Next() {
-		sel := parametersValue.Selector()
-		if !sel.IsString() {
-			continue
-		}
-		parameterName := sel.Unquoted()
-
-		parameterType, err := parametersValue.Value().LookupPath(cue.MakePath(cue.Str("type"))).String()
-		if err != nil {
-			s.isConcreteLRU.Add(req.CanonicalFormat, false)
-			return false, err
-		}
-
-		if !sr.IsSpaceViewConcrete(req.Parameters[parameterName], activityspec.ServiceSpawnParameterType(parameterType)) {
-			s.isConcreteLRU.Add(req.CanonicalFormat, false)
-			return false, nil
-		}
-	}
-
-	s.isConcreteLRU.Add(req.CanonicalFormat, true)
-	return true, nil
-}
-
 func (s *DefSet) resolveServiceDefSpawn(req *activityspec.ServiceSpawnRequest) (cue.Value, error) {
 	serviceDefSpawnValue, ok := s.serviceSpawnCueValueLRU.Get(req.CanonicalFormat)
 	if ok {
@@ -107,13 +54,19 @@ func (s *DefSet) resolveServiceDefSpawn(req *activityspec.ServiceSpawnRequest) (
 	return serviceDefSpawnValue, nil
 }
 
-// TODO move this logic directly into cue expressions. Seems weird and redundant to have it here.
-func (s *DefSet) resolveServiceSpawn(ctx context.Context, sr activityspec.SpaceViewResolver, req *activityspec.ServiceSpawnRequest, serviceDefSpawnValue cue.Value) (*activityspec.ServiceSpawnResolution, error) {
+func (s *DefSet) ResolveService(ctx context.Context, sr activityspec.SpaceViewResolver, req *activityspec.ServiceSpawnRequest) (*activityspec.ServiceSpawnResolution, bool, error) {
+	serviceDefSpawnValue, err := s.resolveServiceDefSpawn(req)
+	if err != nil {
+		return nil, false, err
+	}
+
+	// TODO move this logic directly into cue expressions. Seems weird and redundant to have it here.
+
 	parameterTypes := map[string]string{}
 	parameters := activityspec.ServiceSpawnParameters{}
 	spawnDef := &activityspec.ServiceInstanceDef{}
 
-	err := func() error {
+	err = func() error {
 		s.CueMu.Lock()
 		defer s.CueMu.Unlock()
 
@@ -145,8 +98,10 @@ func (s *DefSet) resolveServiceSpawn(ctx context.Context, sr activityspec.SpaceV
 		return nil
 	}()
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
+
+	varying := false
 
 	for parameterName, parameterType := range parameterTypes {
 		parameterReq := req.Parameters[parameterName]
@@ -156,15 +111,19 @@ func (s *DefSet) resolveServiceSpawn(ctx context.Context, sr activityspec.SpaceV
 			// This makes it easy to request a *new* id.
 			if parameterName == "id" && parameterReq == "" {
 				parameterReq = "id-" + ulid.Make().String()
+				varying = true
 			}
 			parameters[parameterName] = &activityspec.ServiceSpawnParameter{String: &parameterReq}
 		case activityspec.ServiceSpawnParameterTypeSpace:
 			view, err := sr.ResolveSpaceView(ctx, parameterReq, req.ForceReadOnly, true, req.User)
 			if err != nil {
-				return nil, err
+				return nil, varying, err
 			}
 
 			if view != nil {
+				if view.Creation != nil {
+					varying = true
+				}
 				parameters[parameterName] = &activityspec.ServiceSpawnParameter{Space: view}
 			}
 		case activityspec.ServiceSpawnParameterTypeSpaces:
@@ -176,10 +135,13 @@ func (s *DefSet) resolveServiceSpawn(ctx context.Context, sr activityspec.SpaceV
 				}
 				view, err := sr.ResolveSpaceView(ctx, m, req.ForceReadOnly, true, req.User)
 				if err != nil {
-					return nil, err
+					return nil, varying, err
 				}
 
 				if view != nil {
+					if view.Creation != nil {
+						varying = true
+					}
 					multi = append(multi, *view)
 				}
 			}
@@ -192,5 +154,5 @@ func (s *DefSet) resolveServiceSpawn(ctx context.Context, sr activityspec.SpaceV
 		ServiceName:        req.ServiceName,
 		Parameters:         parameters,
 		ServiceInstanceDef: *spawnDef,
-	}, nil
+	}, varying, nil
 }

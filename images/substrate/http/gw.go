@@ -1,7 +1,6 @@
 package substratehttp
 
 import (
-	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -100,38 +99,6 @@ func (h *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	views.User = h.User
-
-	defSet := h.DefSetLoader.Load()
-	seemsConcrete := views.SeemsConcrete
-	concrete := seemsConcrete
-	if seemsConcrete {
-		concrete, err = defSet.IsConcrete(h.SpaceViewResolver, views)
-		if err != nil {
-			jsonrw := httputil.NewJSONResponseWriter(rw)
-			jsonrw(nil, http.StatusBadRequest, err)
-			return
-		}
-	}
-	if !concrete {
-		entry, err := h.ProvisionerCache.Ensure(req.Context(), views)
-		if err != nil {
-			jsonrw := httputil.NewJSONResponseWriter(rw)
-			jsonrw(nil, http.StatusInternalServerError, err)
-			return
-		}
-
-		gen := entry.Generation()
-		ssr := gen.ServiceSpawnResponse()
-		if ssr == nil {
-			jsonrw := httputil.NewJSONResponseWriter(rw)
-			jsonrw(nil, http.StatusInternalServerError, fmt.Errorf("gone before resolution"))
-			return
-		}
-
-		concretized, _ := ssr.ServiceSpawnResolution.Format()
-		http.RedirectHandler("/"+concretized+"/"+rest, http.StatusFound).ServeHTTP(rw, req)
-		return
-	}
 
 	h.ProvisionerCache.ServeProxiedHTTP(views, rw, req)
 }

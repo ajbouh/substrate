@@ -266,6 +266,7 @@ func main() {
 			InternalSubstrateOrigin: internalSubstrateOrigin,
 		},
 		&units.SpawnWithCurrentDefSet{},
+		&units.ServiceResolverWithCurrentDefSet{},
 		notify.On(func(ctx context.Context, e *provisioner.ServicesRootMap, defSetLoader *defset.Loader) {
 			go defSetLoader.LoadDefSet()
 		}),

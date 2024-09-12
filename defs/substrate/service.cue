@@ -8,22 +8,7 @@ import (
 
 #ServiceDefSpawnParameter: {
   type: "space" | "spaces" | "string"
-  // if type == "spaces" {
-  //   // Default attributes to be used if we use a collection
-  //   collection: attributes: {[string]: _}
-  // }
-
-  if type == "space" {
-    space: {
-      uses_preview ?: string
-      // is_read_only: bool
-    }
-  }
-  if type == "spaces" {
-    spaces: [...string]
-  }
-
-  value: string
+  value: string | *""
   description ?: string
   optional ?: bool
 }

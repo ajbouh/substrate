@@ -13,7 +13,6 @@ type DefSet struct {
 	RootValue         cue.Value
 
 	serviceSpawnCueValueLRU *lru.Cache[string, cue.Value]
-	isConcreteLRU           *lru.Cache[string, bool]
 
 	CueMu      *CueMutex
 	CueContext *cue.Context
@@ -22,7 +21,6 @@ type DefSet struct {
 
 func (s *DefSet) Initialize() {
 	s.serviceSpawnCueValueLRU, _ = lru.New[string, cue.Value](128)
-	s.isConcreteLRU, _ = lru.New[string, bool](128)
 }
 
 func (s *DefSet) DecodeLookupPath(p cue.Path, target any) error {
