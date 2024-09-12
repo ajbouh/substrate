@@ -10,14 +10,6 @@ imagespecs: "chromestage": {
 services: "chromestage": {
   instances: [string]: {
     parameters: {
-      w: {
-        type: "string"
-        value: string | *"640"
-      }
-      h: {
-        type: "string"
-        value: string | *"480"
-      }
       id: {
         type: "string"
       }
@@ -25,9 +17,11 @@ services: "chromestage": {
 
     url_prefix: environment.SUBSTRATE_URL_PREFIX
     environment: {
+      let w = "640"
+      let h = "480"
       SUBSTRATE_URL_PREFIX: string
-      XVNC_GEOMETRY: "\(parameters.w.value)x\(parameters.h.value)"
-      CHROMIUM_WINDOW_SIZE: "\(parameters.w.value),\(parameters.h.value)"
+      XVNC_GEOMETRY: "\(w)x\(h)"
+      CHROMIUM_WINDOW_SIZE: "\(w),\(h)"
       CHROMIUM_START_URL: "about:blank"
       DINIT_LOG_LEVEL: "debug"
     }
