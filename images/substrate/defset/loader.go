@@ -47,8 +47,8 @@ func (l *Loader) loadDefSet(files map[string]string, cueLoadConfigWithFiles *loa
 	sds := &DefSet{
 		ServicesCueValues: map[string]cue.Value{},
 		CueMu:             &CueMutex{},
-		// TODO Try EvalV3 again in the next cuelang release after v0.10.0
-		// cueContext := cuecontext.New(cuecontext.EvaluatorVersion(cuecontext.EvalV3))
+		// TODO Try EvalV3 again in the next cuelang release after v0.11.0-alpha.1
+		// CueContext: cuecontext.New(cuecontext.EvaluatorVersion(cuecontext.EvalV3)),
 		CueContext: cuecontext.New(),
 	}
 	sds.Initialize()

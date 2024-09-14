@@ -5,12 +5,13 @@ go 1.22
 toolchain go1.22.2
 
 require (
-	cuelang.org/go v0.10.0
+	cuelang.org/go v0.11.0-alpha.1
 	github.com/ajbouh/substrate/pkg/cueloader v0.0.0-00010101000000-000000000000
 	github.com/ajbouh/substrate/pkg/toolkit v0.0.0-00010101000000-000000000000
 	github.com/containers/common v0.56.0
 	github.com/containers/image/v5 v5.29.2
 	github.com/containers/podman/v4 v4.7.2
+	github.com/containers/storage v1.51.0
 	github.com/distribution/reference v0.5.0
 	github.com/elnormous/contenttype v1.0.4
 	github.com/go-playground/form/v4 v4.2.1
@@ -49,7 +50,6 @@ require (
 	github.com/containers/libtrust v0.0.0-20230121012942-c1716e8a8d01 // indirect
 	github.com/containers/ocicrypt v1.1.9 // indirect
 	github.com/containers/psgo v1.8.0 // indirect
-	github.com/containers/storage v1.51.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.1-0.20231103132048-7d375ecc2b09 // indirect
 	github.com/cyberphone/json-canonicalization v0.0.0-20231011164504-785e29786b46 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
