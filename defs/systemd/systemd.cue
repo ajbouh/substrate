@@ -10,10 +10,12 @@ import (
   Unit ?: {
     Requires ?: [...string]
     After ?: [...string]
+    ...
   }
 
   Install ?: {
     WantedBy ?: [...string]
+    ...
   }
 
   ...
