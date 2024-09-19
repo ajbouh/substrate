@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/url"
 	"os"
 
+	"github.com/ajbouh/substrate/images/chromestage/units"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
+	"github.com/chromedp/cdproto/page"
 )
 
 func main() {
@@ -31,28 +35,43 @@ func main() {
 
 	engine.Run(
 		&service.Service{},
-		&RemoteCDP{
+		&units.RemoteCDP{
 			Endpoint: chromedpUrl.String(),
 		},
-		&InitialExports{
+		&units.InitialExports{
 			OriginScheme: substrateOriginURL.Scheme,
 			OriginHost:   substrateOriginURL.Host,
 		},
-		&ExportChromeDPFields{},
-		&NoVNCHandler{},
-		&ChromeDPProxy{
+		&units.ExportChromeDPFields{},
+		&units.NoVNCHandler{},
+		&units.ChromeDPProxy{
 			OriginURL:   originURL,
 			Upstream:    chromedpUrl.String(),
 			UpstreamURL: chromedpUrl,
 		},
-		&PageCommands{},
-		&commands.PrefixedSource[*PageCommands]{
+		&units.PageCommands{},
+		&commands.PrefixedSource[*units.PageCommands]{
 			Prefix: "page:",
 		},
-		&TabCommands{},
-		&commands.PrefixedSource[*TabCommands]{
+		&units.TabCommands{},
+		&commands.PrefixedSource[*units.TabCommands]{
 			Prefix: "tab:",
 		},
 		commands.Prefixed("window:", WindowCommands()),
+
+		notify.On(
+			func(ctx context.Context,
+				c *units.ExportChromeDPFields,
+				e *page.EventLifecycleEvent) {
+				// ev.FrameID
+				// ev.LoaderID
+				// ev.Name
+				// ev.Timestamp
+				switch e.Name {
+				case "DOMContentLoaded":
+					go c.Refresh()
+				}
+				log.Printf("event: %#v", e)
+			}),
 	)
 }

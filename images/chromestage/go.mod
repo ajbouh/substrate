@@ -1,4 +1,4 @@
-module chromestage
+module github.com/ajbouh/substrate/images/chromestage
 
 go 1.22.2
 

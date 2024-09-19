@@ -1,4 +1,4 @@
-package main
+package units
 
 import (
 	"context"
@@ -105,8 +105,10 @@ func tcpHTTPGetJSONFunc(url *url.URL) func() (bool, error) {
 	}
 }
 func waitForReady(ctx context.Context, desc string, try func() (bool, error), tickDelay, timeout time.Duration, maxAttempts int) error {
+	tick := time.NewTicker(tickDelay)
+	defer tick.Stop()
+
 	timeoutAfter := time.After(timeout)
-	tick := time.Tick(tickDelay)
 	attempts := 0
 	for {
 		if maxAttempts >= 0 && attempts >= maxAttempts {
@@ -119,7 +121,7 @@ func waitForReady(ctx context.Context, desc string, try func() (bool, error), ti
 		case <-timeoutAfter:
 			log.Printf("waitForReady timed out desc=%s attempts=%d maxAttempts=%d", desc, attempts, maxAttempts)
 			return fmt.Errorf("timed out waiting for the container to be ready")
-		case <-tick:
+		case <-tick.C:
 			log.Printf("waitForReady try desc=%s attempts=%d maxAttempts=%d", desc, attempts, maxAttempts)
 			retry, err := try()
 			attempts++
