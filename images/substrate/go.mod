@@ -1,6 +1,6 @@
 module github.com/ajbouh/substrate/images/substrate
 
-go 1.22
+go 1.22.1
 
 toolchain go1.22.2
 
@@ -20,11 +20,12 @@ require (
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/runtime-spec v1.1.1-0.20230922153023-c0e90434df2a
+	github.com/progrium/go-vscode v0.0.0-20240905182510-5c2c9c463118
 	github.com/puzpuzpuz/xsync/v3 v3.4.0
 	github.com/rs/cors v1.10.1
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/sync v0.8.0
-	tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe
+	tractor.dev/toolkit-go v0.0.0-20240916212610-32b5098759db
 )
 
 require (
@@ -61,6 +62,7 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emicklei/proto v1.13.2 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
+	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.1 // indirect
 	github.com/go-openapi/analysis v0.21.4 // indirect
 	github.com/go-openapi/errors v0.20.4 // indirect
@@ -132,17 +134,18 @@ require (
 	github.com/ulikunitz/xz v0.5.11 // indirect
 	github.com/vbatts/tar-split v0.11.5 // indirect
 	github.com/vbauerster/mpb/v8 v8.6.2 // indirect
+	github.com/x448/float16 v0.8.4 // indirect
 	go.mongodb.org/mongo-driver v1.11.3 // indirect
 	go.mozilla.org/pkcs7 v0.0.0-20210826202110-33d05740a352 // indirect
 	go.opencensus.io v0.24.0 // indirect
-	golang.org/x/crypto v0.26.0 // indirect
+	golang.org/x/crypto v0.27.0 // indirect
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
 	golang.org/x/mod v0.20.0 // indirect
-	golang.org/x/net v0.28.0 // indirect
+	golang.org/x/net v0.29.0 // indirect
 	golang.org/x/oauth2 v0.22.0 // indirect
-	golang.org/x/sys v0.23.0 // indirect
-	golang.org/x/term v0.23.0 // indirect
-	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/sys v0.25.0 // indirect
+	golang.org/x/term v0.24.0 // indirect
+	golang.org/x/text v0.18.0 // indirect
 	golang.org/x/tools v0.24.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230920204549-e6e6cdab5c13 // indirect
 	google.golang.org/grpc v1.58.3 // indirect
@@ -156,3 +159,5 @@ require (
 replace github.com/ajbouh/substrate/pkg/cueloader => ../../pkg/cueloader
 
 replace github.com/ajbouh/substrate/pkg/toolkit => ../../pkg/toolkit
+
+replace github.com/progrium/go-vscode => github.com/ajbouh/go-vscode v0.0.0-20240920032523-9742bde89bb3
