@@ -126,6 +126,8 @@ func main() {
 
 		&InstanceLinks{},
 
+		&space.VSCodeEditingForSpace{},
+
 		&RootSpacesLinkQuerier{
 			SpaceURL: func(space string) string {
 				return "/substrate/v1/spaces/" + space
