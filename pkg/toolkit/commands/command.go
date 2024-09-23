@@ -291,3 +291,16 @@ func (r *CommandFunc[Target, Params, Returns]) Run(ctx context.Context, name str
 
 	return rfields, nil
 }
+
+func ConvertViaJSON[Out, In any](input In) (Out, error) {
+	var out Out
+	if treatAsVoid(reflect.TypeFor[In]()) || treatAsVoid(reflect.TypeFor[Out]()) {
+		return out, nil
+	}
+	b, err := json.Marshal(input)
+	if err != nil {
+		return out, err
+	}
+	err = json.Unmarshal(b, &out)
+	return out, err
+}
