@@ -11,14 +11,14 @@ type Where interface {
 }
 
 type WherePrefix struct {
-	Prefix string
+	Prefix string `json:"prefix"`
 }
 
 func (*WherePrefix) Where() {}
 
 type WhereCompare struct {
-	Compare string
-	Value   any
+	Compare string `json:"compare"`
+	Value   any    `json:"value"`
 }
 
 func (*WhereCompare) Where() {}
@@ -41,20 +41,20 @@ func (v View) StreamShouldAutoAdvanceAfter() bool {
 
 // criteria to query events from the store.
 type Query struct {
-	EventsWherePrefix  map[string][]WherePrefix
-	EventsWhereCompare map[string][]WhereCompare
+	EventsWherePrefix  map[string][]WherePrefix  `json:"prefix,omitempty"`
+	EventsWhereCompare map[string][]WhereCompare `json:"compare,omitempty"`
 
-	EventsNear *VectorInput[float32]
+	EventsNear *VectorInput[float32] `json:"near"`
 
-	EventLimit *int // max number of underlying events, if set
+	EventLimit *int `json:"limit"` // max number of underlying events, if set
 	// TODO do we need a bias here?
 
-	View             View
-	ViewLimit        *int // max number returned, if set
-	ViewBias         *int // -1 if we want the earliest "Limit"-amount, 1 if we want the most recent "Limit"-amount, 0 if we want a comprehensive window of "Limit"-amount
-	ViewPlaceholders map[string]any
+	View             View           `json:"view"`
+	ViewLimit        *int           `json:"view_limit"` // max number returned, if set
+	ViewBias         *int           `json:"view_bias"`  // -1 if we want the earliest "Limit"-amount, 1 if we want the most recent "Limit"-amount, 0 if we want a comprehensive window of "Limit"-amount
+	ViewPlaceholders map[string]any `json:"view_parameter"`
 
-	DetectMore bool
+	DetectMore bool `json:"detect_more"`
 }
 
 func (q *Query) Until(id ID) *Query {

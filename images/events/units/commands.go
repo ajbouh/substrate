@@ -1,7 +1,6 @@
 package units
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -191,14 +190,14 @@ var WriteTreeDataPathCommand = commands.HTTPCommand(
 
 		var wroteID event.ID
 		err = t.Writer.WriteEvents(ctx, args.Since,
-			[]json.RawMessage{
-				json.RawMessage(fmt.Sprintf(`{"path":%q}`, args.Path)),
+			&event.PendingEventSet{
+				FieldsList: []json.RawMessage{
+					json.RawMessage(fmt.Sprintf(`{"path":%q}`, args.Path)),
+				},
+				DataList: []io.ReadCloser{
+					args.Reader,
+				},
 			},
-			[]io.ReadCloser{
-				args.Reader,
-			},
-			nil,
-			nil,
 			func(i int, id event.ID, fieldsSize int, fieldsSha256 []byte, dataSize int64, dataSha256 []byte) {
 				wroteID = id
 			},
@@ -294,12 +293,11 @@ var WriteTreeFieldsPathCommand = commands.HTTPCommand(
 		}
 
 		err = t.Writer.WriteEvents(ctx, args.Since,
-			[]json.RawMessage{
-				rawFields,
+			&event.PendingEventSet{
+				FieldsList: []json.RawMessage{
+					rawFields,
+				},
 			},
-			nil,
-			nil,
-			nil,
 			nil,
 		)
 		if err != nil {
@@ -443,20 +441,6 @@ type WriteEventsReturns struct {
 	DataSHA256s   []*event.SHA256Digest `json:"data_sha256s"`
 }
 
-type WriteEvent struct {
-	Fields json.RawMessage `json:"fields"`
-
-	// since this is JSON, expect either raw string or base64-encoded string
-	Data string `json:"data"`
-
-	// if this is "base64", decode data that way
-	DataEncoding string `json:"encoding"`
-
-	Vector *event.VectorInput[float32] `json:"vector"`
-
-	ConflictKeys []string `json:"conflict_keys"`
-}
-
 var WriteEventsCommand = commands.Command(
 	"events:write", "Write events to store",
 	func(ctx context.Context,
@@ -464,49 +448,23 @@ var WriteEventsCommand = commands.Command(
 			Writer event.Writer
 		},
 		args struct {
-			Events []WriteEvent `json:"events"`
-			Since  event.ID     `json:"since"`
+			Events []event.PendingEvent `json:"events"`
+			Since  event.ID             `json:"since"`
 		},
 	) (WriteEventsReturns, error) {
 		slog.Info("WriteEventsCommand", "t", t, "args", args)
 		returns := WriteEventsReturns{}
 
-		fieldses := make([]json.RawMessage, 0, len(args.Events))
-		readers := make([]io.ReadCloser, 0, len(args.Events))
-		vectors := make([]*event.VectorInput[float32], 0, len(args.Events))
-		conflict := make([][]string, 0, len(args.Events))
-
-		var err error
-		for _, entry := range args.Events {
-			fieldses = append(fieldses, entry.Fields)
-			var reader io.ReadCloser
-			if entry.Data != "" {
-				if entry.DataEncoding == "base64" {
-					b, err := base64.RawStdEncoding.DecodeString(entry.Data)
-					if err != nil {
-						return returns, err
-					}
-					reader = io.NopCloser(bytes.NewReader(b))
-				} else {
-					reader = io.NopCloser(strings.NewReader(entry.Data))
-				}
-			}
-			// this is a bit of a waste. not all writes will include data. we should lazily allocate this array.
-			readers = append(readers, reader)
-
-			// this is a bit of a waste. not all writes will include vectors. we should lazily allocate this array.
-			vectors = append(vectors, entry.Vector)
-
-			// this is a bit of a waste. not all writes will include conflict. we should lazily allocate this array.
-			conflict = append(conflict, entry.ConflictKeys)
+		set, err := event.PendingFromEntries(args.Events)
+		if err != nil {
+			return returns, err
 		}
-
 		// pre-allocate
 		returns.IDs = make([]event.ID, 0, len(args.Events))
 		returns.FieldsSHA256s = make([]*event.SHA256Digest, 0, len(args.Events))
 		returns.DataSHA256s = make([]*event.SHA256Digest, 0, len(args.Events))
 
-		err = t.Writer.WriteEvents(ctx, args.Since, fieldses, readers, vectors, conflict,
+		err = t.Writer.WriteEvents(ctx, args.Since, set,
 			func(i int, id event.ID, fieldsSize int, fieldsSha256 []byte, dataSize int64, dataSha256 []byte) {
 				slog.Info("write pending", "i", i, "id", id,
 					"fieldsSize", fieldsSize, "fieldsSha256", fieldsSha256,

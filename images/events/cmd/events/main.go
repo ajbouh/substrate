@@ -11,6 +11,7 @@ import (
 
 	"github.com/ajbouh/substrate/images/events/db"
 	"github.com/ajbouh/substrate/images/events/store"
+	"github.com/ajbouh/substrate/images/events/tick"
 	"github.com/ajbouh/substrate/images/events/units"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
@@ -83,5 +84,14 @@ func main() {
 		units.QueryEventsCommand,
 		&units.EventStreamHandler{},
 		&units.FSHandler{},
+
+		&tick.BootstrapStrategy{},
+		&tick.BootstrapInput{
+			RulesPathPrefix:   "/rules/defs/",
+			CursorsPathPrefix: "/rules/runs/",
+		},
+		&tick.Ticker[tick.BootstrapInput, tick.BootstrapEvents, tick.BootstrapOutput]{},
+		&tick.Loop[tick.BootstrapInput, tick.BootstrapEvents, tick.BootstrapOutput]{},
+		&tick.CommandStrategy{},
 	)
 }

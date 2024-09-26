@@ -191,24 +191,21 @@ func (es *EventStore) QueryMaxID(ctx context.Context) (event.ID, error) {
 
 func (es *EventStore) WriteEvents(ctx context.Context,
 	since event.ID,
-	fieldsList []json.RawMessage,
-	dataList []io.ReadCloser,
-	vectorList []*event.VectorInput[float32],
-	conflictFieldKeysList [][]string, // TODO a list of fields to produce a conflict and return the original ID for
+	set *event.PendingEventSet,
 	cb event.WriteNotifyFunc) error {
-	slog.Info("EventStore.WriteEvents", "since", since, "len(fieldsList)", len(fieldsList), "len(dataList)", len(dataList))
+	slog.Info("EventStore.WriteEvents", "since", since, "len(fieldsList)", len(set.FieldsList), "len(dataList)", len(set.DataList))
 
-	if len(fieldsList) == 0 {
+	if len(set.FieldsList) == 0 {
 		return nil
 	}
 
 	lastUnusedReadCloserIndex := 0
 	defer func() {
-		if len(dataList) <= lastUnusedReadCloserIndex {
+		if len(set.DataList) <= lastUnusedReadCloserIndex {
 			return
 		}
 		// close remaining unused dataList, if any.
-		for _, rc := range dataList[lastUnusedReadCloserIndex+1:] {
+		for _, rc := range set.DataList[lastUnusedReadCloserIndex+1:] {
 			if rc != nil {
 				rc.Close()
 			}
@@ -218,12 +215,12 @@ func (es *EventStore) WriteEvents(ctx context.Context,
 	var committers []EventDataCommitFunc
 
 	writeDataIfAny := func(tx db.Tx, id event.ID, i int) ([]byte, int64, error) {
-		l := len(dataList)
+		l := len(set.DataList)
 		if l == 0 || i >= l {
 			return nil, 0, nil
 		}
 
-		readCloser := dataList[i]
+		readCloser := set.DataList[i]
 		if readCloser == nil {
 			return nil, 0, nil
 		}
@@ -258,12 +255,12 @@ func (es *EventStore) WriteEvents(ctx context.Context,
 
 	vmr := NewVectorManifoldCache(es.VectorManifoldResolver)
 	writeVectorDataIfAny := func(tx db.Tx, i int) (rowid int64, manifoldID *event.ID, err error) {
-		l := len(vectorList)
+		l := len(set.VectorList)
 		if l == 0 || i >= l {
 			return
 		}
 
-		vec := vectorList[i]
+		vec := set.VectorList[i]
 		if vec == nil {
 			return
 		}
@@ -278,12 +275,12 @@ func (es *EventStore) WriteEvents(ctx context.Context,
 	}
 
 	conflictKeysIfAny := func(i int) []string {
-		l := len(conflictFieldKeysList)
+		l := len(set.ConflictFieldKeysList)
 		if l == 0 || i >= l {
 			return nil
 		}
 
-		return conflictFieldKeysList[i]
+		return set.ConflictFieldKeysList[i]
 	}
 
 	checkExisting := func(tx db.Tx, i int, fields json.RawMessage) (*event.ID, int, []byte, int64, []byte, bool, error) {
@@ -336,7 +333,7 @@ func (es *EventStore) WriteEvents(ctx context.Context,
 	err := es.Txer.Tx(ctx, func(tx db.Tx) error {
 		var at event.ID
 
-		for i, fields := range fieldsList {
+		for i, fields := range set.FieldsList {
 			id := es.eventIDFunc()
 			if i == 0 {
 				at = id
