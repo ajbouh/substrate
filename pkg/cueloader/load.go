@@ -110,6 +110,7 @@ type CueModuleChanged struct {
 
 type CueConfigWatcher struct {
 	ReadyFile        string
+	NotifyQueue      *notify.Queue
 	Config           *load.Config
 	CueModuleChanged []notify.Notifier[*CueModuleChanged]
 }
@@ -126,11 +127,11 @@ func (w *CueConfigWatcher) Serve(ctx context.Context) {
 		}
 
 		if err != nil {
-			notify.Notify(ctx, w.CueModuleChanged, &CueModuleChanged{err, nil, nil})
+			notify.Later(w.NotifyQueue, w.CueModuleChanged, &CueModuleChanged{err, nil, nil})
 			return
 		}
 		files, copy, err := CopyConfigAndReadFilesIntoOverrides(w.Config)
-		notify.Notify(ctx, w.CueModuleChanged, &CueModuleChanged{err, files, copy})
+		notify.Later(w.NotifyQueue, w.CueModuleChanged, &CueModuleChanged{err, files, copy})
 	})
 	if err != nil {
 		log.Printf("error starting cue module watcher: %s", err)
