@@ -32,6 +32,7 @@ const LabelSubstrateContainerRoleSpace LabelSubstrateContainerRoleValue = "space
 
 const cntrPrefix = "cntr:"
 const spaceIDPrefix = "sp-"
+const spaceIDBootstrapPrefix = "substrate-bootstrap-"
 const spaceViewForkPrefix = "fork:"
 
 type SpacesViaContainerFilesystems struct {
@@ -41,8 +42,9 @@ type SpacesViaContainerFilesystems struct {
 	// SpaceTreePathURLFunc func(spaceID, path string) string
 	// SpaceURLFunc         func(spaceID string) string
 
-	containerLegacyGroup   singleflight.Group
-	containerIDSpaceMounts *provisioner.OnceMap[string]
+	containerBootstrapGroup singleflight.Group
+	containerLegacyGroup    singleflight.Group
+	containerIDSpaceMounts  *provisioner.OnceMap[string]
 }
 
 var _ activityspec.SpaceViewResolver = (*SpacesViaContainerFilesystems)(nil)
@@ -139,7 +141,10 @@ func (p *SpacesViaContainerFilesystems) DeleteSpace(ctx context.Context, spaceID
 func (p *SpacesViaContainerFilesystems) resolveExistingSpaceViewForSpaceID(ctx context.Context, spaceID string, readOnly bool) (string, *activityspec.SpaceView, error) {
 	slog.Info("resolveExistingSpaceViewForSpaceID", "spaceID", spaceID)
 
-	if strings.HasPrefix(spaceID, spaceIDPrefix) {
+	hasSpaceIDPrefix := strings.HasPrefix(spaceID, spaceIDPrefix)
+	hasBootstrapPrefix := strings.HasPrefix(spaceID, spaceIDBootstrapPrefix)
+
+	if hasSpaceIDPrefix || hasBootstrapPrefix {
 		containerID, found, err := checkContainerIDExists(ctx, spaceID)
 		if err != nil {
 			return "", nil, err
@@ -149,9 +154,16 @@ func (p *SpacesViaContainerFilesystems) resolveExistingSpaceViewForSpaceID(ctx c
 			return containerID, view, err
 		}
 
-		// try importing from legacy space source
-		view, err := p.resolveLegacySpaceView(ctx, spaceID, readOnly)
-		return containerID, view, err
+		if hasSpaceIDPrefix {
+			// try importing from legacy space source
+			view, err := p.resolveLegacySpaceView(ctx, spaceID, readOnly)
+			return containerID, view, err
+		}
+
+		if hasBootstrapPrefix {
+			view, err := p.resolveBootstrapSpaceView(ctx, spaceID, readOnly)
+			return containerID, view, err
+		}
 	}
 
 	if strings.HasPrefix(spaceID, cntrPrefix) {

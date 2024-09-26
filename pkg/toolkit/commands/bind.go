@@ -16,9 +16,10 @@ type BindEntry struct {
 func Bind(resolveReflector func(string) Reflector, commands map[string]BindEntry) (DefIndex, error) {
 	slog.Info("HTTPSourceHandler.Bind()...", "commands", commands)
 	bound := DefIndex{}
-	defer slog.Info("HTTPSourceHandler.Bind().", "bound", bound)
-
 	defIndices := map[string]DefIndex{}
+
+	defer func() { slog.Info("HTTPSourceHandler.Bind().", "bound", bound, "defIndices", defIndices) }()
+
 	defIndexForPath := func(path string) (DefIndex, error) {
 		defIndex, ok := defIndices[path]
 		if !ok {
@@ -40,7 +41,7 @@ func Bind(resolveReflector func(string) Reflector, commands map[string]BindEntry
 	for command, bindEntry := range commands {
 		defIndex, err := defIndexForPath(bindEntry.Path)
 		if err != nil {
-			return nil, fmt.Errorf("error resolving command %q using BindEntry %#v: %w", command, bindEntry, err)
+			return nil, fmt.Errorf("error resolving command %q using BindEntry %#v: no defindex: %w", command, bindEntry, err)
 		}
 
 		def, ok := defIndex[bindEntry.Command]

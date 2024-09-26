@@ -5,7 +5,7 @@ go 1.22
 toolchain go1.22.6
 
 require (
-	cuelang.org/go v0.11.0-alpha.1
+	cuelang.org/go v0.11.0-alpha.3
 	github.com/ajbouh/substrate/pkg/toolkit v0.0.0-00010101000000-000000000000
 	github.com/fsnotify/fsnotify v1.7.0
 )

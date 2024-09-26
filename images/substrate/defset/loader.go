@@ -121,12 +121,12 @@ func (l *Loader) LoadDefSet() (*DefSet, bool) {
 		log.Printf("committing new defset without error")
 	} else if defSet == nil {
 		commit = true
-		log.Printf("committing new defset with error because we need *something*; err=%s", fmtErr(sds.Err))
+		log.Printf("committing new defset with error because we need *something*; err=%s", FmtErr(sds.Err))
 	} else if defSet.Err != nil {
 		commit = true
-		log.Printf("committing new defset with error because the one we had did not have an error; err=%s", fmtErr(sds.Err))
+		log.Printf("committing new defset with error because the one we had did not have an error; err=%s", FmtErr(sds.Err))
 	} else {
-		log.Printf("skipping commit of new defset with error (because we already had one without an err); err=%s", fmtErr(sds.Err))
+		log.Printf("skipping commit of new defset with error (because we already had one without an err); err=%s", FmtErr(sds.Err))
 	}
 
 	if commit {
@@ -139,7 +139,7 @@ func (l *Loader) LoadDefSet() (*DefSet, bool) {
 	return sds, commit
 }
 
-func fmtErr(err error) string {
+func FmtErr(err error) string {
 	errs := cueerrors.Errors(err)
 	messages := make([]string, 0, len(errs))
 	for _, err := range errs {

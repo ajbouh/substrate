@@ -9,7 +9,6 @@ import (
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	"github.com/ajbouh/substrate/pkg/toolkit/links"
-	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
 type Cache struct {
@@ -17,8 +16,7 @@ type Cache struct {
 
 	ctx context.Context
 
-	FieldsExported []notify.Notifier[FieldsExported]
-	Spawner        Spawner
+	Spawner Spawner
 
 	Log *slog.Logger
 }
@@ -53,67 +51,6 @@ func (r *Cache) Sample() map[string]*Sample {
 	return m
 }
 
-func (r *Cache) AllServiceExports() ServicesRootMap {
-	root := ServicesRootMap{}
-
-	r.entries.Range(func(k string, v *CachingSingleServiceProvisioner) bool {
-		gen := v.Generation()
-		if gen == nil {
-			return true
-		}
-
-		ssr := gen.ServiceSpawnResponse()
-		if ssr == nil {
-			return true
-		}
-
-		serviceName := ssr.ServiceSpawnResolution.ServiceName
-		service := root[serviceName]
-		if service == nil {
-			service = &InstancesRoot{
-				Instances: map[string]*Instance{},
-			}
-			root[serviceName] = service
-		}
-
-		service.Instances[k] = &Instance{
-			Exports:     v.Outgoing(),
-			ServiceName: serviceName,
-		}
-
-		return true
-	})
-
-	return root
-}
-
-func (r *Cache) AllInstanceExports() *InstancesRoot {
-	root := &InstancesRoot{
-		Instances: map[string]*Instance{},
-	}
-
-	i := 0
-	r.entries.Range(func(k string, v *CachingSingleServiceProvisioner) bool {
-		instance := &Instance{
-			Exports: v.Outgoing(),
-		}
-		root.Instances[k] = instance
-
-		if gen := v.Generation(); gen != nil {
-			ssr := gen.ServiceSpawnResponse()
-			if ssr != nil {
-				instance.ServiceName = ssr.ServiceSpawnResolution.ServiceName
-			}
-		}
-
-		i++
-		return true
-	})
-	// slog.Info("Cache.AllInstanceExports()", "r.entries.Size()", r.entries.Size(), "i", i, "len(root.Instances)", len(root.Instances), "root", root)
-
-	return root
-}
-
 func (r *Cache) QueryLinks(ctx context.Context, asr *activityspec.ServiceSpawnRequest) (links.Links, error) {
 	// log.Printf("UpdateOutgoing...")
 	// defer log.Printf("UpdateOutgoing... done")
@@ -129,23 +66,6 @@ func (r *Cache) QueryLinks(ctx context.Context, asr *activityspec.ServiceSpawnRe
 	}
 
 	return entry.QueryLinks(ctx)
-}
-
-func (r *Cache) UpdateOutgoing(ctx context.Context, asr *activityspec.ServiceSpawnRequest, digest string, cb func(f Fields) Fields) error {
-	// log.Printf("UpdateOutgoing...")
-	// defer log.Printf("UpdateOutgoing... done")
-
-	requestCacheKey, concrete := asr.CanonicalFormat, asr.SeemsConcrete
-	if !concrete {
-		return fmt.Errorf("viewspec must be concrete")
-	}
-
-	entry, _ := r.entries.Load(requestCacheKey)
-	if entry == nil {
-		return fmt.Errorf("no active entry: %s", requestCacheKey)
-	}
-
-	return entry.UpdateOutgoing(ctx, digest, cb)
 }
 
 // lock, loop over existing funcs, clean up now-stale ones.
@@ -200,7 +120,6 @@ func (r *Cache) Ensure(ctx context.Context, asr *activityspec.ServiceSpawnReques
 			Key:                 requestCacheKey,
 			Spawner:             r.Spawner,
 			ServiceSpawnRequest: asr,
-			FieldsExported:      r.FieldsExported,
 			Log:                 r.Log,
 		}
 		cssp.Initialize()

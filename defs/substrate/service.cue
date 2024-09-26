@@ -56,7 +56,7 @@ import (
       SUBSTRATE_PARAMETERS_DIGEST: parameters_digest
       INTERNAL_SUBSTRATE_ORIGIN: string | *"http://substrate:8080"
       SUBSTRATE_VIEWSPEC: string | *"unknown"
-      INTERNAL_SUBSTRATE_EXPORTS_URL: "\(INTERNAL_SUBSTRATE_ORIGIN)/substrate/v1/activities/\(SUBSTRATE_VIEWSPEC)/\(parameters_digest)/exports"
+      INTERNAL_SUBSTRATE_EXPORTS_URL: "\(INTERNAL_SUBSTRATE_ORIGIN)/events;data=substrate-bootstrap-0/tree/fields/substrate/services/exports/\(name)/\(SUBSTRATE_VIEWSPEC)"
     }
     command ?: [...string]
 

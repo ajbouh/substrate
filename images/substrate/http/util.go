@@ -2,6 +2,7 @@ package substratehttp
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/ajbouh/substrate/images/substrate/httputil"
 )
@@ -15,4 +16,8 @@ func handle[T any](mux *http.ServeMux, route string, f func(req *http.Request) (
 		jsonrw := httputil.NewJSONResponseWriter(rw)
 		jsonrw(f(req))
 	}))
+}
+
+func urlPathEscape(s string) string {
+	return strings.ReplaceAll(s, "/", "%2F")
 }

@@ -11,7 +11,7 @@ var (
 
 type SpaceViewResolver interface {
 	IsSpaceViewConcrete(v string, t ServiceSpawnParameterType) bool
-	ResolveSpaceView(ctx context.Context, s string, forceReadOnly bool, createAllowed bool, ownerIfCreation string) (*SpaceView, error)
+	ResolveSpaceView(ctx context.Context, aliasOrSpaceID string, forceReadOnly bool, createAllowed bool, ownerIfCreation string) (*SpaceView, error)
 }
 
 type SpaceQuerier interface {

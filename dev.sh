@@ -6,9 +6,9 @@ HERE=$(cd $(dirname $0); pwd)
 
 : ${NAMESPACE:=substrate-nobody}
 
-# TODO Try EvalV3 again in the next cuelang release after v0.11.0-alpha.1
+# TODO Try EvalV3 again in the next cuelang release after v0.11.0-alpha.3
 # export CUE_EXPERIMENT=evalv3
-CUE_VERSION="0.11.0-alpha.1"
+CUE_VERSION="0.11.0-alpha.3"
 CUE_PREFIX=cue_v${CUE_VERSION}_
 CUE_NATIVE_SUFFIX=$(uname -s | tr "[:upper:]" "[:lower:]")_$(uname -m)
 # HACK use amd64
