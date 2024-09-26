@@ -6,7 +6,7 @@ import (
 	"log"
 	"sync"
 
-	"github.com/ajbouh/substrate/images/substrate/sqliteuri"
+	"github.com/ajbouh/substrate/pkg/toolkit/sqliteuri"
 
 	_ "github.com/mattn/go-sqlite3"
 )
