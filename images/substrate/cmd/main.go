@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -23,23 +24,30 @@ import (
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 
-	"github.com/ajbouh/substrate/images/substrate/activityspec"
-	substratedb "github.com/ajbouh/substrate/images/substrate/db"
 	"github.com/ajbouh/substrate/images/substrate/defset"
 	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 	substratehttp "github.com/ajbouh/substrate/images/substrate/http"
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
 	podmanprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/podman"
 	"github.com/ajbouh/substrate/images/substrate/space"
+	"github.com/ajbouh/substrate/images/substrate/units"
 	"github.com/ajbouh/substrate/pkg/cueloader"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/event"
 	"github.com/ajbouh/substrate/pkg/toolkit/exports"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
-	"github.com/ajbouh/substrate/pkg/toolkit/links"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
 )
+
+func mustGetenv(name string) string {
+	value := os.Getenv(name)
+	if value == "" {
+		log.Fatalf("%s not set", name)
+	}
+	return value
+}
 
 func main() {
 	// This is gross.
@@ -66,11 +74,6 @@ func main() {
 		cudaAllowed = true
 	}
 
-	db, err := substratedb.New(mustGetenv("SUBSTRATE_DB"))
-	if err != nil {
-		log.Fatalf("couldn't open db: %s", err)
-	}
-
 	machineIDData, err := os.ReadFile(mustGetenv("SUBSTRATE_MACHINE_ID_FILE"))
 	if err != nil {
 		log.Fatalf("couldn't read machine id file: %s", err)
@@ -89,6 +92,8 @@ func main() {
 	originURL, _ := url.Parse(origin)
 
 	provisionerCache := &provisioner.Cache{}
+
+	servicesRootMapSlot := &notify.Slot[provisioner.ServicesRootMap]{}
 
 	units := []engine.Unit{
 		&service.Service{
@@ -118,15 +123,11 @@ func main() {
 				}
 			},
 		},
-		db,
 		provisionerCache,
-
-		&InstanceLinks{},
-
 		httpevents.NewJSONEventStream[*defset.DefSet](""),
 		&space.VSCodeEditingForSpace{},
 
-		&RootSpacesLinkQuerier{
+		&units.RootSpacesLinkQuerier{
 			SpaceURL: func(space string) string {
 				return "/substrate/v1/spaces/" + space
 			},
@@ -162,42 +163,31 @@ func main() {
 			},
 		},
 
-		&substratehttp.ActivitesHandler{
-			Prefix: "/substrate",
-		},
-		&substratehttp.CollectionsHandler{
-			Prefix: "/substrate",
-		},
 		&substratehttp.DefsHandler{
-			Prefix: "/substrate",
-		},
-		&substratehttp.EventsHandler{
-			Prefix: "/substrate",
-		},
-		&substratehttp.ExportsHandler{
 			Prefix: "/substrate",
 		},
 		&substratehttp.ProxyHandler{
 			User:                    "user",
 			InternalSubstrateOrigin: internalSubstrateOrigin,
 		},
-		&Broker{},
+		&units.Broker{},
 
-		&notify.Slot[DefSetCommands]{},
-		&commands.LoaderDelegate[*DefSetCommands]{},
+		&notify.Slot[units.DefSetCommands]{},
+		&commands.LoaderDelegate[*units.DefSetCommands]{},
 		notify.On(func(ctx context.Context,
 			e *defset.DefSet,
 			t *struct {
-				Slot           *notify.Slot[DefSetCommands]
+				NotifyQueue    *notify.Queue
+				Slot           *notify.Slot[units.DefSetCommands]
 				ExportsChanged []notify.Notifier[exports.Changed]
 				HTTPClient     httpframework.HTTPClient
 			}) {
-			commands := DefSetCommands{
+			commands := units.DefSetCommands{
 				HTTPClient: t.HTTPClient,
 			}
 			err := e.DecodeLookupPath(cue.MakePath(cue.Str("commands")), &commands.DefsMap)
 			if err != nil {
-				log.Printf("err on update: %s", fmtErr(err))
+				log.Printf("err on update: %s", defset.FmtErr(err))
 				t.Slot.StoreWithContext(ctx, nil)
 				return
 			}
@@ -207,49 +197,30 @@ func main() {
 			slog.Info("stored commands from defset")
 
 			// commands changed, so exports changed.
-			notify.Notify(ctx, t.ExportsChanged, exports.Changed{})
+			notify.Later(t.NotifyQueue, t.ExportsChanged, exports.Changed{})
 		}),
 
-		&notify.Slot[provisioner.InstancesRoot]{},
-		&exports.LoaderSource[*provisioner.InstancesRoot]{},
-		notify.On(func(
-			ctx context.Context,
-			e *provisioner.InstancesRoot,
-			t *struct {
-				ExportsChanged []notify.Notifier[exports.Changed]
-			},
-		) {
-			slog.Info("*provisioner.InstancesRoot")
-			notify.Notify(ctx, t.ExportsChanged, exports.Changed{})
-		}),
-		notify.On(func(
-			ctx context.Context,
-			e provisioner.FieldsExported,
-			t *struct {
-				ProvisionerCache  *provisioner.Cache
-				InstancesRootSlot *notify.Slot[provisioner.InstancesRoot]
-			},
-		) {
-			v := t.ProvisionerCache.AllInstanceExports()
-			slog.Info("t.InstancesRootSlot.StoreWithContext", "len(v.Instances)", len(v.Instances))
-			t.InstancesRootSlot.StoreWithContext(ctx, v)
-		}),
+		servicesRootMapSlot,
 
 		&space.SpacesViaContainerFilesystems{},
-		notify.On(func(ctx context.Context, e ServiceSpawned, svcf *space.SpacesViaContainerFilesystems) {
-			for name, p := range e.Res.ServiceSpawnResolution.Parameters {
-				switch {
-				case p.Space != nil:
-					spec, _ := e.Res.ServiceSpawnResolution.Format()
-					err = svcf.WriteSpawnLink(ctx, spec, name, p.Space.SpaceID)
-				case p.Spaces != nil:
-					// TODO
+		&space.SpaceLinks{},
+		&space.SpaceCommands{},
+		notify.On(func(ctx context.Context, e units.SpawnEventFields, sl *space.SpaceLinks) {
+			for name, p := range e.Links {
+				if p.Rel != "space" {
+					continue
+				}
+				spaceID, ok := p.Attributes["space:id"].(string)
+				if !ok {
+					continue
+				}
+				err := sl.WriteSpawn(ctx, e.ActivitySpec, e.HREF, name, spaceID)
+				if err != nil {
+					log.Printf("error notifying ServiceSpawned listener: %s", err)
 				}
 			}
-			if err != nil {
-				log.Printf("error notifying ServiceSpawned listener: %s", err)
-			}
 		}),
+		&units.InstanceLinks{},
 
 		substratefs.NewLayout(mustGetenv("SUBSTRATEFS_ROOT")),
 
@@ -257,7 +228,7 @@ func main() {
 		&defset.Loader{
 			ServiceDefPath: cue.MakePath(cue.Str("services")),
 		},
-		initialCueLoadConfig(),
+		units.InitialCueLoadConfig(),
 		&cueloader.CueConfigWatcher{
 			ReadyFile: "ready",
 		},
@@ -266,7 +237,12 @@ func main() {
 			cueloader.FillPathEncodeTransformCurrent(
 				cue.MakePath(cue.Str("services")),
 				func() any {
-					return provisionerCache.AllServiceExports()
+					// need to make sure this is populated!
+					servicesRootMap := servicesRootMapSlot.Peek()
+					if servicesRootMap == nil {
+						return map[string]any{}
+					}
+					return servicesRootMap
 				},
 			),
 			cueloader.FillPathEncodeTransform(
@@ -282,32 +258,72 @@ func main() {
 				},
 			),
 		),
-		&PinnedInstances{
+		&units.PinnedInstances{
 			InternalSubstrateOrigin: internalSubstrateOrigin,
 		},
-		&SpawnWithCurrentDefSet{},
-		notify.On(func(ctx context.Context, e provisioner.FieldsExported, defSetLoader *defset.Loader) {
+		&units.SpawnWithCurrentDefSet{},
+		notify.On(func(ctx context.Context, e *provisioner.ServicesRootMap, defSetLoader *defset.Loader) {
 			go defSetLoader.LoadDefSet()
 		}),
 		notify.On(func(ctx context.Context, e *defset.DefSet, provisionerCache *provisioner.Cache) {
 			provisionerCache.Refresh()
 		}),
-		notify.On(func(ctx context.Context, e *defset.DefSet, pinnedServices *PinnedInstances) {
+		notify.On(func(ctx context.Context, e *defset.DefSet, pinnedServices *units.PinnedInstances) {
 			pinnedServices.Refresh(e)
 		}),
 		notify.On(func(ctx context.Context, e *cueloader.CueModuleChanged, defSetLoader *defset.Loader) {
 			defSetLoader.LoadDefSet()
 		}),
-		notify.On(func(ctx context.Context, e ServiceSpawned, db *substratedb.DB) {
-			err := db.ServiceSpawned(ctx, e.Req, e.Res)
-			if err != nil {
-				log.Printf("error notifying ServiceSpawned listener: %s", err)
-			}
-		}),
+
+		// write spawns for others to see
+		httpevents.NewJSONRequester[units.SpawnEventFields]("PUT", mustGetenv("SUBSTRATE_EVENT_WRITER_URL")+"/substrate/services/spawns"),
+		httpevents.NewJSONSubscription(
+			"POST",
+			mustGetenv("SUBSTRATE_EVENT_STREAM_URL"),
+			event.QueryLatestByPathPrefix("/substrate/services/exports"),
+			notify.On(func(ctx context.Context, e event.Notification, t *struct{}) {
+				exports, err := event.Unmarshal[provisioner.Fields](e.Events, true)
+				if err != nil {
+					slog.Info("error decoding event as provisioner.Fields", "err", err)
+					return
+				}
+
+				srm := provisioner.ServicesRootMap{}
+				for _, ex := range exports {
+					p, ok := ex["path"].(string)
+					if !ok {
+						continue
+					}
+
+					p = strings.TrimPrefix(p, "/substrate/services/exports")
+					split := filepath.SplitList(p)
+					if len(split) < 2 {
+						continue
+					}
+
+					serviceName := split[0]
+					instanceName := split[1]
+					if srm[serviceName] == nil {
+						srm[serviceName] = &provisioner.InstancesRoot{
+							Instances: map[string]*provisioner.Instance{},
+						}
+					}
+
+					srm[serviceName].Instances[instanceName] = &provisioner.Instance{
+						ServiceName: serviceName,
+						Exports:     ex,
+					}
+				}
+
+				servicesRootMapSlot.Store(&srm)
+			}),
+		),
+
+		// TODO this should switch to just using the events service
 		notify.On(func(ctx context.Context, e *cueloader.CueModuleChanged, defsAnnouncer *httpevents.EventStream[*defset.DefSet]) {
 			// announce it
 			if e.Error != nil {
-				log.Printf("err on update: %s", fmtErr(e.Error))
+				log.Printf("err on update: %s", defset.FmtErr(e.Error))
 			} else {
 				if b, err := cueloader.Marshal(e.Files, e.CueLoadConfigWithFiles); err == nil {
 					defsAnnouncer.AnnounceRaw(b)
@@ -319,182 +335,4 @@ func main() {
 	}
 
 	engine.Run(units...)
-}
-
-func urlPathEscape(s string) string {
-	return strings.ReplaceAll(s, "/", "%2F")
-}
-
-type RootSpacesLinkQuerier struct {
-	SpaceURL      func(space string) string
-	SpaceQueriers []activityspec.SpaceQuerier
-}
-
-var _ links.Querier = (*RootSpacesLinkQuerier)(nil)
-
-func (s *RootSpacesLinkQuerier) QueryLinks(ctx context.Context) (links.Links, error) {
-	e := links.Links{}
-
-	for _, lister := range s.SpaceQueriers {
-		spaces, err := lister.QuerySpaces(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, space := range spaces {
-			e["space/"+space.SpaceID] = links.Link{
-				Rel:  "space",
-				HREF: s.SpaceURL(space.SpaceID),
-				Attributes: map[string]any{
-					"space:created_at": space.CreatedAt,
-				},
-			}
-		}
-	}
-
-	return e, nil
-}
-
-type DefSetCommands struct {
-	DefsMap map[string]commands.DefIndex
-
-	HTTPClient httpframework.HTTPClient
-}
-
-var _ commands.Delegate = (*DefSetCommands)(nil)
-
-func (m *DefSetCommands) Commands(ctx context.Context) commands.Source {
-	return commands.Dynamic(nil, func() []commands.Source {
-		sources := []commands.Source{}
-		if m != nil {
-			for k, v := range m.DefsMap {
-				sources = append(sources, commands.Prefixed(
-					k+":",
-					&commands.DefIndexRunner{
-						Defs:   v,
-						Client: m.HTTPClient,
-					},
-				))
-			}
-		}
-		return sources
-	})
-}
-
-type InstanceLinks struct {
-	ProvisionerCache *provisioner.Cache
-}
-
-var _ links.Querier = (*InstanceLinks)(nil)
-
-func (m *InstanceLinks) QueryLinks(ctx context.Context) (links.Links, error) {
-	root := m.ProvisionerCache.AllInstanceExports()
-	ents := links.Links{}
-	for k, v := range root.Instances {
-		ents["instance/"+k] = links.Link{
-			Rel:  "instance",
-			HREF: "/" + k + "/",
-			Attributes: map[string]any{
-				"instance:service": v.ServiceName,
-			},
-		}
-	}
-
-	return ents, nil
-}
-
-type Broker struct {
-	SpaceID string
-
-	DefSetLoader               Loader[*defset.DefSet]
-	HTTPResourceReflectHandler *commands.HTTPResourceReflectHandler
-}
-
-var _ commands.Reflector = (*Broker)(nil)
-
-func (b *Broker) CloneWithSpace(spaceID string) *Broker {
-	return &Broker{
-		SpaceID:                    spaceID,
-		DefSetLoader:               b.DefSetLoader,
-		HTTPResourceReflectHandler: b.HTTPResourceReflectHandler,
-	}
-}
-
-func (b *Broker) Reflect(ctx context.Context) (commands.DefIndex, error) {
-	// slog.Info("Broker.Reflect()")
-	// return commands.DefIndex{}, nil
-
-	bindings := map[string]commands.BindEntry{}
-
-	err := EachInstanceTemplate(b.DefSetLoader.Load(), func(serviceName string, template *struct {
-		Parameters map[string]struct {
-			Type string `json:"type"`
-		} `json:"parameters"`
-	}) {
-		// slog.Info("Broker.Reflect()", "serviceName", serviceName, "template", *template)
-
-		var spaceParams []string
-		var idParams []string
-		var otherParams []string
-		for name, p := range template.Parameters {
-			switch p.Type {
-			case "space":
-				spaceParams = append(spaceParams, name)
-				continue
-			case "string":
-				if name == "id" {
-					idParams = append(idParams, name)
-				}
-				continue
-			}
-
-			otherParams = append(otherParams, name)
-		}
-
-		// We're looking for services that we can spawn that need either a single id *and/or* a single space
-		points := 0
-		if len(spaceParams) == 1 {
-			points++
-		}
-		if len(idParams) == 1 {
-			points++
-		}
-
-		// slog.Info("Broker.Reflect()", "serviceName", serviceName, "template", *template, "points", points, "spaceParams", spaceParams, "idParams", idParams, "otherParams", otherParams)
-		if points == 0 {
-			return
-		}
-
-		parameters := map[string]string{}
-		for _, idParam := range idParams {
-			// Use a blank id to implicitly request a new id.
-			parameters[idParam] = ""
-		}
-		// Use a blank space to implicitly request a new space.
-		for _, spaceParam := range spaceParams {
-			parameters[spaceParam] = b.SpaceID
-		}
-
-		// slog.Info("Broker.Reflect()", "serviceName", serviceName, "template", *template, "points", points, "spaceParams", spaceParams, "idParams", idParams, "otherParams", otherParams, "parameters", parameters)
-
-		// For now we skip services that take *any other parameters* beyond these two. In the future
-		// we might want to do something fancy with binding to support accepting just the unset
-		// spawn parameters as command parameters. But not right now.
-		if len(otherParams) > 0 {
-			return
-		}
-
-		// we should now be left with services
-		bindings["new:"+serviceName] = commands.BindEntry{
-			Command: "new:instance",
-			Parameters: commands.Fields{
-				"service":    serviceName,
-				"parameters": parameters,
-			},
-		}
-	})
-	if err != nil {
-		slog.Info("error while broker discovering instances", "err", err)
-	}
-	return commands.Bind(b.HTTPResourceReflectHandler.ReflectorForPathFuncExcluding(b), bindings)
 }

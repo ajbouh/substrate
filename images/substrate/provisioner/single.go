@@ -13,7 +13,6 @@ import (
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	"github.com/ajbouh/substrate/pkg/toolkit/links"
-	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
 type Spawner interface {
@@ -55,16 +54,6 @@ func (g *Generation) Digest() string {
 	return g.provisionedResolutionDigest
 }
 
-type FieldsExported struct {
-	ServiceSpawnRequest *activityspec.ServiceSpawnRequest
-	Fields              Fields
-}
-
-type FieldsImported struct {
-	ServiceSpawnRequest *activityspec.ServiceSpawnRequest
-	Fields              Fields
-}
-
 type CachingSingleServiceProvisioner struct {
 	spawnMu sync.Mutex
 
@@ -72,8 +61,7 @@ type CachingSingleServiceProvisioner struct {
 	lastRequestEntry atomic.Pointer[RequestEntry]
 	outgoingFields   atomic.Pointer[Fields]
 
-	Key            string
-	FieldsExported []notify.Notifier[FieldsExported]
+	Key string
 
 	Spawner             Spawner
 	ServiceSpawnRequest *activityspec.ServiceSpawnRequest
@@ -171,33 +159,6 @@ func (e *CachingSingleServiceProvisioner) QueryLinks(ctx context.Context) (links
 	}
 
 	return l, nil
-}
-
-func (c *CachingSingleServiceProvisioner) UpdateOutgoing(ctx context.Context, digest string, cb func(fields Fields) Fields) error {
-	log.Printf("UpdateOutgoing %s", digest)
-	var ef Fields
-	defer func() {
-		log.Printf("UpdateOutgoing %s done (string repr of it is %d bytes)", digest, len(fmt.Sprintf("%#v", ef)))
-	}()
-	spawner := c.Spawner
-	serviceSpawnRequest := c.ServiceSpawnRequest
-
-	res, err := spawner.Peek(ctx, serviceSpawnRequest)
-	if err != nil {
-		return err
-	}
-
-	now := res.ServiceInstanceDef.Environment["SUBSTRATE_PARAMETERS_DIGEST"]
-	if now != digest {
-		return fmt.Errorf("stale digest for SetExports; got %s, expected %s", digest, now)
-	}
-
-	ef = *c.outgoingFields.Load()
-	ef = cb(ef)
-	c.outgoingFields.Store(&ef)
-
-	notify.Notify(ctx, c.FieldsExported, FieldsExported{ServiceSpawnRequest: c.ServiceSpawnRequest, Fields: ef})
-	return nil
 }
 
 func (c *CachingSingleServiceProvisioner) LogRequest(r *http.Request) {
