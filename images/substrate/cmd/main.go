@@ -145,6 +145,10 @@ func main() {
 		provisioner.NewCommand,
 		space.QueryCommand,
 		space.NewCommand,
+		space.CommandsRemoveCommand,
+		space.CommandsWriteCommand,
+		space.LinksRemoveCommand,
+		space.LinksWriteCommand,
 		substratehttp.EvalCommand,
 
 		// TODO how do we want to handle authentication for this?
