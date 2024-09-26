@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 )
 
@@ -41,8 +40,9 @@ func (p HTTPSource) Reflect(ctx context.Context) (DefIndex, error) {
 	if resp.StatusCode == http.StatusMethodNotAllowed {
 		return nil, ErrReflectNotSupported
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status: %s", resp.Status)
+	err = demandHTTPResponseOk(req, resp)
+	if err != nil {
+		return nil, err
 	}
 
 	body, err := unmarshal[struct {
@@ -71,8 +71,11 @@ func (p HTTPSource) Run(ctx context.Context, name string, params Fields) (Fields
 	if err != nil {
 		return nil, err
 	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status: %s", resp.Status)
+
+	err = demandHTTPResponseOk(req, resp)
+	if err != nil {
+		return nil, err
 	}
+
 	return unmarshal[Fields](resp)
 }

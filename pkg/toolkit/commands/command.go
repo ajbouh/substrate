@@ -122,7 +122,7 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 				return false
 			}
 
-			return !treatAsVoid(paramsType)
+			return hasJSONFields(paramsType, true)
 		}
 
 		params := Fields{}
@@ -153,7 +153,7 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 			return
 		}
 
-		if !treatAsVoid(returnsType) {
+		if hasJSONFields(returnsType, false) {
 			err := json.NewEncoder(w).Encode(v)
 			if err != nil {
 				http.Error(w, fmt.Sprintf(`{"message": %q}`, err.Error()), http.StatusInternalServerError)
@@ -163,33 +163,35 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 	})
 }
 
-func treatAsVoid(t reflect.Type) bool {
-	if t == nil || t.Kind() == reflect.Struct {
+func hasJSONFields(t reflect.Type, considerRequestFieldShadowing bool) bool {
+	// slog.Info("treatAsVoid", "t", t, "t.Kind()", t.Kind())
+	if t == nil || t.Kind() != reflect.Struct {
 		return true
 	}
 
 	fields := reflect.VisibleFields(t)
-	if len(fields) == 0 {
-		return true
-	}
 
 	for _, field := range fields {
-		if _, ok := field.Tag.Lookup("path"); !ok {
-			continue
-		}
+		// slog.Info("treatAsVoid", "field", field)
 
-		if _, ok := field.Tag.Lookup("query"); !ok {
-			continue
+		if considerRequestFieldShadowing {
+			if _, ok := field.Tag.Lookup("path"); ok {
+				continue
+			}
+
+			if _, ok := field.Tag.Lookup("query"); ok {
+				continue
+			}
 		}
 
 		if tag, ok := field.Tag.Lookup("json"); !ok || tag == "-" {
 			continue
 		}
 
-		return false
+		return true
 	}
 
-	return true
+	return false
 }
 
 func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (DefIndex, error) {
@@ -289,23 +291,24 @@ func (r *CommandFunc[Target, Params, Returns]) Run(ctx context.Context, name str
 	// Reserializing is kind of wasteful, but it's simple so fix it later once it matters.
 
 	params := new(Params)
+	paramsValue := reflect.ValueOf(params).Elem()
+	paramsType := paramsValue.Type()
 
-	if !treatAsVoid(reflect.TypeFor[Params]()) {
+	if hasJSONFields(paramsType, false) {
 		b, err := json.Marshal(pfields)
 		if err != nil {
 			return nil, err
 		}
 
-		err = json.Unmarshal(b, &params)
+		err = json.Unmarshal(b, params)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if len(pfields) > 0 {
-		paramsValue := reflect.ValueOf(params).Elem()
 		// copy any fields that can't be serialized as json, like io.ReadCloser and http.ResponseWriter
-		for _, field := range reflect.VisibleFields(reflect.TypeFor[Params]()) {
+		for _, field := range reflect.VisibleFields(paramsType) {
 			if tag, ok := field.Tag.Lookup("json"); ok && tag == "-" {
 				pvalue := pfields[field.Name]
 				if pvalue == nil {
@@ -322,7 +325,7 @@ func (r *CommandFunc[Target, Params, Returns]) Run(ctx context.Context, name str
 	}
 
 	rfields := Fields{}
-	if !treatAsVoid(reflect.TypeFor[Returns]()) {
+	if hasJSONFields(reflect.TypeFor[Returns](), false) {
 		b, err := json.Marshal(returns)
 		if err != nil {
 			return nil, err
@@ -339,7 +342,7 @@ func (r *CommandFunc[Target, Params, Returns]) Run(ctx context.Context, name str
 
 func ConvertViaJSON[Out, In any](input In) (Out, error) {
 	var out Out
-	if treatAsVoid(reflect.TypeFor[In]()) || treatAsVoid(reflect.TypeFor[Out]()) {
+	if !hasJSONFields(reflect.TypeFor[In](), false) || !hasJSONFields(reflect.TypeFor[Out](), false) {
 		return out, nil
 	}
 	b, err := json.Marshal(input)

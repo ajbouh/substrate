@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+
+	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 )
 
 type HTTPResourceReflectHandler struct {
@@ -42,10 +44,11 @@ func (h *HTTPResourceReflectHandler) ReflectorForPathFuncExcluding(excluding ...
 		if reflectPath == "" {
 			reflectPath = h.DefaultHTTPResourceReflectPath
 		}
+		slog.Info("ReflectorForPathFuncExcluding", "reflectPath", reflectPath, "h.ReflectorsPerRoute[reflectPath]", h.ReflectorsPerRoute[reflectPath])
 		return &DynamicReflector{
 			ReflectTransform: xform,
 			Reflectors: func() []Reflector {
-				reflectors := h.ReflectorsPerRoute[reflectPath]
+				reflectors := slices.Clone(h.ReflectorsPerRoute[reflectPath])
 				if len(excluding) > 0 {
 					reflectors = slices.DeleteFunc(reflectors, func(r Reflector) bool { return slices.Contains(excluding, r) })
 				}
@@ -55,15 +58,34 @@ func (h *HTTPResourceReflectHandler) ReflectorForPathFuncExcluding(excluding ...
 	}
 }
 
+func EnsureRunHTTPRequestURLIncludesPrefix(r *http.Request) DefTransformFunc {
+	return func(commandName string, commandDef Def) (string, Def) {
+		prefix := httpframework.ContextPrefix(r.Context())
+		if prefix == "" || commandDef.Run == nil || commandDef.Run.HTTP == nil {
+			return commandName, commandDef
+		}
+
+		// is this a full URL? if not make it so.
+		if strings.HasPrefix(commandDef.Run.HTTP.Request.URL, "/") {
+			commandDef.Run.HTTP.Request.URL = prefix + commandDef.Run.HTTP.Request.URL
+		}
+
+		return commandName, commandDef
+	}
+}
+
 func (h *HTTPResourceReflectHandler) ContributeHTTP(mux *http.ServeMux) {
 	// group by path
 	h.ReflectorsPerRoute = Group(h.Aggregate.GatherReflectorsExcluding(context.Background(), nil), HTTPResourceReflectPath)
+	h.ReflectorsPerRoute[h.DefaultHTTPResourceReflectPath] = h.ReflectorsPerRoute[""]
+	delete(h.ReflectorsPerRoute, "")
+
 	slog.Info("HTTPResourceReflectHandler.ContributeHTTP", "ReflectorsPerRoute", h.ReflectorsPerRoute)
 
 	// register unique REFLECT routes for each
 	for reflectPath, reflectors := range h.ReflectorsPerRoute {
 		reflectPath := reflectPath
-		reflectors := reflectors
+		reflectors := slices.Clone(reflectors)
 
 		if reflectPath == "" {
 			reflectPath = h.DefaultHTTPResourceReflectPath
@@ -80,7 +102,6 @@ func (h *HTTPResourceReflectHandler) ContributeHTTP(mux *http.ServeMux) {
 				h.HTTPRunHandler.CatchallRunnerMethod(),
 				h.HTTPRunHandler.CatchallRunnerPath(),
 			),
-			EnsureRunHTTPRequestURLHasAHost(h.BaseURL),
 		)
 
 		slog.Info("HTTPResourceReflectHandlerContributeHTTP", "pattern", pattern)
@@ -89,6 +110,8 @@ func (h *HTTPResourceReflectHandler) ContributeHTTP(mux *http.ServeMux) {
 			ReflectRequestTransform: func(r *http.Request, name string, def Def) (string, Def) {
 				// should probably raise this
 				name, def = xform(name, def)
+				name, def = EnsureRunHTTPRequestURLIncludesPrefix(r)(name, def)
+				name, def = EnsureRunHTTPRequestURLHasAHost(h.BaseURL)(name, def)
 
 				var drop []string
 				for k, v := range def.Run.HTTP.Parameters {

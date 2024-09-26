@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -124,7 +123,7 @@ func getRequestBasedField(field reflect.StructField, w http.ResponseWriter, r *h
 }
 
 func populateRequestBasedFields(w http.ResponseWriter, r *http.Request, paramsType reflect.Type, params Fields) error {
-	slog.Info("populateRequestBasedFields", "params", params, "paramsType", paramsType, "paramsTypeKind", paramsType.Kind())
+	// defer slog.Info("populateRequestBasedFields", "params", params, "paramsType", paramsType, "paramsTypeKind", paramsType.Kind())
 
 	if paramsType.Kind() == reflect.Struct {
 		query := r.URL.Query()

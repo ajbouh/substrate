@@ -67,7 +67,7 @@ func (h *DefRunner) Run(ctx context.Context, params Fields) (Fields, error) {
 		return nil, err
 	}
 
-	return UnmarshalHTTPResponse(ctx, h.Def.Run.Bind, h.Def.Run.HTTP, resp)
+	return UnmarshalHTTPResponse(ctx, h.Def.Run.Bind, h.Def.Run.HTTP, req, resp)
 }
 
 func MarshalHTTPRequest(ctx context.Context, rbd *RunBindDef, rhd *RunHTTPDef, params Fields) (*http.Request, error) {
@@ -135,9 +135,10 @@ func MarshalHTTPRequest(ctx context.Context, rbd *RunBindDef, rhd *RunHTTPDef, p
 	return req, nil
 }
 
-func UnmarshalHTTPResponse(ctx context.Context, rbd *RunBindDef, rhd *RunHTTPDef, r *http.Response) (Fields, error) {
-	if r.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status: %s", r.Status)
+func UnmarshalHTTPResponse(ctx context.Context, rbd *RunBindDef, rhd *RunHTTPDef, req *http.Request, r *http.Response) (Fields, error) {
+	err := demandHTTPResponseOk(req, r)
+	if err != nil {
+		return nil, err
 	}
 
 	body, err := unmarshal[Fields](r)

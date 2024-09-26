@@ -94,7 +94,7 @@ func CatchallRunnersHandler(debug bool, runners []Runner) http.Handler {
 
 		b, err = json.Marshal(res)
 		if err != nil {
-			serveError(debug, w, err, http.StatusInternalServerError, errMsg)
+			serveError(debug, w, fmt.Errorf("error marshaling %#v: %w", res, err), http.StatusInternalServerError, errMsg)
 			return
 		}
 		w.Write(b)

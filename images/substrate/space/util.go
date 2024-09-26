@@ -3,7 +3,6 @@ package space
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"strings"
 
 	"github.com/containers/podman/v4/pkg/bindings/containers"
@@ -12,7 +11,7 @@ import (
 
 func checkContainerIDExists(ctx context.Context, containerNameOrID string) (string, bool, error) {
 	c, err := containers.Inspect(ctx, containerNameOrID, nil)
-	slog.Info("checkContainerIDExists", "containerNameOrID", containerNameOrID, "err", err, "errors.Is(err, types.ErrContainerUnknown)", errors.Is(err, types.ErrContainerUnknown))
+	// slog.Info("checkContainerIDExists", "containerNameOrID", containerNameOrID, "err", err, "errors.Is(err, types.ErrContainerUnknown)", errors.Is(err, types.ErrContainerUnknown))
 	if errors.Is(err, types.ErrContainerUnknown) {
 		return "", false, nil
 	}
