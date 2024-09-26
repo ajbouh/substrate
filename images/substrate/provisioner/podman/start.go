@@ -134,7 +134,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	}
 
 	s := specgen.NewSpecGenerator(imageID, false)
-	// s.Remove = true
+	s.Remove = true
 	s.Env = map[string]string{}
 	s.Labels = labels
 	s.Command = append([]string{}, as.ServiceInstanceDef.Command...)
