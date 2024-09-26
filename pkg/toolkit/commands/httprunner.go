@@ -36,19 +36,28 @@ func (h *DefIndexRunner) Run(ctx context.Context, name string, params Fields) (F
 		return nil, ErrNoSuchCommand
 	}
 
-	if def.Run == nil || def.Run.HTTP == nil {
+	return (&DefRunner{
+		Def:    def,
+		Client: h.Client,
+	}).Run(ctx, params)
+}
+
+type DefRunner struct {
+	Def    Def
+	Client HTTPClient
+}
+
+func (h *DefRunner) Run(ctx context.Context, params Fields) (Fields, error) {
+	if h.Def.Run == nil || h.Def.Run.HTTP == nil {
 		return nil, ErrNoImplementation
 	}
 
-	return RunCommandHTTP(ctx, h.Client, def.Run.Bind, def.Run.HTTP, params)
-}
-
-func RunCommandHTTP(ctx context.Context, client HTTPClient, rbd *RunBindDef, rhd *RunHTTPDef, params Fields) (Fields, error) {
+	client := h.Client
 	if client == nil {
 		client = http.DefaultClient
 	}
 
-	req, err := MarshalHTTPRequest(ctx, rbd, rhd, params)
+	req, err := MarshalHTTPRequest(ctx, h.Def.Run.Bind, h.Def.Run.HTTP, params)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +67,7 @@ func RunCommandHTTP(ctx context.Context, client HTTPClient, rbd *RunBindDef, rhd
 		return nil, err
 	}
 
-	return UnmarshalHTTPResponse(ctx, rbd, rhd, resp)
+	return UnmarshalHTTPResponse(ctx, h.Def.Run.Bind, h.Def.Run.HTTP, resp)
 }
 
 func MarshalHTTPRequest(ctx context.Context, rbd *RunBindDef, rhd *RunHTTPDef, params Fields) (*http.Request, error) {
