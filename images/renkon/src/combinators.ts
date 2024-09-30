@@ -47,6 +47,7 @@ export type EventType =
     typeof generatorNextType;
 
 export interface ProgramStateType {
+    scripts: Array<string>;
     order: Array<NodeId>;
     nodes: Map<NodeId, ScriptCell>;
     streams: Map<VarName, Stream>;
@@ -58,6 +59,8 @@ export interface ProgramStateType {
     startTime: number;
     evaluatorRunning: number;
     updated: boolean;
+    exports?: object;
+    imports?: Array<string>;
     app?: any;
     noTicking: boolean;
     ready(node: ScriptCell):boolean;
@@ -255,7 +258,6 @@ export class UserEvent extends Stream {
     }
 
     created(state:ProgramStateType, id:VarName):Stream {
-        let stream = state.streams.get(id) as UserEvent;
         let oldRecord = state.scratch.get(id) as QueueRecord;
         if (oldRecord && oldRecord.cleanup &&
             typeof oldRecord.cleanup === "function") {
