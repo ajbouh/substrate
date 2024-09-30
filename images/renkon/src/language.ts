@@ -96,39 +96,6 @@ function eventBody(options:EventBodyType) {
     return new UserEvent(record);
 }
 
-function renkonify(func:Function, optSystem?:any) {
-    const programState =  new ProgramState(Date.now(), optSystem);
-    const {params, returnArray, output} = getFunctionBody(func.toString());
-    console.log(params, returnArray, output);
-
-    programState.setupProgram([output]);
-
-    function generator(...args:any[]) {
-        const gen = renkonBody(...args) as GeneratorWithFlag<any>;
-        gen.done = false;
-        return Events.next(gen);
-    }
-    async function* renkonBody(...args:any[]) {
-        for (let i = 0; i < params.length; i++) {
-            programState.setResolved(params[i], args[i]);
-        }
-        while (true) {
-            programState.evaluate(programState.time);
-            const result:any = {};
-            if (returnArray) {
-                for (const n of returnArray) {
-                    const v = programState.resolved.get(n);
-                    if (v && v.value !== undefined) {
-                        result[n] = v.value;
-                    }
-                }
-            }
-            yield result;
-        }
-    }
-    return generator;
-}
-
 const Events = {
     observe(callback:ObserveCallback) {
         return eventBody({type: eventType, forObserve: true, callback});
@@ -182,7 +149,6 @@ const Events = {
           directWindow.postMessage(obj, "*");
         }
     },
-    renkonify: renkonify
 };
 
 const Behaviors = {
@@ -261,6 +227,7 @@ function difference(oldSet:Set<VarName>, newSet:Set<VarName>) {
 }
 
 export class ProgramState implements ProgramStateType {
+    scripts: Array<string>;
     order: Array<NodeId>;
     nodes: Map<NodeId, ScriptCell>;
     streams: Map<VarName, Stream>;
@@ -271,10 +238,13 @@ export class ProgramState implements ProgramStateType {
     time: number;
     startTime: number;
     evaluatorRunning: number;
+    exports?: object;
+    imports?: Array<string>;
     updated: boolean;
     app?: any;
     noTicking: boolean;
     constructor(startTime:number, app?:any) {
+        this.scripts = [];
         this.order = [];
         this.nodes = new Map();
         this.streams = new Map();
@@ -358,7 +328,7 @@ export class ProgramState implements ProgramStateType {
             }
         }
     
-        const translated = jsNodes.map((jsNode) => transpileJavaScript(jsNode));
+        const translated = jsNodes.map((jsNode) => ({id: jsNode.id, code: transpileJavaScript(jsNode)}));
         const evaluated = translated.map((tr) => this.evalCode(tr));
         const sorted = topologicalSort(evaluated);
     
@@ -390,6 +360,7 @@ export class ProgramState implements ProgramStateType {
     
         this.order = sorted;
         this.nodes = newNodes;
+        this.scripts = scripts;
     
         for (const nodeId of this.order) {
             const newNode = newNodes.get(nodeId)!;
@@ -402,7 +373,7 @@ export class ProgramState implements ProgramStateType {
                 this.inputArray.delete(nodeId);
             }
         }
-    
+
         for (const removed of removedVariableNames) {
             const stream = this.streams.get(removed);
             if (stream) {
@@ -413,8 +384,9 @@ export class ProgramState implements ProgramStateType {
         }
     
         for (const [varName, node] of this.nodes) {
+            const nodeNames = [...this.nodes].map(([id, _body]) => id);
             for (const input of node.inputs) {
-                if (!this.order.includes(this.baseVarName(input))) {
+                if (!nodeNames.includes(this.baseVarName(input))) {
                     console.log(`Node ${varName} won't be evaluated as it depends on an undefined variable ${input}.`);
                 }
             }
@@ -483,11 +455,12 @@ export class ProgramState implements ProgramStateType {
         return this.updated;
     }
 
-    evalCode(str:string):ScriptCell {
-        let code = `return ${str}`;
-        let func = new Function("Events", "Behaviors", "Renkon", code);
+    evalCode(arg:{id:VarName, code:string}):ScriptCell {
+        const {id, code} = arg;
+        let body = `return ${code} //# sourceURL=${window.location.origin}/node/${id}`;
+        let func = new Function("Events", "Behaviors", "Renkon", body);
         let val = func(Events, Behaviors, this);
-        val.code = str;
+        val.code = code;
         return val;
     }
 
@@ -567,6 +540,85 @@ export class ProgramState implements ProgramStateType {
             this.noTickingEvaluator();
         }
     }
+
+    merge(func:Function) {
+        let scripts = this.scripts;
+        const {output} = getFunctionBody(func.toString(), true);
+        this.setupProgram([...scripts, output] as string[]);    
+    }
+
+    renkonify(func:Function, optSystem?:any) {
+        const programState =  new ProgramState(Date.now(), optSystem);
+        const {params, returnArray, output} = getFunctionBody(func.toString(), false);
+        console.log(params, returnArray, output, this);
+        const time = this.time;
+
+        const receivers = params.map((r) => `const ${r} = undefined;`).join("\n");
+    
+        programState.setupProgram([receivers, output]);
+    
+        function generator(...args:any[]) {
+            const gen = renkonBody(...args) as GeneratorWithFlag<any>;
+            gen.done = false;
+            return Events.next(gen);
+        }
+        async function* renkonBody(...args:any[]) {
+            for (let i = 0; i < params.length; i++) {
+                programState.setResolved(params[i], args[i]);
+            }
+            while (true) {
+                programState.evaluate(programState.time);
+                const result:any = {};
+                if (returnArray) {
+                    for (const n of returnArray) {
+                        const v = programState.resolved.get(n);
+                        if (v && v.value !== undefined) {
+                            result[n] = v.value;
+                        }
+                    }
+                }
+                if (programState.updated) {
+                    yield result;
+                }
+            }
+        }
+        return generator;
+    }
+
+    renkonify2(func:Function, optSystem?:any) {
+        const programState =  new ProgramState(0, optSystem);
+        const {params, returnArray, output} = getFunctionBody(func.toString(), false);
+        // console.log(params, returnArray, output, this);
+
+        const receivers = params.map((r) => `const ${r} = undefined;`).join("\n");
+    
+        programState.setupProgram([receivers, output]);
+
+        programState.exports = returnArray;
+        programState.imports = params;
+
+        return programState;
+    }
+
+    evaluateSubProgram(programState: ProgramState, params:any) {
+        for (let key in params) {
+            programState.registerEvent(key, params[key]);
+        }
+        programState.evaluate(this.time);
+        if (!programState.updated) {return undefined;}
+        const result:any = {};
+        if (programState.exports) {
+            for (const n of programState.exports) {
+                const v = programState.resolved.get(n);
+                if (v && v.value !== undefined) {
+                    result[n] = v.value;
+                }
+            }
+        }
+        return result;
+    }
+    
+
 
     spaceURL(partialURL:string) {
         // partialURL: './bridge/bridge.js'

@@ -1,4 +1,5 @@
 import {Parser, tokTypes} from "acorn";
+import jsx from "acorn-jsx";
 import type {Expression, Identifier, Options, Program} from "acorn";
 import {checkAssignments} from "./assignments.js";
 import {findDeclarations} from "./declarations.js";
@@ -35,7 +36,8 @@ function findDecls(input:string) {
     const list = (body as Program).body;
     return list.map((decl) => input.slice(decl.start, decl.end));
   } catch (error) {
-    console.log(error.message, ": error around -> ", `"${input.slice(error.pos - 30, error.pos + 30)}"`);
+    const e = error as unknown as SyntaxError & {pos:number};
+    console.log(e.message, ": error around -> ", `"${input.slice(e.pos - 30, e.pos + 30)}"`);
     return [];
   }
 }
@@ -57,7 +59,7 @@ export function parseJavaScript(input:string, initialId:number, flattened: boole
     const [references, forceVars] = findReferences(b);
     checkAssignments(b, references, input);
     const declarations = findDeclarations(b, input);
-    
+
     const rewriteSpecs = flattened ? [] : checkNested(b, id);
 
     if (rewriteSpecs.length === 0) {
@@ -75,17 +77,23 @@ export function parseJavaScript(input:string, initialId:number, flattened: boole
     } else {
       let newInput = decl;
       let newPart = "";
+      let overridden = false;
       for (let i = 0; i < rewriteSpecs.length; i++) {
         const spec = rewriteSpecs[i];
-        const sub = newInput.slice(spec.start, spec.end);
-        const varName = spec.name
-        newPart += `const ${varName} = ${sub};\n`;
-        let length = spec.end - spec.start;
-        const newNewInput = `${newInput.slice(0, spec.start)}${spec.name.padEnd(length, " ")}${newInput.slice(spec.end)}`;
-        if (newNewInput.length !== decl.length) {debugger}
-        newInput = newNewInput
+        if (spec.type === "range") {
+          const sub = newInput.slice(spec.start, spec.end);
+          const varName = spec.name
+          newPart += `const ${varName} = ${sub};\n`;
+          let length = spec.end - spec.start;
+          const newNewInput = `${newInput.slice(0, spec.start)}${spec.name.padEnd(length, " ")}${newInput.slice(spec.end)}`;
+          if (newNewInput.length !== decl.length) {debugger}
+          newInput = newNewInput
+        } else if (spec.type === "override") {
+          overridden = true;
+          newPart += spec.definition + "\n";
+        }
       }
-      allReferences.push(...parseJavaScript(`${newPart}\n${newInput}`, initialId, true));
+      allReferences.push(...parseJavaScript(`${newPart}${overridden ? "" : "\n" + newInput}`, initialId, true));
     }
   }
   return allReferences as JavaScriptNode[];
@@ -93,6 +101,10 @@ export function parseJavaScript(input:string, initialId:number, flattened: boole
 
 export function parseProgram(input: string): Program {
   return Parser.parse(input, acornOptions);
+}
+
+export function parseJSX(input: string) {
+  return Parser.extend(jsx()).parse(input, {ecmaVersion: 13});
 }
 
 /**
