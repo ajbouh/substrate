@@ -110,11 +110,11 @@ func (e *CachingSingleServiceProvisioner) set(provisioned *activityspec.ServiceS
 func (e *CachingSingleServiceProvisioner) get() *Provisioning {
 	gen := e.gen.Load()
 	if gen != nil {
-		e.Log.Info("action=cache:get", "key", e.Key, "gen", gen, "url", gen.cached)
+		// e.Log.Info("action=cache:get", "key", e.Key, "gen", gen, "url", gen.cached)
 		copy := *gen.cached
 		return &Provisioning{Target: &copy, Cleanup: gen.cleanup}
 	}
-	e.Log.Info("action=cache:get", "key", e.Key, "gen", gen, "url", "")
+	// e.Log.Info("action=cache:get", "key", e.Key, "gen", gen, "url", "")
 	return nil
 }
 
@@ -237,7 +237,7 @@ func (e *CachingSingleServiceProvisioner) PurgeIfChanged(ctx context.Context) (b
 }
 
 func (e *CachingSingleServiceProvisioner) Ensure(ctx context.Context) (*Provisioning, error) {
-	slog.Info("CachingSingleServiceProvisioner.Ensure()", "key", e.Key, "instance", e)
+	// slog.Info("CachingSingleServiceProvisioner.Ensure()", "key", e.Key, "instance", e)
 
 	// try once without holding the lock.
 	if provisioning := e.get(); provisioning != nil {
