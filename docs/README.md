@@ -8,6 +8,10 @@ This explains how to set up the Intel NUC computer, how to set up the OS with th
 
 This explains how to set up the Intel NUC computer with RTX 4090 GPU that does not fit in the NUC case.
 
+- [Creating a somewhat more complicated service](./miniService/not-so-miniService.md)
+
+This explains how to set up a service that requires build steps that has required python packages.
+
 - [Setting up Intel NUC with RTX 4090 TUF](./setup/rtx4090.md)
 
 This explains how to create a minimum service that runs on Substrate OS.
