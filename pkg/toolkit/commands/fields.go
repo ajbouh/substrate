@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 )
 
@@ -13,6 +14,17 @@ type FieldDef struct {
 }
 
 type FieldDefs map[string]FieldDef
+
+func (f Fields) LogValue() slog.Value {
+	ff := map[string]any{}
+	for k, v := range f {
+		if s, ok := v.(string); ok && len(s) > 100 {
+			v = s[:100] + "..."
+		}
+		ff[k] = v
+	}
+	return slog.AnyValue(ff)
+}
 
 func (f Fields) Set(k string, v any) error {
 	if first, rest, ok := strings.Cut(k, "."); !ok {

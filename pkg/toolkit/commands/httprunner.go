@@ -89,6 +89,9 @@ func MarshalHTTPRequest(ctx context.Context, rbd *RunBindDef, rhd *RunHTTPDef, p
 			}
 		}
 		if !bound {
+			if _, ok := params[k]; !ok {
+				continue
+			}
 			v = params[k]
 		}
 
