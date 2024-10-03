@@ -24,7 +24,9 @@ func (f Fields) Set(k string, v any) error {
 			f[first] = frest
 		}
 
-		if m, ok := frest.(map[string]any); ok {
+		if m, ok := frest.(Fields); ok {
+			m.Set(rest, v)
+		} else if m, ok := frest.(map[string]any); ok {
 			Fields(m).Set(rest, v)
 		} else if m, ok := frest.(map[string]string); ok {
 			m[rest] = fmt.Sprintf("%v", v)
