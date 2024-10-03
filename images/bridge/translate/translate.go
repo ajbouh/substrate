@@ -1,16 +1,13 @@
 package translate
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
+	"context"
 	"log"
-	"net/http"
 	"strings"
 
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 )
 
 var recordTranslation = tracks.EventRecorder[*TranslationEvent]("translation")
@@ -56,30 +53,8 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 }
 
 func (a *Agent) Translate(request *Request) (*Translation, error) {
-	log.Println("translating", request)
-	payloadBytes, err := json.Marshal(request)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := http.Post(a.Endpoint, "application/json", bytes.NewBuffer(payloadBytes))
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK {
-		response := &Translation{}
-		err = json.Unmarshal(body, response)
-		return response, err
-	} else {
-		return nil, fmt.Errorf("transcribe: %s", body)
-	}
+	src := commands.HTTPSource{Endpoint: a.Endpoint}
+	return commands.Call[Translation](context.TODO(), src, "seamlessm4t:transcribe", request)
 }
 
 type Request struct {

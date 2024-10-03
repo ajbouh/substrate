@@ -304,3 +304,19 @@ func ConvertViaJSON[Out, In any](input In) (Out, error) {
 	err = json.Unmarshal(b, &out)
 	return out, err
 }
+
+func Call[Out, In any](ctx context.Context, src Source, command string, params In) (*Out, error) {
+	paramFields, err := ConvertViaJSON[Fields](params)
+	if err != nil {
+		return nil, err
+	}
+	resultFields, err := src.Run(ctx, command, paramFields)
+	if err != nil {
+		return nil, err
+	}
+	out, err := ConvertViaJSON[Out](resultFields)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}

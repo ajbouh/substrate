@@ -1,14 +1,11 @@
 package diarize
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
+	"context"
 	"time"
 
 	"github.com/ajbouh/substrate/images/bridge/audio"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/gopxl/beep"
 )
 
@@ -50,28 +47,8 @@ func (a *PyannoteClient) Diarize(stream beep.Streamer, format beep.Format) ([]Sp
 }
 
 func (a *PyannoteClient) request(request *Request) (*Response, error) {
-	payloadBytes, err := json.Marshal(request)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := http.Post(a.Endpoint, "application/json", bytes.NewBuffer(payloadBytes))
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("diarize: %s", body)
-	}
-	var response Response
-	err = json.Unmarshal(body, &response)
-	return &response, err
+	src := commands.HTTPSource{Endpoint: a.Endpoint}
+	return commands.Call[Response](context.TODO(), src, "diarizer:diarize", request)
 }
 
 type Request struct {

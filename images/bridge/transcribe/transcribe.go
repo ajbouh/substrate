@@ -47,25 +47,9 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 	RecordTranscription(annot.Span(), transcription)
 }
 
-func call[Out, In any](ctx context.Context, src commands.Source, command string, params In) (*Out, error) {
-	paramFields, err := commands.ConvertViaJSON[commands.Fields](params)
-	if err != nil {
-		return nil, err
-	}
-	resultFields, err := src.Run(ctx, command, paramFields)
-	if err != nil {
-		return nil, err
-	}
-	out, err := commands.ConvertViaJSON[Out](resultFields)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
 func (a *Agent) Transcribe(request *Request) (*Transcription, error) {
 	src := commands.HTTPSource{Endpoint: a.Endpoint}
-	return call[Transcription](context.TODO(), src, "faster-whisper:transcribe-data", request)
+	return commands.Call[Transcription](context.TODO(), src, "faster-whisper:transcribe-data", request)
 }
 
 type AudioMetadata struct {
