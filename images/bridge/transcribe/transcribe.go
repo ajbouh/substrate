@@ -13,7 +13,8 @@ import (
 var RecordTranscription = tracks.EventRecorder[*Transcription]("transcription")
 
 type Agent struct {
-	Endpoint string
+	Source  commands.Source
+	Command string
 }
 
 func (a *Agent) HandleEvent(annot tracks.Event) {
@@ -32,7 +33,7 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		return
 	}
 
-	transcription, err := a.Transcribe(&Request{
+	transcription, err := commands.Call[Transcription](context.TODO(), a.Source, a.Command, &Request{
 		Task:      "transcribe",
 		AudioData: &b,
 		AudioMetadata: AudioMetadata{
@@ -45,11 +46,6 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 	}
 
 	RecordTranscription(annot.Span(), transcription)
-}
-
-func (a *Agent) Transcribe(request *Request) (*Transcription, error) {
-	src := commands.HTTPSource{Endpoint: a.Endpoint}
-	return commands.Call[Transcription](context.TODO(), src, "faster-whisper:transcribe-data", request)
 }
 
 type AudioMetadata struct {

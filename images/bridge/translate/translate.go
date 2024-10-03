@@ -18,7 +18,8 @@ type TranslationEvent struct {
 }
 
 type Agent struct {
-	Endpoint       string
+	Source         commands.Source
+	Command        string
 	TargetLanguage string
 }
 
@@ -35,7 +36,7 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		return
 	}
 
-	r, err := a.Translate(&Request{
+	r, err := commands.Call[Translation](context.TODO(), a.Source, a.Command, &Request{
 		SourceLanguage: in.SourceLanguage,
 		TargetLanguage: a.TargetLanguage,
 		Text:           in.Text(),
@@ -50,11 +51,6 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		SourceEvent: annot.ID,
 		Translation: r,
 	})
-}
-
-func (a *Agent) Translate(request *Request) (*Translation, error) {
-	src := commands.HTTPSource{Endpoint: a.Endpoint}
-	return commands.Call[Translation](context.TODO(), src, "seamlessm4t:transcribe", request)
 }
 
 type Request struct {

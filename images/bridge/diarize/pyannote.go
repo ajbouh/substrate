@@ -10,7 +10,8 @@ import (
 )
 
 type PyannoteClient struct {
-	Endpoint string
+	Source  commands.Source
+	Command string
 }
 
 func float64ToDuration(f float64) time.Duration {
@@ -29,7 +30,7 @@ func (a *PyannoteClient) Diarize(stream beep.Streamer, format beep.Format) ([]Sp
 	request := &Request{
 		AudioData: b,
 	}
-	resp, err := a.request(request)
+	resp, err := commands.Call[Response](context.TODO(), a.Source, a.Command, request)
 	if err != nil {
 		return nil, err
 	}
@@ -44,11 +45,6 @@ func (a *PyannoteClient) Diarize(stream beep.Streamer, format beep.Format) ([]Sp
 		})
 	}
 	return speakers, nil
-}
-
-func (a *PyannoteClient) request(request *Request) (*Response, error) {
-	src := commands.HTTPSource{Endpoint: a.Endpoint}
-	return commands.Call[Response](context.TODO(), src, "diarizer:diarize", request)
 }
 
 type Request struct {
