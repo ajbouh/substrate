@@ -47,63 +47,25 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 	RecordTranscription(annot.Span(), transcription)
 }
 
-func call[Out, In any](ctx context.Context, src commands.Source, command string, params In) (Out, error) {
-	var out Out
+func call[Out, In any](ctx context.Context, src commands.Source, command string, params In) (*Out, error) {
 	paramFields, err := commands.ConvertViaJSON[commands.Fields](params)
 	if err != nil {
-		return out, err
+		return nil, err
 	}
 	resultFields, err := src.Run(ctx, command, paramFields)
 	if err != nil {
-		return out, err
+		return nil, err
 	}
-	return commands.ConvertViaJSON[Out](resultFields)
+	out, err := commands.ConvertViaJSON[Out](resultFields)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 func (a *Agent) Transcribe(request *Request) (*Transcription, error) {
 	src := commands.HTTPSource{Endpoint: a.Endpoint}
-	// t, err := call[Transcription](context.TODO(), src, "faster-whisper:transcribe-data", request)
-	in := commands.Fields{
-		"audio_data":     request.AudioData,
-		"audio_metadata": request.AudioMetadata,
-		"task":           request.Task,
-	}
-	r, err := src.Run(context.TODO(), "faster-whisper:transcribe-data", in)
-	if err != nil {
-		return nil, err
-	}
-	if err != nil {
-		return nil, err
-	}
-	t, err := commands.ConvertViaJSON[Transcription](r)
-	if err != nil {
-		return nil, err
-	}
-	return &t, nil
-	// src.Run(context.TODO(), "transcribe")
-	// payloadBytes, err := json.Marshal(request)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// resp, err := http.Post(a.Endpoint, "application/json", bytes.NewBuffer(payloadBytes))
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// defer resp.Body.Close()
-
-	// body, err := io.ReadAll(resp.Body)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// if resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK {
-	// 	response := &Transcription{}
-	// 	err = json.Unmarshal(body, response)
-	// 	return response, err
-	// } else {
-	// 	return nil, fmt.Errorf("transcribe: %s", body)
-	// }
+	return call[Transcription](context.TODO(), src, "faster-whisper:transcribe-data", request)
 }
 
 type AudioMetadata struct {
