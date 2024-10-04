@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -147,7 +148,7 @@ func NewWatcher(ctx context.Context, cb func(err error)) (*fsnotify.Watcher, err
 
 	debounceInterval := 100 * time.Millisecond
 	go func() {
-		defer log.Println("done watching")
+		defer slog.Info("cueloader watcher done")
 		debounce := time.NewTimer(debounceInterval)
 		for {
 			select {
@@ -155,23 +156,23 @@ func NewWatcher(ctx context.Context, cb func(err error)) (*fsnotify.Watcher, err
 				if !ok {
 					return
 				}
-				log.Println("event: ", event)
+				slog.Info("cueloader watcher event", "event", event)
 				debounce.Reset(debounceInterval)
 			case <-debounce.C:
-				log.Println("debounced")
+				slog.Info("cueloader watcher event debounced")
 				cb(nil)
 			case err, ok := <-watcher.Errors:
 				if !ok {
 					return
 				}
-				log.Println("error: ", err)
+				slog.Info("cueloader watcher error", err)
 				cb(err)
 			}
 		}
 	}()
 
 	go func() {
-		defer log.Println("closing watcher")
+		defer slog.Info("cueloader watcher closing")
 		defer watcher.Close()
 		<-ctx.Done()
 	}()
