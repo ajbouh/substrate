@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"sync"
+
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
 type Requester[T any] struct {
@@ -27,7 +30,18 @@ func (m *Requester[T]) Initialize() {
 	}
 }
 
+var _ notify.Notifier[struct{}] = (*Requester[struct{}])(nil)
+
+func (m *Requester[T]) Notify(ctx context.Context, ev T) {
+	err := m.Do(ctx, ev)
+	if err != nil {
+		slog.Info("error during httpevents.Requester.Notify()", "url", m.URL, "method", m.Method, "err", err)
+	}
+}
+
 func (m *Requester[T]) Do(ctx context.Context, t T) error {
+	slog.Info("httpevents.Requester.Do()", "url", m.URL, "method", m.Method)
+
 	if m.URL == "" {
 		return fmt.Errorf("URL not set for %T", m)
 	}

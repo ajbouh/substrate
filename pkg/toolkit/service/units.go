@@ -51,6 +51,8 @@ type Service struct {
 	ExportsRoute string
 }
 
+type UnifiedExports exports.Exports
+
 func (s *Service) initialize() {
 	log.Printf("Service.initialize()")
 
@@ -89,18 +91,19 @@ func (s *Service) initialize() {
 			CatchallRunnerPattern: "POST /{$}",
 		},
 
-		httpevents.NewJSONRequester[exports.Exports]("PUT", os.Getenv("INTERNAL_SUBSTRATE_EXPORTS_URL")),
-		httpevents.NewJSONEventStream[exports.Exports]("GET "+s.ExportsRoute),
+		notify.NewQueue(),
+		httpevents.NewJSONRequester[UnifiedExports]("PUT", os.Getenv("INTERNAL_SUBSTRATE_EXPORTS_URL")),
+		httpevents.NewJSONEventStream[UnifiedExports]("GET "+s.ExportsRoute),
 		notify.On(func(
 			ctx context.Context,
 			e exports.Changed,
 			t *struct {
+				NotifyQueue *notify.Queue
 				Sources     []exports.Source
-				EventStream *httpevents.EventStream[exports.Exports]
-				Requester   *httpevents.Requester[exports.Exports]
+				Notifiers   []notify.Notifier[UnifiedExports]
 			},
 		) {
-			if t.EventStream == nil && t.Requester == nil {
+			if len(t.Notifiers) == 0 {
 				return
 			}
 
@@ -115,17 +118,7 @@ func (s *Service) initialize() {
 				return
 			}
 
-			if t.EventStream != nil {
-				t.EventStream.Announce(union)
-			}
-			if t.Requester != nil {
-				go func() {
-					err := t.Requester.Do(ctx, union)
-					if err != nil {
-						slog.Info("Requester.Do", "err", err)
-					}
-				}()
-			}
+			notify.Later(t.NotifyQueue, t.Notifiers, UnifiedExports(union))
 		}),
 	).Units
 }

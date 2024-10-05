@@ -2,12 +2,14 @@ package httpevents
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"sync"
 
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/elnormous/contenttype"
 )
 
@@ -23,6 +25,12 @@ type EventStream[T any] struct {
 	b   []byte
 	mu  sync.Mutex
 	chs map[chan struct{}]struct{}
+}
+
+var _ notify.Notifier[struct{}] = (*EventStream[struct{}])(nil)
+
+func (a *EventStream[T]) Notify(ctx context.Context, ev T) {
+	a.Announce(ev)
 }
 
 func NewJSONEventStream[T any](route string) *EventStream[T] {
