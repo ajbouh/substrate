@@ -72,7 +72,7 @@ func eachEvent(r io.Reader, cb func(event *Event) error) error {
 	})
 }
 
-func ReadStreamEvents(client *http.Client, req *http.Request, cb func(event *Event) error) error {
+func ReadStreamEvents(client HTTPClient, req *http.Request, cb func(event *Event) error) error {
 	req.Header.Set("Accept", "text/event-stream")
 
 	res, err := client.Do(req)

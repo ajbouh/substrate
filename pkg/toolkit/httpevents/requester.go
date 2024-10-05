@@ -13,7 +13,7 @@ import (
 type Requester[T any] struct {
 	Method string
 	URL    string
-	Client *http.Client
+	Client HTTPClient
 
 	ContentType string
 	Marshal     func(t T) []byte
@@ -42,7 +42,7 @@ func (m *Requester[T]) Do(ctx context.Context, t T) error {
 		return fmt.Errorf("could not create request: %w", err)
 	}
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := m.Client.Do(req)
 	if err != nil {
 		return fmt.Errorf("do failed: %w", err)
 	}
@@ -53,7 +53,7 @@ func (m *Requester[T]) Do(ctx context.Context, t T) error {
 		if err != nil {
 			body = "error reading body: " + err.Error()
 		}
-		return fmt.Errorf("http status != 200; %s", body)
+		return fmt.Errorf("http status %d != 200; %s", res.StatusCode, body)
 	}
 
 	return nil
