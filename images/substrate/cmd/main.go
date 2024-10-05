@@ -120,12 +120,10 @@ func main() {
 		},
 		db,
 		provisionerCache,
-		&httpevents.EventStream[*defset.DefSet]{
-			ContentType: "application/json",
-		},
 
 		&InstanceLinks{},
 
+		httpevents.NewJSONEventStream[*defset.DefSet](""),
 		&space.VSCodeEditingForSpace{},
 
 		&RootSpacesLinkQuerier{
