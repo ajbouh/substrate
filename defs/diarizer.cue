@@ -15,3 +15,33 @@ services: "diarizer": {
     }
   }
 }
+
+commands: "diarizer": {
+  diarize: {
+    description: ""
+    parameters: {
+      audio_data: type: "string"
+    }
+    returns: {
+      timespans: type: "object"
+    }
+    run: http: {
+      "parameters": {
+        for parameter, v in parameters {
+          (parameter): path: "request.body.\(parameter)"
+        }
+      }
+      "returns": {
+        for return, v in returns {
+          (return): path: "response.body.\(return)"
+        }
+      }
+      request: {
+        method: "POST"
+        url: "/diarizer/v1/diarize"
+        headers: "Content-Type": ["application/json"]
+        body: {}
+      }
+    }
+  }
+}

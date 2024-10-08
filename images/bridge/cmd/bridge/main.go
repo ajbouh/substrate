@@ -66,6 +66,10 @@ func main() {
 		session = tracks.NewSession()
 	}
 
+	cmdSource := commands.HTTPSource{
+		Endpoint: getEnv("BRIDGE_COMMANDS_URL", "http://localhost:8090/"),
+	}
+
 	engine.Run(
 		&service.Service{},
 		&SessionHandler{},
@@ -101,10 +105,12 @@ func main() {
 			SampleWindow: 24 * time.Second,
 		}),
 		transcribe.Agent{
-			Endpoint: getEnv("BRIDGE_TRANSCRIBE_URL", "http://localhost:8090/v1/transcribe"),
+			Source:  cmdSource,
+			Command: getEnv("BRIDGE_TRANSCRIBE_COMMAND", "transcribe"),
 		},
 		translate.Agent{
-			Endpoint:       getEnv("BRIDGE_TRANSLATE_URL", "http://localhost:8091/v1/transcribe"),
+			Source:         cmdSource,
+			Command:        getEnv("BRIDGE_TRANSLATE_COMMAND", "transcribe"),
 			TargetLanguage: "en",
 		},
 		&tools.OfferAgent{
@@ -116,7 +122,10 @@ func main() {
 			Name: "bridge",
 		},
 		diarize.Agent{
-			Client: &diarize.PyannoteClient{Endpoint: getEnv("BRIDGE_DIARIZE_URL", "http://localhost:8092/v1/diarize")},
+			Client: &diarize.PyannoteClient{
+				Source:  cmdSource,
+				Command: getEnv("BRIDGE_DIARIZE_COMMAND", "diarize"),
+			},
 		},
 		assistant.Agent{
 			DefaultAssistants: []assistant.Client{

@@ -3,6 +3,12 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 package openai
 
+import (
+	"context"
+
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+)
+
 var (
 // ErrCompletionUnsupportedModel              = errors.New("this model is not supported with this method, please use CreateChatCompletion client method instead") //nolint:lll
 // ErrCompletionStreamNotSupported            = errors.New("streaming is not supported with this method, please use CreateCompletionStream")                      //nolint:lll
@@ -165,7 +171,7 @@ type CompletionResponse struct {
 // If using a fine-tuned model, simply provide the model's ID in the CompletionRequest object,
 // and the server will use the model's parameters to generate the completion.
 func doCompletion(
-	endpoint string,
+	endpoint, command string,
 	request *CompletionRequest,
 ) (response *CompletionResponse, err error) {
 	if request.Model == "" {
@@ -173,5 +179,6 @@ func doCompletion(
 		req.Model = "/res/model/huggingface/local"
 		request = &req
 	}
-	return doRequest[CompletionResponse](endpoint, request)
+	src := commands.HTTPSource{Endpoint: endpoint}
+	return commands.Call[CompletionResponse](context.TODO(), src, command, request)
 }

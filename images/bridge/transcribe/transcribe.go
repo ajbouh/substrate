@@ -1,22 +1,20 @@
 package transcribe
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
+	"context"
 	"log"
-	"net/http"
 	"strings"
 
 	"github.com/ajbouh/substrate/images/bridge/audio"
 	"github.com/ajbouh/substrate/images/bridge/tracks"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 )
 
 var RecordTranscription = tracks.EventRecorder[*Transcription]("transcription")
 
 type Agent struct {
-	Endpoint string
+	Source  commands.Source
+	Command string
 }
 
 func (a *Agent) HandleEvent(annot tracks.Event) {
@@ -35,7 +33,7 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		return
 	}
 
-	transcription, err := a.Transcribe(&Request{
+	transcription, err := commands.Call[Transcription](context.TODO(), a.Source, a.Command, &Request{
 		Task:      "transcribe",
 		AudioData: &b,
 		AudioMetadata: AudioMetadata{
@@ -48,32 +46,6 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 	}
 
 	RecordTranscription(annot.Span(), transcription)
-}
-
-func (a *Agent) Transcribe(request *Request) (*Transcription, error) {
-	payloadBytes, err := json.Marshal(request)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := http.Post(a.Endpoint, "application/json", bytes.NewBuffer(payloadBytes))
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK {
-		response := &Transcription{}
-		err = json.Unmarshal(body, response)
-		return response, err
-	} else {
-		return nil, fmt.Errorf("transcribe: %s", body)
-	}
 }
 
 type AudioMetadata struct {
