@@ -16,11 +16,9 @@ services: "bridge": {
     url_prefix: environment.SUBSTRATE_URL_PREFIX
 
     environment: {
-      BRIDGE_TRANSCRIBE_URL: "http://substrate:8080/"
+      BRIDGE_COMMANDS_URL: "http://substrate:8080/"
       BRIDGE_TRANSCRIBE_COMMAND: "faster-whisper:transcribe-data"
-      BRIDGE_TRANSLATE_URL: "http://substrate:8080/"
       BRIDGE_TRANSLATE_COMMAND: "seamlessm4t:transcribe"
-      BRIDGE_DIARIZE_URL: "http://substrate:8080/"
       BRIDGE_DIARIZE_COMMAND: "diarizer:diarize"
       BRIDGE_SESSION_DIR: "/spaces/sessions/\(parameters.id.value)"
     }
