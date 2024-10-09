@@ -1,0 +1,45 @@
+package space
+
+import (
+	"context"
+	"log/slog"
+
+	"cuelang.org/go/cue"
+	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/containers/podman/v4/pkg/bindings/containers"
+)
+
+func (p *SpacesViaContainerFilesystems) resolveBootstrapSpaceView(ctx context.Context, spaceID string, readOnly bool) (*activityspec.SpaceView, error) {
+	slog.Info("resolveBootstrapSpaceView", "spaceID", spaceID, "readOnly", readOnly)
+	containerID, err, _ := p.containerBootstrapGroup.Do(spaceID, func() (interface{}, error) {
+		var newSpaceImage string
+		var err error
+
+		err = p.DefSetLoader.Load().DecodeLookupPath(cue.MakePath(cue.Def("#var"), cue.Str("substrate"), cue.Str("new_space_image")), &newSpaceImage)
+		if err != nil {
+			return "", err
+		}
+
+		slog.Info("resolveLegacySpaceView seeking creating container")
+		s, _ := p.createContainerSpecForSpace(newSpaceImage, spaceID)
+
+		c, err := containers.CreateWithSpec(ctx, s, nil)
+		if err != nil {
+			return "", err
+		}
+
+		slog.Info("resolveLegacySpaceView done")
+		return c.ID, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	view, err := p.spaceViewFor(ctx, containerID.(string), spaceID, readOnly)
+	if err == nil {
+		view.Creation = &activityspec.SpaceViewCreation{}
+	}
+	return view, err
+
+}

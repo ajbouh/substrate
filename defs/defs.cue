@@ -34,6 +34,9 @@ import (
     internal_network_name: "substrate-internal"
     external_network_name: "substrate-external"
 
+    event_stream_url: "/events;data=substrate-bootstrap-0/stream/events"
+    event_writer_url: "/events;data=substrate-bootstrap-0/tree/fields"
+
     new_space_image: string
   }
 }

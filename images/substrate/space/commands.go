@@ -6,13 +6,11 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"path"
 	"time"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	podmanprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/podman"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
-	"github.com/ajbouh/substrate/pkg/toolkit/links"
 	"github.com/containers/common/pkg/auth"
 	"github.com/containers/image/v5/types"
 	"github.com/containers/podman/v4/pkg/bindings/containers"
@@ -62,12 +60,7 @@ type SpaceDeleter interface {
 	DeleteSpace(ctx context.Context, spaceID string) error
 }
 
-type SpawnLinkQuerier interface {
-	QuerySpawnLinks(ctx context.Context, spaceID string) (map[string]links.Link, error)
-}
-
 var _ SpaceURLs = (*SpacesViaContainerFilesystems)(nil)
-var _ SpawnLinkQuerier = (*SpacesViaContainerFilesystems)(nil)
 var _ SpaceDeleter = (*SpacesViaContainerFilesystems)(nil)
 var _ SpaceAsFS = (*SpacesViaContainerFilesystems)(nil)
 
@@ -146,63 +139,6 @@ var WriteCommand = commands.HTTPCommand(
 		return void, fs.WriteFile(fsys, args.Path, data, 0644)
 	})
 
-var QueryLinksTreePathCommand = commands.HTTPCommand(
-	"links:query", "List links",
-	"GET /substrate/v1/spaces/{space}/links/tree", "/substrate/v1/spaces/{space}/tree",
-	func(ctx context.Context,
-		t *struct {
-			SpaceAsFS SpaceAsFS
-			SpaceURLs SpaceURLs
-		},
-		args struct {
-			Space string `json:"space" path:"space"`
-			Path  string `json:"path" path:"path"`
-		},
-	) (LinksQueryReturns, error) {
-		slog.Info("QueryLinksTreePathCommand", "t", t, "t.SpaceAsFS", t.SpaceAsFS, "args", args)
-		l := LinksQueryReturns{
-			Links: links.Links{},
-		}
-
-		fsys, err := t.SpaceAsFS.SpaceAsFS(ctx, args.Space, false)
-		if err != nil {
-			return l, err
-		}
-
-		stat, err := fs.Stat(fsys, args.Path)
-		if err != nil {
-			return l, err
-		}
-
-		if stat.IsDir() {
-			entries, err := fs.ReadDir(fsys, args.Path)
-			if err != nil {
-				return l, err
-			}
-
-			for _, entry := range entries {
-				l.Links["child/"+entry.Name()] = links.Link{
-					Rel:  "child",
-					HREF: t.SpaceURLs.SpaceTreePathURLFunc(args.Space, args.Path+"/"+entry.Name()),
-				}
-			}
-		}
-
-		if args.Path != "/" && args.Path != "" {
-			l.Links["parent"] = links.Link{
-				Rel:  "parent",
-				HREF: t.SpaceURLs.SpaceTreePathURLFunc(args.Space, path.Dir(args.Path)),
-			}
-		}
-
-		l.Links["space"] = links.Link{
-			Rel:  "space",
-			HREF: t.SpaceURLs.SpaceURLFunc(args.Space),
-		}
-
-		return l, nil
-	})
-
 var GetCommand = commands.HTTPCommand(
 	"space:get", "Get a space",
 	"GET /substrate/v1/spaces/{space}", "/substrate/v1/spaces/{space}",
@@ -249,38 +185,6 @@ var NewCommand = commands.Command(
 			SpaceID: view.SpaceID,
 		}, nil
 	})
-
-type LinksQueryReturns struct {
-	Links links.Links `json:"links"`
-}
-
-var LinksQueryCommand = commands.HTTPCommand(
-	"links:query", "",
-	"GET /substrate/v1/spaces/{space}/links", "/substrate/v1/spaces/{space}",
-	func(ctx context.Context,
-		t *struct {
-			SpawnLinkQuerier SpawnLinkQuerier
-			SpaceURLs        SpaceURLs
-		},
-		args struct {
-			SpaceID string `json:"space" path:"space"`
-		},
-	) (LinksQueryReturns, error) {
-		l := LinksQueryReturns{}
-		var err error
-		l.Links, err = t.SpawnLinkQuerier.QuerySpawnLinks(ctx, args.SpaceID)
-		if err != nil {
-			return l, err
-		}
-
-		l.Links["tree"] = links.Link{
-			Rel:  "tree",
-			HREF: t.SpaceURLs.SpaceTreePathURLFunc(args.SpaceID, ""),
-		}
-
-		return l, nil
-	},
-)
 
 // The commands below here should probably not be doing P.Connect directly. Bit of an abstraction violation there.
 

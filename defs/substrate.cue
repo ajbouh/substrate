@@ -19,6 +19,8 @@ import (
   substrate: internal_port: int
   substrate: internal_host: string
   substrate: internal_protocol: string
+  substrate: event_stream_url: string
+  substrate: event_writer_url: string
 
   substrate: new_space_image: string
 }
@@ -79,6 +81,9 @@ daemons: "substrate": {
     "SUBSTRATE_NAMESPACE": #var.namespace
     "SUBSTRATE_INTERNAL_NETWORK": string | *#var.substrate.internal_network_name
     "SUBSTRATE_EXTERNAL_NETWORK": string | *#var.substrate.external_network_name
+
+    "SUBSTRATE_EVENT_STREAM_URL": string | *#var.substrate.event_stream_url
+    "SUBSTRATE_EVENT_WRITER_URL": string | *#var.substrate.event_writer_url
 
     #docker_socket: "/var/run/docker.sock"
 
