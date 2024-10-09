@@ -6,6 +6,8 @@ import (
 
 enable: "faster-whisper": true
 
+live_edit: "faster-whisper": bool
+
 tests: "faster-whisper": transcribe: {
   test_templates["transcriber"]
 
@@ -63,6 +65,12 @@ services: "faster-whisper": {
         MODEL_REPO: "/res/tiny/huggingface/local"
         MODEL_DEVICE: "cpu"
         MODEL_COMPUTE_TYPE: "int8"
+      }
+    }
+
+    if live_edit["faster-whisper"] {
+      mounts: {
+        "/app/": { source: "\(#var.host_source_directory)/images/faster-whisper", mode: "ro" }
       }
     }
   }

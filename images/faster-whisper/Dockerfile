@@ -18,4 +18,4 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 COPY images/faster-whisper/. .
 
 ENV PYTHONUNBUFFERED=1
-ENTRYPOINT ["uvicorn", "app:app", "--host", "0.0.0.0"]
+ENTRYPOINT ["fastapi", "dev", "/app/app.py", "--host", "0.0.0.0"]
