@@ -238,7 +238,7 @@ export class ProgramState implements ProgramStateType {
     time: number;
     startTime: number;
     evaluatorRunning: number;
-    exports?: object;
+    exports?: Array<string>;
     imports?: Array<string>;
     updated: boolean;
     app?: any;
@@ -541,6 +541,12 @@ export class ProgramState implements ProgramStateType {
         }
     }
 
+    setResolvedForSubgraph(varName:VarName, value:any) {
+        this.setResolved(varName, value);
+        this.inputArray.set(varName, []);
+        this.streams.set(varName, new Behavior());
+    }
+
     merge(func:Function) {
         let scripts = this.scripts;
         const {output} = getFunctionBody(func.toString(), true);
@@ -548,38 +554,43 @@ export class ProgramState implements ProgramStateType {
     }
 
     renkonify(func:Function, optSystem?:any) {
-        const programState =  new ProgramState(Date.now(), optSystem);
+        const programState =  new ProgramState(0, optSystem);
         const {params, returnArray, output} = getFunctionBody(func.toString(), false);
         console.log(params, returnArray, output, this);
-        const time = this.time;
+        const self = this;
 
         const receivers = params.map((r) => `const ${r} = undefined;`).join("\n");
     
         programState.setupProgram([receivers, output]);
     
-        function generator(...args:any[]) {
-            const gen = renkonBody(...args) as GeneratorWithFlag<any>;
+        function generator(params:any) {
+            const gen = renkonBody(params) as GeneratorWithFlag<any>;
             gen.done = false;
             return Events.next(gen);
         }
-        async function* renkonBody(...args:any[]) {
-            for (let i = 0; i < params.length; i++) {
-                programState.setResolved(params[i], args[i]);
+        async function* renkonBody(args:any) {
+            let lastYielded = undefined;
+            for (let key in args) {
+                programState.setResolvedForSubgraph(
+                    key,
+                    {value: args[key], time: self.time}
+                );
             }
             while (true) {
-                programState.evaluate(programState.time);
+                programState.evaluate(self.time);
                 const result:any = {};
+                const resultTest = [];
                 if (returnArray) {
                     for (const n of returnArray) {
                         const v = programState.resolved.get(n);
+                        resultTest.push(v ? v.value : undefined)
                         if (v && v.value !== undefined) {
                             result[n] = v.value;
                         }
                     }
                 }
-                if (programState.updated) {
-                    yield result;
-                }
+                yield !self.equals(lastYielded, resultTest) ? result : undefined;
+                lastYielded = resultTest;
             }
         }
         return generator;
@@ -591,10 +602,10 @@ export class ProgramState implements ProgramStateType {
         // console.log(params, returnArray, output, this);
 
         const receivers = params.map((r) => `const ${r} = undefined;`).join("\n");
-    
+
         programState.setupProgram([receivers, output]);
 
-        programState.exports = returnArray;
+        programState.exports = returnArray || undefined;
         programState.imports = params;
 
         return programState;
@@ -617,22 +628,37 @@ export class ProgramState implements ProgramStateType {
         }
         return result;
     }
-    
-
 
     spaceURL(partialURL:string) {
         // partialURL: './bridge/bridge.js'
-        // expected: 
-        const loc = window.location.toString();
-        const semi = loc.indexOf(";");
-        if (semi < 0) {
-            const base = import.meta?.env?.DEV ? "../" : "../";
-            console.log(base + partialURL);
-            return base + partialURL;
+        // expected:
+        // if it is running on substrate, and it is from space, there is
+        // at least one slash and we remove chars after that.
+
+        // partialURL: "/tool-call/js/commands.js"
+        // expected:
+        // if it is running on substrate, it is the full path on substrate.home.arpa
+
+        const loc = window.location;
+        const maybeSpace = loc.host === "substrate.home.arpa"
+            && loc.pathname.includes("/space");
+
+        if (maybeSpace) {
+            if (partialURL.startsWith("/")) {
+                return `${loc.origin}${partialURL}`;
+            }
+            const index = loc.pathname.lastIndexOf("/");
+            const basepath = index >= 0 ? loc.pathname.slice(0, index) : loc.pathname;
+            return `${loc.origin}${basepath}/${partialURL}`;
         }
-        const index = loc.lastIndexOf("/");
-        let base = index >= 0 ? loc.slice(0, index) : loc;
-        return `${base}/${partialURL}`;
+
+        if (partialURL.startsWith("/")) {
+            const index = loc.pathname.lastIndexOf("/");
+            const basepath = index >= 0 ? loc.pathname.slice(0, index) : loc.pathname;
+            return `${loc.origin}${basepath}${partialURL}`;
+        }
+        const base = import.meta?.env?.DEV ? "../" : "../";
+        return base + partialURL;
     }
 
     inspector(flag:boolean, dom?: HTMLElement) {
