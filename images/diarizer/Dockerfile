@@ -12,7 +12,7 @@ RUN apt-get update \
 WORKDIR /app
 
 # Copy the source code to the container
-COPY images/diarizer/requirements.txt /app/requirements.txt
+COPY images/diarizer/requirements.txt .
 
 # Install the dependencies
 RUN --mount=type=cache,target=/root/.cache/pip \
@@ -23,9 +23,5 @@ COPY images/diarizer/. /app
 
 RUN python3 /app/model_download.py
 
-# Expose the port on which the application will run (default is 8000)
-EXPOSE 8080
 ENV PYTHONUNBUFFERED=1
-
-# Start the application with Uvicorn
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8080"]
+ENTRYPOINT ["fastapi", "dev", "/app/app.py", "--host", "0.0.0.0"]

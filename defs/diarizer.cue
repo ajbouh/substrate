@@ -7,11 +7,21 @@ imagespecs: "diarizer": {
   build: dockerfile: "images/diarizer/Dockerfile"
 }
 
+live_edit: "diarizer": bool
+
 services: "diarizer": {
   instances: [string]: {
     environment: {
       CUDA_DEVICE_ORDER: "PCI_BUS_ID"
       PORT: string
+    }
+
+    command: ["--port", environment.PORT]
+
+    if live_edit["diarizer"] {
+      mounts: {
+        "/app/": { source: "\(#var.host_source_directory)/images/diarizer", mode: "ro" }
+      }
     }
   }
 }

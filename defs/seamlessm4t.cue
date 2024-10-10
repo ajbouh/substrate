@@ -42,12 +42,7 @@ services: "seamlessm4t": {
       model: "huggingface:model:facebook/seamless-m4t-v2-large:f9c8e845d2655d96ed6377dc48efbcfdd97c410f"
     }
 
-    command: [
-      "--log-level", "debug",
-      "--port", environment.PORT,
-      "--reload", "--reload-dir", "/app",
-      "--access-log",
-    ]
+    command: ["--port", environment.PORT]
 
     if live_edit["seamlessm4t"] {
       mounts: {

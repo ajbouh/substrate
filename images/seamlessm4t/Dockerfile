@@ -23,6 +23,4 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 COPY images/seamlessm4t/. .
 
 ENV PYTHONUNBUFFERED=1
-
-# Start the application with Uvicorn
-ENTRYPOINT ["uvicorn", "app:app", "--host", "0.0.0.0"]
+ENTRYPOINT ["fastapi", "dev", "/app/app.py", "--host", "0.0.0.0"]
