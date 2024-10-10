@@ -12,11 +12,11 @@ services: "chromestage": {
     parameters: {
       w: {
         type: "string"
-        value: string | *"1280"
+        value: string | *"640"
       }
       h: {
         type: "string"
-        value: string | *"720"
+        value: string | *"480"
       }
       id: {
         type: "string"
