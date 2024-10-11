@@ -72,6 +72,7 @@ func (p *SpacesViaContainerFilesystems) createContainerSpecForSpace(imageID, spa
 	}
 	s.Name = spaceID
 	s.Entrypoint = []string{"/bin/false"}
+	s.SelinuxOpts = append(s.SelinuxOpts, "disable")
 	s.Labels = map[string]string{
 		podmanprovisioner.LabelSubstrateNamespace: p.P.Namespace,
 		LabelSubstrateContainerRole:               string(LabelSubstrateContainerRoleSpace),
@@ -277,7 +278,7 @@ func (p *SpacesViaContainerFilesystems) spaceViewFor(ctx context.Context, contai
 			return nil
 		},
 		Mounts: func(targetPrefix string) []activityspec.ServiceInstanceDefSpawnMount {
-			var mode = []string{"z"}
+			var mode []string
 			if readOnly {
 				mode = append(mode, "ro")
 			} else {
