@@ -277,9 +277,11 @@ func (p *SpacesViaContainerFilesystems) spaceViewFor(ctx context.Context, contai
 			return nil
 		},
 		Mounts: func(targetPrefix string) []activityspec.ServiceInstanceDefSpawnMount {
-			var mode = "rw"
+			var mode = []string{"z"}
 			if readOnly {
-				mode = "ro"
+				mode = append(mode, "ro")
+			} else {
+				mode = append(mode, "rw")
 			}
 			return []activityspec.ServiceInstanceDefSpawnMount{
 				{

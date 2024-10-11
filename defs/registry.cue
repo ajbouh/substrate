@@ -25,7 +25,7 @@ services: "v2": {
     }
 
     mounts: {
-      "/var/lib/registry": { source: "/var/lib/registry", mode: "rw" }
+      "/var/lib/registry": { source: "/var/lib/registry", mode: ["rw"] }
     }
   }
 }

@@ -20,7 +20,7 @@ services: "diarizer": {
 
     if live_edit["diarizer"] {
       mounts: {
-        "/app/": { source: "\(#var.host_source_directory)/images/diarizer", mode: "ro" }
+        "/app/": { source: "\(#var.host_source_directory)/images/diarizer", mode: ["ro"] }
       }
     }
   }

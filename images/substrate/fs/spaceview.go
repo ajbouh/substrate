@@ -194,13 +194,13 @@ func (l *Layout) ResolveSpaceView(ctx context.Context, s string, forceReadOnly b
 					Type:        "bind",
 					Source:      treePath,
 					Destination: targetPrefix + "/tree",
-					Mode:        treeMountMode,
+					Mode:        []string{treeMountMode, "z"},
 				},
 				{
 					Type:        "bind",
 					Source:      ownerFilePath,
 					Destination: targetPrefix + "/owner",
-					Mode:        "ro",
+					Mode:        []string{"ro", "z"},
 				},
 			}
 		},

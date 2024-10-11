@@ -30,7 +30,7 @@ services: "styletts2": {
 
     if live_edit["styletts2"] {
       mounts: {
-        "/app/": { source: "\(#var.host_source_directory)/images/styletts2", mode: "ro" }
+        "/app/": { source: "\(#var.host_source_directory)/images/styletts2", mode: ["ro"] }
       }
     }
   }

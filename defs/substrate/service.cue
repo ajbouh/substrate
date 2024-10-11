@@ -69,7 +69,7 @@ import (
       type: string | *"bind"
       source ?: string
       "destination": string & destination
-      mode: string | *"rw"
+      mode: [...string] | *["rw"]
     }
 
     exports ?: {

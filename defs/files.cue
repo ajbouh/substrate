@@ -25,7 +25,7 @@ live_edit: "files": bool
 if live_edit["files"] {
   services: "files": instances: [string]: {
     mounts: {
-      "/go/src/github.com/ajbouh/substrate/images/files/assets": { source: "\(#var.host_source_directory)/images/files/assets", mode: "ro" }
+      "/go/src/github.com/ajbouh/substrate/images/files/assets": { source: "\(#var.host_source_directory)/images/files/assets", mode: ["ro"] }
     }
   }
 }

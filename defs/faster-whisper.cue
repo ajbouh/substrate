@@ -70,7 +70,7 @@ services: "faster-whisper": {
 
     if live_edit["faster-whisper"] {
       mounts: {
-        "/app/": { source: "\(#var.host_source_directory)/images/faster-whisper", mode: "ro" }
+        "/app/": { source: "\(#var.host_source_directory)/images/faster-whisper", mode: ["ro"] }
       }
     }
   }

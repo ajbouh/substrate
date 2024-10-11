@@ -11,7 +11,7 @@ import (
   type: string | *"bind"
   source ?: string
   destination: string
-  mode: string | *"rw"
+  mode: [...string] | *["rw"]
 }
 
 #ContainerSpec: {
@@ -97,12 +97,16 @@ import (
               if mount.destination != _|_ {
                 "destination=\(mount.destination)",
               }
-              if mount.mode == "rw" {
-                "rw=true",
-              }
-              if mount.mode == "ro" {
-                "ro=true",
-              }
+              strings.Join([
+                for mode in mount.mode {
+                  if mode == "rw" {
+                    "rw=true",
+                  }
+                  if mode == "ro" {
+                    "ro=true",
+                  }
+                }
+              ], ",")
             ], ",")
           }
         ]
@@ -130,12 +134,16 @@ import (
           if mount.destination != _|_ {
             "destination=\(mount.destination)",
           }
-          if mount.mode == "rw" {
-            "rw=true",
-          }
-          if mount.mode == "ro" {
-            "ro=true",
-          }
+          strings.Join([
+            for mode in mount.mode {
+              if mode == "rw" {
+                "rw=true",
+              }
+              if mode == "ro" {
+                "ro=true",
+              }
+            }
+          ], ",")
         ], ","),
       }
     }

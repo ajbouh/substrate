@@ -123,7 +123,7 @@ services: [key=string]: service & {
       mounts: "/res/\(rdalias)": {
         type: "image"
         source: #alias.resourcedirs[rdid].image_tag
-        mode: "ro"
+        mode: ["ro"]
       }
     }
   }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 
@@ -81,7 +82,7 @@ func (p *P) appendMount(ctx context.Context, s *specgen.SpecGenerator, m activit
 			Source:      m.Source,
 			Destination: m.Destination,
 		}
-		if m.Mode == "rw" {
+		if slices.Contains(m.Mode, "rw") {
 			iv.ReadWrite = true
 		}
 		s.ImageVolumes = append(s.ImageVolumes, iv)
@@ -92,7 +93,7 @@ func (p *P) appendMount(ctx context.Context, s *specgen.SpecGenerator, m activit
 		Type:        m.Type,
 		Source:      m.Source,
 		Destination: m.Destination,
-		Options:     []string{m.Mode},
+		Options:     slices.Clone(m.Mode),
 	})
 	return nil
 }

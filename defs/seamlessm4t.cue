@@ -46,7 +46,7 @@ services: "seamlessm4t": {
 
     if live_edit["seamlessm4t"] {
       mounts: {
-        "/app/": { source: "\(#var.host_source_directory)/images/seamlessm4t", mode: "ro" }
+        "/app/": { source: "\(#var.host_source_directory)/images/seamlessm4t", mode: ["ro"] }
       }
     }
   }

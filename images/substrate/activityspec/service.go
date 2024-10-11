@@ -80,10 +80,10 @@ type ServiceInstanceDef struct {
 }
 
 type ServiceInstanceDefSpawnMount struct {
-	Type        string `json:"type"`
-	Source      string `json:"source"`
-	Destination string `json:"destination"`
-	Mode        string `json:"mode,omitempty"`
+	Type        string   `json:"type"`
+	Source      string   `json:"source"`
+	Destination string   `json:"destination"`
+	Mode        []string `json:"mode,omitempty"`
 }
 
 type ServiceSpawnParameters map[string]*ServiceSpawnParameter

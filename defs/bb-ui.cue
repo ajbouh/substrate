@@ -16,8 +16,8 @@ services: "bb-ui": {
   instances: [string]: {
     if live_edit["bb-ui"] {
       mounts: {
-        "/app/docs": { source: "\(#var.host_source_directory)/images/bb-ui/docs", mode: "rw" }
-        "/app/observablehq.config.ts": { source: "\(#var.host_source_directory)/images/bb-ui/observablehq.config.ts", mode: "ro" }
+        "/app/docs": { source: "\(#var.host_source_directory)/images/bb-ui/docs", mode: ["rw"] }
+        "/app/observablehq.config.ts": { source: "\(#var.host_source_directory)/images/bb-ui/observablehq.config.ts", mode: ["ro"] }
       }
     }
   }

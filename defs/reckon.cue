@@ -16,8 +16,8 @@ services: "reckon": {
   instances: [string]: {
     if live_edit["reckon"] {
       mounts: {
-        "/app/docs": { source: "\(#var.host_source_directory)/images/reckon/docs", mode: "rw" },
-        "/app/observablehq.config.ts": { source: "\(#var.host_source_directory)/images/reckon/observablehq.config.ts", mode: "ro" },
+        "/app/docs": { source: "\(#var.host_source_directory)/images/reckon/docs", mode: ["rw"] },
+        "/app/observablehq.config.ts": { source: "\(#var.host_source_directory)/images/reckon/observablehq.config.ts", mode: ["ro"] },
       }
     }
   }

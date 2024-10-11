@@ -15,7 +15,7 @@ services: "sys": {
     url_prefix: environment.SUBSTRATE_URL_PREFIX
 
     mounts: {
-      "/hostsys": { source: "/sys", mode: "ro" }
+      "/hostsys": { source: "/sys", mode: ["ro"] }
     }
   }
 }
