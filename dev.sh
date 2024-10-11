@@ -30,6 +30,11 @@ case "$BUILDX_NATIVE_SUFFIX" in
 esac
 BUILDX_NATIVE=$HERE/tools/buildx/${BUILDX_PREFIX}${BUILDX_NATIVE_SUFFIX}
 
+TXTAR_VERSION="v0.0.0-20241009180824-f66d83c29e7c"
+TXTAR_PREFIX=txtar_${TXTAR_VERSION}_
+TXTAR_NATIVE_SUFFIX=$(uname -s | tr "[:upper:]" "[:lower:]")_$(uname -m)
+TXTAR_NATIVE=$HERE/tools/txtar/${TXTAR_PREFIX}${TXTAR_NATIVE_SUFFIX}
+
 if [ -z "$PODMAN" ]; then
   PODMAN=$(PATH=/opt/podman/bin:$PATH which podman)
 fi
@@ -99,6 +104,24 @@ cue() {
     $CUE_NATIVE "$@"
   fi
   cd >/dev/null -
+}
+
+ensure_txtar() {
+  if [ ! -f $TXTAR_NATIVE ]; then
+    $PODMAN build \
+      -f images/txtar/Dockerfile \
+      --target=txtar \
+      --build-arg=TXTAR_VERSION=$TXTAR_VERSION \
+      --build-arg=TXTAR_BASENAME=$(basename $TXTAR_NATIVE) \
+      --output type=local,dest=$(dirname $TXTAR_NATIVE) \
+      .
+    chmod +x $TXTAR_NATIVE
+  fi
+}
+
+txtar() {
+  ensure_txtar
+  $TXTAR_NATIVE "$@"
 }
 
 ensure_buildx() {
@@ -244,18 +267,11 @@ commit_ostree_layer() {
   cosa shell sudo chown -R builder:builder "/srv/${repo}"
 }
 
-write_directory_from_cue_exprs() {
+write_directory_from_cue_txtar() {
   basedir=$1
-  basenames_expr=$2
-  contents_expr=$3
+  shift
 
-  FILES=$(print_rendered_cue_dev_expr_as text -e "$basenames_expr")
-  echo FILES=$FILES
-  if [ -n "$FILES" ]; then
-    for f in $FILES; do
-      print_rendered_cue_dev_expr_as text -e "$contents_expr[\"$f\"]" > $basedir/$f
-    done
-  fi
+  print_rendered_cue_dev_expr_as text "$@" | (cd $basedir; txtar -x)
 }
 
 write_systemd_units_overlay() {
@@ -270,9 +286,9 @@ write_systemd_units_overlay() {
 
   mkdir -p $OVERLAY_SYSTEMD_CONTAINERS_BASEDIR $OVERLAY_SYSTEMD_PRESET_BASEDIR $OVERLAY_SYSTEMD_UNITS_BASEDIR
 
-  write_directory_from_cue_exprs $OVERLAY_SYSTEMD_PRESET_BASEDIR '#out.systemd_preset_basenames' '#out.systemd_preset_contents'
-  write_directory_from_cue_exprs $OVERLAY_SYSTEMD_CONTAINERS_BASEDIR '#out.systemd_quadlet_basenames' '#out.systemd_quadlet_contents'
-  write_directory_from_cue_exprs $OVERLAY_SYSTEMD_UNITS_BASEDIR '#out.systemd_unit_basenames' '#out.systemd_unit_contents'
+  write_directory_from_cue_expr_txtar $OVERLAY_SYSTEMD_PRESET_BASEDIR '#out.systemd_preset_txtar'
+  write_directory_from_cue_expr_txtar $OVERLAY_SYSTEMD_UNITS_BASEDIR '#out.systemd_unit_txtar'
+  write_directory_from_cue_expr_txtar $OVERLAY_SYSTEMD_CONTAINERS_BASEDIR '#out.systemd_quadlet_txtar'
 }
 
 built_image_refs_from_metadata() {
@@ -434,15 +450,15 @@ systemd_logs() {
   journalctl -xfeu substrate.service
 }
 
-write_image_ids_file() {
-  GEN_IMAGE_IDS=.gen/cue/image_ids.cue
-  mkdir -p $(dirname $GEN_IMAGE_IDS)
+write_image_id_files() {
+  # NB(adamb) TEMPORARY, remove after 2024-10-20
+  # we used to write all image_ids to a single file. we no longer do that, but we need to proactively remove that file now.
+  # otherwise we will generate a conflict. writing individual files allows us to only rebuild specific
+  rm -f defs/image_ids.cue
   buildx_bake_metadata_file="$1"
   set +x
-  print_rendered_cue_dev_expr_as text -t "buildx_bake_metadata=$(cat $buildx_bake_metadata_file)" -e '#out.buildx_bake_image_ids_file' | tee >&2 -a $GEN_IMAGE_IDS
+  print_rendered_cue_dev_expr_as text -t "buildx_bake_metadata=$(cat $buildx_bake_metadata_file)" -e '#out.buildx_bake_image_ids_file' | tee /dev/stderr | txtar -x
   set -x
-  # use mv to make it atomic
-  mv $GEN_IMAGE_IDS defs/image_ids.cue
 }
 
 write_ready_file() {
@@ -460,7 +476,7 @@ systemd_reload() {
   # This is less efficient than we'd like, but it works. We don't want to reload all tarballs on every build.
   build_images $docker_compose_file '--set=*.output=type=docker,oci-mediatypes=true' $containers
 
-  write_image_ids_file "$docker_compose_file.metadata.json"
+  write_image_id_files "$docker_compose_file.metadata.json"
 
   # show overrides before we replace anything (as a sort of poor man's backup)
   systemd-delta --no-pager
@@ -469,7 +485,13 @@ systemd_reload() {
   RELOAD_OVERLAY_BASEDIR=os/gen/overlay.d/reload
   rm -rf $RELOAD_OVERLAY_BASEDIR
   mkdir -p $RELOAD_OVERLAY_BASEDIR
-  write_systemd_units_overlay $RELOAD_OVERLAY_BASEDIR etc/containers/systemd etc/systemd/system etc/systemd/system-preset
+  
+  write_directory_from_cue_txtar \
+    $RELOAD_OVERLAY_BASEDIR \
+    -t "systemd_overlay_quadlets_dir=etc/containers/systemd" \
+    -t "systemd_overlay_units_dir=etc/systemd/system" \
+    -t "systemd_overlay_presets_dir=etc/systemd/system-preset" \
+    -e '#out.systemd_overlay_txtar'
 
   # /etc is writable so this is fine
   cp -r os/src/config/overlay.d/50substrateos/etc/. $RELOAD_OVERLAY_BASEDIR/etc/
@@ -518,7 +540,13 @@ os_fetch() {
   OVERLAY_BASEDIR=os/$OS_OVERLAY_BASEDIR
   rm -rf $OVERLAY_BASEDIR
   mkdir -p $OVERLAY_BASEDIR
-  write_systemd_units_overlay $OVERLAY_BASEDIR usr/share/containers/systemd usr/lib/systemd/system usr/lib/systemd/system-preset
+
+  write_directory_from_cue_txtar \
+    $OVERLAY_BASEDIR \
+    -t "systemd_overlay_quadlets_dir=usr/share/containers/systemd" \
+    -t "systemd_overlay_units_dir=usr/lib/systemd/system" \
+    -t "systemd_overlay_presets_dir=usr/lib/systemd/system-preset" \
+    -e '#out.systemd_overlay_txtar'
 
   # These are static binaries that we want to embed directly in the OS
   $PODMAN build -f images/gotty/Dockerfile --target=gotty --output type=local,dest=$OVERLAY_BASEDIR/usr/bin/ .
@@ -567,6 +595,10 @@ case "$1" in
     shift
     cue "$@"
     ;;
+  txtar)
+    shift
+    txtar "$@"
+    ;;
   expr-dump)
     shift
     set_os_vars
@@ -579,7 +611,7 @@ case "$1" in
     set_os_vars
     set_live_edit_vars
     docker_compose_file=$(pick_docker_compose_yml substrate)
-    write_image_ids_file "$docker_compose_file.metadata.json"
+    write_image_id_files "$docker_compose_file.metadata.json"
     write_ready_file
     ;;
   reload|systemd-reload)
