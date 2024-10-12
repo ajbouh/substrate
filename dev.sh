@@ -31,7 +31,7 @@ esac
 BUILDX_NATIVE=$HERE/tools/buildx/${BUILDX_PREFIX}${BUILDX_NATIVE_SUFFIX}
 
 TXTAR_VERSION="v0.0.0-20241009180824-f66d83c29e7c"
-TXTAR_PREFIX=txtar_${TXTAR_VERSION}_
+TXTAR_PREFIX=txtar-${TXTAR_VERSION}_
 TXTAR_NATIVE_SUFFIX=$(uname -s | tr "[:upper:]" "[:lower:]")_$(uname -m)
 TXTAR_NATIVE=$HERE/tools/txtar/${TXTAR_PREFIX}${TXTAR_NATIVE_SUFFIX}
 
@@ -272,23 +272,6 @@ write_directory_from_cue_txtar() {
   shift
 
   print_rendered_cue_dev_expr_as text "$@" | (cd $basedir; txtar -x)
-}
-
-write_systemd_units_overlay() {
-  OVERLAY_BASEDIR=$1
-  SYSTEMD_CONTAINERS_BASEDIR=$2
-  SYSTEMD_UNIT_BASEDIR=$3
-  SYSTEMD_PRESET_BASEDIR=$4
-
-  OVERLAY_SYSTEMD_CONTAINERS_BASEDIR=$OVERLAY_BASEDIR/$SYSTEMD_CONTAINERS_BASEDIR
-  OVERLAY_SYSTEMD_UNITS_BASEDIR=$OVERLAY_BASEDIR/$SYSTEMD_UNIT_BASEDIR
-  OVERLAY_SYSTEMD_PRESET_BASEDIR=$OVERLAY_BASEDIR/$SYSTEMD_PRESET_BASEDIR
-
-  mkdir -p $OVERLAY_SYSTEMD_CONTAINERS_BASEDIR $OVERLAY_SYSTEMD_PRESET_BASEDIR $OVERLAY_SYSTEMD_UNITS_BASEDIR
-
-  write_directory_from_cue_expr_txtar $OVERLAY_SYSTEMD_PRESET_BASEDIR '#out.systemd_preset_txtar'
-  write_directory_from_cue_expr_txtar $OVERLAY_SYSTEMD_UNITS_BASEDIR '#out.systemd_unit_txtar'
-  write_directory_from_cue_expr_txtar $OVERLAY_SYSTEMD_CONTAINERS_BASEDIR '#out.systemd_quadlet_txtar'
 }
 
 built_image_refs_from_metadata() {
