@@ -15,8 +15,10 @@ type Querier interface {
 	QueryMaxID(ctx context.Context) (ID, error)
 }
 
+type WriteNotifyFunc func(i int, id ID, fieldsSize int, fieldsSha256 []byte, dataSize int64, dataSha256 []byte)
+
 type Writer interface {
-	WriteEvents(ctx context.Context, since ID, fields []json.RawMessage, readClosers []io.ReadCloser) ([]ID, error)
+	WriteEvents(ctx context.Context, since ID, fields []json.RawMessage, readClosers []io.ReadCloser, cb WriteNotifyFunc) error
 }
 
 type Streamer interface {

@@ -8,7 +8,7 @@ import (
 
 func CreateTables(ctx context.Context, txer db.Txer) error {
 	tables := []string{
-		dropEventsTable,
+		// dropEventsTable,
 		createEventsTable,
 	}
 

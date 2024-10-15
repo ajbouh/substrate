@@ -1,9 +1,11 @@
 package event
 
 import (
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log/slog"
 
 	"github.com/oklog/ulid/v2"
 )
@@ -26,7 +28,31 @@ func IsZeroID(id ID) bool {
 
 type SHA256Digest [32]byte
 
-func (m SHA256Digest) MarshalJSON() ([]byte, error) {
+var _ sql.Scanner = (*SHA256Digest)(nil)
+var _ json.Marshaler = (*SHA256Digest)(nil)
+
+var ErrScanValue = errors.New("SHA256Digest: source value must be a byte slice")
+
+func SHA256DigestFromBytes(b []byte) SHA256Digest {
+	var m SHA256Digest
+	copy(m[:], b)
+	return m
+}
+
+func (m *SHA256Digest) Scan(src any) error {
+	defer func() { slog.Info("SHA256Digest.Scan", "src", src, "m", m) }()
+	switch x := src.(type) {
+	case nil:
+		return nil
+	case []byte:
+		copy(m[:], x)
+		return nil
+	}
+
+	return ErrScanValue
+}
+
+func (m *SHA256Digest) MarshalJSON() ([]byte, error) {
 	return json.Marshal(hex.EncodeToString(m[:]))
 }
 

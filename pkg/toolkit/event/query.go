@@ -171,6 +171,10 @@ func QueryLatestPathDirEntriesByPathPrefix(pathPrefix string) *Query {
 		WithViewPlaceholder("path", pathPrefix)
 }
 
+func QueryEvents(ctx context.Context, q Querier, sq *Query) ([]Event, bool, error) {
+	return q.QueryEvents(ctx, sq)
+}
+
 func QueryEvent(ctx context.Context, q Querier, sq *Query) (*Event, error) {
 	events, _, err := q.QueryEvents(ctx, sq)
 	if len(events) > 0 {

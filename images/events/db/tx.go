@@ -56,7 +56,13 @@ func (s *SingleWriterDB) Tx(ctx context.Context, op func(tx Tx) error) error {
 
 	err = op(&SingleWriterTx{tx: tx})
 	if err == nil {
-		return tx.Commit()
+		err = tx.Commit()
+		if err != nil {
+			return err
+		}
+
+		_, err = s.db.ExecContext(ctx, "PRAGMA wal_checkpoint(FULL);")
+		return err
 	}
 
 	rollbackErr := tx.Rollback()

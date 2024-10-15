@@ -64,8 +64,11 @@ func main() {
 
 		units.WriteTreeFieldsPathCommand,
 		units.GetTreeFieldsPathCommand,
+
 		units.WriteTreeDataPathCommand,
 		units.GetTreeDataPathCommand,
+
+		units.GetTreeRawPathCommand,
 
 		// units.GetEventCommand,
 		// units.IDLinksQueryCommand,

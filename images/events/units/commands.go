@@ -1,22 +1,120 @@
 package units
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 
+	"github.com/ajbouh/substrate/images/events/store"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/links"
 )
 
-type GetTreeDataPathReturns struct {
-	Body io.ReadSeekCloser `json:"-"`
+type Entry struct {
+	Event         event.Event `json:"event"`
+	Data          any         `json:"data"`
+	DataTruncated bool        `json:"truncated,omitempty"`
 }
+
+type GetTreeRawPathReturns struct {
+	Entries []Entry `json:"events"`
+}
+
+var GetTreeRawPathCommand = commands.HTTPCommand(
+	"events:get", "Get latest events by path and/or prefix",
+	"GET /tree/events/{path...}", "/tree/events/{path...}",
+
+	func(ctx context.Context,
+		t *struct {
+			// Querier     event.Querier
+			// DataQuerier event.DataQuerier
+			EventStore *store.EventStore
+		},
+		args struct {
+			Path     string   `json:"path" path:"path"`
+			Until    event.ID `json:"until" query:"until"`
+			Encoding string   `json:"mode" query:"encoding"`
+		},
+	) (GetTreeRawPathReturns, error) {
+		slog.Info("GetTreeRawPathCommand", "t", t, "args", args)
+
+		returns := GetTreeRawPathReturns{}
+
+		var err error
+		var query *event.Query
+
+		path := args.Path
+		if strings.HasSuffix(path, "/") {
+			query = event.QueryLatestByPathPrefix(path)
+		} else {
+			query = event.QueryLatestByPath(path)
+		}
+
+		if !event.IsZeroID(args.Until) {
+			query.Until(args.Until)
+		}
+
+		evts, _, err := event.QueryEvents(ctx, t.EventStore, query)
+		if err != nil {
+			return returns, err
+		}
+
+		if len(evts) == 0 {
+			return returns, &commands.HTTPStatusError{
+				Err:    nil,
+				Status: 404,
+			}
+		}
+
+		returns.Entries = make([]Entry, 0, len(evts))
+		for i, evt := range evts {
+			returns.Entries = append(returns.Entries, Entry{
+				Event:         evt,
+				DataTruncated: true,
+			})
+
+			if evt.DataSize != 0 {
+				r, err := t.EventStore.QueryEventData(ctx, evt.ID)
+				if err != nil {
+					return returns, err
+				}
+
+				var n int64
+				var data any
+				if args.Encoding == "base64" {
+					var b []byte
+					b, err = io.ReadAll(r)
+					n = int64(len(b))
+					data = base64.RawStdEncoding.EncodeToString(b)
+				} else {
+					buf := new(strings.Builder)
+					n, err = io.Copy(buf, r)
+					if err != nil {
+						return returns, err
+					}
+					data = buf.String()
+				}
+				entry := &returns.Entries[i]
+				entry.DataTruncated = n != int64(evt.DataSize)
+				entry.Data = data
+				if err != nil {
+					return returns, err
+				}
+			}
+		}
+
+		slog.Info("GetTreeRawPathCommand", "returns", returns)
+
+		return returns, nil
+	})
 
 var GetTreeDataPathCommand = commands.HTTPCommand(
 	"event:get", "Get latest event by path",
@@ -38,7 +136,7 @@ var GetTreeDataPathCommand = commands.HTTPCommand(
 
 		returns := struct{}{}
 		var err error
-		query := event.QueryLatestByPath("/" + args.Path)
+		query := event.QueryLatestByPath(args.Path)
 		if !event.IsZeroID(args.Until) {
 			query.Until(args.Until)
 		}
@@ -91,19 +189,23 @@ var WriteTreeDataPathCommand = commands.HTTPCommand(
 		returns := WriteTreeDataPathReturns{}
 		var err error
 
-		ids, err := t.Writer.WriteEvents(ctx, args.Since,
+		var wroteID event.ID
+		err = t.Writer.WriteEvents(ctx, args.Since,
 			[]json.RawMessage{
-				json.RawMessage(fmt.Sprintf(`{"path":%q}`, "/"+args.Path)),
+				json.RawMessage(fmt.Sprintf(`{"path":%q}`, args.Path)),
 			},
 			[]io.ReadCloser{
 				args.Reader,
+			},
+			func(i int, id event.ID, fieldsSize int, fieldsSha256 []byte, dataSize int64, dataSha256 []byte) {
+				wroteID = id
 			},
 		)
 		if err != nil {
 			return returns, err
 		}
 
-		returns.EventURL = t.EventURLs.URLForEvent(ctx, ids[0])
+		returns.EventURL = t.EventURLs.URLForEvent(ctx, wroteID)
 
 		return returns, nil
 
@@ -130,7 +232,7 @@ var GetTreeFieldsPathCommand = commands.HTTPCommand(
 
 		returns := GetTreeFieldsPathReturns{}
 		var err error
-		query := event.QueryLatestByPath("/" + args.Path)
+		query := event.QueryLatestByPath(args.Path)
 		if !event.IsZeroID(args.Until) {
 			query.Until(args.Until)
 		}
@@ -151,7 +253,6 @@ var GetTreeFieldsPathCommand = commands.HTTPCommand(
 	})
 
 type WriteTreeFieldsPathReturns struct {
-	EventURL string `json:"event_url"`
 }
 
 var WriteTreeFieldsPathCommand = commands.HTTPCommand(
@@ -183,24 +284,23 @@ var WriteTreeFieldsPathCommand = commands.HTTPCommand(
 		if err != nil {
 			return returns, err
 		}
-		fields["path"] = "/" + args.Path
+		fields["path"] = args.Path
 
 		rawFields, err := json.Marshal(fields)
 		if err != nil {
 			return returns, err
 		}
 
-		ids, err := t.Writer.WriteEvents(ctx, args.Since,
+		err = t.Writer.WriteEvents(ctx, args.Since,
 			[]json.RawMessage{
 				rawFields,
 			},
+			nil,
 			nil,
 		)
 		if err != nil {
 			return returns, err
 		}
-
-		returns.EventURL = t.EventURLs.URLForEvent(ctx, ids[0])
 
 		return returns, nil
 
@@ -313,7 +413,7 @@ var EventPathLinksQueryCommand = commands.HTTPCommand(
 			Links: map[string]links.Link{},
 		}
 
-		query := event.QueryLatestByPath("/" + args.Path)
+		query := event.QueryLatestByPath(args.Path)
 		if !event.IsZeroID(args.Until) {
 			query.Until(args.Until)
 		}
@@ -333,31 +433,74 @@ var EventPathLinksQueryCommand = commands.HTTPCommand(
 	})
 
 type WriteEventsReturns struct {
-	EventURLs []string `json:"event_urls"`
+	IDs []event.ID `json:"ids"`
+
+	FieldsSHA256s []event.SHA256Digest `json:"fields_sha256s"`
+	DataSHA256s   []event.SHA256Digest `json:"data_sha256s"`
+}
+
+type WriteEvent struct {
+	Fields json.RawMessage `json:"fields"`
+
+	// since this is JSON, expect either raw string or base64-encoded string
+	Data string `json:"data"`
+
+	// if this is "base64", decode data that way
+	DataEncoding string `json:"encoding"`
 }
 
 var WriteEventsCommand = commands.Command(
 	"events:write", "Write events to store",
 	func(ctx context.Context,
 		t *struct {
-			Writer    event.Writer
-			EventURLs *EventURLs
+			Writer event.Writer
 		},
 		args struct {
-			Events []json.RawMessage `json:"events"`
-			Since  event.ID          `json:"since"`
+			Events []WriteEvent `json:"events"`
+			Since  event.ID     `json:"since"`
 		},
 	) (WriteEventsReturns, error) {
-		slog.Info("WriteEventsCommand", "args", args)
+		slog.Info("WriteEventsCommand", "t", t, "args", args)
 		returns := WriteEventsReturns{}
-		ids, err := t.Writer.WriteEvents(ctx, args.Since, args.Events, nil)
-		if err != nil {
-			return returns, err
+
+		fieldses := make([]json.RawMessage, 0, len(args.Events))
+		readers := make([]io.ReadCloser, 0, len(args.Events))
+
+		var err error
+		for _, entry := range args.Events {
+			fieldses = append(fieldses, entry.Fields)
+			var reader io.ReadCloser
+			if entry.Data != "" {
+				if entry.DataEncoding == "base64" {
+					b, err := base64.RawStdEncoding.DecodeString(entry.Data)
+					if err != nil {
+						return returns, err
+					}
+					reader = io.NopCloser(bytes.NewReader(b))
+				} else {
+					reader = io.NopCloser(strings.NewReader(entry.Data))
+				}
+			}
+			readers = append(readers, reader)
 		}
 
-		returns.EventURLs = make([]string, 0, len(args.Events))
-		for _, id := range ids {
-			returns.EventURLs = append(returns.EventURLs, t.EventURLs.URLForEvent(ctx, id))
+		// pre-allocate
+		returns.IDs = make([]event.ID, 0, len(args.Events))
+		returns.FieldsSHA256s = make([]event.SHA256Digest, 0, len(args.Events))
+		returns.DataSHA256s = make([]event.SHA256Digest, 0, len(args.Events))
+
+		err = t.Writer.WriteEvents(ctx, args.Since, fieldses, readers,
+			func(i int, id event.ID, fieldsSize int, fieldsSha256 []byte, dataSize int64, dataSha256 []byte) {
+				slog.Info("write pending", "i", i, "id", id,
+					"fieldsSize", fieldsSize, "fieldsSha256", fieldsSha256,
+					"dataSize", dataSize, "dataSha256", dataSha256,
+				)
+				returns.IDs = append(returns.IDs, id)
+				returns.FieldsSHA256s = append(returns.FieldsSHA256s, event.SHA256DigestFromBytes(fieldsSha256))
+				returns.DataSHA256s = append(returns.DataSHA256s, event.SHA256DigestFromBytes(dataSha256))
+			})
+		if err != nil {
+			return returns, err
 		}
 
 		return returns, nil

@@ -20,7 +20,7 @@ func (h *FSHandler) ContributeHTTP(mux *http.ServeMux) {
 func (h *FSHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	fsys := &eventfs.EventReadFS{
 		Querier: h.Querier,
-		Prefix:  "/",
+		Prefix:  "",
 	}
 	http.StripPrefix("/fs", http.FileServerFS(fsys)).ServeHTTP(w, r)
 }

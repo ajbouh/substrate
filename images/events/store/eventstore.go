@@ -63,56 +63,41 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 		if max > 0 && numResults == max {
 			return results, true, rows.Err()
 		}
+		evt := &event.Event{}
 
 		var idBytes sql.RawBytes
 		var atBytes sql.RawBytes
 		var sinceBytes sql.RawBytes
 
 		var fields []byte
-		var fieldsSha256 []byte
-		var dataSize int
-		var dataSha256 []byte
-		var fieldsSize int
-		err := rows.Scan(&idBytes, &atBytes, &sinceBytes, &fields, &fieldsSize, &fieldsSha256, &dataSize, &dataSha256)
+		err := rows.Scan(&idBytes, &atBytes, &sinceBytes, &fields, &evt.FieldsSize, &evt.FieldsSHA256, &evt.DataSize, &evt.DataSHA256)
 		if err != nil {
 			return nil, false, err
 		}
 
-		var id event.ID
 		if idBytes != nil && len(idBytes) > 0 {
-			err := id.Scan([]byte(idBytes))
+			err := evt.ID.Scan([]byte(idBytes))
 			if err != nil {
 				return nil, false, err
 			}
 		}
 
-		var at event.ID
 		if atBytes != nil && len(atBytes) > 0 {
-			err := at.Scan([]byte(atBytes))
+			err := evt.At.Scan([]byte(atBytes))
 			if err != nil {
 				return nil, false, err
 			}
 		}
 
-		var since event.ID
 		if sinceBytes != nil && len(sinceBytes) > 0 {
-			err := since.Scan([]byte(sinceBytes))
+			err := evt.Since.Scan([]byte(sinceBytes))
 			if err != nil {
 				return nil, false, err
 			}
 		}
 
-		results = append(results, event.Event{
-			ID:         id,
-			Payload:    json.RawMessage(fields),
-			DataSize:   dataSize,
-			FieldsSize: fieldsSize,
-
-			At:           at,
-			Since:        since,
-			DataSHA256:   event.SHA256Digest(dataSha256),
-			FieldsSHA256: event.SHA256Digest(fieldsSha256),
-		})
+		evt.Payload = json.RawMessage(fields)
+		results = append(results, *evt)
 		numResults++
 	}
 
@@ -139,28 +124,30 @@ func (es *EventStore) QueryMaxID(ctx context.Context) (event.ID, error) {
 	return id, rows.Err()
 }
 
-func (es *EventStore) WriteEvents(ctx context.Context, since event.ID, payloads []json.RawMessage, readClosers []io.ReadCloser) ([]event.ID, error) {
+func (es *EventStore) WriteEvents(ctx context.Context, since event.ID, payloads []json.RawMessage, readClosers []io.ReadCloser, cb event.WriteNotifyFunc) error {
 	slog.Info("EventStore.WriteEvents", "since", since, "len(payloads)", len(payloads), "len(readClosers)", len(readClosers))
 
 	if len(payloads) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	lastUnusedReadCloserIndex := 0
 	defer func() {
-		if readClosers == nil {
+		if len(readClosers) <= lastUnusedReadCloserIndex {
 			return
 		}
 		// close remaining unused readClosers, if any.
 		for _, rc := range readClosers[lastUnusedReadCloserIndex+1:] {
-			rc.Close()
+			if rc != nil {
+				rc.Close()
+			}
 		}
 	}()
 
 	var committers []EventDataCommitFunc
 
 	writeDataIfAny := func(tx db.Tx, id event.ID, i int) ([]byte, int64, error) {
-		if readClosers == nil {
+		if len(readClosers) == 0 {
 			return nil, 0, nil
 		}
 
@@ -197,7 +184,8 @@ func (es *EventStore) WriteEvents(ctx context.Context, since event.ID, payloads 
 		return errors.Join(errs...)
 	}
 
-	eventIDs := make([]event.ID, 0, len(payloads))
+	var lastMaxID *event.ID
+
 	err := es.Txer.Tx(ctx, func(tx db.Tx) error {
 		var at event.ID
 
@@ -232,7 +220,11 @@ func (es *EventStore) WriteEvents(ctx context.Context, since event.ID, payloads 
 				return err
 			}
 
-			eventIDs = append(eventIDs, id)
+			if cb != nil {
+				cb(i, id, len(fields), fieldDigest, n, dataDigest)
+			}
+
+			lastMaxID = &id
 		}
 
 		err := finishData(true, true)
@@ -247,13 +239,13 @@ func (es *EventStore) WriteEvents(ctx context.Context, since event.ID, payloads 
 		return err
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	if len(eventIDs) > 0 {
-		es.notifyStreamsOfNewMaxID(eventIDs[len(eventIDs)-1])
+	if lastMaxID != nil {
+		es.notifyStreamsOfNewMaxID(*lastMaxID)
 	}
-	return eventIDs, nil
+	return nil
 }
 
 func (es *EventStore) notifyStreamsOfNewMaxID(eventID event.ID) {
