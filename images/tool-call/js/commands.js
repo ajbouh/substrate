@@ -63,7 +63,7 @@ export class ReflectCommands {
 
 function get(o, path) {
   const v = path.split('.').reduce((acc, fragment) => acc && acc[fragment], o)
-  console.log("get", o, path, "->", v)
+  // console.log("get", o, path, "->", v)
   return v
 }
 
@@ -73,7 +73,7 @@ function set(o, path, v) {
   for (const fragment of fragments.slice(0, fragments.length - 1)) {
     o = o[fragment] || {}
   }
-  console.log("set", o, path, "<-", v)
+  // console.log("set", o, path, "<-", v)
   o[last] = v
 }
 
@@ -95,7 +95,7 @@ function prepareFetch({url, parameters={}, run: {bind = {}, http = {}} = {}}) {
     },
   }
 
-  console.log("before", {scope, http, parameters})
+  // console.log("before", {scope, http, parameters})
 
   // deep clone scope so we can modify as needed.
   scope = JSON.parse(JSON.stringify(scope))
@@ -111,7 +111,7 @@ function prepareFetch({url, parameters={}, run: {bind = {}, http = {}} = {}}) {
     set(scope, http.parameters[pname].path, bound[pname])
   }
 
-  console.log("after", scope)
+  // console.log("after", scope)
 
   if (http.returns) {
     returns = async (response) => {
@@ -161,7 +161,7 @@ export async function run({url, command, parameters={}}) {
     throw new Error(`invalid commands argument, must be string or {parameters, returns, run}: ${command}`)
   }
 
-  console.log({input, init, returns})
+  // console.log({input, init, returns})
 
   return await returns(await fetch(input, init));
 }
