@@ -32,6 +32,7 @@ RUN apt update \
   && apt install -y --fix-missing \
     wget gnupg \
     xorg tigervnc-standalone-server tigervnc-tools xterm dbus-x11 xfonts-100dpi xfonts-75dpi fonts-liberation2 fonts-noto-color-emoji \
+    xdotool \
     pulseaudio ffmpeg \
     ca-certificates tzdata \
     runit \
