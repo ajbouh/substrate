@@ -27,3 +27,32 @@ if live_edit["tool-call"] {
     }
   }
 }
+
+commands: "tool-call": {
+  "suggest": {
+    parameters: input: type: "string"
+    parameters: commands: type: "map[string]command.Def"
+
+    returns: prompt: type: "string"
+    returns: choices: type: "[]command.Request"
+
+    run: http: {
+      "parameters": {
+        for parameter, v in parameters {
+          (parameter): path: "request.body.\(parameter)"
+        }
+      }
+      "returns": {
+        for return, v in returns {
+          (return): path: "response.body.\(return)"
+        }
+      }
+      request: {
+        method: "POST"
+        url: "/"
+        headers: "Content-Type": ["application/json"]
+        body: {}
+      }
+    }
+  }
+}
