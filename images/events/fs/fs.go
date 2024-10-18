@@ -24,7 +24,11 @@ var _ fs.FS = (*EventReadFS)(nil)
 
 func (e *EventReadFS) Open(name string) (f fs.File, err error) {
 	// Adjust paths like ".", "/.", etc.
-	pathName := path.Join(e.Prefix, name)
+	pathName := name
+	if e.Prefix != "" {
+		pathName = path.Join(e.Prefix, pathName)
+	}
+
 	dir, base := path.Split(pathName)
 	if base == "." {
 		pathName = dir
