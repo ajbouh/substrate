@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"log/slog"
 
 	"github.com/oklog/ulid/v2"
 )
@@ -40,7 +39,6 @@ func SHA256DigestFromBytes(b []byte) SHA256Digest {
 }
 
 func (m *SHA256Digest) Scan(src any) error {
-	defer func() { slog.Info("SHA256Digest.Scan", "src", src, "m", m) }()
 	switch x := src.(type) {
 	case nil:
 		return nil
