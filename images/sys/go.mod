@@ -17,6 +17,6 @@ require (
 	golang.org/x/text v0.13.0 // indirect
 )
 
-require tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe
+require tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe // indirect
 
 replace github.com/ajbouh/substrate/pkg/toolkit => ../../pkg/toolkit

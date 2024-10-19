@@ -22,7 +22,7 @@ require (
 	github.com/onsi/gomega v1.30.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	golang.org/x/sys v0.22.0 // indirect
-	tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe
+	tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe // indirect
 )
 
 replace github.com/ajbouh/substrate/pkg/toolkit => ../../pkg/toolkit

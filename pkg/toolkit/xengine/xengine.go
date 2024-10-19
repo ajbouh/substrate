@@ -3,7 +3,7 @@ package xengine
 import (
 	"reflect"
 
-	"tractor.dev/toolkit-go/engine"
+	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 )
 
 func AssemblyForPossiblyAnonymousTarget[Target any]() (*Target, []engine.Unit, bool) {

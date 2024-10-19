@@ -4,7 +4,7 @@ import (
 	"github.com/ajbouh/substrate/images/gstreamer-pipeline/pipeline"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
 
-	"tractor.dev/toolkit-go/engine"
+	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 )
 
 func main() {

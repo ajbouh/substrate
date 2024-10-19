@@ -7,9 +7,9 @@ import (
 	"github.com/ajbouh/substrate/images/tool-call/js"
 	"github.com/ajbouh/substrate/images/tool-call/tools"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
-	"tractor.dev/toolkit-go/engine"
 )
 
 type SuggestReturns struct {

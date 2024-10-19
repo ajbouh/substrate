@@ -6,10 +6,7 @@ toolchain go1.22.6
 
 require github.com/NVIDIA/go-nvml v0.12.0-2
 
-require (
-	github.com/ajbouh/substrate/pkg/toolkit v0.0.0-00010101000000-000000000000
-	tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe
-)
+require github.com/ajbouh/substrate/pkg/toolkit v0.0.0-00010101000000-000000000000
 
 require (
 	github.com/elnormous/contenttype v1.0.4 // indirect
@@ -17,6 +14,7 @@ require (
 	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
+	tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe // indirect
 )
 
 replace github.com/ajbouh/substrate/pkg/toolkit => ../../pkg/toolkit

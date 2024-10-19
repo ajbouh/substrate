@@ -12,7 +12,7 @@ import (
 
 	"github.com/ajbouh/substrate/pkg/toolkit/xengine"
 
-	"tractor.dev/toolkit-go/engine"
+	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 )
 
 func Command[Target any, Params any, Returns any](name, desc string, f func(ctx context.Context, t *Target, p Params) (Returns, error)) *CommandFunc[Target, Params, Returns] {

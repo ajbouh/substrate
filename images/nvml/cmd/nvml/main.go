@@ -6,10 +6,9 @@ import (
 	"os"
 	"time"
 
-	"tractor.dev/toolkit-go/engine"
-
 	"github.com/NVIDIA/go-nvml/pkg/dl"
 	"github.com/ajbouh/substrate/images/nvml"
+	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/exports"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"

@@ -5,9 +5,8 @@ import (
 	"log/slog"
 	"reflect"
 
+	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/xengine"
-
-	"tractor.dev/toolkit-go/engine"
 )
 
 type Listener[Target any, Event any] struct {
