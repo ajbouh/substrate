@@ -60,8 +60,8 @@ type Event struct {
 	At    ID `json:"at"`
 	Since ID `json:"since"`
 
-	DataSize   int          `json:"data_size,omitempty"`
-	DataSHA256 SHA256Digest `json:"data_sha256,omitempty"`
+	DataSize   *int          `json:"data_size,omitempty"`
+	DataSHA256 *SHA256Digest `json:"data_sha256,omitempty"`
 
 	FieldsSize   int          `json:"fields_size,omitempty"`
 	FieldsSHA256 SHA256Digest `json:"fields_sha256,omitempty"`

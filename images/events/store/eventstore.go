@@ -69,8 +69,11 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 		var atBytes sql.RawBytes
 		var sinceBytes sql.RawBytes
 
+		var dataSHA256 sql.RawBytes
+		var dataSize int
+
 		var fields []byte
-		err := rows.Scan(&idBytes, &atBytes, &sinceBytes, &fields, &evt.FieldsSize, &evt.FieldsSHA256, &evt.DataSize, &evt.DataSHA256)
+		err := rows.Scan(&idBytes, &atBytes, &sinceBytes, &fields, &evt.FieldsSize, &evt.FieldsSHA256, &dataSize, &dataSHA256)
 		if err != nil {
 			return nil, false, err
 		}
@@ -97,6 +100,15 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 		}
 
 		evt.Payload = json.RawMessage(fields)
+		if len(dataSHA256) > 0 {
+			evt.DataSHA256 = new(event.SHA256Digest)
+			err = evt.DataSHA256.Scan([]byte(dataSHA256))
+			if err != nil {
+				return nil, false, err
+			}
+
+			evt.DataSize = &dataSize
+		}
 		results = append(results, *evt)
 		numResults++
 	}

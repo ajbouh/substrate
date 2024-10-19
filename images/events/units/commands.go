@@ -81,7 +81,7 @@ var GetTreeRawPathCommand = commands.HTTPCommand(
 				DataTruncated: true,
 			})
 
-			if evt.DataSize != 0 {
+			if evt.DataSize != nil && *evt.DataSize != 0 {
 				r, err := t.EventStore.QueryEventData(ctx, evt.ID)
 				if err != nil {
 					return returns, err
@@ -103,7 +103,7 @@ var GetTreeRawPathCommand = commands.HTTPCommand(
 					data = buf.String()
 				}
 				entry := &returns.Entries[i]
-				entry.DataTruncated = n != int64(evt.DataSize)
+				entry.DataTruncated = n != int64(*evt.DataSize)
 				entry.Data = data
 				if err != nil {
 					return returns, err
