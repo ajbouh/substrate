@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"net/url"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 )
@@ -19,39 +20,59 @@ func (h *EventStreamHandler) ContributeHTTP(mux *http.ServeMux) {
 	mux.Handle("POST /stream/events", h)
 }
 
-func (h *EventStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	uq := r.URL.Query()
+func eventQueryFromURLQuery(uq url.Values) (*event.Query, error) {
+	var view event.View
+	if uq.Has("view") {
+		view = event.View(uq.Get("view"))
+	}
 
+	q := event.NewQuery(view)
+
+	if uq.Has("path") {
+		q.AndWhereEvent("path", &event.WhereCompare{Compare: "=", Value: uq.Get("path")})
+	}
+
+	if uq.Has("path_prefix") {
+		q.AndWhereEvent("path", &event.WherePrefix{Prefix: uq.Get("path_prefix")})
+	}
+
+	if uq.Has("type") {
+		q.AndWhereEvent("type", &event.WhereCompare{Compare: "=", Value: uq.Get("type")})
+	}
+
+	if uq.Has("after") {
+		after, err := event.ParseID(uq.Get("after"))
+		if err != nil {
+			return nil, err
+		}
+
+		q.AndWhereEvent("id", &event.WhereCompare{Compare: ">", Value: after})
+	}
+
+	if uq.Has("until") {
+		until, err := event.ParseID(uq.Get("until"))
+		if err != nil {
+			return nil, err
+		}
+
+		q.AndWhereEvent("id", &event.WhereCompare{Compare: "<=", Value: until})
+	}
+
+	return q, nil
+}
+
+func (h *EventStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var q *event.Query
+	var err error
 
 	if r.Method == "GET" {
-		var view event.View
-		if uq.Has("view") {
-			view = event.View(uq.Get("view"))
-		}
-		q = event.NewQuery(view)
-
-		if uq.Has("path") {
-			q.AndWhereEvent("path", &event.WhereCompare{Compare: "=", Value: uq.Get("path")})
-		}
-
-		if uq.Has("path_prefix") {
-			q.AndWhereEvent("path", &event.WherePrefix{Prefix: uq.Get("path_prefix")})
-		}
-
-		if uq.Has("type") {
-			q.AndWhereEvent("type", &event.WhereCompare{Compare: "=", Value: uq.Get("type")})
-		}
-
-		if uq.Has("after") {
-			q.AndWhereEvent("id", &event.WhereCompare{Compare: ">", Value: uq.Get("after")})
-		}
-
-		if uq.Has("until") {
-			q.AndWhereEvent("id", &event.WhereCompare{Compare: "<=", Value: uq.Get("until")})
+		q, err = eventQueryFromURLQuery(r.URL.Query())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
 		}
 	} else {
-		err := json.NewDecoder(r.Body).Decode(&q)
+		err = json.NewDecoder(r.Body).Decode(&q)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

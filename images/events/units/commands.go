@@ -519,14 +519,16 @@ var QueryEventsCommand = commands.Command(
 			EventURLs *EventURLs
 		},
 		args struct {
+			View event.View `json:"view" query:"view"`
+
 			PathPrefix *string `json:"path_prefix" query:"path_prefix"`
 			Path       *string `json:"path" query:"path"`
 
 			TypePrefix *string `json:"type_prefix" query:"type_prefix"`
 			Type       *string `json:"type" query:"type"`
 
-			After *string `json:"after" query:"after"`
-			Until *string `json:"until" query:"until"`
+			After *event.ID `json:"after" query:"after"`
+			Until *event.ID `json:"until" query:"until"`
 
 			Limit *int `json:"limit" query:"limit"`
 			Bias  *int `json:"bias" query:"bias"`
@@ -534,10 +536,10 @@ var QueryEventsCommand = commands.Command(
 	) (QueryEventsReturns, error) {
 		returns := QueryEventsReturns{}
 
-		sq := &event.Query{
-			ViewLimit: args.Limit,
-			ViewBias:  args.Bias,
-		}
+		sq := event.NewQuery(args.View)
+
+		sq.ViewLimit = args.Limit
+		sq.ViewBias = args.Bias
 
 		if args.PathPrefix != nil {
 			sq.AndWhereEvent("path", &event.WherePrefix{Prefix: *args.PathPrefix})
