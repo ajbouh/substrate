@@ -2,26 +2,15 @@ package substratehttp
 
 import (
 	"log"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
-	"github.com/ajbouh/substrate/images/substrate/activityspec"
-	"github.com/ajbouh/substrate/images/substrate/defset"
-	"github.com/ajbouh/substrate/images/substrate/httputil"
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
-	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
 type ProxyHandler struct {
-	InternalSubstrateOrigin string
-	User                    string
-
-	SpaceViewResolver activityspec.SpaceViewResolver
-	DefSetLoader      notify.Loader[*defset.DefSet]
-	ProvisionerCache  *provisioner.Cache
+	ProvisionerCache *provisioner.Cache
 }
 
 func (h *ProxyHandler) ContributeHTTP(mux *http.ServeMux) {
@@ -53,52 +42,5 @@ func (h *ProxyHandler) ContributeHTTP(mux *http.ServeMux) {
 	}))
 
 	mux.Handle("GET /{$}", http.RedirectHandler("/ui/", http.StatusTemporaryRedirect))
-	mux.Handle("/{viewspec}/{rest...}", h)
-}
-
-func (h *ProxyHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	// log.Printf("Handler serveProxyRequest %#v", h)
-	// log.Printf("%s %s %s", req.RemoteAddr, req.Method, req.URL.String())
-	start := time.Now()
-
-	viewspec := req.PathValue("viewspec")
-	rest := req.PathValue("rest")
-
-	defer func() {
-		slog.Info("request", "remoteaddr", req.RemoteAddr, "method", req.Method, "url", req.URL.String(), "viewspec", viewspec, "rest", rest, "dur", time.Since(start))
-	}()
-
-	cookies := req.Cookies()
-	req.Header.Del("Cookie")
-
-	// TODO check entitlements and only put cookies back if we *must*
-	for _, cookie := range cookies {
-		// if cookie.Domain == "" { // constrain cookie to the given host
-		// 	cookie.Domain = req.Host
-		// }
-
-		s := cookie.String()
-		log.Printf("keeping cookie: %s\n", s)
-		req.Header.Add("Set-Cookie", s)
-	}
-	// fmt.Printf("req.header: %#v", req.Header)
-
-	// Strip prefix
-	req.Host = ""
-	req.URL.Path = "/" + strings.TrimPrefix(rest, "/")
-	if h.InternalSubstrateOrigin != "" {
-		req.URL.RawQuery = strings.ReplaceAll(req.URL.RawQuery, "$origin", url.QueryEscape(h.InternalSubstrateOrigin))
-		req.URL.Path = strings.ReplaceAll(req.URL.Path, "$origin", h.InternalSubstrateOrigin)
-	}
-	req.URL.RawPath = ""
-
-	views, err := activityspec.ParseServiceSpawnRequest(viewspec, false, "/"+urlPathEscape(viewspec))
-	if err != nil {
-		jsonrw := httputil.NewJSONResponseWriter(rw)
-		jsonrw(nil, http.StatusBadRequest, err)
-		return
-	}
-	views.User = h.User
-
-	h.ProvisionerCache.ServeProxiedHTTP(views, rw, req)
+	mux.Handle("/{viewspec}/{rest...}", h.ProvisionerCache)
 }

@@ -21,7 +21,7 @@ type Response struct {
 }
 
 func demandHTTPResponseOk(req *http.Request, res *http.Response) error {
-	if res.StatusCode == http.StatusOK {
+	if res.StatusCode >= 200 && res.StatusCode < 300 {
 		return nil
 	}
 	defer res.Body.Close()

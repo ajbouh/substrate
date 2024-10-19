@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -66,9 +67,10 @@ type CachingSingleServiceProvisioner struct {
 
 	Key string
 
-	Spawner             Spawner
-	ServiceResolver     ServiceResolver
-	ServiceSpawnRequest *activityspec.ServiceSpawnRequest
+	Spawner                 Spawner
+	ServiceResolver         ServiceResolver
+	ServiceSpawnRequest     *activityspec.ServiceSpawnRequest
+	InternalSubstrateOrigin string
 
 	Log *slog.Logger
 }
@@ -112,14 +114,6 @@ func (e *CachingSingleServiceProvisioner) get() *Provisioning {
 
 func (e *CachingSingleServiceProvisioner) Generation() *Generation {
 	return e.gen.Load()
-}
-
-func (c *CachingSingleServiceProvisioner) Outgoing() Fields {
-	f := c.outgoingFields.Load()
-	if f == nil {
-		return nil
-	}
-	return *f
 }
 
 func (e *CachingSingleServiceProvisioner) Peek() *Sample {
@@ -210,6 +204,49 @@ var _ error = (*ConcretizationRequiredError)(nil)
 
 func (e *ConcretizationRequiredError) Error() string {
 	return fmt.Sprintf("ConcretizationRequiredError: %#v -> %#v", e.ServiceSpawnRequest, e.ServiceSpawnResolution)
+}
+
+func urlPathEscape(s string) string {
+	return strings.ReplaceAll(s, "/", "%2F")
+}
+
+func (e *CachingSingleServiceProvisioner) ServeHTTP(rw http.ResponseWriter, rq *http.Request) {
+	start := time.Now()
+
+	// maybe should pass this through as a field
+	viewspec := rq.PathValue("viewspec")
+	rest := rq.PathValue("rest")
+
+	defer func() {
+		slog.Info("request", "remoteaddr", rq.RemoteAddr, "method", rq.Method, "url", rq.URL.String(), "viewspec", viewspec, "rest", rest, "dur", time.Since(start))
+	}()
+
+	cookies := rq.Cookies()
+	rq.Header.Del("Cookie")
+
+	// TODO check entitlements and only put cookies back if we *must*
+	for _, cookie := range cookies {
+		// if cookie.Domain == "" { // constrain cookie to the given host
+		// 	cookie.Domain = rq.Host
+		// }
+
+		s := cookie.String()
+		log.Printf("keeping cookie: %s\n", s)
+		rq.Header.Add("Set-Cookie", s)
+	}
+	// fmt.Printf("rq.header: %#v", rq.Header)
+
+	// Strip prefix
+	rq.Host = ""
+	rq.URL.Path = "/" + strings.TrimPrefix(rest, "/")
+	if e.InternalSubstrateOrigin != "" {
+		rq.URL.RawQuery = strings.ReplaceAll(rq.URL.RawQuery, "$origin", url.QueryEscape(e.InternalSubstrateOrigin))
+		rq.URL.Path = strings.ReplaceAll(rq.URL.Path, "$origin", e.InternalSubstrateOrigin)
+	}
+	rq.URL.RawPath = ""
+
+	e.LogRequest(rq)
+	provisioningReverseProxy(e.Ensure, 2, nil, rw, rq)
 }
 
 func (e *CachingSingleServiceProvisioner) Ensure(ctx context.Context) (*Provisioning, error) {

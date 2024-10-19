@@ -91,7 +91,9 @@ func main() {
 	origin := mustGetenv("ORIGIN")
 	originURL, _ := url.Parse(origin)
 
-	provisionerCache := &provisioner.Cache{}
+	provisionerCache := &provisioner.Cache{
+		InternalSubstrateOrigin: internalSubstrateOrigin,
+	}
 
 	servicesRootMapSlot := &notify.Slot[provisioner.ServicesRootMap]{}
 
@@ -171,10 +173,7 @@ func main() {
 		&substratehttp.DefsHandler{
 			Prefix: "/substrate",
 		},
-		&substratehttp.ProxyHandler{
-			User:                    "user",
-			InternalSubstrateOrigin: internalSubstrateOrigin,
-		},
+		&substratehttp.ProxyHandler{},
 		&units.Broker{},
 
 		&notify.Slot[units.DefSetCommands]{},

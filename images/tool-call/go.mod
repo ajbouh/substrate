@@ -14,6 +14,10 @@ require (
 	github.com/elnormous/contenttype v1.0.4 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/puzpuzpuz/xsync/v3 v3.4.0 // indirect
+	golang.org/x/net v0.17.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 )
 

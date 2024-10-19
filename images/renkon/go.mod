@@ -9,6 +9,12 @@ require (
 	tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe
 )
 
-require github.com/elnormous/contenttype v1.0.4 // indirect
+require (
+	github.com/elnormous/contenttype v1.0.4 // indirect
+	github.com/puzpuzpuz/xsync/v3 v3.4.0 // indirect
+	golang.org/x/net v0.17.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
+)
 
 replace github.com/ajbouh/substrate/pkg/toolkit => ../../pkg/toolkit

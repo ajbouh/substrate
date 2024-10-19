@@ -12,7 +12,11 @@ require (
 require (
 	github.com/elnormous/contenttype v1.0.4 // indirect
 	github.com/mattn/go-pointer v0.0.1 // indirect
+	github.com/puzpuzpuz/xsync/v3 v3.4.0 // indirect
 	golang.org/x/exp v0.0.0-20240416160154-fe59bbe5cc7f // indirect
+	golang.org/x/net v0.17.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
 )
 
 require (

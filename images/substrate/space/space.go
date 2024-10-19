@@ -9,8 +9,8 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	"github.com/ajbouh/substrate/images/substrate/defset"
-	"github.com/ajbouh/substrate/images/substrate/provisioner"
 	podmanprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/podman"
+	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/containers/podman/v4/pkg/bindings/containers"
 	"github.com/containers/podman/v4/pkg/bindings/images"
@@ -44,7 +44,7 @@ type SpacesViaContainerFilesystems struct {
 
 	containerBootstrapGroup singleflight.Group
 	containerLegacyGroup    singleflight.Group
-	containerIDSpaceMounts  *provisioner.OnceMap[string]
+	containerIDSpaceMounts  *httpframework.OnceMap[string]
 }
 
 var _ activityspec.SpaceViewResolver = (*SpacesViaContainerFilesystems)(nil)
@@ -55,7 +55,7 @@ func boolPtr(b bool) *bool {
 }
 
 func (p *SpacesViaContainerFilesystems) Initialize() {
-	p.containerIDSpaceMounts = provisioner.NewOnceMap[string]()
+	p.containerIDSpaceMounts = httpframework.NewOnceMap[string]()
 }
 
 func (p *SpacesViaContainerFilesystems) SpaceTreePathURLFunc(spaceID, path string) string {
