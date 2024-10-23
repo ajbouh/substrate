@@ -54,5 +54,6 @@ func main() {
 		&commands.PrefixedSource[*TabCommands]{
 			Prefix: "tab:",
 		},
+		commands.Prefixed("window:", WindowCommands()),
 	)
 }
