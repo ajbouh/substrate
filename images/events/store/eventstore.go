@@ -50,10 +50,12 @@ func (es *EventStore) QueryEventData(ctx context.Context, id event.ID) (io.ReadS
 	return es.EventDataSource.OpenEventData(ctx, id)
 }
 
-func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.Event, bool, error) {
+func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.Event, event.ID, bool, error) {
+	var maxID event.ID
+
 	max, s, err := renderEventQuery(ctx, es.VectorManifoldResolver, q)
 	if err != nil {
-		return nil, false, err
+		return nil, maxID, false, err
 	}
 	stmt, v := db.Render(s)
 	results := []event.Event{}
@@ -65,7 +67,7 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 	rows, err := es.Querier.QueryContext(ctx, stmt, v...)
 	if err != nil {
 		slog.Info("QueryContext error", "err", err)
-		return nil, false, err
+		return nil, maxID, false, err
 	}
 
 	defer rows.Close()
@@ -77,13 +79,14 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 		if max > 0 && numResults == max {
 			err = rows.Err()
 			slog.Info("QueryEvents reached max", "err", err)
-			return results, true, err
+			return results, maxID, true, err
 		}
 		evt := &event.Event{}
 
 		var idBytes sql.RawBytes
 		var atBytes sql.RawBytes
 		var sinceBytes sql.RawBytes
+		var deleted int
 
 		var dataSHA256 sql.RawBytes
 		var dataSize int
@@ -94,21 +97,21 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 		var vecDistance any
 
 		var fields []byte
-		err = rows.Scan(&idBytes, &atBytes, &sinceBytes,
+		err = rows.Scan(&idBytes, &atBytes, &sinceBytes, &deleted,
 			&fields, &evt.FieldsSize, &evt.FieldsSHA256,
 			&dataSize, &dataSHA256,
 			&vecManifoldIDBytes, &vecID,
 			&vecDistance)
 		if err != nil {
 			slog.Info("QueryEvents rows.Scan", "err", err)
-			return nil, false, err
+			return nil, maxID, false, err
 		}
 
 		if len(idBytes) > 0 {
 			err = evt.ID.Scan(string(idBytes))
 			if err != nil {
 				slog.Info("QueryEvents ID.Scan", "err", err)
-				return nil, false, err
+				return nil, maxID, false, err
 			}
 		}
 
@@ -116,7 +119,7 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 			err = evt.At.Scan(string(atBytes))
 			if err != nil {
 				slog.Info("QueryEvents At.Scan", "err", err)
-				return nil, false, err
+				return nil, maxID, false, err
 			}
 		}
 
@@ -124,7 +127,7 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 			err = evt.Since.Scan(string(sinceBytes))
 			if err != nil {
 				slog.Info("QueryEvents Since.Scan", "err", err)
-				return nil, false, err
+				return nil, maxID, false, err
 			}
 		}
 
@@ -134,7 +137,7 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 			err = evt.DataSHA256.Scan([]byte(dataSHA256))
 			if err != nil {
 				slog.Info("QueryEvents DataSHA", "err", err)
-				return nil, false, err
+				return nil, maxID, false, err
 			}
 
 			evt.DataSize = &dataSize
@@ -145,7 +148,7 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 			err = vectorManifoldID.Scan(string(vecManifoldIDBytes))
 			if err != nil {
 				slog.Info("QueryEvents vectorManifoldID", "err", err)
-				return nil, false, err
+				return nil, maxID, false, err
 			}
 
 			var vr VectorManifold
@@ -156,13 +159,13 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 				if !ok {
 					err = fmt.Errorf("vector_data_rowid is not int64: %T", vecID)
 					slog.Info("QueryEvents vector rowid", "err", err)
-					return nil, false, err
+					return nil, maxID, false, err
 				}
 
 				evt.Vector, err = vr.ReadVector(ctx, vecIDInt)
 				if err != nil {
 					slog.Info("QueryEvents ReadVector", "err", err)
-					return nil, false, err
+					return nil, maxID, false, err
 				}
 
 				if vecDistance != nil {
@@ -170,7 +173,7 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 					if !ok {
 						err = fmt.Errorf("vector_data_nn_distance is not float64: %T", vecDistance)
 						slog.Info("QueryEvents vecDistance", "err", err)
-						return nil, false, err
+						return nil, maxID, false, err
 					}
 
 					evt.VectorDistance = &vecDistanceFloat
@@ -180,13 +183,21 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 			}
 		}
 
+		slog.Info("maxID.Compare(evt.ID)", "maxID", maxID, "evt.ID", evt.ID, "result", maxID.Compare(evt.ID))
+		if maxID.Compare(evt.ID) < 0 {
+			maxID = evt.ID
+		}
+		if deleted == 1 {
+			slog.Info("skipping DELETED event entry", "id", evt.ID, "maxID", maxID, "evt", evt)
+			continue
+		}
 		results = append(results, *evt)
 		numResults++
 	}
 
 	err = rows.Err()
 	slog.Info("QueryEvents completed", "err", err)
-	return results, false, err
+	return results, maxID, false, err
 }
 
 func (es *EventStore) QueryMaxID(ctx context.Context) (event.ID, error) {
@@ -319,11 +330,11 @@ func (es *EventStore) WriteEvents(ctx context.Context,
 			As("existing", SQL(eventsTable)),
 			As("new", SQL("SELECT", As("fields", V(string(fields))))),
 		).Select(
-			eventFieldName("id"),
-			eventFieldName("fields_size"),
-			eventFieldName("fields_sha256"),
-			eventFieldName("data_size"),
-			eventFieldName("data_sha256"),
+			eventFieldNameJSON("id"),
+			eventFieldNameJSON("fields_size"),
+			eventFieldNameJSON("fields_sha256"),
+			eventFieldNameJSON("data_size"),
+			eventFieldNameJSON("data_sha256"),
 		)
 		for _, key := range conflictKeys {
 			path := "$." + key

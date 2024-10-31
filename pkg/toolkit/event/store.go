@@ -14,7 +14,7 @@ type DataQuerier interface {
 }
 
 type Querier interface {
-	QueryEvents(ctx context.Context, q *Query) ([]Event, bool, error)
+	QueryEvents(ctx context.Context, q *Query) ([]Event, ID, bool, error)
 	QueryMaxID(ctx context.Context) (ID, error)
 }
 
@@ -97,6 +97,7 @@ type Streamer interface {
 
 type Notification struct {
 	Until       ID      `json:"until"`
+	MaxID       ID      `json:"max"`
 	Events      []Event `json:"events"`
 	Error       error   `json:"-"`
 	Incremental bool    `json:"incremental"`

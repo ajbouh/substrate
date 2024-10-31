@@ -45,7 +45,7 @@ func (e *EventReadFS) Open(name string) (f fs.File, err error) {
 		if e.Until != nil {
 			query.Until(*e.Until)
 		}
-		ev, err = event.QueryEvent(ctx, e.Querier, query)
+		ev, _, err = event.QueryEvent(ctx, e.Querier, query)
 		if err != nil {
 			return
 		}
@@ -69,7 +69,7 @@ func (e *EventReadFS) Open(name string) (f fs.File, err error) {
 		query.Until(*e.Until)
 	}
 	var events []event.Event
-	events, _, err = e.Querier.QueryEvents(ctx, query)
+	events, _, _, err = e.Querier.QueryEvents(ctx, query)
 	if err != nil {
 		return
 	}

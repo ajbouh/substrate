@@ -128,7 +128,7 @@ type Event struct {
 	VectorDistance *float64         `json:"vector_distance,omitempty"`
 }
 
-var EventDoesNotExistErr = errors.New("event does not exist")
+var ErrEventDoesNotExist = errors.New("event does not exist")
 
 type VectorManifold struct {
 	ID         ID     `json:"id"`

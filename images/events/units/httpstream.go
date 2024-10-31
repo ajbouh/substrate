@@ -24,23 +24,31 @@ func (h *EventStreamHandler) ContributeHTTP(ctx context.Context, mux *http.Serve
 }
 
 func eventQueryFromURLQuery(uq url.Values) (*event.Query, error) {
-	var view event.View
-	if uq.Has("view") {
-		view = event.View(uq.Get("view"))
+	q := event.NewQuery("")
+
+	var err error
+
+	if uq.Has("queryjson") {
+		err = json.Unmarshal([]byte(uq.Get("queryjson")), &q)
+		if err != nil {
+			return q, err
+		}
 	}
 
-	q := event.NewQuery(view)
+	if uq.Has("view") {
+		q.View = event.View(uq.Get("view"))
+	}
 
 	if uq.Has("path") {
-		q.AndWhereEvent("path", &event.WhereCompare{Compare: "=", Value: uq.Get("path")})
+		q.AndBasisWhere("path", &event.WhereCompare{Compare: "=", Value: uq.Get("path")})
 	}
 
 	if uq.Has("path_prefix") {
-		q.AndWhereEvent("path", &event.WherePrefix{Prefix: uq.Get("path_prefix")})
+		q.AndBasisWhere("path", &event.WherePrefix{Prefix: uq.Get("path_prefix")})
 	}
 
 	if uq.Has("type") {
-		q.AndWhereEvent("type", &event.WhereCompare{Compare: "=", Value: uq.Get("type")})
+		q.AndBasisWhere("type", &event.WhereCompare{Compare: "=", Value: uq.Get("type")})
 	}
 
 	if uq.Has("after") {
@@ -49,7 +57,7 @@ func eventQueryFromURLQuery(uq url.Values) (*event.Query, error) {
 			return nil, err
 		}
 
-		q.AndWhereEvent("id", &event.WhereCompare{Compare: ">", Value: after.String()})
+		q.AndBasisWhere("id", &event.WhereCompare{Compare: ">", Value: after.String()})
 	}
 
 	if uq.Has("until") {
@@ -58,7 +66,7 @@ func eventQueryFromURLQuery(uq url.Values) (*event.Query, error) {
 			return nil, err
 		}
 
-		q.AndWhereEvent("id", &event.WhereCompare{Compare: "<=", Value: until.String()})
+		q.AndBasisWhere("id", &event.WhereCompare{Compare: "<=", Value: until.String()})
 	}
 
 	return q, nil
@@ -86,8 +94,8 @@ func (h *EventStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		r.Body.Close()
 	}
 
-	if r.Header.Get("Accept") != "text/event-stream" {
-		events, _, err := h.Querier.QueryEvents(r.Context(), q)
+	if r.Header.Get("Accept") != "text/event-stream" && !r.URL.Query().Has("stream") {
+		events, _, _, err := h.Querier.QueryEvents(r.Context(), q)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

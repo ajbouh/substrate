@@ -75,36 +75,30 @@ func (s *Stream) process(ctx context.Context, querier event.Querier, q *event.Qu
 		}
 		until = *pendingUntil
 
-		cloned := q.Clone().AndWhereEvent("id",
+		cloned := q.Clone().AndBasisWhere("id",
 			&event.WhereCompare{Compare: "<=", Value: until.String()},
 		)
 		if s.useAdvancingAfter {
-			cloned.AndWhereEvent("id",
+			cloned.AndBasisWhere("id",
 				&event.WhereCompare{Compare: ">", Value: after.String()},
 			)
 		}
 
 		// ignore more since we shouldn't be using limit here...
 		// todo consider modifying queryevents to visit
-		events, _, err := querier.QueryEvents(ctx, cloned)
+		events, maxID, _, err := querier.QueryEvents(ctx, cloned)
 		if err != nil {
 			slog.Info("Stream.process() error ", "q", q, "err", err)
 			s.eventCh <- event.Notification{Until: until, Error: err}
 			return
 		}
 
-		fresh := false
-		for _, evt := range events {
-			if evt.ID.Compare(after) > 0 {
-				fresh = true
-				break
-			}
-		}
+		fresh := maxID.Compare(after) > 0
 
-		slog.Info("Stream.process() queried", "q", q, "fresh", fresh, "len(events)", len(events))
+		slog.Info("Stream.process() queried", "q", q, "fresh", fresh, "len(events)", len(events), "maxID", maxID, "after", after)
 		// don't send notification unless at least one event is newer than after
 		if fresh || initial {
-			s.eventCh <- event.Notification{Until: until, Events: events, Incremental: (!initial) && s.useAdvancingAfter}
+			s.eventCh <- event.Notification{Until: until, Events: events, MaxID: maxID, Incremental: (!initial) && s.useAdvancingAfter}
 			initial = false
 		}
 		after = until
