@@ -46,6 +46,9 @@ func main() {
 				JournalMode: sqliteuri.JournalModeWAL,
 			},
 		},
+		&sqliteuri.Opener{
+			Driver: "sqlite_custom",
+		},
 		&db.MultiReaderDB{},
 		&db.SingleWriterDB{},
 		notify.On(

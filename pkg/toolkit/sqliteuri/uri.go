@@ -118,6 +118,10 @@ type ExtraURIOption struct {
 	Value string
 }
 
+func (uri *URIOptions) IsReadOnly() bool {
+	return uri.Mode == ModeReadOnly
+}
+
 type URIOptions struct {
 	VFS       string `query:"vfs"`       // The "vfs" parameter may be used to specify the name of a VFS object that provides the operating system interface that should be used to access the database file on disk. If this option is set to an empty string the default VFS object is used. Specifying an unknown VFS is an error. If sqlite3_open_v2() is used and the vfs option is present, then the VFS specified by the option takes precedence over the value passed as the fourth parameter to sqlite3_open_v2().
 	Mode      Mode   `query:"mode"`      // It is an error to specify a value for the mode parameter that is less restrictive than that specified by the flags passed in the third parameter to sqlite3_open_v2().
