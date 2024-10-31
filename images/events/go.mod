@@ -1,11 +1,10 @@
 module github.com/ajbouh/substrate/images/events
 
-go 1.22
-
-toolchain go1.22.6
+go 1.23.2
 
 require (
 	github.com/ajbouh/substrate/pkg/toolkit v0.0.0-00010101000000-000000000000
+	github.com/asg017/sqlite-vec-go-bindings v0.1.4-alpha.2
 	github.com/mattn/go-sqlite3 v1.14.23
 )
 

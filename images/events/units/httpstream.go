@@ -65,6 +65,9 @@ func (h *EventStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var q *event.Query
 	var err error
 
+	// TODO if this is present, and it is greater than after, then use it.
+	// r.Header.Get("Last-Event-ID")
+
 	if r.Method == "GET" {
 		q, err = eventQueryFromURLQuery(r.URL.Query())
 		if err != nil {

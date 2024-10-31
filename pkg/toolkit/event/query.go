@@ -43,7 +43,10 @@ func (v View) StreamShouldAutoAdvanceAfter() bool {
 type Query struct {
 	EventsWherePrefix  map[string][]WherePrefix
 	EventsWhereCompare map[string][]WhereCompare
-	EventLimit         *int // max number of underlying events, if set
+
+	EventsNear *VectorInput[float32]
+
+	EventLimit *int // max number of underlying events, if set
 	// TODO do we need a bias here?
 
 	View             View

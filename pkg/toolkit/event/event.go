@@ -32,10 +32,13 @@ var _ json.Marshaler = (*SHA256Digest)(nil)
 
 var ErrScanValue = errors.New("SHA256Digest: source value must be a byte slice")
 
-func SHA256DigestFromBytes(b []byte) SHA256Digest {
+func SHA256DigestFromBytes(b []byte) *SHA256Digest {
+	if b == nil {
+		return nil
+	}
 	var m SHA256Digest
 	copy(m[:], b)
-	return m
+	return &m
 }
 
 func (m *SHA256Digest) Scan(src any) error {
@@ -63,10 +66,29 @@ type Event struct {
 	DataSize   *int          `json:"data_size,omitempty"`
 	DataSHA256 *SHA256Digest `json:"data_sha256,omitempty"`
 
-	FieldsSize   int          `json:"fields_size,omitempty"`
-	FieldsSHA256 SHA256Digest `json:"fields_sha256,omitempty"`
+	FieldsSize   int             `json:"fields_size,omitempty"`
+	FieldsSHA256 SHA256Digest    `json:"fields_sha256,omitempty"`
+	Payload      json.RawMessage `json:"fields"`
 
-	Payload json.RawMessage `json:"fields"`
+	Vector         *Vector[float32] `json:"vector,omitempty"`
+	VectorDistance *float64         `json:"vector_distance,omitempty"`
+}
+
+type VectorManifold struct {
+	ID         ID     `json:"id"`
+	Dimensions int    `json:"dimensions"`
+	DType      string `json:"dtype"`
+	Metric     string `json:"metric"`
+}
+
+type Vector[T any] struct {
+	Manifold *VectorManifold `json:"manifold"`
+	Data     []T             `json:"data"`
+}
+
+type VectorInput[T any] struct {
+	ManifoldID ID  `json:"manifold_id"`
+	Data       []T `json:"data"`
 }
 
 func Unmarshal[T any](evts []Event, strict bool) ([]T, error) {

@@ -88,19 +88,57 @@ func Call(fn string, o ...any) Expr {
 	return SQL(list...)
 }
 
+func With(name string, e Expr) *WithExpr {
+	return (&WithExpr{
+		TableExprs: map[string]Expr{},
+	}).AndWith(name, e)
+}
+
 func From(exprs ...Expr) *SelectExpr {
 	return &SelectExpr{
-		From: exprs,
+		FromExprs: exprs,
 	}
 }
 
+type WithExpr struct {
+	TableExprs map[string]Expr
+	SelectExpr *SelectExpr
+}
+
+func (q *WithExpr) AndWith(name string, e Expr) *WithExpr {
+	q.TableExprs[name] = e
+	return q
+}
+
+func (q *WithExpr) From(e ...Expr) *SelectExpr {
+	q.SelectExpr = From(e...)
+	return q.SelectExpr
+}
+
+func (q *WithExpr) Render(s []string, v []any) ([]string, []any) {
+	s = append(s, "WITH")
+	delim := false
+	for name, e := range q.TableExprs {
+		if delim {
+			s = append(s, ",")
+		}
+		s = append(s, name, "AS", "(")
+		s, v = e.Render(s, v)
+		s = append(s, ")")
+		delim = true
+	}
+
+	s, v = q.SelectExpr.Render(s, v)
+	return s, v
+}
+
 type SelectExpr struct {
-	Distinct     bool
-	Columns      []Expr
-	WhereExprs   []Expr
-	From         []Expr
-	LeftJoin     []string
-	GroupByExprs []Expr
+	Distinct      bool
+	Columns       []Expr
+	WhereExprs    []Expr
+	FromExprs     []Expr
+	LeftJoinExprs []Expr
+	GroupByExprs  []Expr
 
 	Limit   *Limit
 	OrderBy *OrderBy
@@ -116,6 +154,16 @@ func (q *SelectExpr) GroupBy(exprs ...Expr) *SelectExpr {
 	return q
 }
 
+func (q *SelectExpr) LeftJoin(exprs ...Expr) *SelectExpr {
+	q.LeftJoinExprs = append(q.LeftJoinExprs, exprs...)
+	return q
+}
+
+func (q *SelectExpr) AndFrom(exprs ...Expr) *SelectExpr {
+	q.FromExprs = append(q.FromExprs, exprs...)
+	return q
+}
+
 func (q *SelectExpr) AndWhere(exprs ...Expr) *SelectExpr {
 	q.WhereExprs = append(q.WhereExprs, exprs...)
 	return q
@@ -127,12 +175,8 @@ func (q *SelectExpr) Render(s []string, v []any) ([]string, []any) {
 		selectPrefix = append(selectPrefix, "DISTINCT")
 	}
 	s, v = renderExprSlice(s, v, selectPrefix, ",", q.Columns)
-	s, v = renderExprSlice(s, v, []string{"FROM"}, ",", q.From)
-
-	if len(q.LeftJoin) > 0 {
-		s = append(s, "LEFT JOIN", strings.Join(q.LeftJoin, " "))
-	}
-
+	s, v = renderExprSlice(s, v, []string{"FROM"}, ",", q.FromExprs)
+	s, v = renderExprSlice(s, v, []string{"LEFT JOIN"}, "LEFT JOIN", q.LeftJoinExprs)
 	s, v = renderExprSlice(s, v, []string{"WHERE"}, "AND", q.WhereExprs)
 	s, v = renderExprSlice(s, v, []string{"GROUP BY"}, ",", q.GroupByExprs)
 

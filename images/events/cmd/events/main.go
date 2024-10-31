@@ -7,11 +7,12 @@ import (
 	"os"
 	"path"
 
-	"github.com/ajbouh/substrate/pkg/toolkit/engine"
+	sqlite_vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
 
 	"github.com/ajbouh/substrate/images/events/db"
 	"github.com/ajbouh/substrate/images/events/store"
 	"github.com/ajbouh/substrate/images/events/units"
+	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
@@ -21,6 +22,9 @@ import (
 )
 
 func main() {
+	// TODO move this somewhere else.
+	sqlite_vec.Auto()
+
 	sqlDBFile := os.Getenv("EVENTS_DATABASE_FILE")
 
 	err := os.MkdirAll(path.Dir(sqlDBFile), 0o755)
@@ -40,8 +44,8 @@ func main() {
 				JournalMode: sqliteuri.JournalModeWAL,
 			},
 		},
-		db.MultiReaderDB{},
-		db.SingleWriterDB{},
+		&db.MultiReaderDB{},
+		&db.SingleWriterDB{},
 		notify.On(
 			func(ctx context.Context,
 				evt db.Initialized[db.Txer],
@@ -52,11 +56,12 @@ func main() {
 				}
 			}),
 
-		store.ExternalDataStore{
+		&store.ExternalDataStore{
 			BaseDir: os.Getenv("EVENTS_DATA_BASE_DIR"),
 		},
-		store.EventStore{},
-		units.EventURLs{
+		&store.EventStore{},
+		&store.VectorManifoldStore{},
+		&units.EventURLs{
 			URLForEvent: func(ctx context.Context, eventID event.ID) string {
 				return httpframework.ContextPrefix(ctx) + "/events/" + eventID.String()
 			},

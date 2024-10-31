@@ -15,10 +15,21 @@ type Querier interface {
 	QueryMaxID(ctx context.Context) (ID, error)
 }
 
-type WriteNotifyFunc func(i int, id ID, fieldsSize int, fieldsSha256 []byte, dataSize int64, dataSha256 []byte)
+type WriteNotifyFunc func(
+	i int,
+	id ID,
+	fieldsSize int, fieldsSha256 []byte,
+	dataSize int64, dataSha256 []byte,
+)
 
 type Writer interface {
-	WriteEvents(ctx context.Context, since ID, fields []json.RawMessage, readClosers []io.ReadCloser, cb WriteNotifyFunc) error
+	WriteEvents(ctx context.Context,
+		since ID,
+		fieldsList []json.RawMessage,
+		dataList []io.ReadCloser,
+		vectorList []*VectorInput[float32],
+		conflictFieldKeysList [][]string, // TODO a list of fields to produce a conflict and return the original ID for
+		wn WriteNotifyFunc) error
 }
 
 type Streamer interface {

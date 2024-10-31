@@ -197,6 +197,8 @@ var WriteTreeDataPathCommand = commands.HTTPCommand(
 			[]io.ReadCloser{
 				args.Reader,
 			},
+			nil,
+			nil,
 			func(i int, id event.ID, fieldsSize int, fieldsSha256 []byte, dataSize int64, dataSha256 []byte) {
 				wroteID = id
 			},
@@ -295,6 +297,8 @@ var WriteTreeFieldsPathCommand = commands.HTTPCommand(
 			[]json.RawMessage{
 				rawFields,
 			},
+			nil,
+			nil,
 			nil,
 			nil,
 		)
@@ -435,8 +439,8 @@ var EventPathLinksQueryCommand = commands.HTTPCommand(
 type WriteEventsReturns struct {
 	IDs []event.ID `json:"ids"`
 
-	FieldsSHA256s []event.SHA256Digest `json:"fields_sha256s"`
-	DataSHA256s   []event.SHA256Digest `json:"data_sha256s"`
+	FieldsSHA256s []*event.SHA256Digest `json:"fields_sha256s"`
+	DataSHA256s   []*event.SHA256Digest `json:"data_sha256s"`
 }
 
 type WriteEvent struct {
@@ -447,6 +451,10 @@ type WriteEvent struct {
 
 	// if this is "base64", decode data that way
 	DataEncoding string `json:"encoding"`
+
+	Vector *event.VectorInput[float32] `json:"vector"`
+
+	ConflictKeys []string `json:"conflict_keys"`
 }
 
 var WriteEventsCommand = commands.Command(
@@ -465,6 +473,8 @@ var WriteEventsCommand = commands.Command(
 
 		fieldses := make([]json.RawMessage, 0, len(args.Events))
 		readers := make([]io.ReadCloser, 0, len(args.Events))
+		vectors := make([]*event.VectorInput[float32], 0, len(args.Events))
+		conflict := make([][]string, 0, len(args.Events))
 
 		var err error
 		for _, entry := range args.Events {
@@ -481,15 +491,22 @@ var WriteEventsCommand = commands.Command(
 					reader = io.NopCloser(strings.NewReader(entry.Data))
 				}
 			}
+			// this is a bit of a waste. not all writes will include data. we should lazily allocate this array.
 			readers = append(readers, reader)
+
+			// this is a bit of a waste. not all writes will include vectors. we should lazily allocate this array.
+			vectors = append(vectors, entry.Vector)
+
+			// this is a bit of a waste. not all writes will include conflict. we should lazily allocate this array.
+			conflict = append(conflict, entry.ConflictKeys)
 		}
 
 		// pre-allocate
 		returns.IDs = make([]event.ID, 0, len(args.Events))
-		returns.FieldsSHA256s = make([]event.SHA256Digest, 0, len(args.Events))
-		returns.DataSHA256s = make([]event.SHA256Digest, 0, len(args.Events))
+		returns.FieldsSHA256s = make([]*event.SHA256Digest, 0, len(args.Events))
+		returns.DataSHA256s = make([]*event.SHA256Digest, 0, len(args.Events))
 
-		err = t.Writer.WriteEvents(ctx, args.Since, fieldses, readers,
+		err = t.Writer.WriteEvents(ctx, args.Since, fieldses, readers, vectors, conflict,
 			func(i int, id event.ID, fieldsSize int, fieldsSha256 []byte, dataSize int64, dataSha256 []byte) {
 				slog.Info("write pending", "i", i, "id", id,
 					"fieldsSize", fieldsSize, "fieldsSha256", fieldsSha256,
@@ -532,6 +549,10 @@ var QueryEventsCommand = commands.Command(
 
 			Limit *int `json:"limit" query:"limit"`
 			Bias  *int `json:"bias" query:"bias"`
+
+			VectorInManifold *event.ID  `json:"vector_in_manifold" query:"vector_in_manifold"`
+			VectorNear       *[]float32 `json:"vector_near"`
+			VectorLimit      *int       `json:"vector_limit"`
 		},
 	) (QueryEventsReturns, error) {
 		returns := QueryEventsReturns{}
@@ -563,6 +584,25 @@ var QueryEventsCommand = commands.Command(
 
 		if args.Until != nil {
 			sq.AndWhereEvent("id", &event.WhereCompare{Compare: "<=", Value: *args.Until})
+		}
+
+		if args.VectorInManifold != nil {
+			sq.AndWhereEvent("vector_manifold_id", &event.WhereCompare{Compare: "=", Value: *args.VectorInManifold})
+
+			if args.VectorNear != nil {
+				sq.EventsNear = &event.VectorInput[float32]{
+					ManifoldID: *args.VectorInManifold,
+					Data:       *args.VectorNear,
+				}
+			}
+
+			if args.VectorLimit != nil {
+				sq.WithEventLimit(*args.VectorLimit)
+			}
+		} else {
+			if args.VectorNear != nil {
+				return returns, &commands.HTTPStatusError{Status: http.StatusBadRequest, Message: "cannot provide near without a value for vector_in_manifold"}
+			}
 		}
 
 		var err error

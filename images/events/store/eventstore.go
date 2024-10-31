@@ -1,11 +1,13 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 
@@ -21,6 +23,9 @@ type EventStore struct {
 
 	EventDataWriter EventDataWriter
 	EventDataSource EventDataSource
+
+	VectorManifoldResolver VectorManifoldResolver
+	VectorManifoldWriter   VectorManifoldWriter
 
 	newDigester func() Digester
 
@@ -46,7 +51,10 @@ func (es *EventStore) QueryEventData(ctx context.Context, id event.ID) (io.ReadS
 }
 
 func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.Event, bool, error) {
-	max, s := renderEventQuery(q)
+	max, s, err := renderEventQuery(ctx, es.VectorManifoldResolver, q)
+	if err != nil {
+		return nil, false, err
+	}
 	stmt, v := db.Render(s)
 	slog.Info("QueryEvents", "sql", q, "max", max, "v", v)
 	rows, err := es.Querier.QueryContext(ctx, stmt, v...)
@@ -55,6 +63,8 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 	}
 
 	defer rows.Close()
+
+	vmr := NewVectorManifoldCache(es.VectorManifoldResolver)
 
 	results := []event.Event{}
 	numResults := 0
@@ -72,27 +82,36 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 		var dataSHA256 sql.RawBytes
 		var dataSize int
 
+		var vecManifoldIDBytes sql.RawBytes
+		var vecID any
+
+		var vecDistance any
+
 		var fields []byte
-		err := rows.Scan(&idBytes, &atBytes, &sinceBytes, &fields, &evt.FieldsSize, &evt.FieldsSHA256, &dataSize, &dataSHA256)
+		err := rows.Scan(&idBytes, &atBytes, &sinceBytes,
+			&fields, &evt.FieldsSize, &evt.FieldsSHA256,
+			&dataSize, &dataSHA256,
+			&vecManifoldIDBytes, &vecID,
+			&vecDistance)
 		if err != nil {
 			return nil, false, err
 		}
 
-		if idBytes != nil && len(idBytes) > 0 {
+		if len(idBytes) > 0 {
 			err := evt.ID.Scan([]byte(idBytes))
 			if err != nil {
 				return nil, false, err
 			}
 		}
 
-		if atBytes != nil && len(atBytes) > 0 {
+		if len(atBytes) > 0 {
 			err := evt.At.Scan([]byte(atBytes))
 			if err != nil {
 				return nil, false, err
 			}
 		}
 
-		if sinceBytes != nil && len(sinceBytes) > 0 {
+		if len(sinceBytes) > 0 {
 			err := evt.Since.Scan([]byte(sinceBytes))
 			if err != nil {
 				return nil, false, err
@@ -109,6 +128,40 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 
 			evt.DataSize = &dataSize
 		}
+
+		if len(vecManifoldIDBytes) > 0 {
+			var vectorManifoldID event.ID
+			err := vectorManifoldID.Scan([]byte(vecManifoldIDBytes))
+			if err != nil {
+				return nil, false, err
+			}
+
+			vr, err := vmr.ResolveVectorManifold(ctx, vectorManifoldID)
+			if err != nil {
+				return nil, false, err
+			}
+
+			// track all vec ids
+			vecIDInt, ok := vecID.(int64)
+			if !ok {
+				return nil, false, fmt.Errorf("vector_data_rowid is not int64: %T", vecID)
+			}
+
+			if err != nil {
+				return nil, false, err
+			}
+			evt.Vector, err = vr.ReadVector(ctx, vecIDInt)
+
+			if vecDistance != nil {
+				vecDistanceFloat, ok := vecDistance.(float64)
+				if !ok {
+					return nil, false, fmt.Errorf("vector_data_nn_distance is not float64: %T", vecDistance)
+				}
+
+				evt.VectorDistance = &vecDistanceFloat
+			}
+		}
+
 		results = append(results, *evt)
 		numResults++
 	}
@@ -136,20 +189,26 @@ func (es *EventStore) QueryMaxID(ctx context.Context) (event.ID, error) {
 	return id, rows.Err()
 }
 
-func (es *EventStore) WriteEvents(ctx context.Context, since event.ID, payloads []json.RawMessage, readClosers []io.ReadCloser, cb event.WriteNotifyFunc) error {
-	slog.Info("EventStore.WriteEvents", "since", since, "len(payloads)", len(payloads), "len(readClosers)", len(readClosers))
+func (es *EventStore) WriteEvents(ctx context.Context,
+	since event.ID,
+	fieldsList []json.RawMessage,
+	dataList []io.ReadCloser,
+	vectorList []*event.VectorInput[float32],
+	conflictFieldKeysList [][]string, // TODO a list of fields to produce a conflict and return the original ID for
+	cb event.WriteNotifyFunc) error {
+	slog.Info("EventStore.WriteEvents", "since", since, "len(fieldsList)", len(fieldsList), "len(dataList)", len(dataList))
 
-	if len(payloads) == 0 {
+	if len(fieldsList) == 0 {
 		return nil
 	}
 
 	lastUnusedReadCloserIndex := 0
 	defer func() {
-		if len(readClosers) <= lastUnusedReadCloserIndex {
+		if len(dataList) <= lastUnusedReadCloserIndex {
 			return
 		}
-		// close remaining unused readClosers, if any.
-		for _, rc := range readClosers[lastUnusedReadCloserIndex+1:] {
+		// close remaining unused dataList, if any.
+		for _, rc := range dataList[lastUnusedReadCloserIndex+1:] {
 			if rc != nil {
 				rc.Close()
 			}
@@ -159,11 +218,12 @@ func (es *EventStore) WriteEvents(ctx context.Context, since event.ID, payloads 
 	var committers []EventDataCommitFunc
 
 	writeDataIfAny := func(tx db.Tx, id event.ID, i int) ([]byte, int64, error) {
-		if len(readClosers) == 0 {
+		l := len(dataList)
+		if l == 0 || i >= l {
 			return nil, 0, nil
 		}
 
-		readCloser := readClosers[i]
+		readCloser := dataList[i]
 		if readCloser == nil {
 			return nil, 0, nil
 		}
@@ -196,44 +256,158 @@ func (es *EventStore) WriteEvents(ctx context.Context, since event.ID, payloads 
 		return errors.Join(errs...)
 	}
 
+	vmr := NewVectorManifoldCache(es.VectorManifoldResolver)
+	writeVectorDataIfAny := func(tx db.Tx, i int) (rowid int64, manifoldID *event.ID, err error) {
+		l := len(vectorList)
+		if l == 0 || i >= l {
+			return
+		}
+
+		vec := vectorList[i]
+		if vec == nil {
+			return
+		}
+
+		vrw, err := vmr.ResolveVectorManifold(ctx, vec.ManifoldID)
+		if err != nil {
+			return
+		}
+		rowid, err = vrw.WriteVector(ctx, tx, vec.Data)
+		manifoldID = &vec.ManifoldID
+		return
+	}
+
+	conflictKeysIfAny := func(i int) []string {
+		l := len(conflictFieldKeysList)
+		if l == 0 || i >= l {
+			return nil
+		}
+
+		return conflictFieldKeysList[i]
+	}
+
+	checkExisting := func(tx db.Tx, i int, fields json.RawMessage) (*event.ID, int, []byte, int64, []byte, bool, error) {
+		conflictKeys := conflictKeysIfAny(i)
+		if conflictKeys == nil {
+			return nil, 0, nil, 0, nil, false, nil
+		}
+
+		expr := From(
+			As("existing", SQL(eventsTable)),
+			As("new", SQL("SELECT", As("fields", V(string(fields))))),
+		).Select(
+			eventFieldName("id"),
+			eventFieldName("fields_size"),
+			eventFieldName("fields_sha256"),
+			eventFieldName("data_size"),
+			eventFieldName("data_sha256"),
+		)
+		for _, key := range conflictKeys {
+			path := "$." + key
+			expr.AndWhere(
+				SQL(Call("jsonb_extract", "existing.fields", V(path)),
+					"=",
+					Call("json_extract", "new.fields", V(path))))
+		}
+		query, args := db.Render(expr)
+
+		rows, err := tx.QueryContext(ctx, query, args...)
+		if err != nil {
+			return nil, 0, nil, 0, nil, false, err
+		}
+		defer rows.Close()
+
+		if !rows.Next() {
+			return nil, 0, nil, 0, nil, false, rows.Err()
+		}
+
+		var id event.ID
+		var fieldsDigest []byte
+		var fieldsSize int
+		var dataDigest []byte
+		var dataSize int64
+
+		err = rows.Scan(&id, &fieldsSize, &fieldsDigest, &dataSize, &dataDigest)
+		return &id, fieldsSize, fieldsDigest, dataSize, dataDigest, err == nil, err
+	}
+
 	var lastMaxID *event.ID
 
 	err := es.Txer.Tx(ctx, func(tx db.Tx) error {
 		var at event.ID
 
-		for i, event := range payloads {
+		for i, fields := range fieldsList {
 			id := es.eventIDFunc()
 			if i == 0 {
 				at = id
 			}
 
-			fields, err := json.Marshal(event)
+			fieldsBytes, err := json.Marshal(fields)
 			if err != nil {
 				return err
 			}
 
-			dataDigest, n, err := writeDataIfAny(tx, id, i)
+			var fieldsDigest []byte
+			var fieldsSize int
+			var dataDigest []byte
+			var dataSize int64
+
+			existingID, existingFieldsSize, existingFieldsDigest, existingDataSize, existingDataDigest, useExisting, err := checkExisting(tx, i, fields)
 			if err != nil {
 				return err
 			}
+			if useExisting {
+				id = *existingID
+				fieldsSize = existingFieldsSize
+				fieldsDigest = existingFieldsDigest
+				dataSize = existingDataSize
+				dataDigest = existingDataDigest
+			} else {
+				fieldsDigester := es.newDigester()
+				_, err = fieldsDigester.Write(fieldsBytes)
+				if err != nil {
+					return err
+				}
+				fieldsDigest = fieldsDigester.Sum(nil)
+				fieldsSize = len(fieldsBytes)
 
-			fieldDigester := es.newDigester()
-			_, err = fieldDigester.Write(fields)
-			if err != nil {
-				return err
-			}
-			fieldDigest := fieldDigester.Sum(nil)
+				dataDigest, dataSize, err = writeDataIfAny(tx, id, i)
+				if err != nil {
+					return err
+				}
 
-			_, err = tx.ExecContext(ctx, `INSERT INTO "events" (id, at, since, data_size, data_sha256, fields_size, fields_sha256, fields) VALUES (?, ?, ?, ?, ?, ?, ?, jsonb(?))`,
-				id, at, since,
-				n, dataDigest,
-				len(fields), fieldDigest, fields)
-			if err != nil {
-				return err
+				vectorDataRowid, vectorManifoldID, err := writeVectorDataIfAny(tx, i)
+				if err != nil {
+					return err
+				}
+
+				if vectorManifoldID != nil {
+					_, err = tx.ExecContext(ctx, `INSERT INTO "events" (id, at, since, data_size, data_sha256, fields_size, fields_sha256, fields, vector_manifold_id, vector_data_rowid) VALUES (?, ?, ?, ?, ?, ?, ?, jsonb(?), ?, ?)`,
+						id, at, since,
+						dataSize, dataDigest,
+						fieldsSize, fieldsDigest, fieldsBytes,
+						*vectorManifoldID, vectorDataRowid,
+					)
+				} else {
+					_, err = tx.ExecContext(ctx, `INSERT INTO "events" (id, at, since, data_size, data_sha256, fields_size, fields_sha256, fields) VALUES (?, ?, ?, ?, ?, ?, ?, jsonb(?))`,
+						id, at, since,
+						dataSize, dataDigest,
+						fieldsSize, fieldsDigest, fieldsBytes,
+					)
+				}
+
+				if err != nil {
+					return err
+				}
+
+				err = es.interpretEventWrite(ctx, tx, id, fields)
+				if err != nil {
+					return err
+				}
 			}
 
 			if cb != nil {
-				cb(i, id, len(fields), fieldDigest, n, dataDigest)
+				cb(i, id, fieldsSize, fieldsDigest, dataSize, dataDigest)
 			}
 
 			lastMaxID = &id
@@ -257,6 +431,38 @@ func (es *EventStore) WriteEvents(ctx context.Context, since event.ID, payloads 
 	if lastMaxID != nil {
 		es.notifyStreamsOfNewMaxID(*lastMaxID)
 	}
+	return nil
+}
+
+var typeFieldBytes = []byte(`"type":`)
+var typeVectorManifoldBytes = []byte(`"vector_manifold"`)
+
+func (es *EventStore) interpretEventWrite(ctx context.Context, tx db.Tx, id event.ID, fields []byte) error {
+	if !bytes.Contains(fields, typeFieldBytes) {
+		return nil
+	}
+
+	// this is a good enough hint to try decoding it.
+	if bytes.Contains(fields, typeVectorManifoldBytes) {
+
+		f := struct {
+			Type string `json:"type"`
+			event.VectorManifold
+		}{}
+
+		err := json.Unmarshal(fields, &f)
+		if err != nil {
+			return nil
+		}
+
+		if f.Type != "vector_manifold" {
+			return nil
+		}
+
+		f.VectorManifold.ID = id
+		return es.VectorManifoldWriter.WriteVectorManifold(ctx, tx, &f.VectorManifold)
+	}
+
 	return nil
 }
 

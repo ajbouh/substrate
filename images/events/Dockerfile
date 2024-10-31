@@ -1,4 +1,8 @@
-FROM docker.io/library/golang:1.22-bookworm AS source
+FROM docker.io/library/golang:1.23-bookworm AS source
+
+RUN echo "deb http://deb.debian.org/debian trixie main" >>/etc/apt/sources.list
+RUN set -x && apt-get update && \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y libsqlite3-dev/trixie
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
 COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./

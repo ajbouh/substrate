@@ -1,3 +1,5 @@
+github.com/asg017/sqlite-vec-go-bindings v0.1.4-alpha.2 h1:FptYOWqJ+7rL5AXFt/AMS4eRtLF/uSQm6/x6vZPs5RU=
+github.com/asg017/sqlite-vec-go-bindings v0.1.4-alpha.2/go.mod h1:A8+cTt/nKFsYCQF6OgzSNpKZrzNo5gQsXBTfsXHXY0Q=
 github.com/elnormous/contenttype v1.0.4 h1:FjmVNkvQOGqSX70yvocph7keC8DtmJaLzTTq6ZOQCI8=
 github.com/elnormous/contenttype v1.0.4/go.mod h1:5KTOW8m1kdX1dLMiUJeN9szzR2xkngiv2K+RVZwWBbI=
 github.com/mattn/go-sqlite3 v1.14.23 h1:gbShiuAP1W5j9UOksQ06aiiqPMxYecovVGwmTxWtuw0=
