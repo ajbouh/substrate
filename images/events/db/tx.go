@@ -9,8 +9,6 @@ import (
 
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/ajbouh/substrate/pkg/toolkit/sqliteuri"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 var _ Txer = (*SingleWriterDB)(nil)
@@ -20,9 +18,10 @@ type Initialized[T any] struct {
 }
 
 type SingleWriterDB struct {
-	mu  sync.RWMutex
-	db  *sql.DB
-	URI *sqliteuri.URI
+	mu     sync.RWMutex
+	db     *sql.DB
+	Opener *sqliteuri.Opener
+	URI    *sqliteuri.URI
 
 	InitializedNotifiers []notify.Notifier[Initialized[Txer]]
 }
@@ -30,7 +29,7 @@ type SingleWriterDB struct {
 func (s *SingleWriterDB) Initialize() {
 	var err error
 	uri := s.URI
-	s.db, err = uri.Open()
+	s.db, err = s.Opener.Open(s.URI)
 	slog.Info("SingleWriterDB.Initialize()", "uri", uri.String(), "err", err)
 	if err != nil {
 		panic(err)

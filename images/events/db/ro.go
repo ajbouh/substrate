@@ -58,8 +58,9 @@ func queryContext(ctx context.Context, db Querier, query string, values ...any) 
 }
 
 type MultiReaderDB struct {
-	URI *sqliteuri.URI
-	db  *sql.DB
+	URI    *sqliteuri.URI
+	Opener *sqliteuri.Opener
+	db     *sql.DB
 }
 
 func (s *MultiReaderDB) Initialize() {
@@ -70,7 +71,7 @@ func (s *MultiReaderDB) Initialize() {
 		uri.Mode = sqliteuri.ModeReadOnly
 	}
 
-	s.db, err = uri.Open()
+	s.db, err = s.Opener.Open(&uri)
 	slog.Info("MultiReaderDB.Initialize()", "uri", uri.String(), "err", err)
 	if err != nil {
 		panic(err)
