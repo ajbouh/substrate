@@ -60,7 +60,7 @@ var GetTreeRawPathCommand = handle.HTTPCommand(
 			query.Until(args.Until)
 		}
 
-		evts, _, err := event.QueryEvents(ctx, t.Querier, query)
+		evts, _, _, err := event.QueryEvents(ctx, t.Querier, query)
 		if err != nil {
 			return returns, err
 		}
@@ -139,7 +139,7 @@ var GetTreeDataPathCommand = handle.HTTPCommand(
 			query.Until(args.Until)
 		}
 
-		event, err := event.QueryEvent(ctx, t.Querier, query)
+		event, _, err := event.QueryEvent(ctx, t.Querier, query)
 		if err != nil {
 			return returns, err
 		}
@@ -237,7 +237,7 @@ var GetTreeFieldsPathCommand = handle.HTTPCommand(
 			query.Until(args.Until)
 		}
 
-		returns.Event, err = event.QueryEvent(ctx, t.Querier, query)
+		returns.Event, _, err = event.QueryEvent(ctx, t.Querier, query)
 		if err != nil {
 			return returns, err
 		}
@@ -326,7 +326,7 @@ var GetEventCommand = handle.HTTPCommand(
 		returns := GetEventReturns{}
 		var err error
 		query := event.QueryByID(args.ID)
-		returns.Event, err = event.QueryEvent(ctx, t.Querier, query)
+		returns.Event, _, err = event.QueryEvent(ctx, t.Querier, query)
 		return returns, err
 	})
 
@@ -348,7 +348,7 @@ var GetEventDataCommand = handle.HTTPCommand(
 		query := event.QueryByID(args.ID)
 
 		returns := struct{}{}
-		event, err := event.QueryEvent(ctx, t.Querier, query)
+		event, _, err := event.QueryEvent(ctx, t.Querier, query)
 		if err != nil {
 			return returns, err
 		}
@@ -417,7 +417,7 @@ var IDLinksQueryCommand = handle.HTTPCommand(
 			query.Until(args.Until)
 		}
 
-		evt, err := event.QueryEventWithFields[EventWithLinks](ctx, t.Querier, query)
+		evt, _, err := event.QueryEventWithFields[EventWithLinks](ctx, t.Querier, query)
 		if err != nil {
 			return returns, err
 		}
@@ -457,7 +457,7 @@ var EventPathLinksQueryCommand = handle.HTTPCommand(
 			query.Until(args.Until)
 		}
 
-		evt, err := event.QueryEventWithFields[EventWithLinks](ctx, t.Querier, query)
+		evt, _, err := event.QueryEventWithFields[EventWithLinks](ctx, t.Querier, query)
 		if err != nil {
 			return returns, err
 		}
@@ -520,6 +520,7 @@ var WriteEventsCommand = handle.Command(
 
 type QueryEventsReturns struct {
 	Events []event.Event `json:"events"`
+	MaxID  event.ID      `json:"max_id"`
 	More   bool          `json:"more"`
 }
 
@@ -554,45 +555,45 @@ var QueryEventsCommand = handle.Command(
 
 		sq := event.NewQuery(args.View)
 
-		sq.ViewLimit = args.Limit
-		sq.ViewBias = args.Bias
+		sq.ViewCriteria.Limit = args.Limit
+		sq.ViewCriteria.Bias = args.Bias
 
 		if args.PathPrefix != nil {
-			sq.AndWhereEvent("path", &event.WherePrefix{Prefix: "/" + *args.PathPrefix})
+			sq.AndBasisWhere("path", &event.WherePrefix{Prefix: "/" + *args.PathPrefix})
 		}
 
 		if args.Path != nil {
-			sq.AndWhereEvent("path", &event.WhereCompare{Compare: "=", Value: "/" + *args.Path})
+			sq.AndBasisWhere("path", &event.WhereCompare{Compare: "=", Value: "/" + *args.Path})
 		}
 
 		if args.TypePrefix != nil {
-			sq.AndWhereEvent("type", &event.WherePrefix{Prefix: *args.TypePrefix})
+			sq.AndViewWhere("type", &event.WherePrefix{Prefix: *args.TypePrefix})
 		}
 
 		if args.Type != nil {
-			sq.AndWhereEvent("type", &event.WhereCompare{Compare: "=", Value: *args.Type})
+			sq.AndViewWhere("type", &event.WhereCompare{Compare: "=", Value: *args.Type})
 		}
 
 		if args.After != nil {
-			sq.AndWhereEvent("id", &event.WhereCompare{Compare: ">", Value: args.After.String()})
+			sq.AndBasisWhere("id", &event.WhereCompare{Compare: ">", Value: args.After.String()})
 		}
 
 		if args.Until != nil {
-			sq.AndWhereEvent("id", &event.WhereCompare{Compare: "<=", Value: args.Until.String()})
+			sq.AndBasisWhere("id", &event.WhereCompare{Compare: "<=", Value: args.Until.String()})
 		}
 
 		if args.VectorInManifold != nil {
-			sq.AndWhereEvent("vector_manifold_id", &event.WhereCompare{Compare: "=", Value: args.VectorInManifold.String()})
+			sq.AndViewWhere("vector_manifold_id", &event.WhereCompare{Compare: "=", Value: args.VectorInManifold.String()})
 
 			if args.VectorNear != nil {
-				sq.EventsNear = &event.VectorInput[float32]{
+				sq.ViewCriteria.Near = &event.VectorInput[float32]{
 					ManifoldID: *args.VectorInManifold,
 					Data:       *args.VectorNear,
 				}
 			}
 
 			if args.VectorLimit != nil {
-				sq.WithEventLimit(*args.VectorLimit)
+				sq.ViewCriteria.WithLimit(*args.VectorLimit)
 			}
 		} else {
 			if args.VectorNear != nil {
@@ -602,6 +603,6 @@ var QueryEventsCommand = handle.Command(
 
 		var err error
 		slog.Info("QueryEventsCommand", "t", t, "args", args, "sq", sq)
-		returns.Events, returns.More, err = t.Querier.QueryEvents(ctx, sq)
+		returns.Events, returns.MaxID, returns.More, err = t.Querier.QueryEvents(ctx, sq)
 		return returns, err
 	})
