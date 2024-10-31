@@ -8,16 +8,22 @@ import (
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
-var recordTranslation = tracks.EventRecorder[*TranslationEvent]("translation")
+var recordTranslation = tracks.EventRecorder[*TranslationRecord]("translation")
 
-type TranslationEvent struct {
+type TranslationEvent tracks.EventT[*TranslationRecord]
+
+type TranslationRecord struct {
 	SourceEvent tracks.ID
 	Translation *Translation
 }
 
 type Agent struct {
+	NotifyQueue          *notify.Queue
+	TranslationNotifiers []notify.Notifier[TranslationEvent]
+
 	Source         commands.Source
 	Command        string
 	TargetLanguage string
@@ -47,9 +53,13 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 	}
 	log.Println("translated", r)
 
-	recordTranslation(annot.Span(), &TranslationEvent{
+	ev := recordTranslation(annot.Span(), &TranslationRecord{
 		SourceEvent: annot.ID,
 		Translation: r,
+	})
+	notify.Later(a.NotifyQueue, a.TranslationNotifiers, TranslationEvent{
+		EventMeta: ev.EventMeta,
+		Data:      ev.Data.(*TranslationRecord),
 	})
 }
 

@@ -82,6 +82,11 @@ type EventMeta struct {
 	ID         ID
 }
 
+type EventT[T any] struct {
+	EventMeta
+	Data T
+}
+
 type Event struct {
 	EventMeta
 	Data  any

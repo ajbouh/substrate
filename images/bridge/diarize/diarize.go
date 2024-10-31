@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ajbouh/substrate/images/bridge/tracks"
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/gopxl/beep"
 	"github.com/technosophos/moniker"
 )
@@ -70,6 +71,10 @@ func (t TimeRange) Sub(d time.Duration) TimeRange {
 }
 
 type Agent struct {
+	NotifyQueue              *notify.Queue
+	SpeakerDetectedNotifiers []notify.Notifier[SpeakerDetectedEvent]
+	SpeakerNameNotifiers     []notify.Notifier[SpeakerNameEvent]
+
 	Client  Client
 	Sampler Sampler
 	mutex   sync.Map
@@ -113,9 +118,13 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 
 	initSpan := annot.Span().Span(0, 0)
 	for _, id := range newIDs {
-		recordSpeakerName(initSpan, &SpeakerName{
+		ev := recordSpeakerName(initSpan, &SpeakerName{
 			SpeakerID: id,
 			Name:      namer.Name(),
+		})
+		notify.Later(a.NotifyQueue, a.SpeakerNameNotifiers, SpeakerNameEvent{
+			EventMeta: ev.EventMeta,
+			Data:      ev.Data.(*SpeakerName),
 		})
 	}
 	for _, ts := range mapped {
@@ -124,9 +133,13 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		if outSpan.Length() <= 0 {
 			log.Printf("got diarization outside of range: %#v", ts)
 		}
-		recordSpeakerDetected(outSpan, &SpeakerDetected{
+		ev := recordSpeakerDetected(outSpan, &SpeakerDetected{
 			SpeakerID:           ts.SpeakerID,
 			InternalSpeakerName: ts.InternalSpeakerName,
+		})
+		notify.Later(a.NotifyQueue, a.SpeakerDetectedNotifiers, SpeakerDetectedEvent{
+			EventMeta: ev.EventMeta,
+			Data:      ev.Data.(*SpeakerDetected),
 		})
 	}
 }

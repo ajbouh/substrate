@@ -8,10 +8,14 @@ import (
 
 	"github.com/ajbouh/substrate/images/bridge/audio"
 	"github.com/ajbouh/substrate/images/bridge/tracks"
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/rs/xid"
 )
 
 type Agent struct {
+	NotifyQueue            *notify.Queue
+	ActivityEventNotifiers []notify.Notifier[ActivityEvent]
+
 	sampleRateMs  int
 	maxWindowSize int
 
@@ -71,6 +75,8 @@ func New(config Config) *Agent {
 
 var RecordActivity = tracks.NilEventRecorder("activity")
 
+type ActivityEvent tracks.EventT[struct{}]
+
 func (a *Agent) HandleEvent(annot tracks.Event) {
 	if annot.Type != "audio" {
 		return
@@ -89,7 +95,11 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 			log.Printf("vad: clamping start %d to track start %d", start, annot.Track().Start())
 			start = annot.Track().Start()
 		}
-		RecordActivity(annot.Track().Span(start, annot.End))
+		ev := RecordActivity(annot.Track().Span(start, annot.End))
+		notify.Later(a.NotifyQueue, a.ActivityEventNotifiers, ActivityEvent{
+			EventMeta: ev.EventMeta,
+			Data:      struct{}{}, //*ev.Data.(*struct{}),
+		})
 	}
 }
 

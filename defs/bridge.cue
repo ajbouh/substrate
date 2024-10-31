@@ -16,10 +16,12 @@ services: "bridge": {
     url_prefix: environment.SUBSTRATE_URL_PREFIX
 
     environment: {
+      SUBSTRATE_EVENT_WRITER_URL: "http://substrate:8080/events;data=\(parameters.sessions.value)/tree/fields"
       BRIDGE_COMMANDS_URL: "http://substrate:8080/"
       BRIDGE_TRANSCRIBE_COMMAND: "faster-whisper:transcribe-data"
       BRIDGE_TRANSLATE_COMMAND: "seamlessm4t:translate"
       BRIDGE_DIARIZE_COMMAND: "diarizer:diarize"
+      BRIDGE_SESSION_ID: "\(parameters.id.value)"
       BRIDGE_SESSION_DIR: "/spaces/sessions/\(parameters.id.value)"
     }
   }
