@@ -139,33 +139,59 @@ type SelectExpr struct {
 	FromExprs     []Expr
 	LeftJoinExprs []Expr
 	GroupByExprs  []Expr
+	HavingExprs   []Expr
+	UnionExpr     *SelectExpr
 
 	Limit   *Limit
 	OrderBy *OrderBy
 }
 
+func (q *SelectExpr) tail() *SelectExpr {
+	if q.UnionExpr != nil {
+		return q.UnionExpr.tail()
+	}
+	return q
+}
+
 func (q *SelectExpr) Select(exprs ...Expr) *SelectExpr {
-	q.Columns = append(q.Columns, exprs...)
+	tail := q.tail()
+	tail.Columns = append(tail.Columns, exprs...)
+	return q
+}
+
+func (q *SelectExpr) Union(expr *SelectExpr) *SelectExpr {
+	tail := q.tail()
+	tail.UnionExpr = expr
 	return q
 }
 
 func (q *SelectExpr) GroupBy(exprs ...Expr) *SelectExpr {
-	q.GroupByExprs = append(q.GroupByExprs, exprs...)
+	tail := q.tail()
+	tail.GroupByExprs = append(tail.GroupByExprs, exprs...)
 	return q
 }
 
 func (q *SelectExpr) LeftJoin(exprs ...Expr) *SelectExpr {
-	q.LeftJoinExprs = append(q.LeftJoinExprs, exprs...)
+	tail := q.tail()
+	tail.LeftJoinExprs = append(tail.LeftJoinExprs, exprs...)
 	return q
 }
 
 func (q *SelectExpr) AndFrom(exprs ...Expr) *SelectExpr {
-	q.FromExprs = append(q.FromExprs, exprs...)
+	tail := q.tail()
+	tail.FromExprs = append(tail.FromExprs, exprs...)
 	return q
 }
 
 func (q *SelectExpr) AndWhere(exprs ...Expr) *SelectExpr {
-	q.WhereExprs = append(q.WhereExprs, exprs...)
+	tail := q.tail()
+	tail.WhereExprs = append(tail.WhereExprs, exprs...)
+	return q
+}
+
+func (q *SelectExpr) AndHaving(exprs ...Expr) *SelectExpr {
+	tail := q.tail()
+	tail.HavingExprs = append(tail.HavingExprs, exprs...)
 	return q
 }
 
@@ -179,6 +205,11 @@ func (q *SelectExpr) Render(s []string, v []any) ([]string, []any) {
 	s, v = renderExprSlice(s, v, []string{"LEFT JOIN"}, "LEFT JOIN", q.LeftJoinExprs)
 	s, v = renderExprSlice(s, v, []string{"WHERE"}, "AND", q.WhereExprs)
 	s, v = renderExprSlice(s, v, []string{"GROUP BY"}, ",", q.GroupByExprs)
+	s, v = renderExprSlice(s, v, []string{"HAVING"}, "AND", q.HavingExprs)
+	if q.UnionExpr != nil {
+		s = append(s, "UNION")
+		s, v = q.UnionExpr.Render(s, v)
+	}
 
 	s, v = q.OrderBy.Render(s, v)
 	s, v = q.Limit.Render(s, v)

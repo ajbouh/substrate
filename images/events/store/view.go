@@ -15,71 +15,43 @@ var SQL = db.SQL
 var Call = db.Call
 var V = db.V
 
-func shallowCloneMap[K comparable, V any, M map[K]V](m M) M {
-	m2 := map[K]V{}
-	for k, v := range m {
-		m2[k] = v
-	}
-	return m2
-}
-
-func renderFieldName(name string) string {
+func renderFieldName(name string, jsonb bool) string {
 	switch name {
 	// these are top-level columns
 	case "id", "since", "at", "fields", "data_size", "data_sha256", "fields_size", "fields_sha256", "vector_manifold_id", "vector_data_rowid", "vector_data_nn_distance":
 		return name
 	default:
+		if jsonb {
+			return "jsonb_extract(fields, '$." + name + "')"
+		}
 		return "jsonb_extract(fields, '$." + name + "')"
 	}
 }
 
-func eventFieldName(name string) db.Expr {
-	return SQL(renderFieldName(name))
+func eventFieldNameJSON(name string) db.Expr {
+	return SQL(renderFieldName(name, false))
 }
 
-func prepareDeclareManifoldQuery(id event.ID) *db.SelectExpr {
-	return From(
-		SQL(manifoldsTable),
-	).Select(
-		As("id", "id"),
-		As("table", "table"),
-		As("dtype", "dtype"),
-		As("dimensions", "dimensions"),
-	).AndWhere(
-		SQL("id", "=", V(id)),
-	)
+func eventFieldNameJSONB(name string) db.Expr {
+	return SQL(renderFieldName(name, true))
 }
 
-func prepareEventQueryBase(ctx context.Context, vmr VectorManifoldResolver, q *event.Query) (db.Expr, error) {
-	s := From(
-		SQL(eventsTable),
-	).Select(
-		As("id", eventFieldName("id")),
-		As("at", eventFieldName("at")),
-		As("since", eventFieldName("since")),
-		As("fields", eventFieldName("fields")),
-		As("fields_size", eventFieldName("fields_size")),
-		As("fields_sha256", eventFieldName("fields_sha256")),
-		As("data_size", eventFieldName("data_size")),
-		As("data_sha256", eventFieldName("data_sha256")),
-		As("vector_manifold_id", eventFieldName("vector_manifold_id")),
-		As("vector_data_rowid", eventFieldName("vector_data_rowid")),
-	)
-	for field, wheres := range q.EventsWhereCompare {
-		fieldName := eventFieldName(field)
+func prepareCriteria(ctx context.Context, s *db.SelectExpr, vmr VectorManifoldResolver, defaultOrderByIfBias string, q *event.Criteria) (*db.SelectExpr, error) {
+	for field, wheres := range q.WhereCompare {
+		fieldName := eventFieldNameJSONB(field)
 		for _, where := range wheres {
 			s.AndWhere(SQL(fieldName, where.Compare, V(where.Value)))
 		}
 	}
-	for field, wheres := range q.EventsWherePrefix {
-		fieldName := eventFieldName(field)
+	for field, wheres := range q.WherePrefix {
+		fieldName := eventFieldNameJSONB(field)
 		for _, where := range wheres {
 			s.AndWhere(SQL(fieldName, "LIKE", V(where.Prefix+"%")))
 		}
 	}
 
-	if q.EventsNear != nil {
-		vm, err := vmr.ResolveVectorManifold(ctx, q.EventsNear.ManifoldID)
+	if q.Near != nil {
+		vm, err := vmr.ResolveVectorManifold(ctx, q.Near.ManifoldID)
 		if err != nil {
 			return nil, err
 		}
@@ -91,11 +63,11 @@ func prepareEventQueryBase(ctx context.Context, vmr VectorManifoldResolver, q *e
 			),
 		)
 		s.Select(
-			As("vector_data", "manifold."+vm.SQLiteColumn()),
+			// As("vector_data", "manifold."+vm.SQLiteColumn()),
 			As("vector_data_nn_distance", Call(
 				vm.SQLiteDistanceFunction(),
 				"manifold."+vm.SQLiteColumn(),
-				V(MarshalFloat32(q.EventsNear.Data)),
+				V(MarshalFloat32(q.Near.Data)),
 			)),
 		)
 		s.OrderBy = &db.OrderBy{
@@ -104,78 +76,132 @@ func prepareEventQueryBase(ctx context.Context, vmr VectorManifoldResolver, q *e
 		}
 	} else {
 		s.Select(
-			As("vector_data", "null"),
-			As("vector_data_nn_distance", "null"),
+			// As("vector_data", "null"),
+			As("vector_data_nn_distance", "0"),
 		)
 	}
 
-	if q.EventLimit != nil {
+	if q.Limit != nil {
 		s.Limit = &db.Limit{
-			Limit: *q.EventLimit,
+			Limit: *q.Limit,
+		}
+	}
+
+	if q.Bias != nil {
+		if *q.Bias > 0 {
+			if s.OrderBy == nil {
+				s.OrderBy = &db.OrderBy{
+					OrderBy: defaultOrderByIfBias,
+				}
+			}
+			s.OrderBy.Descending = true
 		}
 	}
 
 	return s, nil
 }
 
-func prepareEventView(view event.View, placeholders map[string]any, base db.Expr) *db.SelectExpr {
+func prepareBasis(ctx context.Context, vmr VectorManifoldResolver, q *event.Criteria) (db.Expr, error) {
+	s := From(
+		SQL(eventsTable),
+	).Select(
+		As("id", eventFieldNameJSONB("id")),
+		As("at", eventFieldNameJSONB("at")),
+		As("since", eventFieldNameJSONB("since")),
+		As("fields", eventFieldNameJSONB("fields")),
+		As("fields_size", eventFieldNameJSONB("fields_size")),
+		As("fields_sha256", eventFieldNameJSONB("fields_sha256")),
+		As("data_size", eventFieldNameJSONB("data_size")),
+		As("data_sha256", eventFieldNameJSONB("data_sha256")),
+		As("vector_manifold_id", eventFieldNameJSONB("vector_manifold_id")),
+		As("vector_data_rowid", eventFieldNameJSONB("vector_data_rowid")),
+	)
+
+	return prepareCriteria(ctx, s, vmr, renderFieldName("id", true), q)
+}
+
+func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *db.SelectExpr {
 	switch view {
 	case event.ViewEvents:
 		return From(
-			SQL("(", base, ")"),
+			SQL("(", basis, ")"),
 		).Select(
 			As("id", "id"),
 			As("at", "at"),
 			As("since", "since"),
+			As("deleted", "0"),
 			As("fields", "json(fields)"),
-			As("fields_size", eventFieldName("fields_size")),
-			As("fields_sha256", eventFieldName("fields_sha256")),
-			As("data_size", eventFieldName("data_size")),
-			As("data_sha256", eventFieldName("data_sha256")),
-			As("vector_manifold_id", eventFieldName("vector_manifold_id")),
-			As("vector_data_rowid", eventFieldName("vector_data_rowid")),
+			As("fields_size", eventFieldNameJSONB("fields_size")),
+			As("fields_sha256", eventFieldNameJSONB("fields_sha256")),
+			As("data_size", eventFieldNameJSONB("data_size")),
+			As("data_sha256", eventFieldNameJSONB("data_sha256")),
+			As("vector_manifold_id", eventFieldNameJSONB("vector_manifold_id")),
+			As("vector_data_rowid", eventFieldNameJSONB("vector_data_rowid")),
 
-			As("vector_data_nn_distance", "vector_data_nn_distance"),
+			// As("vector_data", "vector_data"),
+			// As("vector_data_nn_distance", "vector_data_nn_distance"),
 		)
 	case event.ViewGroupByPathMaxID:
 		return From(
-			SQL("(",
+			SQL("(", basis, ")"),
+		).Select(
+			As("id", `max(id)`),
+			As("at", `at`),
+			As("since", `since`),
+			As("deleted", "1"),
+			As("fields", `'{}'`),
+			As("fields_size", "0"),
+			As("fields_sha256", "null"),
+			As("data_size", "0"),
+			As("data_sha256", "null"),
+			As("vector_manifold_id", "null"),
+			As("vector_data_rowid", "null"),
+			// As("vector_data", "null"),
+			As("vector_data_nn_distance", "0"),
+		).AndWhere(
+			SQL(eventFieldNameJSONB("deleted"), "IS", "1"),
+		).Union(
+			From(SQL("(",
 				From(
-					SQL("(", base, ")"),
+					SQL("(", basis, ")"),
 				).Select(
 					As("id", `max(id)`),
 					As("at", `at`),
 					As("since", `since`),
-					As("path", eventFieldName("path")),
-					As("fields", eventFieldName("fields")),
-					As("fields_size", eventFieldName("fields_size")),
-					As("fields_sha256", eventFieldName("fields_sha256")),
-					As("data_size", eventFieldName("data_size")),
-					As("data_sha256", eventFieldName("data_sha256")),
-					As("vector_manifold_id", eventFieldName("vector_manifold_id")),
-					As("vector_data_rowid", eventFieldName("vector_data_rowid")),
+					As("deleted", "0"),
+					As("path", eventFieldNameJSONB("path")),
+					As("fields", eventFieldNameJSONB("fields")),
+					As("fields_size", eventFieldNameJSONB("fields_size")),
+					As("fields_sha256", eventFieldNameJSONB("fields_sha256")),
+					As("data_size", eventFieldNameJSONB("data_size")),
+					As("data_sha256", eventFieldNameJSONB("data_sha256")),
+					As("vector_manifold_id", eventFieldNameJSONB("vector_manifold_id")),
+					As("vector_data_rowid", eventFieldNameJSONB("vector_data_rowid")),
 
+					// As("vector_data", "vector_data"),
 					As("vector_data_nn_distance", "vector_data_nn_distance"),
-
-					// ).AndWhere(
-				// 	SQL(eventFieldName("deleted"), "!=", "true"),
 				).GroupBy(
-					eventFieldName("path"),
+					eventFieldNameJSONB("path"),
+				).AndHaving(
+					SQL(eventFieldNameJSONB("deleted"), "IS NOT", "1"),
 				),
 				")"),
-		).Select(
-			As("id", "id"),
-			As("at", "at"),
-			As("since", "since"),
-			As("fields", "json(fields)"),
-			As("fields_size", eventFieldName("fields_size")),
-			As("fields_sha256", eventFieldName("fields_sha256")),
-			As("data_size", eventFieldName("data_size")),
-			As("data_sha256", eventFieldName("data_sha256")),
-			As("vector_manifold_id", eventFieldName("vector_manifold_id")),
-			As("vector_data_rowid", eventFieldName("vector_data_rowid")),
+			).Select(
+				As("id", "id"),
+				As("at", "at"),
+				As("since", "since"),
+				As("deleted", "deleted"),
+				As("fields", "json(fields)"),
+				As("fields_size", eventFieldNameJSONB("fields_size")),
+				As("fields_sha256", eventFieldNameJSONB("fields_sha256")),
+				As("data_size", eventFieldNameJSONB("data_size")),
+				As("data_sha256", eventFieldNameJSONB("data_sha256")),
+				As("vector_manifold_id", eventFieldNameJSONB("vector_manifold_id")),
+				As("vector_data_rowid", eventFieldNameJSONB("vector_data_rowid")),
 
-			As("vector_data_nn_distance", "vector_data_nn_distance"),
+				// As("vector_data", "vector_data"),
+				// As("vector_data_nn_distance", "vector_data_nn_distance"),
+			),
 		)
 
 	case event.ViewPathDirEntriesMaxID:
@@ -187,16 +213,16 @@ func prepareEventView(view event.View, placeholders map[string]any, base db.Expr
 		return From(
 			SQL("(",
 				From(
-					SQL("(", prepareEventView(event.ViewGroupByPathMaxID, nil, base), ")"),
+					SQL("(", prepareView(event.ViewGroupByPathMaxID, nil, basis), ")"),
 				).Select(
-					As("id", eventFieldName("id")),
+					As("id", eventFieldNameJSONB("id")),
 					As("at", "null"),
 					As("since", "null"),
-					As("fields", eventFieldName("fields")),
-					As("fields_size", eventFieldName("fields_size")),
-					As("data_size", eventFieldName("data_size")),
+					As("fields", eventFieldNameJSONB("fields")),
+					As("fields_size", eventFieldNameJSONB("fields_size")),
+					As("data_size", eventFieldNameJSONB("data_size")),
 					As("path", Call(`substr`,
-						renderFieldName("path"),
+						renderFieldName("path", true),
 						SQL(Call(`length`, V(placeholders["path"])), `+`, `1`))),
 				),
 				")"),
@@ -204,6 +230,7 @@ func prepareEventView(view event.View, placeholders map[string]any, base db.Expr
 			As("id", `max(id)`),
 			As("at", `null`),    // kind of meaningless?
 			As("since", `null`), // kind of meaningless?
+			As("deleted", "0"),
 			As("fields",
 				Call(`json_object`,
 					`'path'`, dirEntrySubExpr,
@@ -211,13 +238,14 @@ func prepareEventView(view event.View, placeholders map[string]any, base db.Expr
 					// `'size'`, `sum(length(fields) + length(data))`),
 				),
 			),
-			As("fields_size", Call("sum", eventFieldName("fields_size"))),
+			As("fields_size", Call("sum", eventFieldNameJSONB("fields_size"))),
 			As("fields_sha256", "null"), // kind of meaningless?
-			As("data_size", Call("sum", eventFieldName("data_size"))),
+			As("data_size", Call("sum", eventFieldNameJSONB("data_size"))),
 			As("data_sha256", "null"), // kind of meaningless?
 			As("vector_manifold_id", "null"),
 			As("vector_data_rowid", "null"),
-			As("vector_data_nn_distance", "null"),
+			// As("vector_data", "null"),
+			// As("vector_data_nn_distance", "null"),
 		).GroupBy(SQL(dirEntrySubExpr))
 	default:
 		panic("unknown view for query: " + view)
@@ -225,37 +253,32 @@ func prepareEventView(view event.View, placeholders map[string]any, base db.Expr
 }
 
 func renderEventQuery(ctx context.Context, vmr VectorManifoldResolver, q *event.Query) (int, *db.SelectExpr, error) {
-	base, err := prepareEventQueryBase(ctx, vmr, q)
+	basis, err := prepareBasis(ctx, vmr, q.BasisCriteria)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	s := prepareEventView(q.View, q.ViewPlaceholders, base)
+	s := prepareView(q.View, q.ViewPlaceholders, basis)
+	s, err = prepareCriteria(ctx, s, vmr, renderFieldName("id", false), q.ViewCriteria)
+	if err != nil {
+		return 0, nil, err
+	}
 
 	// default to no limit
 	max := 0
-	if q.ViewBias != nil {
-		if *q.ViewBias > 0 {
-			if s.OrderBy == nil {
-				s.OrderBy = &db.OrderBy{}
-			}
-			s.OrderBy.Descending = true
-		}
-
-		if *q.ViewBias == 0 {
+	if q.ViewCriteria.Bias != nil {
+		if *q.ViewCriteria.Bias == 0 {
 			// if we're walking everything then set max to the given limit
-			if q.ViewLimit != nil {
-				max = *q.ViewLimit
+			if q.ViewCriteria.Limit != nil {
+				max = *q.ViewCriteria.Limit
 			}
 		}
 	} else {
 		// if we're walking everything then set max to the given limit
-		if q.ViewLimit != nil {
-			max = *q.ViewLimit
+		if q.ViewCriteria.Limit != nil {
+			max = *q.ViewCriteria.Limit
 		}
 	}
-
-	s.OrderBy = &db.OrderBy{OrderBy: "id"}
 
 	if max > 0 {
 		s.Limit = &db.Limit{Limit: max}

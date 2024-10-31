@@ -84,7 +84,7 @@ func queryAllEvents(ctx context.Context, querier event.Querier, keyedQueries map
 	results := map[string][]event.Event{}
 	for key, queries := range keyedQueries {
 		for _, q := range queries {
-			events, qMore, err := querier.QueryEvents(ctx, q)
+			events, _, qMore, err := querier.QueryEvents(ctx, q)
 			if err != nil {
 				errs = append(errs, err)
 				continue
