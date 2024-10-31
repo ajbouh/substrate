@@ -28,6 +28,7 @@ import (
 	"github.com/ajbouh/substrate/images/bridge/webrtc/trackstreamer"
 	"github.com/ajbouh/substrate/images/bridge/workingset"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
 	"github.com/fxamacker/cbor/v2"
@@ -69,6 +70,10 @@ func main() {
 	cmdSource := commands.HTTPSource{
 		Endpoint: getEnv("BRIDGE_COMMANDS_URL", "http://localhost:8090/"),
 	}
+
+	eventWriterURL := mustGetenv("SUBSTRATE_EVENT_WRITER_URL")
+	sessionID := mustGetenv("BRIDGE_SESSION_ID")
+	eventURLPrefix := fmt.Sprintf("%s/bridge/%s", eventWriterURL, sessionID)
 
 	engine.Run(
 		&service.Service{},
@@ -133,8 +138,25 @@ func main() {
 			},
 			NewClient: newAssistantClient,
 		},
+		httpevents.NewJSONRequester[assistant.AssistantTextNotification]("PUT", eventURLPrefix+"/assistant/text"),
+		httpevents.NewJSONRequester[tools.OfferNotification]("PUT", eventURLPrefix+"/tools/offer"),
+		httpevents.NewJSONRequester[tools.TriggerNotification]("PUT", eventURLPrefix+"/tools/trigger"),
+		httpevents.NewJSONRequester[tools.CallNotification]("PUT", eventURLPrefix+"/tools/call"),
+		httpevents.NewJSONRequester[diarize.SpeakerDetectedEvent]("PUT", eventURLPrefix+"/diarize/speaker-detected"),
+		httpevents.NewJSONRequester[diarize.SpeakerNameEvent]("PUT", eventURLPrefix+"/diarize/speaker-name"),
+		httpevents.NewJSONRequester[transcribe.TranscriptionEvent]("PUT", eventURLPrefix+"/transcription"),
+		httpevents.NewJSONRequester[translate.TranslationEvent]("PUT", eventURLPrefix+"/translation"),
+		httpevents.NewJSONRequester[vad.ActivityEvent]("PUT", eventURLPrefix+"/voice-activity"),
 		workingset.CommandProvider{},
 	)
+}
+
+func mustGetenv(name string) string {
+	value := os.Getenv(name)
+	if value == "" {
+		log.Fatalf("%s not set", name)
+	}
+	return value
 }
 
 var cborenc = func() cbor.EncMode {

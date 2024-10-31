@@ -17,6 +17,7 @@ import (
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
 var RecordAssistantText = tracks.EventRecorder[*AssistantTextEvent]("assistant-text")
@@ -27,6 +28,10 @@ type AssistantPromptEvent struct {
 	PromptTemplate string
 }
 
+// TODO send events when the prompt changes, but need to update those
+// functions to have access to a queue
+// type AssistantPromptNotification tracks.EventT[*AssistantPromptEvent]
+
 type AssistantTextEvent struct {
 	SourceEvent tracks.ID
 	Name        string
@@ -34,6 +39,8 @@ type AssistantTextEvent struct {
 	Response    *string
 	Error       *string
 }
+
+type AssistantTextNotification tracks.EventT[*AssistantTextEvent]
 
 func AddAssistant(span tracks.Span, name, promptTemplate string) tracks.Event {
 	return recordAssistantPrompt(span, &AssistantPromptEvent{
@@ -57,6 +64,9 @@ type Client interface {
 }
 
 type Agent struct {
+	NotifyQueue            *notify.Queue
+	AssistantTextNotifiers []notify.Notifier[AssistantTextNotification]
+
 	Session           *tracks.Session
 	StoragePaths      *tracks.SessionStoragePaths
 	DefaultAssistants []Client
@@ -101,6 +111,7 @@ func (a *Agent) Commands(ctx context.Context) commands.Source {
 			}),
 	))
 }
+
 func (a *Agent) Initialize() {
 	sess := a.Session
 	if a.NewClient != nil {
@@ -114,8 +125,9 @@ func (a *Agent) Initialize() {
 			return -cmp.Compare(a.Start, b.Start)
 		})
 		agent := &sessionAgent{
-			NewClient:  a.NewClient,
-			assistants: make(map[string]eventClient),
+			NewClient:       a.NewClient,
+			assistants:      make(map[string]eventClient),
+			recordTextEvent: a.recordTextEvent,
 		}
 		for _, e := range promptEvents {
 			agent.handleSetPrompt(e)
@@ -133,13 +145,22 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 	if annot.Type != "transcription" {
 		return
 	}
-	handleTranscription(a.DefaultAssistants, annot)
+	handleTranscription(a.DefaultAssistants, annot, a.recordTextEvent)
+}
+
+func (a *Agent) recordTextEvent(span tracks.Span, data *AssistantTextEvent) {
+	ev := RecordAssistantText(span, data)
+	notify.Later(a.NotifyQueue, a.AssistantTextNotifiers, AssistantTextNotification{
+		EventMeta: ev.EventMeta,
+		Data:      ev.Data.(*AssistantTextEvent),
+	})
 }
 
 type sessionAgent struct {
-	mu         sync.RWMutex
-	NewClient  func(name, promptTemplate string) (Client, error)
-	assistants map[string]eventClient
+	mu              sync.RWMutex
+	NewClient       func(name, promptTemplate string) (Client, error)
+	assistants      map[string]eventClient
+	recordTextEvent func(tracks.Span, *AssistantTextEvent)
 }
 
 type eventClient struct {
@@ -152,7 +173,7 @@ func (a *sessionAgent) HandleEvent(annot tracks.Event) {
 	case "assistant-set-prompt":
 		a.handleSetPrompt(annot)
 	case "transcription":
-		handleTranscription(a.getAssistants(), annot)
+		handleTranscription(a.getAssistants(), annot, a.recordTextEvent)
 	}
 }
 
@@ -206,7 +227,7 @@ func (a *sessionAgent) getAssistants() []Client {
 	return out
 }
 
-func handleTranscription(clients []Client, annot tracks.Event) {
+func handleTranscription(clients []Client, annot tracks.Event, record func(tracks.Span, *AssistantTextEvent)) {
 	in := annot.Data.(*transcribe.Transcription)
 
 	if len(in.Segments) == 0 || len(in.Segments[0].Words) == 0 {
@@ -215,7 +236,7 @@ func handleTranscription(clients []Client, annot tracks.Event) {
 	}
 	text := strings.TrimSpace(in.Text())
 	for _, client := range clients {
-		go respond(client, annot, text)
+		go respond(client, annot, text, record)
 	}
 }
 
@@ -227,7 +248,7 @@ func stringPtr(s string) *string {
 	return &s
 }
 
-func respond(client Client, annot tracks.Event, input string) {
+func respond(client Client, annot tracks.Event, input string, record func(tracks.Span, *AssistantTextEvent)) {
 	name := client.AssistantName()
 	// TODO get speaker name from transcription
 	speaker := "user"
@@ -248,7 +269,7 @@ func respond(client Client, annot tracks.Event, input string) {
 		log.Printf("assistant: %s response: %s", name, response)
 		out.Response = &response
 	}
-	RecordAssistantText(annot.Span(), &out)
+	record(annot.Span(), &out)
 }
 
 func DefaultPromptTemplateForName(name string) (string, error) {

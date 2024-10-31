@@ -8,11 +8,17 @@ import (
 	"github.com/ajbouh/substrate/images/bridge/audio"
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
 var RecordTranscription = tracks.EventRecorder[*Transcription]("transcription")
 
+type TranscriptionEvent tracks.EventT[*Transcription]
+
 type Agent struct {
+	NotifyQueue            *notify.Queue
+	ActivityEventNotifiers []notify.Notifier[TranscriptionEvent]
+
 	Source  commands.Source
 	Command string
 }
@@ -45,7 +51,11 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		return
 	}
 
-	RecordTranscription(annot.Span(), transcription)
+	ev := RecordTranscription(annot.Span(), transcription)
+	notify.Later(a.NotifyQueue, a.ActivityEventNotifiers, TranscriptionEvent{
+		EventMeta: ev.EventMeta,
+		Data:      transcription,
+	})
 }
 
 type AudioMetadata struct {

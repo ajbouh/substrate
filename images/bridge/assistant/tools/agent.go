@@ -11,6 +11,7 @@ import (
 	"github.com/ajbouh/substrate/images/bridge/assistant/prompts"
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
 var recordOffer = tracks.EventRecorder[*OfferEvent]("tool-offer")
@@ -24,6 +25,8 @@ type OfferEvent struct {
 	Calls []Call[any]
 }
 
+type OfferNotification tracks.EventT[*OfferEvent]
+
 var recordTrigger = tracks.EventRecorder[*TriggerEvent]("tool-trigger")
 
 type TriggerEvent struct {
@@ -32,6 +35,8 @@ type TriggerEvent struct {
 	Name        string
 	Call        Call[any]
 }
+
+type TriggerNotification tracks.EventT[*TriggerEvent]
 
 var recordCall = tracks.EventRecorder[*CallEvent]("tool-call")
 
@@ -43,6 +48,8 @@ type CallEvent struct {
 	Response     Response[any]
 	// TODO error here or inside the response?
 }
+
+type CallNotification tracks.EventT[*CallEvent]
 
 // NewAgent sets up a series of handlers to orchestrate the tool call flow.
 //
@@ -66,6 +73,9 @@ type CallEvent struct {
 // back to the OpenAI endpoint to generate a human-readable summary.
 
 type OfferAgent struct {
+	NotifyQueue    *notify.Queue
+	OfferNotifiers []notify.Notifier[OfferNotification]
+
 	Name      string
 	Registry  ToolLister
 	Completer func(map[string]any) (string, string, error)
@@ -84,11 +94,15 @@ func (a *OfferAgent) HandleEvent(event tracks.Event) {
 			log.Printf("tools: error completing tool: %v", err)
 			return
 		}
-		recordOffer(event.Span(), &OfferEvent{
+		ev := recordOffer(event.Span(), &OfferEvent{
 			SourceEvent: event.ID,
 			Name:        a.Name,
 			Prompt:      prompt,
 			Calls:       calls,
+		})
+		notify.Later(a.NotifyQueue, a.OfferNotifiers, OfferNotification{
+			EventMeta: ev.EventMeta,
+			Data:      ev.Data.(*OfferEvent),
 		})
 	}
 }
@@ -121,7 +135,10 @@ func (a *OfferAgent) CompleteTool(input string) (string, []Call[any], error) {
 	return prompt, []Call[any]{out}, nil
 }
 
-type AutoTriggerAgent struct{}
+type AutoTriggerAgent struct {
+	NotifyQueue      *notify.Queue
+	TriggerNotifiers []notify.Notifier[TriggerNotification]
+}
 
 func (a AutoTriggerAgent) HandleEvent(event tracks.Event) {
 	switch event.Type {
@@ -130,16 +147,23 @@ func (a AutoTriggerAgent) HandleEvent(event tracks.Event) {
 		if len(offer.Calls) == 0 {
 			return
 		}
-		recordTrigger(event.Span(), &TriggerEvent{
+		ev := recordTrigger(event.Span(), &TriggerEvent{
 			SourceEvent: offer.SourceEvent,
 			OfferEvent:  event.ID,
 			Name:        offer.Name,
 			Call:        offer.Calls[0],
 		})
+		notify.Later(a.NotifyQueue, a.TriggerNotifiers, TriggerNotification{
+			EventMeta: ev.EventMeta,
+			Data:      ev.Data.(*TriggerEvent),
+		})
 	}
 }
 
 type CallAgent struct {
+	NotifyQueue   *notify.Queue
+	CallNotifiers []notify.Notifier[CallNotification]
+
 	Name   string
 	Runner Runner
 }
@@ -155,7 +179,7 @@ func (a *CallAgent) HandleEvent(event tracks.Event) {
 		if err != nil {
 			return // FIXME
 		}
-		recordCall(event.Span(), &CallEvent{
+		ev := recordCall(event.Span(), &CallEvent{
 			Name:         a.Name,
 			SourceEvent:  trigger.SourceEvent,
 			TriggerEvent: event.ID,
@@ -163,6 +187,10 @@ func (a *CallAgent) HandleEvent(event tracks.Event) {
 			Response: Response[any]{
 				Content: result,
 			},
+		})
+		notify.Later(a.NotifyQueue, a.CallNotifiers, CallNotification{
+			EventMeta: ev.EventMeta,
+			Data:      ev.Data.(*CallEvent),
 		})
 	}
 }
