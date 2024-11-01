@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 )
 
@@ -77,5 +79,9 @@ func (p HTTPSource) Run(ctx context.Context, name string, params Fields) (Fields
 		return nil, err
 	}
 
-	return unmarshal[Fields](resp)
+	returns, err := unmarshal[Fields](resp)
+	if err == nil || errors.Is(err, io.EOF) {
+		return returns, nil
+	}
+	return nil, err
 }
