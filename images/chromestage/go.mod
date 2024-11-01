@@ -7,7 +7,6 @@ require (
 	github.com/chromedp/cdproto v0.0.0-20231011050154-1d073bb38998
 	github.com/chromedp/chromedp v0.9.3
 	github.com/gorilla/websocket v1.5.1
-	tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe
 )
 
 require (
@@ -22,6 +21,8 @@ require (
 	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.13.0 // indirect
+	golang.org/x/text v0.13.0 // indirect
+	tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe // indirect
 )
 
 replace github.com/ajbouh/substrate/pkg/toolkit => ../../pkg/toolkit
