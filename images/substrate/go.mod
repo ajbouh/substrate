@@ -5,7 +5,7 @@ go 1.22.1
 toolchain go1.22.2
 
 require (
-	cuelang.org/go v0.11.0-alpha.3
+	cuelang.org/go v0.11.0-alpha.4
 	github.com/ajbouh/substrate/pkg/cueloader v0.0.0-00010101000000-000000000000
 	github.com/ajbouh/substrate/pkg/toolkit v0.0.0-00010101000000-000000000000
 	github.com/containers/common v0.56.0
@@ -116,7 +116,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/sftp v1.13.6 // indirect
 	github.com/proglottis/gpgme v0.1.3 // indirect
-	github.com/protocolbuffers/txtpbfmt v0.0.0-20230328191034-3462fbc510c0 // indirect
+	github.com/protocolbuffers/txtpbfmt v0.0.0-20240823084532-8e6b51fa9bef // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.4.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
