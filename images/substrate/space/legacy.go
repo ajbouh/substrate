@@ -24,7 +24,7 @@ func (p *SpacesViaContainerFilesystems) resolveLegacySpaceView(ctx context.Conte
 		}
 
 		var legacySubstrateFSSpaceRoot string
-		slog.Info("resolveLegacySpaceView waiting for legacySubstrateFSSpaceRoot", legacySubstrateFSSpaceRoot)
+		slog.Info("resolveLegacySpaceView waiting for legacySubstrateFSSpaceRoot", "legacySubstrateFSSpaceRoot", legacySubstrateFSSpaceRoot)
 		err = p.DefSetLoader.Load().DecodeLookupPath(cue.MakePath(cue.Def("#var"), cue.Str("host_substratefs_root")), &legacySubstrateFSSpaceRoot)
 		slog.Info("resolveLegacySpaceView waiting for legacySubstrateFSSpaceRoot", "legacySubstrateFSSpaceRoot", legacySubstrateFSSpaceRoot, "err", err)
 		if err != nil {
