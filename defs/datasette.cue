@@ -5,7 +5,7 @@ enable: "datasette": true
 imagespecs: "datasette": {
   image: "\(#var.image_prefix)datasette"
   build: dockerfile: "images/datasette/Dockerfile"
-  build: args: VERSION: "1.0a16"
+  build: args: VERSION: "0.65"
 }
 
 services: "datasette": {
