@@ -1,4 +1,4 @@
-FROM fedora AS fedora-build
+FROM docker.io/fedora:40 AS fedora-build
 
 RUN mkdir /scratchroot \
   && mkdir -p /scratchroot/tmp \
