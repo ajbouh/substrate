@@ -1,4 +1,4 @@
-package commands
+package handle
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 )
 
@@ -18,7 +19,7 @@ type HTTPResource interface {
 
 type HTTPRunHandler struct {
 	Debug     bool
-	Aggregate *Aggregate
+	Aggregate *commands.Aggregate
 
 	CatchallRunnerPattern string
 }
@@ -38,7 +39,7 @@ func (c *HTTPRunHandler) CatchallRunnerPath() string {
 }
 
 func (c *HTTPRunHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
-	grouped := Group(c.Aggregate.GatherRunners(context.Background()), func(r Runner) string {
+	grouped := commands.Group(c.Aggregate.GatherRunners(context.Background()), func(r commands.Runner) string {
 		if resource, ok := r.(HTTPResource); ok {
 			pattern := resource.GetHTTPPattern()
 			if pattern != "" {
@@ -65,13 +66,13 @@ func (c *HTTPRunHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux)
 	}
 }
 
-// Returns a http.Handler to run any command handled by Runner
-func CatchallRunnersHandler(debug bool, runners []Runner) http.Handler {
-	runner := &DynamicRunner{
-		Runners: func() []Runner { return runners },
+// Returns a http.Handler to run any command handled by commands.Runner
+func CatchallRunnersHandler(debug bool, runners []commands.Runner) http.Handler {
+	runner := &commands.DynamicRunner{
+		Runners: func() []commands.Runner { return runners },
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var commandRequest Request
+		var commandRequest commands.Request
 		var errMsg map[string]any
 		defer r.Body.Close()
 		b, err := io.ReadAll(r.Body)

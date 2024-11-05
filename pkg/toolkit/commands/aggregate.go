@@ -52,16 +52,14 @@ func (s *Aggregate) sources(ctx context.Context) []Source {
 	return keep
 }
 
-func (s *Aggregate) AsSource(ctx context.Context, xform DefTransformFunc) *DynamicSource {
-	return &DynamicSource{
+func (s *Aggregate) AsSource(ctx context.Context, xform DefTransformFunc) *DynamicSource[Source] {
+	return &DynamicSource[Source]{
 		ReflectTransform: xform,
 		Sources: func() []Source {
 			return s.sources(ctx)
 		},
 	}
 }
-
-type ReflectorGroupFunc func(reflector Reflector) string
 
 func (s *Aggregate) GatherReflectorsExcluding(ctx context.Context, excluding []Reflector) []Reflector {
 	slog.Info("Aggregate.GatherReflectorsExcluding", "excluding", excluding)

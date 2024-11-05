@@ -1,4 +1,4 @@
-package commands
+package handle
 
 import (
 	"fmt"
@@ -6,10 +6,12 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 )
 
-func FieldDefsFromStructFields(fields []reflect.StructField) FieldDefs {
-	fieldDefs := FieldDefs{}
+func FieldDefsFromStructFields(fields []reflect.StructField) commands.FieldDefs {
+	fieldDefs := commands.FieldDefs{}
 	for _, p := range fields {
 		var field string
 		if jsonTag, ok := p.Tag.Lookup("json"); ok {
@@ -21,7 +23,7 @@ func FieldDefsFromStructFields(fields []reflect.StructField) FieldDefs {
 			field = p.Name
 		}
 
-		fieldDef := FieldDef{
+		fieldDef := commands.FieldDef{
 			Type: p.Type.String(),
 		}
 		if descTag, ok := p.Tag.Lookup("desc"); ok {
@@ -122,7 +124,7 @@ func getRequestBasedField(field reflect.StructField, w http.ResponseWriter, r *h
 	return fieldName, val, ok, err
 }
 
-func populateRequestBasedFields(w http.ResponseWriter, r *http.Request, paramsType reflect.Type, params Fields) error {
+func populateRequestBasedFields(w http.ResponseWriter, r *http.Request, paramsType reflect.Type, params commands.Fields) error {
 	// defer slog.Info("populateRequestBasedFields", "params", params, "paramsType", paramsType, "paramsTypeKind", paramsType.Kind())
 
 	if paramsType.Kind() == reflect.Struct {

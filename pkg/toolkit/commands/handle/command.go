@@ -1,4 +1,4 @@
-package commands
+package handle
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/xengine"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
@@ -50,9 +51,9 @@ func HTTPCommand[Target any, Params any, Returns any](
 	}
 }
 
-var _ Reflector = (*CommandFunc[any, any, any])(nil)
-var _ Runner = (*CommandFunc[any, any, any])(nil)
-var _ Source = (*CommandFunc[any, any, any])(nil)
+var _ commands.Reflector = (*CommandFunc[any, any, any])(nil)
+var _ commands.Runner = (*CommandFunc[any, any, any])(nil)
+var _ commands.Source = (*CommandFunc[any, any, any])(nil)
 
 type CommandFunc[Target any, Params any, Returns any] struct {
 	Target *Target
@@ -65,8 +66,8 @@ type CommandFunc[Target any, Params any, Returns any] struct {
 	HTTPResourceReflectPath string
 }
 
-var _ Reflector = (*CommandFunc[any, any, any])(nil)
-var _ Source = (*CommandFunc[any, any, any])(nil)
+var _ commands.Reflector = (*CommandFunc[any, any, any])(nil)
+var _ commands.Source = (*CommandFunc[any, any, any])(nil)
 var _ engine.Depender = (*CommandFunc[any, any, any])(nil)
 var _ HTTPResource = (*CommandFunc[any, any, any])(nil)
 var _ HTTPResourceReflect = (*CommandFunc[any, any, any])(nil)
@@ -125,7 +126,7 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 			return hasJSONFields(paramsType, true)
 		}
 
-		params := Fields{}
+		params := commands.Fields{}
 
 		if shouldUnmarshalRequestBody() {
 			err := json.NewDecoder(req.Body).Decode(&params)
@@ -194,10 +195,10 @@ func hasJSONFields(t reflect.Type, considerRequestFieldShadowing bool) bool {
 	return false
 }
 
-func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (DefIndex, error) {
+func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (commands.DefIndex, error) {
 	var err error
 
-	var params FieldDefs
+	var params commands.FieldDefs
 	paramsType := reflect.TypeFor[Params]()
 	switch paramsType.Kind() {
 	case reflect.Pointer:
@@ -205,7 +206,7 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (Def
 	case reflect.Struct:
 		params = FieldDefsFromStructFields(reflect.VisibleFields(paramsType))
 	case reflect.Map:
-		params = FieldDefs{}
+		params = commands.FieldDefs{}
 	}
 	if params == nil {
 		err = fmt.Errorf("params type %s is not a struct or a map for command named %q with func %T", paramsType.String(), r.Name, r.Func)
@@ -214,7 +215,7 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (Def
 		return nil, err
 	}
 
-	var returns FieldDefs
+	var returns commands.FieldDefs
 	returnsType := reflect.TypeFor[Returns]()
 	switch returnsType.Kind() {
 	case reflect.Pointer:
@@ -222,7 +223,7 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (Def
 	case reflect.Struct:
 		returns = FieldDefsFromStructFields(reflect.VisibleFields(returnsType))
 	case reflect.Map:
-		returns = FieldDefs{}
+		returns = commands.FieldDefs{}
 	}
 	if params == nil {
 		err = fmt.Errorf("returns type %s is not a struct or a map for command named %q with func %T", returnsType.String(), r.Name, r.Func)
@@ -231,18 +232,18 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (Def
 		return nil, err
 	}
 
-	def := Def{
+	def := commands.Def{
 		Description: r.Desc,
 		Parameters:  params,
 		Returns:     returns,
 	}
 
 	if r.HTTPResourcePath != "" {
-		def.Run = &RunDef{
-			HTTP: &RunHTTPDef{
-				Returns:    map[string]RunFieldDef{},
-				Parameters: map[string]RunFieldDef{},
-				Request: RunHTTPRequestDef{
+		def.Run = &commands.RunDef{
+			HTTP: &commands.RunHTTPDef{
+				Returns:    map[string]commands.RunFieldDef{},
+				Parameters: map[string]commands.RunFieldDef{},
+				Request: commands.RunHTTPRequestDef{
 					Headers: map[string][]string{
 						"Content-Type": {"application/json"},
 					},
@@ -253,7 +254,7 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (Def
 		}
 
 		for field := range returns {
-			def.Run.HTTP.Returns[field] = RunFieldDef{Path: `response.body.` + field}
+			def.Run.HTTP.Returns[field] = commands.RunFieldDef{Path: `response.body.` + field}
 		}
 
 		if paramsType.Kind() == reflect.Struct {
@@ -273,19 +274,19 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (Def
 				} else if queryVar, ok := field.Tag.Lookup("query"); ok {
 					fieldPath = `request.query.` + queryVar
 				}
-				def.Run.HTTP.Parameters[fieldName] = RunFieldDef{Path: fieldPath}
+				def.Run.HTTP.Parameters[fieldName] = commands.RunFieldDef{Path: fieldPath}
 			}
 		}
 	}
 
-	return DefIndex{
+	return commands.DefIndex{
 		r.Name: def,
 	}, nil
 }
 
-func (r *CommandFunc[Target, Params, Returns]) Run(ctx context.Context, name string, pfields Fields) (Fields, error) {
+func (r *CommandFunc[Target, Params, Returns]) Run(ctx context.Context, name string, pfields commands.Fields) (commands.Fields, error) {
 	if name != "" && name != r.Name {
-		return nil, ErrNoSuchCommand
+		return nil, commands.ErrNoSuchCommand
 	}
 
 	// Reserializing is kind of wasteful, but it's simple so fix it later once it matters.
@@ -324,7 +325,7 @@ func (r *CommandFunc[Target, Params, Returns]) Run(ctx context.Context, name str
 		return nil, err
 	}
 
-	rfields := Fields{}
+	rfields := commands.Fields{}
 	if hasJSONFields(reflect.TypeFor[Returns](), false) {
 		b, err := json.Marshal(returns)
 		if err != nil {
@@ -353,8 +354,8 @@ func ConvertViaJSON[Out, In any](input In) (Out, error) {
 	return out, err
 }
 
-func Call[Out, In any](ctx context.Context, src Source, command string, params In) (*Out, error) {
-	paramFields, err := ConvertViaJSON[Fields](params)
+func Call[Out, In any](ctx context.Context, src commands.Source, command string, params In) (*Out, error) {
+	paramFields, err := ConvertViaJSON[commands.Fields](params)
 	if err != nil {
 		return nil, err
 	}

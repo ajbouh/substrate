@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
 
@@ -21,7 +21,7 @@ func main() {
 		&service.Service{
 			ExportsRoute: "/",
 		},
-		commands.Command("eval", "Run a bit of javascript code",
+		handle.Command("eval", "Run a bit of javascript code",
 			func(ctx context.Context,
 				t *struct{},
 				args struct {

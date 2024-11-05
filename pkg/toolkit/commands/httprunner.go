@@ -29,7 +29,6 @@ func (h *DefIndexRunner) String() string {
 	return "*DefIndexRunner[" + h.Defs.String() + "]"
 }
 
-// Run implements Runner.
 func (h *DefIndexRunner) Run(ctx context.Context, name string, params Fields) (Fields, error) {
 	def, ok := h.Defs[name]
 	if !ok {

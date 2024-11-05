@@ -1,4 +1,4 @@
-package commands
+package handle
 
 import (
 	"context"
@@ -7,11 +7,12 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
 )
 
-func EnsureRunHTTPRequestURLHasAHost(baseURL string) DefTransformFunc {
-	return func(ctx context.Context, commandName string, commandDef Def) (string, Def) {
+func EnsureRunHTTPRequestURLHasAHost(baseURL string) commands.DefTransformFunc {
+	return func(ctx context.Context, commandName string, commandDef commands.Def) (string, commands.Def) {
 		if commandDef.Run == nil || commandDef.Run.HTTP == nil {
 			return commandName, commandDef
 		}
@@ -25,19 +26,19 @@ func EnsureRunHTTPRequestURLHasAHost(baseURL string) DefTransformFunc {
 	}
 }
 
-func EnsureRunHTTPField(method, route string) DefTransformFunc {
-	return func(ctx context.Context, commandName string, commandDef Def) (string, Def) {
+func EnsureRunHTTPField(method, route string) commands.DefTransformFunc {
+	return func(ctx context.Context, commandName string, commandDef commands.Def) (string, commands.Def) {
 		// for each command, populate any missing run fields. this provides enough information for
 		// someone to "run" the associated command through this handler.
 		if commandDef.Run == nil {
-			commandDef.Run = &RunDef{}
+			commandDef.Run = &commands.RunDef{}
 		}
 
 		if commandDef.Run.HTTP == nil {
-			commandDef.Run.HTTP = &RunHTTPDef{
-				Parameters: map[string]RunFieldDef{},
-				Returns:    map[string]RunFieldDef{},
-				Request: RunHTTPRequestDef{
+			commandDef.Run.HTTP = &commands.RunHTTPDef{
+				Parameters: map[string]commands.RunFieldDef{},
+				Returns:    map[string]commands.RunFieldDef{},
+				Request: commands.RunHTTPRequestDef{
 					URL:    route,
 					Method: method,
 					Headers: map[string][]string{
@@ -51,10 +52,10 @@ func EnsureRunHTTPField(method, route string) DefTransformFunc {
 			}
 
 			for field := range commandDef.Parameters {
-				commandDef.Run.HTTP.Parameters[field] = RunFieldDef{Path: `request.body.parameters.` + field}
+				commandDef.Run.HTTP.Parameters[field] = commands.RunFieldDef{Path: `request.body.parameters.` + field}
 			}
 			for field := range commandDef.Returns {
-				commandDef.Run.HTTP.Returns[field] = RunFieldDef{Path: `response.body.` + field}
+				commandDef.Run.HTTP.Returns[field] = commands.RunFieldDef{Path: `response.body.` + field}
 			}
 		}
 
@@ -101,13 +102,13 @@ func ContextPathValuer(ctx context.Context) PathValuer {
 }
 
 type HTTPReflectResponse struct {
-	Commands DefIndex `json:"commands"`
+	Commands commands.DefIndex `json:"commands"`
 }
 
 // TODO support the OpenAPI spec as a return type.
 type HTTPReflectAnnouncer struct {
 	Debug     bool
-	Reflector Reflector
+	Reflector commands.Reflector
 	Route     string
 
 	Context     context.Context
@@ -135,7 +136,7 @@ func (h *HTTPReflectAnnouncer) ServeHTTP(w http.ResponseWriter, r *http.Request)
 // TODO support the OpenAPI spec as a return type.
 type HTTPReflectHandler struct {
 	Debug     bool
-	Reflector Reflector
+	Reflector commands.Reflector
 	Route     string
 }
 

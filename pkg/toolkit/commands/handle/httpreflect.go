@@ -1,4 +1,4 @@
-package commands
+package handle
 
 import (
 	"context"
@@ -7,22 +7,23 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 )
 
 type HTTPResourceReflectHandler struct {
 	Debug     bool
 	BaseURL   string
-	Aggregate *Aggregate
+	Aggregate *commands.Aggregate
 	Log       *slog.Logger
 
 	HTTPRunHandler                 *HTTPRunHandler
 	DefaultHTTPResourceReflectPath string
 
-	ReflectorsPerRoute map[string][]Reflector
+	ReflectorsPerRoute map[string][]commands.Reflector
 }
 
-func HTTPResourceReflectPath(reflector Reflector) string {
+func HTTPResourceReflectPath(reflector commands.Reflector) string {
 	var key string
 	if rp, ok := reflector.(HTTPResourceReflect); ok {
 		key = rp.GetHTTPResourceReflectPath()
@@ -34,24 +35,24 @@ type HTTPResourceReflect interface {
 	GetHTTPResourceReflectPath() string
 }
 
-func (h *HTTPResourceReflectHandler) ReflectorForPathFuncExcluding(excluding ...Reflector) func(string) Reflector {
-	xform := DefTransforms(
+func (h *HTTPResourceReflectHandler) ReflectorForPathFuncExcluding(excluding ...commands.Reflector) func(string) commands.Reflector {
+	xform := commands.DefTransforms(
 		// should only pick up commands that don't have a route set and are therefore top-level.
 		EnsureRunHTTPField(h.HTTPRunHandler.CatchallRunnerMethod(), h.HTTPRunHandler.CatchallRunnerPath()),
 		EnsureRunHTTPRequestURLHasAHost(h.BaseURL),
 	)
 
-	return func(reflectPath string) Reflector {
+	return func(reflectPath string) commands.Reflector {
 		if reflectPath == "" {
 			reflectPath = h.DefaultHTTPResourceReflectPath
 		}
 		slog.Info("ReflectorForPathFuncExcluding", "reflectPath", reflectPath, "h.ReflectorsPerRoute[reflectPath]", h.ReflectorsPerRoute[reflectPath])
-		return &DynamicReflector{
+		return &commands.DynamicReflector{
 			ReflectTransform: xform,
-			Reflectors: func() []Reflector {
+			Reflectors: func() []commands.Reflector {
 				reflectors := slices.Clone(h.ReflectorsPerRoute[reflectPath])
 				if len(excluding) > 0 {
-					reflectors = slices.DeleteFunc(reflectors, func(r Reflector) bool { return slices.Contains(excluding, r) })
+					reflectors = slices.DeleteFunc(reflectors, func(r commands.Reflector) bool { return slices.Contains(excluding, r) })
 				}
 				return reflectors
 			},
@@ -59,8 +60,8 @@ func (h *HTTPResourceReflectHandler) ReflectorForPathFuncExcluding(excluding ...
 	}
 }
 
-func EnsureRunHTTPRequestURLIncludesPrefix(prefix string) DefTransformFunc {
-	return func(ctx context.Context, commandName string, commandDef Def) (string, Def) {
+func EnsureRunHTTPRequestURLIncludesPrefix(prefix string) commands.DefTransformFunc {
+	return func(ctx context.Context, commandName string, commandDef commands.Def) (string, commands.Def) {
 		if prefix == "" || commandDef.Run == nil || commandDef.Run.HTTP == nil {
 			return commandName, commandDef
 		}
@@ -74,8 +75,8 @@ func EnsureRunHTTPRequestURLIncludesPrefix(prefix string) DefTransformFunc {
 	}
 }
 
-func (h *HTTPResourceReflectHandler) transformDef(ctx context.Context, name string, def Def) (string, Def) {
-	xform := DefTransforms(
+func (h *HTTPResourceReflectHandler) transformDef(ctx context.Context, name string, def commands.Def) (string, commands.Def) {
+	xform := commands.DefTransforms(
 		// should only pick up commands that don't have a route set and are therefore top-level.
 		EnsureRunHTTPField(
 			h.HTTPRunHandler.CatchallRunnerMethod(),
@@ -124,7 +125,7 @@ func (h *HTTPResourceReflectHandler) transformDef(ctx context.Context, name stri
 
 func (h *HTTPResourceReflectHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	// group by path
-	h.ReflectorsPerRoute = Group(h.Aggregate.GatherReflectorsExcluding(context.Background(), nil), HTTPResourceReflectPath)
+	h.ReflectorsPerRoute = commands.Group(h.Aggregate.GatherReflectorsExcluding(context.Background(), nil), HTTPResourceReflectPath)
 
 	// rename the empty route to the given default reflect path
 	h.ReflectorsPerRoute[h.DefaultHTTPResourceReflectPath] = h.ReflectorsPerRoute[""]
@@ -149,9 +150,9 @@ func (h *HTTPResourceReflectHandler) ContributeHTTP(ctx context.Context, mux *ht
 		slog.Info("HTTPResourceReflectHandlerContributeHTTP", "pattern", pattern)
 		mux.Handle(pattern, &HTTPReflectHandler{
 			Debug: h.Debug,
-			Reflector: &DynamicReflector{
+			Reflector: &commands.DynamicReflector{
 				ReflectTransform: h.transformDef,
-				Reflectors:       func() []Reflector { return reflectors },
+				Reflectors:       func() []commands.Reflector { return reflectors },
 			},
 		})
 
@@ -172,9 +173,9 @@ func (h *HTTPResourceReflectHandler) ContributeHTTP(ctx context.Context, mux *ht
 		// 		return &HTTPReflectAnnouncer{
 		// 			Debug:   h.Debug,
 		// 			Context: ctx,
-		// 			Reflector: &DynamicReflector{
+		// 			Reflector: &commands.DynamicReflector{
 		// 				ReflectTransform: h.transformDef,
-		// 				Reflectors:       func() []Reflector { return reflectors },
+		// 				Reflectors:       func() []commands.Reflector { return reflectors },
 		// 			},
 		// 		}, nil
 		// 	},

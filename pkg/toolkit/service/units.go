@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine/daemon"
 	"tractor.dev/toolkit-go/engine/cli"
@@ -79,14 +80,14 @@ func (s *Service) initialize() {
 		&links.AggregateQuerierCommand{},
 
 		&commands.Aggregate{},
-		&commands.ExportCommands{},
-		&commands.HTTPResourceReflectHandler{
+		&ExportCommands{},
+		&handle.HTTPResourceReflectHandler{
 			Debug:   true,
 			BaseURL: s.BaseURL,
 
 			DefaultHTTPResourceReflectPath: "/",
 		},
-		&commands.HTTPRunHandler{
+		&handle.HTTPRunHandler{
 			Debug:                 true,
 			CatchallRunnerPattern: "POST /{$}",
 		},

@@ -8,13 +8,14 @@ import (
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 )
 
 type NewReturns struct {
 	Location string `json:"location"`
 }
 
-var NewCommand = commands.Command(
+var NewCommand = handle.Command(
 	"new:instance",
 	"Spawn a new instance of the given service and parameters. Return the location of the new service.",
 	func(ctx context.Context,

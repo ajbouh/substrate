@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 )
 
 type Aggregate struct {
@@ -28,7 +29,7 @@ type ListReturns struct {
 
 func (c *AggregateQuerierCommand) Commands(ctx context.Context) commands.Source {
 	lister := c.Aggregate.AsQuerier()
-	return commands.Command(
+	return handle.Command(
 		"links:query",
 		"List links",
 		func(ctx context.Context, t *struct{}, void struct{}) (ListReturns, error) {
