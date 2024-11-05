@@ -29,7 +29,7 @@ commands: "quickjs": {
       arguments: type: "array"
     }
     returns: {
-      value: type: "object"
+      result: type: "object"
     }
 
     run: http: {

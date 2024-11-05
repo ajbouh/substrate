@@ -50,6 +50,9 @@ type Service struct {
 
 	BaseURL      string
 	ExportsRoute string
+
+	ExternalSubstrateBaseURL string
+	InternalSubstrateBaseURL string
 }
 
 type UnifiedExports exports.Exports
@@ -59,6 +62,13 @@ func (s *Service) initialize() {
 
 	if s.ExportsRoute == "" {
 		s.ExportsRoute = "/exports"
+	}
+
+	if s.ExternalSubstrateBaseURL == "" {
+		s.ExternalSubstrateBaseURL = os.Getenv("SUBSTRATE_ORIGIN")
+	}
+	if s.InternalSubstrateBaseURL == "" {
+		s.InternalSubstrateBaseURL = os.Getenv("INTERNAL_SUBSTRATE_ORIGIN")
 	}
 
 	originURL, _ := url.Parse(s.BaseURL)
@@ -78,6 +88,30 @@ func (s *Service) initialize() {
 
 		&links.Aggregate{},
 		&links.AggregateQuerierCommand{},
+
+		&commands.HTTPClientRunnerReflector{
+			// Since there's a different address for internal requests than external, we have to do that swap. It feels kinda gross to
+			// need to do this at all...
+			DefTransform: func(ctx context.Context, n string, d commands.Def) (string, commands.Def) {
+				if d.Run != nil && d.Run.HTTP != nil {
+					// slog.Info("considering transform for command", "name", n, "d.Run.HTTP.Request.URL", d.Run.HTTP.Request.URL)
+					if strings.HasPrefix(d.Run.HTTP.Request.URL, s.ExternalSubstrateBaseURL) {
+						var err error
+						d, err = d.Clone()
+						if err != nil {
+							panic(err)
+						}
+
+						trimmed := strings.TrimPrefix(d.Run.HTTP.Request.URL, s.ExternalSubstrateBaseURL)
+						d.Run.HTTP.Request.URL = s.InternalSubstrateBaseURL + trimmed
+						// slog.Info("considering transformed for command", "name", n, "d.Run.HTTP.Request.URL", d.Run.HTTP.Request.URL)
+						return n, d
+					}
+				}
+
+				return n, d
+			},
+		},
 
 		&commands.Aggregate{},
 		&ExportCommands{},

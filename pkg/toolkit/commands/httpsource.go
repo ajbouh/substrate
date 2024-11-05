@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 )
 
@@ -26,6 +27,40 @@ type ResponseError struct {
 type Response struct {
 	Error   *ResponseError `json:"error,omitempty"`
 	Returns Fields         `json:"returns,omitempty"`
+}
+
+type HTTPRunnerReflector interface {
+	HTTPReflectRunner(ctx context.Context, url string) (Runner, error)
+}
+
+type HTTPClientRunnerReflector struct {
+	Client HTTPClient
+
+	DefTransform DefTransformFunc
+}
+
+var _ HTTPRunnerReflector = (*HTTPClientRunnerReflector)(nil)
+
+func (p *HTTPClientRunnerReflector) HTTPReflectRunner(ctx context.Context, url string) (Runner, error) {
+	hs := HTTPSource{
+		Endpoint: url,
+		Client:   p.Client,
+	}
+	di, err := hs.Reflect(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if p.DefTransform != nil {
+		di = TranformDefIndex(ctx, di, p.DefTransform)
+	}
+
+	slog.Info("HTTPReflectRunner", "url", url, "di", di)
+
+	return &DefIndexRunner{
+		Defs:   di,
+		Client: p.Client,
+	}, nil
 }
 
 var _ Source = HTTPSource{}
