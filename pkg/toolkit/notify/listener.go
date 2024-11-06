@@ -9,14 +9,16 @@ import (
 	"github.com/ajbouh/substrate/pkg/toolkit/xengine"
 )
 
-type Listener[Target any, Event any] struct {
+type NotifierUnit[Target any, Event any] struct {
 	Target     *Target
 	eventtype  string
 	targettype string
 	f          func(ctx context.Context, ev Event, target *Target)
 }
 
-func (s *Listener[Target, Event]) Assembly() []engine.Unit {
+func (s *NotifierUnit[Target, Event]) Assembly() []engine.Unit {
+	slog.Debug("NotifierUnit.Assembly()", "eventtype", s.eventtype, "targettype", s.targettype)
+
 	targetType := reflect.TypeFor[Target]()
 	s.targettype = targetType.String()
 	s.eventtype = EventType[Event]()
@@ -28,7 +30,7 @@ func (s *Listener[Target, Event]) Assembly() []engine.Unit {
 	return units
 }
 
-func (s *Listener[Target, Event]) Notify(ctx context.Context, ev Event) {
-	slog.Debug("Listener.Notify()", "eventtype", s.eventtype, "targettype", s.targettype)
+func (s *NotifierUnit[Target, Event]) Notify(ctx context.Context, ev Event) {
+	slog.Debug("NotifierUnit.Notify()", "eventtype", s.eventtype, "targettype", s.targettype)
 	s.f(ctx, ev, s.Target)
 }

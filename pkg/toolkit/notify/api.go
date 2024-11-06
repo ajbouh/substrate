@@ -14,8 +14,9 @@ func List[Event any](notifiers ...Notifier[Event]) []Notifier[Event] {
 	return notifiers
 }
 
-func On[Target any, Event any](f func(ctx context.Context, event Event, target *Target)) *Listener[Target, Event] {
-	return &Listener[Target, Event]{f: f}
+func On[Target any, Event any](f func(ctx context.Context, event Event, target *Target)) *NotifierUnit[Target, Event] {
+	slog.Debug("notify.On()", "eventtype", EventType[Event](), "targettype", reflect.TypeFor[Target]().String(), "listenertype", reflect.TypeFor[NotifierUnit[Target, Event]]())
+	return &NotifierUnit[Target, Event]{f: f}
 }
 
 func EventType[Event any]() string {
