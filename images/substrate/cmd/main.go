@@ -80,8 +80,7 @@ func main() {
 	}
 	machineID := strings.Trim(string(machineIDData), "\n")
 
-	// TODO stop hardcoding these
-	internalSubstrateOrigin := "http://substrate:8080"
+	internalSubstrateOrigin := mustGetenv("INTERNAL_SUBSTRATE_ORIGIN")
 
 	// Informed by https://github.com/golang/go/issues/6785
 	ht := http.DefaultTransport.(*http.Transport)
