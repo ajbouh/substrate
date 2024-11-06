@@ -32,7 +32,6 @@ import (
 	"github.com/ajbouh/substrate/images/substrate/space"
 	"github.com/ajbouh/substrate/images/substrate/units"
 	"github.com/ajbouh/substrate/pkg/cueloader"
-	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 	"github.com/ajbouh/substrate/pkg/toolkit/exports"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
@@ -176,7 +175,7 @@ func main() {
 		&units.Broker{},
 
 		&notify.Slot[units.DefSetCommands]{},
-		&commands.LoaderDelegate[*units.DefSetCommands]{},
+		&service.LoaderDelegate[*units.DefSetCommands]{},
 		notify.On(func(ctx context.Context,
 			e *defset.DefSet,
 			t *struct {

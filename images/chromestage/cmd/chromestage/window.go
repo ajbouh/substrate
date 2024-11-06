@@ -6,11 +6,12 @@ import (
 	"os/exec"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 )
 
 func WindowCommands() commands.Source {
 	return commands.List(
-		commands.Command(
+		handle.Command(
 			"resize",
 			"Resize the window to the given `width` and `height`",
 			func(ctx context.Context, t *struct{}, args struct {

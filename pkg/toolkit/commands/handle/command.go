@@ -123,7 +123,7 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 				return false
 			}
 
-			return hasJSONFields(paramsType, true)
+			return commands.HasJSONFields(paramsType, true)
 		}
 
 		params := commands.Fields{}
@@ -154,7 +154,7 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 			return
 		}
 
-		if hasJSONFields(returnsType, false) {
+		if commands.HasJSONFields(returnsType, false) {
 			err := json.NewEncoder(w).Encode(v)
 			if err != nil {
 				http.Error(w, fmt.Sprintf(`{"message": %q}`, err.Error()), http.StatusInternalServerError)
@@ -162,37 +162,6 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 			}
 		}
 	})
-}
-
-func hasJSONFields(t reflect.Type, considerRequestFieldShadowing bool) bool {
-	// slog.Info("treatAsVoid", "t", t, "t.Kind()", t.Kind())
-	if t == nil || t.Kind() != reflect.Struct {
-		return true
-	}
-
-	fields := reflect.VisibleFields(t)
-
-	for _, field := range fields {
-		// slog.Info("treatAsVoid", "field", field)
-
-		if considerRequestFieldShadowing {
-			if _, ok := field.Tag.Lookup("path"); ok {
-				continue
-			}
-
-			if _, ok := field.Tag.Lookup("query"); ok {
-				continue
-			}
-		}
-
-		if tag, ok := field.Tag.Lookup("json"); !ok || tag == "-" {
-			continue
-		}
-
-		return true
-	}
-
-	return false
 }
 
 func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (commands.DefIndex, error) {
@@ -295,7 +264,7 @@ func (r *CommandFunc[Target, Params, Returns]) Run(ctx context.Context, name str
 	paramsValue := reflect.ValueOf(params).Elem()
 	paramsType := paramsValue.Type()
 
-	if hasJSONFields(paramsType, false) {
+	if commands.HasJSONFields(paramsType, false) {
 		b, err := json.Marshal(pfields)
 		if err != nil {
 			return nil, err
@@ -326,7 +295,7 @@ func (r *CommandFunc[Target, Params, Returns]) Run(ctx context.Context, name str
 	}
 
 	rfields := commands.Fields{}
-	if hasJSONFields(reflect.TypeFor[Returns](), false) {
+	if commands.HasJSONFields(reflect.TypeFor[Returns](), false) {
 		b, err := json.Marshal(returns)
 		if err != nil {
 			return nil, err
@@ -339,33 +308,4 @@ func (r *CommandFunc[Target, Params, Returns]) Run(ctx context.Context, name str
 	}
 
 	return rfields, nil
-}
-
-func ConvertViaJSON[Out, In any](input In) (Out, error) {
-	var out Out
-	if !hasJSONFields(reflect.TypeFor[In](), false) || !hasJSONFields(reflect.TypeFor[Out](), false) {
-		return out, nil
-	}
-	b, err := json.Marshal(input)
-	if err != nil {
-		return out, err
-	}
-	err = json.Unmarshal(b, &out)
-	return out, err
-}
-
-func Call[Out, In any](ctx context.Context, src commands.Source, command string, params In) (*Out, error) {
-	paramFields, err := ConvertViaJSON[commands.Fields](params)
-	if err != nil {
-		return nil, err
-	}
-	resultFields, err := src.Run(ctx, command, paramFields)
-	if err != nil {
-		return nil, err
-	}
-	out, err := ConvertViaJSON[Out](resultFields)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

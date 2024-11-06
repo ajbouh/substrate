@@ -9,14 +9,15 @@ import (
 	"os"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 )
 
 type SpacesFileTree struct {
 	SpacesViaContainerFilesystems *SpacesViaContainerFilesystems
-	CommandsHTTPSourceHandler     *commands.HTTPResourceReflectHandler
+	CommandsHTTPSourceHandler     *handle.HTTPResourceReflectHandler
 }
 
-var _ commands.HTTPResourceReflect = (*SpacesFileTree)(nil)
+var _ handle.HTTPResourceReflect = (*SpacesFileTree)(nil)
 
 func (x *SpacesFileTree) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	mux.Handle("/substrate/v1/spaces/{space}/tree/{path...}", x)
@@ -27,7 +28,7 @@ func (x *SpacesFileTree) GetHTTPResourceReflectPath() string {
 }
 
 func (x *SpacesFileTree) Reflect(ctx context.Context) (commands.DefIndex, error) {
-	r := commands.ContextPathValuer(ctx)
+	r := handle.ContextPathValuer(ctx)
 	if r == nil {
 		return commands.DefIndex{}, nil
 	}
@@ -43,7 +44,7 @@ func (x *SpacesFileTree) Reflect(ctx context.Context) (commands.DefIndex, error)
 	stat, err := fs.Stat(fsys, path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, &commands.HTTPStatusError{
+			return nil, &handle.HTTPStatusError{
 				Err:    err,
 				Status: 404,
 			}

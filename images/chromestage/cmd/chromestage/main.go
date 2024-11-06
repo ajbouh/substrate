@@ -33,6 +33,9 @@ func main() {
 		log.Fatalf("could not parse substrate origin: %#v", err)
 	}
 
+	pageCommands := &units.PageCommands{}
+	tabCommands := &units.TabCommands{}
+
 	engine.Run(
 		&service.Service{},
 		&units.RemoteCDP{
@@ -49,14 +52,13 @@ func main() {
 			Upstream:    chromedpUrl.String(),
 			UpstreamURL: chromedpUrl,
 		},
-		&units.PageCommands{},
-		&commands.PrefixedSource[*units.PageCommands]{
-			Prefix: "page:",
-		},
-		&units.TabCommands{},
-		&commands.PrefixedSource[*units.TabCommands]{
-			Prefix: "tab:",
-		},
+
+		pageCommands,
+		commands.Prefixed("page:", pageCommands),
+
+		tabCommands,
+		commands.Prefixed("tab:", tabCommands),
+
 		commands.Prefixed("window:", WindowCommands()),
 
 		notify.On(

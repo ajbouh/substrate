@@ -11,9 +11,9 @@ import (
 	"strings"
 
 	"github.com/ajbouh/substrate/images/events/store"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 
-	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/links"
 )
 
@@ -27,7 +27,7 @@ type GetTreeRawPathReturns struct {
 	Entries []Entry `json:"events"`
 }
 
-var GetTreeRawPathCommand = commands.HTTPCommand(
+var GetTreeRawPathCommand = handle.HTTPCommand(
 	"events:get", "Get latest events by path and/or prefix",
 	"GET /tree/events/{path...}", "/tree/events/{path...}",
 
@@ -67,7 +67,7 @@ var GetTreeRawPathCommand = commands.HTTPCommand(
 		}
 
 		if len(evts) == 0 {
-			return returns, &commands.HTTPStatusError{
+			return returns, &handle.HTTPStatusError{
 				Err:    nil,
 				Status: 404,
 			}
@@ -115,7 +115,7 @@ var GetTreeRawPathCommand = commands.HTTPCommand(
 		return returns, nil
 	})
 
-var GetTreeDataPathCommand = commands.HTTPCommand(
+var GetTreeDataPathCommand = handle.HTTPCommand(
 	"event:get", "Get latest event by path",
 	"GET /tree/data/{path...}", "/tree/data/{path...}",
 
@@ -146,7 +146,7 @@ var GetTreeDataPathCommand = commands.HTTPCommand(
 		}
 
 		if event == nil {
-			return returns, &commands.HTTPStatusError{
+			return returns, &handle.HTTPStatusError{
 				Err:    nil,
 				Status: 404,
 			}
@@ -165,7 +165,7 @@ type WriteTreeDataPathReturns struct {
 	EventURL string `json:"event_url"`
 }
 
-var WriteTreeDataPathCommand = commands.HTTPCommand(
+var WriteTreeDataPathCommand = handle.HTTPCommand(
 	"event:write", "Write new event to path",
 	"PUT /tree/data/{path...}", "/tree/data/{path...}",
 
@@ -216,7 +216,7 @@ type GetTreeFieldsPathReturns struct {
 	Event *event.Event `json:"event"`
 }
 
-var GetTreeFieldsPathCommand = commands.HTTPCommand(
+var GetTreeFieldsPathCommand = handle.HTTPCommand(
 	"event:get", "Get latest event by path",
 	"GET /tree/fields/{path...}", "/tree/fields/{path...}",
 
@@ -244,7 +244,7 @@ var GetTreeFieldsPathCommand = commands.HTTPCommand(
 		}
 
 		if returns.Event == nil {
-			return returns, &commands.HTTPStatusError{
+			return returns, &handle.HTTPStatusError{
 				Err:    nil,
 				Status: 404,
 			}
@@ -256,7 +256,7 @@ var GetTreeFieldsPathCommand = commands.HTTPCommand(
 type WriteTreeFieldsPathReturns struct {
 }
 
-var WriteTreeFieldsPathCommand = commands.HTTPCommand(
+var WriteTreeFieldsPathCommand = handle.HTTPCommand(
 	"event:write", "Write new event to path",
 	"PUT /tree/fields/{path...}", "/tree/fields/{path...}",
 
@@ -312,7 +312,7 @@ type GetEventReturns struct {
 	Event *event.Event `json:"-"`
 }
 
-var GetEventCommand = commands.HTTPCommand(
+var GetEventCommand = handle.HTTPCommand(
 	"event:get", "Get event",
 	"GET /events/{event}", "/events/{event}",
 
@@ -357,7 +357,7 @@ func addEventRefHREFs(ctx context.Context, urls *EventURLs, l map[string]links.L
 	return nil
 }
 
-var IDLinksQueryCommand = commands.HTTPCommand(
+var IDLinksQueryCommand = handle.HTTPCommand(
 	"links:query", "Get links for event id",
 	"GET /links/event/{event}", "/events/{event}",
 
@@ -394,7 +394,7 @@ var IDLinksQueryCommand = commands.HTTPCommand(
 		return returns, nil
 	})
 
-var EventPathLinksQueryCommand = commands.HTTPCommand(
+var EventPathLinksQueryCommand = handle.HTTPCommand(
 	"links:query", "Get links for event by path",
 	"GET /links/tree/{path...}", "/tree/{path...}",
 
@@ -441,7 +441,7 @@ type WriteEventsReturns struct {
 	DataSHA256s   []*event.SHA256Digest `json:"data_sha256s"`
 }
 
-var WriteEventsCommand = commands.Command(
+var WriteEventsCommand = handle.Command(
 	"events:write", "Write events to store",
 	func(ctx context.Context,
 		t *struct {
@@ -486,7 +486,7 @@ type QueryEventsReturns struct {
 	More   bool          `json:"more"`
 }
 
-var QueryEventsCommand = commands.Command(
+var QueryEventsCommand = handle.Command(
 	"events:query", "Query events in store",
 	func(ctx context.Context,
 		t *struct {
@@ -559,7 +559,7 @@ var QueryEventsCommand = commands.Command(
 			}
 		} else {
 			if args.VectorNear != nil {
-				return returns, &commands.HTTPStatusError{Status: http.StatusBadRequest, Message: "cannot provide near without a value for vector_in_manifold"}
+				return returns, &handle.HTTPStatusError{Status: http.StatusBadRequest, Message: "cannot provide near without a value for vector_in_manifold"}
 			}
 		}
 

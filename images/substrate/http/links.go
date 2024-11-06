@@ -5,11 +5,11 @@ import (
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
-	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/links"
 )
 
-var ViewspecLinksCommand = commands.HTTPCommand(
+var ViewspecLinksCommand = handle.HTTPCommand(
 	"links:query", "",
 	"GET /substrate/v1/activities/{viewspec}/{digest}/links", "/substrate/v1/activities/{viewspec}/{digest}/links",
 	func(ctx context.Context,

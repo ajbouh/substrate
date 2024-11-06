@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
 )
@@ -16,7 +17,7 @@ func main() {
 	engine.Run(
 		&service.Service{},
 		commands.List(
-			commands.Command(
+			handle.Command(
 				"hourly",
 				"Get the weather forecast for next 24 hours in a given ZIP code.",
 				func(ctx context.Context, t *struct{}, args struct {

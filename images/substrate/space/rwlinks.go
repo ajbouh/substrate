@@ -9,7 +9,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/links"
 )
 
@@ -75,7 +75,7 @@ type LinksQueryReturns struct {
 	Links links.Links `json:"links"`
 }
 
-var LinksWriteCommand = commands.HTTPCommand(
+var LinksWriteCommand = handle.HTTPCommand(
 	"links:write", "",
 	"POST /substrate/v1/spaces/{space}/links/write", "/substrate/v1/spaces/{space}",
 	func(ctx context.Context,
@@ -89,7 +89,7 @@ var LinksWriteCommand = commands.HTTPCommand(
 	},
 )
 
-var LinksRemoveCommand = commands.HTTPCommand(
+var LinksRemoveCommand = handle.HTTPCommand(
 	"links:remove", "",
 	"POST /substrate/v1/spaces/{space}/links/remove", "/substrate/v1/spaces/{space}",
 	func(ctx context.Context,
@@ -109,7 +109,7 @@ var LinksRemoveCommand = commands.HTTPCommand(
 	},
 )
 
-var LinksQueryCommand = commands.HTTPCommand(
+var LinksQueryCommand = handle.HTTPCommand(
 	"links:query", "",
 	"GET /substrate/v1/spaces/{space}/links", "/substrate/v1/spaces/{space}",
 	func(ctx context.Context,
@@ -137,7 +137,7 @@ var LinksQueryCommand = commands.HTTPCommand(
 	},
 )
 
-var QueryLinksTreePathCommand = commands.HTTPCommand(
+var QueryLinksTreePathCommand = handle.HTTPCommand(
 	"links:query", "List links",
 	"GET /substrate/v1/spaces/{space}/links/tree", "/substrate/v1/spaces/{space}/tree",
 	func(ctx context.Context,

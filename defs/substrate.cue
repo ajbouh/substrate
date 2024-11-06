@@ -142,6 +142,7 @@ daemons: "substrate": {
         ]
         Environment: {
           ORIGIN: "https://substrate.home.arpa"
+          INTERNAL_SUBSTRATE_ORIGIN: "http://substrate:8080"
           environment
         }
       }

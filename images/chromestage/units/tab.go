@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
@@ -30,8 +31,8 @@ type NavigateReturns struct {
 }
 
 func (a *TabCommands) Initialize() {
-	a.Source = commands.List(
-		commands.Command(
+	a.Source = commands.List[commands.Source](
+		handle.Command(
 			"navigate",
 			"Visit the given `url`",
 			func(ctx context.Context, t *struct{}, args struct {
@@ -64,19 +65,19 @@ func (a *TabCommands) Initialize() {
 					Current:   url,
 				}, a.CDP.Run(chromedp.Navigate(url))
 			}),
-		commands.Command(
+		handle.Command(
 			"reload",
 			"Reload the tab's current url",
 			func(ctx context.Context, t *struct{}, args struct{}) (Void, error) {
 				return Void{}, a.CDP.Run(chromedp.Reload())
 			}),
-		commands.Command(
+		handle.Command(
 			"back",
 			"Go to the previous page",
 			func(ctx context.Context, t *struct{}, args struct{}) (Void, error) {
 				return Void{}, a.CDP.Run(chromedp.NavigateBack())
 			}),
-		commands.Command(
+		handle.Command(
 			"evaluate",
 			"Evaluate given javascript",
 			func(ctx context.Context, t *struct{}, args struct {
@@ -90,19 +91,19 @@ func (a *TabCommands) Initialize() {
 					},
 				))
 			}),
-		commands.Command(
+		handle.Command(
 			"scrollup",
 			"Scroll up",
 			func(ctx context.Context, t *struct{}, args struct{}) (Void, error) {
 				return Void{}, a.CDP.Run(chromedp.KeyEvent(kb.Shift + " "))
 			}),
-		commands.Command(
+		handle.Command(
 			"scrolldown",
 			"Scroll down",
 			func(ctx context.Context, t *struct{}, args struct{}) (Void, error) {
 				return Void{}, a.CDP.Run(chromedp.KeyEvent(" "))
 			}),
-		commands.Command(
+		handle.Command(
 			"click",
 			"Click on a link with the given `text`",
 			func(ctx context.Context, t *struct{}, args struct {

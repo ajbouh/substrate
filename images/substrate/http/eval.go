@@ -6,7 +6,7 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/ajbouh/substrate/images/substrate/defset"
 	"github.com/ajbouh/substrate/images/substrate/httputil"
-	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
@@ -18,7 +18,7 @@ type EvalReturns struct {
 	Source string `json:"source"`
 }
 
-var EvalCommand = commands.Command(
+var EvalCommand = handle.Command(
 	"eval",
 	"Evaluate a CUE expression",
 	func(ctx context.Context,

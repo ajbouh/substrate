@@ -6,13 +6,14 @@ import (
 
 	"github.com/ajbouh/substrate/images/substrate/defset"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 )
 
 type Broker struct {
 	SpaceID string
 
 	DefSetLoader               Loader[*defset.DefSet]
-	HTTPResourceReflectHandler *commands.HTTPResourceReflectHandler
+	HTTPResourceReflectHandler *handle.HTTPResourceReflectHandler
 }
 
 var _ commands.Reflector = (*Broker)(nil)

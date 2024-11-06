@@ -17,6 +17,7 @@ import (
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
@@ -77,8 +78,8 @@ type Void struct{}
 
 func (a *Agent) Commands(ctx context.Context) commands.Source {
 	sess := a.Session
-	return commands.Prefixed("assistant:", commands.List(
-		commands.Command(
+	return commands.Prefixed("assistant:", commands.List[commands.Source](
+		handle.Command(
 			"add",
 			"Add an assistant to the session",
 			func(ctx context.Context, t *struct{}, args struct {
@@ -98,7 +99,7 @@ func (a *Agent) Commands(ctx context.Context) commands.Source {
 				AddAssistant(sess.SpanNow(), name, prompt)
 				return Void{}, nil
 			}),
-		commands.Command(
+		handle.Command(
 			"remove",
 			"Remove an assistant from the session",
 			func(ctx context.Context, t *struct{}, args struct {

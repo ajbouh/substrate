@@ -10,7 +10,7 @@ import (
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
 	podmanprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/podman"
-	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/containers/common/pkg/auth"
 	"github.com/containers/image/v5/types"
 	"github.com/containers/podman/v4/pkg/bindings/containers"
@@ -26,7 +26,7 @@ type GetSpacesReturns struct {
 	Spaces []activityspec.SpaceEntry `json:"spaces"`
 }
 
-var QueryCommand = commands.HTTPCommand(
+var QueryCommand = handle.HTTPCommand(
 	"space:query", "List all spaces",
 	"GET /substrate/v1/spaces", "/substrate/v1/spaces/{space}",
 	func(ctx context.Context,
@@ -64,7 +64,7 @@ var _ SpaceURLs = (*SpacesViaContainerFilesystems)(nil)
 var _ SpaceDeleter = (*SpacesViaContainerFilesystems)(nil)
 var _ SpaceAsFS = (*SpacesViaContainerFilesystems)(nil)
 
-var DeleteCommand = commands.HTTPCommand(
+var DeleteCommand = handle.HTTPCommand(
 	"space:delete", "Delete a space",
 	"DELETE /substrate/v1/spaces/{space}", "/substrate/v1/spaces/{space}",
 	func(ctx context.Context,
@@ -77,13 +77,13 @@ var DeleteCommand = commands.HTTPCommand(
 	) (Void, error) {
 		err := t.SpaceDeleter.DeleteSpace(ctx, args.Space)
 		if errors.Is(err, activityspec.ErrNotFound) {
-			return void, &commands.HTTPStatusError{Status: http.StatusNotFound}
+			return void, &handle.HTTPStatusError{Status: http.StatusNotFound}
 		}
 
 		return void, err
 	})
 
-var ReadCommand = commands.Command(
+var ReadCommand = handle.Command(
 	"space:tree:read-blob",
 	"Read a file",
 	func(ctx context.Context,
@@ -111,7 +111,7 @@ var ReadCommand = commands.Command(
 
 	})
 
-var WriteCommand = commands.HTTPCommand(
+var WriteCommand = handle.HTTPCommand(
 	"space:tree:write-blob", "Write a file",
 	"PUT /substrate/v1/spaces/{space}/tree/{path...}", "/substrate/v1/spaces/{space}/tree/{path...}",
 	func(ctx context.Context,
@@ -139,7 +139,7 @@ var WriteCommand = commands.HTTPCommand(
 		return void, fs.WriteFile(fsys, args.Path, data, 0644)
 	})
 
-var GetCommand = commands.HTTPCommand(
+var GetCommand = handle.HTTPCommand(
 	"space:get", "Get a space",
 	"GET /substrate/v1/spaces/{space}", "/substrate/v1/spaces/{space}",
 	func(ctx context.Context,
@@ -152,7 +152,7 @@ var GetCommand = commands.HTTPCommand(
 	) (*activityspec.SpaceEntry, error) {
 		view, err := t.SpacesViaContainerFilesystems.ResolveSpaceView(ctx, args.Space, false, false, "user")
 		if errors.Is(err, activityspec.ErrNotFound) {
-			return nil, &commands.HTTPStatusError{Status: http.StatusNotFound}
+			return nil, &handle.HTTPStatusError{Status: http.StatusNotFound}
 		}
 		if err != nil {
 			return nil, err
@@ -164,7 +164,7 @@ var GetCommand = commands.HTTPCommand(
 		}, nil
 	})
 
-var NewCommand = commands.Command(
+var NewCommand = handle.Command(
 	"space:new",
 	"Make a new space",
 	func(ctx context.Context,
@@ -188,7 +188,7 @@ var NewCommand = commands.Command(
 
 // The commands below here should probably not be doing P.Connect directly. Bit of an abstraction violation there.
 
-var LoginCommand = commands.Command(
+var LoginCommand = handle.Command(
 	"space:login",
 	"",
 	func(ctx context.Context,
@@ -216,7 +216,7 @@ type CommitReturns struct {
 	Commits []RefCommit
 }
 
-var CommitCommand = commands.HTTPCommand(
+var CommitCommand = handle.HTTPCommand(
 	"space:commit", "Commit and optionally push a space",
 	"POST /substrate/v1/spaces/{space}/commit", "/substrate/v1/spaces/{space}",
 	func(ctx context.Context,

@@ -16,7 +16,7 @@ type DefSetCommands struct {
 var _ commands.Delegate = (*DefSetCommands)(nil)
 
 func (m *DefSetCommands) Commands(ctx context.Context) commands.Source {
-	return commands.Dynamic(nil, func() []commands.Source {
+	return commands.Dynamic(nil, nil, func() []commands.Source {
 		sources := []commands.Source{}
 		if m != nil {
 			for k, v := range m.DefsMap {

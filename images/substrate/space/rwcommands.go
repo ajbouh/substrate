@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 )
 
 type SpaceCommands struct {
@@ -58,7 +59,7 @@ func (p *SpaceCommands) Query(ctx context.Context, spaceID string) (commands.Def
 }
 
 func (p *SpaceCommands) Reflect(ctx context.Context) (commands.DefIndex, error) {
-	r := commands.ContextPathValuer(ctx)
+	r := handle.ContextPathValuer(ctx)
 	if r == nil {
 		return nil, commands.ErrReflectNotSupported
 	}
@@ -71,7 +72,7 @@ func (p *SpaceCommands) Reflect(ctx context.Context) (commands.DefIndex, error) 
 	return p.Query(ctx, space)
 }
 
-var CommandsWriteCommand = commands.HTTPCommand(
+var CommandsWriteCommand = handle.HTTPCommand(
 	"commands:write", "",
 	"POST /substrate/v1/spaces/{space}/commands/write", "/substrate/v1/spaces/{space}",
 	func(ctx context.Context,
@@ -85,7 +86,7 @@ var CommandsWriteCommand = commands.HTTPCommand(
 	},
 )
 
-var CommandsRemoveCommand = commands.HTTPCommand(
+var CommandsRemoveCommand = handle.HTTPCommand(
 	"commands:remove", "",
 	"POST /substrate/v1/spaces/{space}/commands/remove", "/substrate/v1/spaces/{space}",
 	func(ctx context.Context,

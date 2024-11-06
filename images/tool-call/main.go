@@ -7,6 +7,7 @@ import (
 	"github.com/ajbouh/substrate/images/tool-call/js"
 	"github.com/ajbouh/substrate/images/tool-call/tools"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
@@ -25,7 +26,7 @@ func main() {
 			Handler: http.StripPrefix("/js", http.FileServer(http.FS(js.Dir))),
 		},
 		commands.List(
-			commands.Command(
+			handle.Command(
 				"suggest",
 				"Suggest a command",
 				func(ctx context.Context, t *struct{}, args struct {

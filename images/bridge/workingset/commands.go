@@ -8,6 +8,7 @@ import (
 
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 )
 
 type CommandProvider struct {
@@ -23,8 +24,8 @@ type Void struct{}
 func (c *CommandProvider) Commands(ctx context.Context) commands.Source {
 	sess := c.Session
 	sources := []commands.Source{
-		commands.List(
-			commands.Command("add_url",
+		commands.List[commands.Source](
+			handle.Command("add_url",
 				"Add a URL to the working set",
 				func(ctx context.Context, t *struct{}, args struct {
 					URL string `json:"url" desc:"URL to add to working set. Should be fully qualified with the URL scheme."`
@@ -40,7 +41,7 @@ func (c *CommandProvider) Commands(ctx context.Context) commands.Source {
 					}
 					return Void{}, nil
 				}),
-			commands.Command("list",
+			handle.Command("list",
 				"List the URLs in the working set",
 				func(ctx context.Context, t *struct{}, args struct{}) (ListReturns, error) {
 					urls := ActiveURLs(sess)
@@ -59,9 +60,7 @@ func (c *CommandProvider) Commands(ctx context.Context) commands.Source {
 	}
 
 	return commands.Prefixed("workingset:",
-		&commands.DynamicSource{
-			Sources: func() []commands.Source { return sources },
-		},
+		commands.Dynamic(nil, nil, func() []commands.Source { return sources }),
 	)
 }
 
