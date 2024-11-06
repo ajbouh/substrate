@@ -91,7 +91,7 @@ func MarshalHTTPRequest(ctx context.Context, rbd *RunBindDef, rhd *RunHTTPDef, p
 		var v any
 
 		bound := false
-		if rbd.Parameters != nil {
+		if rbd != nil && rbd.Parameters != nil {
 			if val, ok := rbd.Parameters[k]; ok {
 				bound = true
 				v = val
@@ -157,25 +157,27 @@ func UnmarshalHTTPResponse(ctx context.Context, rbd *RunBindDef, rhd *RunHTTPDef
 	returns := Fields{}
 	var errs []error
 	// def.Returns
-	for k, rdef := range rhd.Returns {
-		var v any
-		bound := false
-		if rbd.Returns != nil {
-			if val, ok := rbd.Returns[k]; ok {
-				bound = true
-				v = val
+	if rhd != nil {
+		for k, rdef := range rhd.Returns {
+			var v any
+			bound := false
+			if rbd != nil && rbd.Returns != nil {
+				if val, ok := rbd.Returns[k]; ok {
+					bound = true
+					v = val
+				}
 			}
-		}
 
-		if !bound {
-			v, err = scope.Get(rdef.Path)
-			if err != nil {
-				errs = append(errs, err)
-				continue
+			if !bound {
+				v, err = scope.Get(rdef.Path)
+				if err != nil {
+					errs = append(errs, err)
+					continue
+				}
 			}
-		}
 
-		returns[k] = v
+			returns[k] = v
+		}
 	}
 
 	return returns, errors.Join(errs...)
