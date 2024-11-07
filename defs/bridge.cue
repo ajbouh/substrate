@@ -17,6 +17,7 @@ services: "bridge": {
 
     environment: {
       SUBSTRATE_EVENT_WRITER_URL: "http://substrate:8080/events;data=\(parameters.sessions.value)/tree/fields"
+      SUBSTRATE_STREAM_URL_PATH: "/events;data=\(parameters.sessions.value)/stream/events"
       BRIDGE_COMMANDS_URL: "http://substrate:8080/"
       BRIDGE_TRANSCRIBE_COMMAND: "faster-whisper:transcribe-data"
       BRIDGE_TRANSLATE_COMMAND: "seamlessm4t:translate"
