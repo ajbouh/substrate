@@ -89,9 +89,11 @@ func (b *Broker) Reflect(ctx context.Context) (commands.DefIndex, error) {
 		// we should now be left with services
 		bindings["new:"+serviceName] = commands.BindEntry{
 			Command: "new:instance",
-			Parameters: commands.Fields{
-				"service":    serviceName,
-				"parameters": parameters,
+			Data: commands.Fields{
+				"parameters": commands.Fields{
+					"service":    serviceName,
+					"parameters": parameters,
+				},
 			},
 		}
 	})

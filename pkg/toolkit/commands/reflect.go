@@ -5,10 +5,10 @@ import (
 	"errors"
 )
 
-type DefTransformFunc func(context.Context, string, Def) (string, Def)
+type DefTransformFunc func(context.Context, string, *Msg) (string, *Msg)
 
 func DefTransforms(fs ...DefTransformFunc) DefTransformFunc {
-	return func(ctx context.Context, name string, def Def) (string, Def) {
+	return func(ctx context.Context, name string, def *Msg) (string, *Msg) {
 		for _, f := range fs {
 			name, def = f(ctx, name, def)
 		}

@@ -89,32 +89,27 @@ func (s *Service) initialize() {
 		&links.Aggregate{},
 		&links.AggregateQuerierCommand{},
 
-		&commands.HTTPClientRunnerReflector{
-			// Since there's a different address for internal requests than external, we have to do that swap. It feels kinda gross to
-			// need to do this at all...
-			DefTransform: func(ctx context.Context, n string, d commands.Def) (string, commands.Def) {
-				if d.Run != nil && d.Run.HTTP != nil {
-					// slog.Info("considering transform for command", "name", n, "d.Run.HTTP.Request.URL", d.Run.HTTP.Request.URL)
-					if strings.HasPrefix(d.Run.HTTP.Request.URL, s.ExternalSubstrateBaseURL) {
-						var err error
-						d, err = d.Clone()
-						if err != nil {
-							panic(err)
-						}
-
-						trimmed := strings.TrimPrefix(d.Run.HTTP.Request.URL, s.ExternalSubstrateBaseURL)
-						d.Run.HTTP.Request.URL = s.InternalSubstrateBaseURL + trimmed
-						// slog.Info("considering transformed for command", "name", n, "d.Run.HTTP.Request.URL", d.Run.HTTP.Request.URL)
-						return n, d
-					}
-				}
-
-				return n, d
-			},
-		},
-
 		&commands.Aggregate{},
 		&ExportCommands{},
+		&commands.TransformingDefRunner{},
+		&commands.Interpreter{},
+		&commands.HTTPCapability{
+			// Since there's a different address for internal requests than external, we have to do that swap. It feels kinda gross to
+			// need to do this at all...
+			Rewrite: func(r *http.Request) (*http.Request, error) {
+				// slog.Info("considering transform for command", "name", n, "d.Run.HTTP.Request.URL", d.Run.HTTP.Request.URL)
+				urlStr := r.URL.String()
+				if strings.HasPrefix(urlStr, s.ExternalSubstrateBaseURL) {
+					trimmed := strings.TrimPrefix(urlStr, s.ExternalSubstrateBaseURL)
+					var err error
+					r.URL, err = url.Parse(s.InternalSubstrateBaseURL + trimmed)
+					return r, err
+					// slog.Info("considering transformed for command", "name", n, "d.Run.HTTP.Request.URL", d.Run.HTTP.Request.URL)
+				}
+				return r, nil
+			},
+		},
+		&commands.ReflectCapability{},
 		&handle.HTTPResourceReflectHandler{
 			Debug:   true,
 			BaseURL: s.BaseURL,

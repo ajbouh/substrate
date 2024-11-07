@@ -6,7 +6,7 @@ import (
 	"reflect"
 )
 
-func ConvertViaJSON[Out, In any](input In) (Out, error) {
+func convertViaJSON[Out, In any](input In) (Out, error) {
 	var out Out
 	if !HasJSONFields(reflect.TypeFor[In](), false) || !HasJSONFields(reflect.TypeFor[Out](), false) {
 		return out, nil
@@ -19,8 +19,17 @@ func ConvertViaJSON[Out, In any](input In) (Out, error) {
 	return out, err
 }
 
-func Call[Out, In any](ctx context.Context, src Source, command string, params In) (*Out, error) {
-	paramFields, err := ConvertViaJSON[Fields](params)
+func CallURL[Out, In any](ctx context.Context, hrr URLReflector, url string, command string, params In) (*Out, error) {
+	runner, _, err := hrr.ReflectURL(ctx, url)
+	if err != nil {
+		return nil, err
+	}
+
+	return CallSource[Out, In](ctx, runner, command, params)
+}
+
+func CallSource[Out, In any](ctx context.Context, src Source, command string, params In) (*Out, error) {
+	paramFields, err := convertViaJSON[Fields](params)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +37,7 @@ func Call[Out, In any](ctx context.Context, src Source, command string, params I
 	if err != nil {
 		return nil, err
 	}
-	out, err := ConvertViaJSON[Out](resultFields)
+	out, err := convertViaJSON[Out](resultFields)
 	if err != nil {
 		return nil, err
 	}

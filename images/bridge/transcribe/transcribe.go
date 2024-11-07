@@ -39,7 +39,7 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		return
 	}
 
-	transcription, err := commands.Call[Transcription](context.TODO(), a.Source, a.Command, &Request{
+	transcription, err := commands.CallSource[Transcription](context.TODO(), a.Source, a.Command, &Request{
 		Task:      "transcribe",
 		AudioData: &b,
 		AudioMetadata: AudioMetadata{

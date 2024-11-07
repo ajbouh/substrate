@@ -1,6 +1,7 @@
 package defs
 
 import (
+  command "github.com/ajbouh/substrate/defs/substrate:command"
   asr "github.com/ajbouh/substrate/defs/asr"
 )
 
@@ -79,43 +80,37 @@ services: "faster-whisper": {
 
 commands: "faster-whisper": {
   let transcribe = {
-    description: ""
-    parameters: {
-      audio_metadata: type: "object"
-      source_language: type: "string"
-      task: type: "string"
-      ...
+    meta: {
+        "#/data/parameters/audio_metadata": {type: "object"}
+        "#/data/parameters/source_language": {type: "string"}
+        "#/data/parameters/task": {type: "string"}
+
+        "#/data/returns/source_language": {type: "string"}
+        "#/data/returns/source_language_prob": {type: "float"}
+        "#/data/returns/target_language": {type: "string"}
+        "#/data/returns/duration": {type: "float"}
+        // "#/data/returns/all_language_probs": {type: "map[string,float]"}
+        "#/data/returns/segments": {type: "object"}
     }
-    returns: {
-      source_language: type: "string"
-      source_language_prob: type: "float"
-      target_language: type: "string"
-      duration: type: "float"
-      // all_language_probs: type: "map[string,float]"
-      segments: type: "object"
-    }
-    run: http: {
-      "parameters": {
-        for parameter, v in parameters {
-          (parameter): path: "request.body.\(parameter)"
-        }
-      }
-      "returns": {
-        for return, v in returns {
-          (return): path: "response.body.\(return)"
-        }
-      }
-      request: {
-        method: "POST"
-        url: "/faster-whisper/v1/transcribe"
-        headers: "Content-Type": ["application/json"]
-        body: {}
-      }
+    command.#ViaHTTP
+    msg: data: request: {
+      method: "POST"
+      url: "/faster-whisper/v1/transcribe"
+      headers: "Content-Type": ["application/json"]
+      body: {}
     }
   }
 
-  "transcribe-data": transcribe & {parameters: audio_data: type: "string"}
-  "transcribe-url": transcribe & {parameters: audio_url: type: "string"}
+  "transcribe-data": transcribe & {
+    meta: {
+      "#/data/parameters/audio_data": {type: "string"}
+    }
+  }
+  "transcribe-url": transcribe & {
+    meta: {
+      "#/data/parameters/audio_url": {type: "string"}
+    }
+  }
 }
 
 calls: "faster-whisper": {

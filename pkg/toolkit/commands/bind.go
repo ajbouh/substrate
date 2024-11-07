@@ -7,10 +7,9 @@ import (
 )
 
 type BindEntry struct {
-	Path       string
-	Command    string
-	Parameters Fields
-	Returns    Fields
+	Path    string
+	Command string
+	Data    Fields
 }
 
 func Bind(resolveReflector func(string) Reflector, commands map[string]BindEntry) (DefIndex, error) {
@@ -49,36 +48,12 @@ func Bind(resolveReflector func(string) Reflector, commands map[string]BindEntry
 			return nil, fmt.Errorf("error resolving command %q using BindEntry %#v: %w", command, bindEntry, ErrNoSuchCommand)
 		}
 
-		def, err = def.Clone()
+		d, err := def.CloneAndBind(bindEntry.Data)
 		if err != nil {
 			return bound, err
 		}
 
-		parameters, returns := bindEntry.Parameters, bindEntry.Returns
-
-		if parameters != nil || returns != nil {
-			if def.Run.Bind == nil {
-				def.Run.Bind = &RunBindDef{}
-			}
-		}
-		if parameters != nil {
-			if def.Run.Bind.Parameters == nil {
-				def.Run.Bind.Parameters = map[string]any{}
-			}
-			for k, v := range parameters {
-				def.Run.Bind.Parameters[k] = v
-			}
-		}
-		if returns != nil {
-			if def.Run.Bind.Returns == nil {
-				def.Run.Bind.Returns = map[string]any{}
-			}
-			for k, v := range returns {
-				def.Run.Bind.Returns[k] = v
-			}
-		}
-
-		bound[command] = def
+		bound[command] = d
 	}
 
 	return bound, nil

@@ -38,8 +38,11 @@ type HTTPResourceReflect interface {
 func (h *HTTPResourceReflectHandler) ReflectorForPathFuncExcluding(excluding ...commands.Reflector) func(string) commands.Reflector {
 	xform := commands.DefTransforms(
 		// should only pick up commands that don't have a route set and are therefore top-level.
-		EnsureRunHTTPField(h.HTTPRunHandler.CatchallRunnerMethod(), h.HTTPRunHandler.CatchallRunnerPath()),
-		EnsureRunHTTPRequestURLHasAHost(h.BaseURL),
+		EnsureHTTPBasis(
+			h.HTTPRunHandler.CatchallRunnerMethod(),
+			h.HTTPRunHandler.CatchallRunnerPath(),
+		),
+		EnsureRunHTTPRequestURLIncludesPrefix(h.BaseURL),
 	)
 
 	return func(reflectPath string) commands.Reflector {
@@ -60,65 +63,58 @@ func (h *HTTPResourceReflectHandler) ReflectorForPathFuncExcluding(excluding ...
 	}
 }
 
+func FindMsgBasis(c *commands.Msg) *commands.Msg {
+	for {
+		if c.Msg == nil {
+			return c
+		}
+
+		c = c.Msg
+	}
+}
+
 func EnsureRunHTTPRequestURLIncludesPrefix(prefix string) commands.DefTransformFunc {
-	return func(ctx context.Context, commandName string, commandDef commands.Def) (string, commands.Def) {
-		if prefix == "" || commandDef.Run == nil || commandDef.Run.HTTP == nil {
+	return func(ctx context.Context, commandName string, commandDef *commands.Msg) (string, *commands.Msg) {
+		if prefix == "" {
+			return commandName, commandDef
+		}
+
+		r := FindMsgBasis(commandDef)
+		if r.Cap == nil || *r.Cap != "http" {
 			return commandName, commandDef
 		}
 
 		// is this a full URL? if not make it so.
-		if strings.HasPrefix(commandDef.Run.HTTP.Request.URL, "/") {
-			commandDef.Run.HTTP.Request.URL = prefix + commandDef.Run.HTTP.Request.URL
+		url, err := commands.GetPath[string](r.Data, "request", "url")
+		if err != nil {
+			return commandName, commandDef
 		}
 
-		return commandName, commandDef
+		if !strings.HasPrefix(url, "/") {
+			return commandName, commandDef
+		}
+
+		new := commandDef.MustClone()
+		r = FindMsgBasis(new)
+		err = commands.SetPath(r.Data, []string{"request", "url"}, prefix+url)
+		if err != nil {
+			return commandName, commandDef
+		}
+
+		return commandName, new
 	}
 }
 
-func (h *HTTPResourceReflectHandler) transformDef(ctx context.Context, name string, def commands.Def) (string, commands.Def) {
-	xform := commands.DefTransforms(
-		// should only pick up commands that don't have a route set and are therefore top-level.
-		EnsureRunHTTPField(
-			h.HTTPRunHandler.CatchallRunnerMethod(),
-			h.HTTPRunHandler.CatchallRunnerPath(),
-		),
-	)
+func (h *HTTPResourceReflectHandler) transformDef(ctx context.Context, name string, def *commands.Msg) (string, *commands.Msg) {
+	// should only pick up commands that don't have a route set and are therefore top-level.
+	name, def = EnsureHTTPBasis(
+		h.HTTPRunHandler.CatchallRunnerMethod(),
+		h.HTTPRunHandler.CatchallRunnerPath(),
+	)(ctx, name, def)
 
-	name, def = xform(ctx, name, def)
-
-	prefix := httpframework.ContextPrefix(ctx)
-	name, def = EnsureRunHTTPRequestURLIncludesPrefix(prefix)(ctx, name, def)
-	name, def = EnsureRunHTTPRequestURLHasAHost(h.BaseURL)(ctx, name, def)
-
-	var drop []string
-	for k, v := range def.Run.HTTP.Parameters {
-		if strings.HasPrefix(v.Path, "request.url.path.") {
-			urlPathValueName := strings.TrimPrefix(v.Path, "request.url.path.")
-			var pathValue string
-			var pathValueOK bool
-			if def.Run.Bind != nil && def.Run.Bind.Parameters != nil {
-				pathValue, pathValueOK = def.Run.Bind.Parameters[k].(string)
-				if pathValueOK {
-					delete(def.Run.Bind.Parameters, k)
-				}
-			}
-			if !pathValueOK {
-				pathValuer := ContextPathValuer(ctx)
-				pathValue = pathValuer.PathValue(urlPathValueName)
-			}
-
-			url := def.Run.HTTP.Request.URL
-			url = strings.ReplaceAll(url, "{"+urlPathValueName+"}", pathValue)
-			url = strings.ReplaceAll(url, "{"+urlPathValueName+"...}", pathValue)
-			def.Run.HTTP.Request.URL = url
-			delete(def.Parameters, k)
-			drop = append(drop, k)
-		}
-	}
-
-	for _, k := range drop {
-		delete(def.Run.HTTP.Parameters, k)
-	}
+	name, def = EnsureRunHTTPRequestURLIncludesPrefix(
+		h.BaseURL+httpframework.ContextPrefix(ctx),
+	)(ctx, name, def)
 
 	return name, def
 }

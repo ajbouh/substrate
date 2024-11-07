@@ -23,7 +23,7 @@ type CommandRuleInput struct {
 	Deleted  bool   `json:"deleted"`
 
 	Conditions []event.Query `json:"conditions"`
-	Command    commands.Def  `json:"command"`
+	Command    commands.Msg  `json:"command"`
 
 	Cursor *CommandRuleCursor `json:"-"`
 }
@@ -40,6 +40,7 @@ type CommandStrategy struct {
 	Querier db.Querier
 
 	HTTPClient commands.HTTPClient
+	DefRunner  commands.DefRunner
 }
 
 var _ Strategy[CommandRuleInput, CommandRuleEvents, *CommandRuleOutput] = (*CommandStrategy)(nil)
@@ -72,18 +73,13 @@ func (s *CommandStrategy) Do(ctx context.Context, input CommandRuleInput, gather
 	var err error
 	var returns commands.Fields
 
-	defRunner := commands.DefRunner{
-		Def:    input.Command,
-		Client: s.HTTPClient,
-	}
-
-	returns, err = defRunner.Run(ctx, parameters)
+	returns, err = s.DefRunner.RunDef(ctx, &input.Command, parameters)
 	if err != nil {
 		return nil, false, err
 	}
 
 	// HACK re-encoding like this is pretty inefficient...
-	returnsEvents, err := returns.Get("next")
+	returnsEvents, err := commands.GetPath[any](returns, "next")
 	b, err := json.Marshal(returnsEvents)
 	if err != nil {
 		return nil, false, err

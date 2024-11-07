@@ -67,8 +67,8 @@ func main() {
 		session = tracks.NewSession()
 	}
 
-	cmdSource := commands.HTTPSource{
-		Endpoint: getEnv("BRIDGE_COMMANDS_URL", "http://localhost:8090/"),
+	cmdSource := &commands.URLBasedSource{
+		URL: getEnv("BRIDGE_COMMANDS_URL", "http://localhost:8090/"),
 	}
 
 	eventWriterURL := mustGetenv("SUBSTRATE_EVENT_WRITER_URL")
@@ -115,6 +115,7 @@ func main() {
 			SampleRate:   format.SampleRate.N(time.Second),
 			SampleWindow: 24 * time.Second,
 		}),
+		cmdSource,
 		transcribe.Agent{
 			Source:  cmdSource,
 			Command: getEnv("BRIDGE_TRANSCRIBE_COMMAND", "transcribe"),
@@ -210,8 +211,22 @@ func (s *commandSourceRegistry) ListTools(ctx context.Context) ([]tools.Definiti
 				},
 			},
 		}
-		for paramName, param := range d.Parameters {
-			d2.Function.Parameters.Properties[paramName] = tools.Prop{Type: param.Type}
+
+		parametersPrefix := commands.NewDataPointer("data", "parameters")
+		for pointer, metadata := range d.Meta {
+			subpath, ok := pointer.TrimPathPrefix(parametersPrefix)
+			if !ok {
+				continue
+			}
+
+			p := subpath.Path()
+			if len(p) == 0 {
+				continue
+			}
+			paramName := p[0]
+
+			d2.Function.Parameters.Properties[paramName] = tools.Prop{Type: metadata.Type}
+
 			// TODO update commands to show which are required
 			d2.Function.Parameters.Required = append(d2.Function.Parameters.Required, paramName)
 		}

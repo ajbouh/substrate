@@ -51,7 +51,7 @@ func (p *SpaceCommands) Query(ctx context.Context, spaceID string) (commands.Def
 		return nil, err
 	}
 
-	return readAllJSONFilesWithSuffix[commands.Def](
+	return readAllJSONFilesWithSuffix[*commands.Msg](
 		fsys,
 		path.Join(".substrate", "commands"),
 		".json",
@@ -78,8 +78,8 @@ var CommandsWriteCommand = handle.HTTPCommand(
 	func(ctx context.Context,
 		spaceCommands *SpaceCommands,
 		args struct {
-			SpaceID  string                  `json:"space" path:"space"`
-			Commands map[string]commands.Def `json:"commands"`
+			SpaceID  string                   `json:"space" path:"space"`
+			Commands map[string]*commands.Msg `json:"commands"`
 		},
 	) (Void, error) {
 		return Void{}, spaceCommands.Write(ctx, args.SpaceID, args.Commands)

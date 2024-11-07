@@ -25,7 +25,7 @@ type QuickJSInit struct {
 var AddReflectorAsGlobal = notify.On(func(ctx context.Context,
 	qctx *quickjs.Context,
 	t *struct {
-		Reflector commands.HTTPRunnerReflector
+		Reflector commands.URLReflector
 	}) {
 	slog.Info("AddReflectorAsGlobal", "t", t)
 
@@ -38,12 +38,7 @@ var AddReflectorAsGlobal = notify.On(func(ctx context.Context,
 			url = os.Getenv("INTERNAL_SUBSTRATE_ORIGIN") + url
 
 		}
-		runner, err := t.Reflector.HTTPReflectRunner(context.Background(), url)
-		if err != nil {
-			return nil, err
-		}
-
-		return runner.Run(ctx, command, parameters)
+		return commands.RunURL(context.Background(), t.Reflector, url, command, parameters)
 	})
 	if err != nil {
 		panic(err)

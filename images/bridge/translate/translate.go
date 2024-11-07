@@ -42,7 +42,7 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		return
 	}
 
-	r, err := commands.Call[Translation](context.TODO(), a.Source, a.Command, &Request{
+	r, err := commands.CallSource[Translation](context.TODO(), a.Source, a.Command, &Request{
 		SourceLanguage: in.SourceLanguage,
 		TargetLanguage: a.TargetLanguage,
 		Text:           in.Text(),

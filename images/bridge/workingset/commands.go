@@ -12,11 +12,12 @@ import (
 )
 
 type CommandProvider struct {
-	Session *tracks.Session
+	Session      *tracks.Session
+	URLReflector commands.URLReflector
 }
 
 type ListReturns struct {
-	URLs map[string]string `json:"urls" desc:"List of URLs in the working set"`
+	URLs map[string]string `json:"urls" doc:"List of URLs in the working set"`
 }
 
 type Void struct{}
@@ -28,8 +29,8 @@ func (c *CommandProvider) Commands(ctx context.Context) commands.Source {
 			handle.Command("add_url",
 				"Add a URL to the working set",
 				func(ctx context.Context, t *struct{}, args struct {
-					URL string `json:"url" desc:"URL to add to working set. Should be fully qualified with the URL scheme."`
-					Key string `json:"key" desc:"Unique key for the URL. Lower case letters, numbers, and underscores allowed."`
+					URL string `json:"url" doc:"URL to add to working set. Should be fully qualified with the URL scheme."`
+					Key string `json:"key" doc:"Unique key for the URL. Lower case letters, numbers, and underscores allowed."`
 				}) (Void, error) {
 					key := args.Key
 					url := args.URL
@@ -54,7 +55,10 @@ func (c *CommandProvider) Commands(ctx context.Context) commands.Source {
 	for key, url := range ActiveURLs(sess) {
 		sources = append(sources, commands.Prefixed(key+":",
 			unreliableHTTPSource{
-				commands.HTTPSource{Endpoint: url},
+				&commands.URLBasedSource{
+					URLReflector: c.URLReflector,
+					URL:          url,
+				},
 			},
 		))
 	}

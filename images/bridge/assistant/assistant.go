@@ -83,8 +83,8 @@ func (a *Agent) Commands(ctx context.Context) commands.Source {
 			"add",
 			"Add an assistant to the session",
 			func(ctx context.Context, t *struct{}, args struct {
-				Name           string `json:"name" desc:"The assistant's name"`
-				PromptTemplate string `json:"prompt_template" desc:"Template for assistant prompts"`
+				Name           string `json:"name" doc:"The assistant's name"`
+				PromptTemplate string `json:"prompt_template" doc:"Template for assistant prompts"`
 			}) (Void, error) {
 				name := args.Name
 				name = strings.ToLower(name)
@@ -103,7 +103,7 @@ func (a *Agent) Commands(ctx context.Context) commands.Source {
 			"remove",
 			"Remove an assistant from the session",
 			func(ctx context.Context, t *struct{}, args struct {
-				Name string `json:"name" desc:"The assistant's name"`
+				Name string `json:"name" doc:"The assistant's name"`
 			}) (Void, error) {
 				name := args.Name
 				name = strings.ToLower(name)

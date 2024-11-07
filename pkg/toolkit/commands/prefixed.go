@@ -7,7 +7,7 @@ import (
 
 func Prefixed[T Source](prefix string, source T) Source {
 	return Dynamic(
-		func(ctx context.Context, s string, d Def) (string, Def) {
+		func(ctx context.Context, s string, d *Msg) (string, *Msg) {
 			return prefix + s, d
 		},
 		func(ctx context.Context, s string, f Fields) (string, Fields, bool) {

@@ -61,12 +61,16 @@ func (x *SpacesFileTree) Reflect(ctx context.Context) (commands.DefIndex, error)
 			map[string]commands.BindEntry{
 				// TODO use file mode to decide whether or not read and/or write should be included.
 				"read-blob": commands.BindEntry{
-					Command:    "space:tree:read-blob",
-					Parameters: commands.Fields{"space": spaceID, "path": path},
+					Command: "space:tree:read-blob",
+					Data: commands.Fields{
+						"parameters": commands.Fields{"space": spaceID, "path": path},
+					},
 				},
 				"write-blob": commands.BindEntry{
-					Command:    "space:tree:write-blob",
-					Parameters: commands.Fields{"space": spaceID, "path": path},
+					Command: "space:tree:write-blob",
+					Data: commands.Fields{
+						"parameters": commands.Fields{"space": spaceID, "path": path},
+					},
 				},
 			})
 	}

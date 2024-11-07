@@ -3,22 +3,52 @@ package commands
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 )
 
-type CommandTailCall struct {
-	Def *Def
-}
-
-func (c *CommandTailCall) Error() string {
-	return fmt.Sprintf("command tail call: %#v", c.Def)
-}
-
-var _ error = (*CommandTailCall)(nil)
-
 type Runner interface {
 	Run(ctx context.Context, name string, p Fields) (Fields, error)
+}
+
+type DefRunner interface {
+	RunDef(ctx context.Context, r *Msg, params Fields) (Fields, error)
+}
+
+type TransformingDefRunner struct {
+	Client       HTTPClient
+	DefRunner    DefRunner
+	DefTransform DefTransformFunc
+}
+
+var _ URLReflector = (*TransformingDefRunner)(nil)
+
+func (p *TransformingDefRunner) ReflectURL(ctx context.Context, url string) (Source, DefIndex, error) {
+	di, err := ReflectURL(ctx, p.Client, url)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if p.DefTransform != nil {
+		di = TranformDefIndex(ctx, di, p.DefTransform)
+	}
+
+	slog.Info("ReflectURL", "url", url, "di", di)
+
+	return &CachedSource{
+		Defs:      di,
+		DefRunner: p.DefRunner,
+	}, di, nil
+}
+
+type URLEndpointReflector struct {
+	HTTPClient HTTPClient
+	URL        string
+}
+
+var _ Reflector = (*URLEndpointReflector)(nil)
+
+func (u *URLEndpointReflector) Reflect(ctx context.Context) (DefIndex, error) {
+	return ReflectURL(ctx, u.HTTPClient, u.URL)
 }
 
 type RunTransformFunc func(context.Context, string, Fields) (string, Fields, bool)

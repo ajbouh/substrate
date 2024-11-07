@@ -179,6 +179,9 @@ func doCompletion(
 		req.Model = "/res/model/huggingface/local"
 		request = &req
 	}
-	src := commands.HTTPSource{Endpoint: endpoint}
-	return commands.Call[CompletionResponse](context.TODO(), src, command, request)
+	src, _, err := (&commands.TransformingDefRunner{}).ReflectURL(context.TODO(), endpoint)
+	if err != nil {
+		return nil, err
+	}
+	return commands.CallSource[CompletionResponse](context.TODO(), src, command, request)
 }

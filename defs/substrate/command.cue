@@ -1,51 +1,85 @@
 package command
 
-#Command: {
+import (
+    "strings"
+)
+
+#Fields: [string]: _
+
+#Path: [...(string|int)]
+
+#Meta: [string]: {
+    description ?: string
+    type ?: string
+    ...
+}
+
+#Msg: {
     #name: string
 
-    description ?: string
+    ({
+        msg: #Msg
+    } | {
+        cap: string
+    })
 
-    parameters ?: [field=string]: {
-        type ?: string
-        description ?: string
-    }
-    returns ?: [field=string]: {
-        type ?: string
-        description ?: string
-    }
-    run: {
-        bind: {
-            parameters ?: [field=string]: _
-            returns ?: [field=string]: _
-        }
-        http: {
-            parameters ?: [field=string]: {
-                path: string | *"request.body.parameters.\(field)"
-                // path: request.query.x # only with get
-                // path: request.headers.x
-            }
-            returns ?: [field=string]: {
-                path: string | *"response.body.\(field)"
-            }
-            request: {
-                url ?: string
-                method ?: string | *"POST"
-                headers ?: [string]: [...string]
-                // this is not fully descriptive
-                query ?: [string]: string
-                body: _
-            }
-        }
-    } | *{
-        http: {
-            request: {
-                method: "POST"
-                headers: "Content-Type": ["application/json"]
-                body: {
-                    "command": #name
-                    "parameters": [string]: _
-                }
-            }
-        }
-    }
+    msg_in ?: [dstpointer=string]: string
+    msg_out ?: [dstpointer=string]: string
+
+    description ?: string
+    data ?: #Fields
+    meta ?: #Meta
 }
+
+#Command: #Msg
+
+#HTTPRequest: {
+    url: string
+    query ?: [string]: [...string]
+    path ?: [string]: string
+
+    method: string
+    headers ?: [string]: [...string]
+    body ?: _
+}
+
+#HTTPResponse: {
+    headers ?: [string]: [...string]
+    body ?: _
+}
+
+#ViaHTTP: (#Msg & {
+    // We use this to generate in and out bindings
+
+    meta: #Meta
+
+    msg: {
+        data: {
+            request: #HTTPRequest
+            response: #HTTPResponse
+        }
+
+        cap: "http"
+    }
+
+    #msg_request_body_parameter_prefix: string | *""
+
+    "msg_in": {
+        // loop over meta to define incoming bindings
+        for path, m in meta {
+            if strings.HasPrefix(path, "#/data/parameters/") {
+                let subpath = strings.TrimPrefix(path, "#/data/parameters/")
+                "#/msg/data/request/body/\(#msg_request_body_parameter_prefix)\(subpath)": path
+            }
+        }
+    }
+    "msg_out": {
+        // loop over meta to define outgoing bindings
+        for path, m in meta {
+            if strings.HasPrefix(path, "#/data/returns/") {
+                let subpath = strings.TrimPrefix(path, "#/data/returns/")
+                (path): "#/msg/data/response/body/\(subpath)"
+            }
+        }
+    }
+})

@@ -30,7 +30,7 @@ func (a *PyannoteClient) Diarize(stream beep.Streamer, format beep.Format) ([]Sp
 	request := &Request{
 		AudioData: b,
 	}
-	resp, err := commands.Call[Response](context.TODO(), a.Source, a.Command, request)
+	resp, err := commands.CallSource[Response](context.TODO(), a.Source, a.Command, request)
 	if err != nil {
 		return nil, err
 	}

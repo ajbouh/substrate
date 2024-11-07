@@ -2,6 +2,7 @@ package defs
 
 import (
   quadlet "github.com/ajbouh/substrate/defs/podman:quadlet"
+  command "github.com/ajbouh/substrate/defs/substrate:command"
 )
 
 #var: {
@@ -153,41 +154,27 @@ daemons: "substrate": {
 commands: "substrate": {
   "space:new": {
     description: "Create new space"
-    returns: {
-      "space": {
-        type: "string"
-        description: "ID of space created"
-      }
+    meta: {
+      "#/data/returns/space": {type: "string", description: "ID of space created"}
     }
-    run: {
-      http: {
-        returns: space: path: "response.body.space"
-        request: {
-          url: "/substrate/v1/spaces"
-          method: "POST"
-        }
-      }
+    command.#ViaHTTP
+    msg: data: request: {
+        url: "/substrate/v1/spaces"
+        method: "POST"
     }
   }
   "space:fork": {
     description: "Fork an existing space"
-    returns: "space": {
-      type: "string"
-      description: "ID of space created"
+    meta: {
+      "#/data/parameters/space_base_ref": {type: "string", description: "ID of space to fork"}
+
+      "#/data/returns/space": {type: "string", description: "ID of space created"}
     }
-    parameters: "space_base_ref": {
-      type: "string"
-      description: "ID of space to fork"
-    }
-    run: {
-      http: {
-        parameters: space_base_ref: path: "request.body.parameters.space_base_ref"
-        returns: space: path: "response.body.space"
-        request: {
-          url: "/substrate/v1/spaces"
-          method: "POST"
-        }
-      }
+
+    command.#ViaHTTP
+    msg: data: request: {
+      url: "/substrate/v1/spaces"
+      method: "POST"
     }
   }
 }

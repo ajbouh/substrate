@@ -1,5 +1,9 @@
 package defs
 
+import (
+  command "github.com/ajbouh/substrate/defs/substrate:command"
+)
+
 enable: "llamafile": true
 
 imagespecs: "llamafile": {
@@ -9,63 +13,39 @@ imagespecs: "llamafile": {
 }
 
 #commands: "llamafile": [string]: {
-    parameters: [string]: _
-    returns: [string]: _
-    run: http: {
-        "parameters": {
-            for parameter, v in parameters {
-                (parameter): path: "request.body.\(parameter)"
-            }
-        }
-        "returns": {
-            for return, v in returns {
-                (return): path: "response.body.\(return)"
-            }
-        }
-        request: {
-            #base_url: string
-            headers: "Accept": ["application/json"]
-            headers: "Content-Type": ["application/json"]
-            body: {}
-        }
+    #base_url: string
+    command.#ViaHTTP
+    msg: data: request: {
+        method: "POST"
+        headers: "Accept": ["application/json"]
+        headers: "Content-Type": ["application/json"]
+        body: {}
     }
 }
 
 #commands: "llamafile": "tokenize": {
-    parameters: {
-        "prompt": type: "string"
+    #base_url: string
+    meta: {
+        "#/data/parameters/prompt": {type: "string"}
+        
+        "#/data/returns/add_special": {type: "bool"}
+        "#/data/returns/parse_special": {type: "bool"}
+        "#/data/returns/tokens": {type: "[]string"}
     }
-    returns: {
-        "add_special": type: "bool"
-        "parse_special": type: "bool"
-        "tokens": type: "[]string"
-    }
-    run: http: {
-        request: {
-            #base_url: string
-            url: "\(#base_url)/tokenize"
-            method: "POST"
-        }
-    }
+    msg: data: request: url: "\(#base_url)/tokenize"
 }
 
 #commands: "llamafile": "embedding": {
-    parameters: {
-        "content": type: "string"
-        "image_data": type: "[]{data: bytes, id: number}"
+    #base_url: string
+    meta: {
+        "#/data/parameters/content": {type: "string"}
+        "#/data/parameters/image_data": {type: "[]{data: bytes, id: number}"}
+
+        "#/data/returns/add_special": {type: "bool"}
+        "#/data/returns/parse_special": {type: "bool"}
+        "#/data/returns/tokens_provided": {type: "number"}
+        "#/data/returns/tokens_used": {type: "number"}
+        "#/data/returns/embedding": {type: "[]float"}
     }
-    returns: {
-        "add_special": type: "bool"
-        "parse_special": type: "bool"
-        "tokens_provided": type: "number"
-        "tokens_used": type: "number"
-        "embedding": type: "[]float"
-    }
-    run: http: {
-        request: {
-            #base_url: string
-            url: "\(#base_url)/embedding"
-            method: "POST"
-        }
-    }
+    msg: data: request: url: "\(#base_url)/embedding"
 }

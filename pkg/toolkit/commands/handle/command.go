@@ -165,86 +165,91 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 }
 
 func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (commands.DefIndex, error) {
-	var err error
-
-	var params commands.FieldDefs
+	meta := commands.Meta{}
+	var params commands.Fields
+	inBindings := commands.Bindings{}
 	paramsType := reflect.TypeFor[Params]()
+	paramBinding := func(group, name string, field reflect.StructField) {
+		jsonTag, ok := field.Tag.Lookup("json")
+		if !ok {
+			return
+		}
+		fieldName, _, _ := strings.Cut(jsonTag, ",")
+		if fieldName == "-" {
+			return
+		}
+
+		if pathVar, ok := field.Tag.Lookup("path"); ok {
+			inBindings.Add(
+				commands.NewDataPointer("msg", "data", "request", "url", "path", pathVar),
+				commands.NewDataPointer("data", group, pathVar),
+			)
+			return
+		} else if queryVar, ok := field.Tag.Lookup("query"); ok {
+			inBindings.Add(
+				commands.NewDataPointer("msg", "data", "request", "query", queryVar),
+				commands.NewDataPointer("data", group, pathVar),
+			)
+			return
+		}
+
+		inBindings.Add(
+			commands.NewDataPointer("msg", "data", "request", "body", fieldName),
+			commands.NewDataPointer("data", group, name),
+		)
+	}
+
 	switch paramsType.Kind() {
 	case reflect.Pointer:
-		params = FieldDefsFromStructFields(reflect.VisibleFields(paramsType.Elem()))
+		VisitFieldDefsFromStructFields(meta, "parameters", reflect.VisibleFields(paramsType.Elem()), paramBinding)
 	case reflect.Struct:
-		params = FieldDefsFromStructFields(reflect.VisibleFields(paramsType))
-	case reflect.Map:
-		params = commands.FieldDefs{}
-	}
-	if params == nil {
-		err = fmt.Errorf("params type %s is not a struct or a map for command named %q with func %T", paramsType.String(), r.Name, r.Func)
-	}
-	if err != nil {
-		return nil, err
+		VisitFieldDefsFromStructFields(meta, "parameters", reflect.VisibleFields(paramsType), paramBinding)
+	default:
+		return nil, fmt.Errorf("params type %s is not a struct for command named %q with func %T", paramsType.String(), r.Name, r.Func)
 	}
 
-	var returns commands.FieldDefs
+	var returns commands.Fields
+	outBindings := commands.Bindings{}
 	returnsType := reflect.TypeFor[Returns]()
+	returnsBinding := func(group, name string, field reflect.StructField) {
+		outBindings.Add(
+			commands.NewDataPointer("msg", "data", "response", "body", name),
+			commands.NewDataPointer("data", group, name),
+		)
+	}
 	switch returnsType.Kind() {
 	case reflect.Pointer:
-		returns = FieldDefsFromStructFields(reflect.VisibleFields(returnsType.Elem()))
+		VisitFieldDefsFromStructFields(meta, "returns", reflect.VisibleFields(returnsType.Elem()), returnsBinding)
 	case reflect.Struct:
-		returns = FieldDefsFromStructFields(reflect.VisibleFields(returnsType))
-	case reflect.Map:
-		returns = commands.FieldDefs{}
-	}
-	if params == nil {
-		err = fmt.Errorf("returns type %s is not a struct or a map for command named %q with func %T", returnsType.String(), r.Name, r.Func)
-	}
-	if err != nil {
-		return nil, err
+		VisitFieldDefsFromStructFields(meta, "returns", reflect.VisibleFields(returnsType), returnsBinding)
+	default:
+		return nil, fmt.Errorf("returns type %s is not a struct for command named %q with func %T", returnsType.String(), r.Name, r.Func)
 	}
 
-	def := commands.Def{
+	def := &commands.Msg{
 		Description: r.Desc,
-		Parameters:  params,
-		Returns:     returns,
+		Data: commands.Fields{
+			"parameters": params,
+			"returns":    returns,
+		},
+		Meta: meta,
 	}
 
 	if r.HTTPResourcePath != "" {
-		def.Run = &commands.RunDef{
-			HTTP: &commands.RunHTTPDef{
-				Returns:    map[string]commands.RunFieldDef{},
-				Parameters: map[string]commands.RunFieldDef{},
-				Request: commands.RunHTTPRequestDef{
-					Headers: map[string][]string{
+		capHTTP := "http"
+		def.MsgIn = inBindings
+		def.MsgOut = outBindings
+		def.Msg = &commands.Msg{
+			Cap: &capHTTP,
+			Data: commands.Fields{
+				"request": commands.Fields{
+					"headers": map[string][]string{
 						"Content-Type": {"application/json"},
 					},
-					URL:    r.HTTPResourcePath,
-					Method: r.HTTPMethod,
+					"url":    r.HTTPResourcePath,
+					"method": r.HTTPMethod,
 				},
 			},
-		}
-
-		for field := range returns {
-			def.Run.HTTP.Returns[field] = commands.RunFieldDef{Path: `response.body.` + field}
-		}
-
-		if paramsType.Kind() == reflect.Struct {
-			for _, field := range reflect.VisibleFields(paramsType) {
-				jsonTag, ok := field.Tag.Lookup("json")
-				if !ok {
-					continue
-				}
-				fieldName, _, _ := strings.Cut(jsonTag, ",")
-				if fieldName == "-" {
-					continue
-				}
-
-				fieldPath := `request.body.` + fieldName
-				if pathVar, ok := field.Tag.Lookup("path"); ok {
-					fieldPath = `request.url.path.` + pathVar
-				} else if queryVar, ok := field.Tag.Lookup("query"); ok {
-					fieldPath = `request.query.` + queryVar
-				}
-				def.Run.HTTP.Parameters[fieldName] = commands.RunFieldDef{Path: fieldPath}
-			}
 		}
 	}
 

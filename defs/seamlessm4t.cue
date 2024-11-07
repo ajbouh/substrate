@@ -1,6 +1,7 @@
 package defs
 
 import (
+  command "github.com/ajbouh/substrate/defs/substrate:command"
   asr "github.com/ajbouh/substrate/defs/asr"
 )
 
@@ -54,48 +55,39 @@ services: "seamlessm4t": {
 
 commands: "seamlessm4t": {
   let transcribe = {
-    description: ""
-    parameters: {
-      source_language: type: "string"
-      target_language: type: "string"
-      ...
+    meta: {
+      "#/data/parameters/source_language": {type: "string"}
+      "#/data/parameters/target_language": {type: "string"}
+      "#/data/returns/source_language": {type: "string"}
+      "#/data/returns/target_language": {type: "string"}
+      "#/data/returns/duration": {type: "float"}
+      "#/data/returns/segments": {type: "object"}
     }
-    returns: {
-      source_language: type: "string"
-      target_language: type: "string"
-      duration: type: "float"
-      segments: type: "object"
-    }
-    run: http: {
-      "parameters": {
-        for parameter, v in parameters {
-          (parameter): path: "request.body.\(parameter)"
-        }
-      }
-      "returns": {
-        for return, v in returns {
-          (return): path: "response.body.\(return)"
-        }
-      }
-      request: {
-        method: "POST"
-        url: "/seamlessm4t/v1/transcribe"
-        headers: "Content-Type": ["application/json"]
-        body: {}
-      }
+    command.#ViaHTTP
+    msg: data: request: {
+      method: "POST"
+      url: "/seamlessm4t/v1/transcribe"
+      headers: "Content-Type": ["application/json"]
+      body: {}
     }
   }
 
   "translate": transcribe & {
-    parameters: text: type: "string"
+    meta: {
+      "#/data/parameters/text": {type: "string"}
+    }
   }
   "transcribe-data": transcribe & {
-    parameters: audio_metadata: type: "object"
-    parameters: audio_data: type: "string"
+    meta: {
+        "#/data/parameters/audio_metadata": {type: "object"}
+        "#/data/parameters/audio_data": {type: "string"}
+    }
   }
   "transcribe-url": transcribe & {
-    parameters: audio_metadata: type: "object"
-    parameters: audio_url: type: "string"
+    meta: {
+      "#/data/parameters/audio_metadata": {type: "object"}
+      "#/data/parameters/audio_url": {type: "string"}
+    }
   }
 }
 

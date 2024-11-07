@@ -12,7 +12,7 @@ tests: "llama-3-8b-instruct": assister: {
 resourcedirs: "huggingface:model:unsloth/llama-3-8b-Instruct:67c72164837acade483ce50f80b7cc27e94c9668": _
 
 commands: "llama-3-8b-instruct": {
-  (#commands["vllm"] & {[string]: run: http: request: #base_url: "/llama-3-8b-instruct"})
+  (#commands["vllm"] & {[string]: #base_url: "/llama-3-8b-instruct"})
 }
 
 services: "llama-3-8b-instruct": {

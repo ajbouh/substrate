@@ -1,5 +1,9 @@
 package defs
 
+import (
+  command "github.com/ajbouh/substrate/defs/substrate:command"
+)
+
 enable: "diarizer": true
 
 imagespecs: "diarizer": {
@@ -28,30 +32,17 @@ services: "diarizer": {
 
 commands: "diarizer": {
   diarize: {
-    description: ""
-    parameters: {
-      audio_data: type: "string"
+    meta: {
+      "#/data/parameters/audio_data": {type: "string"}
+
+      "#/data/returns/timespans": {type: "object"}
     }
-    returns: {
-      timespans: type: "object"
-    }
-    run: http: {
-      "parameters": {
-        for parameter, v in parameters {
-          (parameter): path: "request.body.\(parameter)"
-        }
-      }
-      "returns": {
-        for return, v in returns {
-          (return): path: "response.body.\(return)"
-        }
-      }
-      request: {
-        method: "POST"
-        url: "/diarizer/v1/diarize"
-        headers: "Content-Type": ["application/json"]
-        body: {}
-      }
+    command.#ViaHTTP
+    msg: data: request: {
+      method: "POST"
+      url: "/diarizer/v1/diarize"
+      headers: "Content-Type": ["application/json"]
+      body: {}
     }
   }
 }

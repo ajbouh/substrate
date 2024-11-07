@@ -10,8 +10,7 @@ import (
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 )
 
-func FieldDefsFromStructFields(fields []reflect.StructField) commands.FieldDefs {
-	fieldDefs := commands.FieldDefs{}
+func VisitFieldDefsFromStructFields(meta commands.Meta, group string, fields []reflect.StructField, bindingFn func(group, name string, field reflect.StructField)) {
 	for _, p := range fields {
 		var field string
 		if jsonTag, ok := p.Tag.Lookup("json"); ok {
@@ -23,17 +22,16 @@ func FieldDefsFromStructFields(fields []reflect.StructField) commands.FieldDefs 
 			field = p.Name
 		}
 
-		fieldDef := commands.FieldDef{
-			Type: p.Type.String(),
+		fieldMeta := commands.Metadata{Type: p.Type.String()}
+		if descTag, ok := p.Tag.Lookup("doc"); ok {
+			fieldMeta.Description = descTag
 		}
-		if descTag, ok := p.Tag.Lookup("desc"); ok {
-			fieldDef.Description = descTag
+		meta[commands.NewDataPointer("data", group, field)] = fieldMeta
+		if bindingFn != nil {
+			bindingFn(group, field, p)
 		}
 
-		fieldDefs[field] = fieldDef
 	}
-
-	return fieldDefs
 }
 
 type PathValuer interface {

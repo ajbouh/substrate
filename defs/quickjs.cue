@@ -1,5 +1,9 @@
 package defs
 
+import (
+  command "github.com/ajbouh/substrate/defs/substrate:command"
+)
+
 enable: "quickjs": true
 
 imagespecs: "quickjs": {
@@ -18,41 +22,29 @@ services: "quickjs": {
 
 commands: "quickjs": {
   "eval": {
-    description: ""
-    parameters: {
-      source: type: "string"
-      execute_timeout: type: "number"
-      max_stack_size: type: "number"
-      memory_limit: type: "number"
-      gc_threshold: type: "number"
-      globals: type: "object"
-      arguments: type: "array"
-    }
-    returns: {
-      result: type: "object"
+    meta: {
+      "#/data/parameters/source": {type: "string"}
+      "#/data/parameters/execute_timeout": {type: "number"}
+      "#/data/parameters/max_stack_size": {type: "number"}
+      "#/data/parameters/memory_limit": {type: "number"}
+      "#/data/parameters/gc_threshold": {type: "number"}
+      "#/data/parameters/globals": {type: "object"}
+      "#/data/parameters/arguments": {type: "array"}
+
+      "#/data/returns/result": {type: "object"}
     }
 
-    run: http: {
-      "parameters": {
-        for parameter, v in parameters {
-          (parameter): path: "request.body.parameters.\(parameter)"
-        }
-      }
-      "returns": {
-        for return, v in returns {
-          (return): path: "response.body.\(return)"
-        }
-      }
-      request: {
-        method: "POST"
-        url: "/quickjs/"
-        headers: "Content-Type": ["application/json"]
-        body: {
-          command: "eval"
-          parameters: [string]: _
-        }
+    command.#ViaHTTP
+    #msg_request_body_parameter_prefix: "parameters/"
+
+    msg: data: request: {
+      method: "POST"
+      url: "/quickjs/"
+      headers: "Content-Type": ["application/json"]
+      body: {
+        command: "eval"
+        parameters: [string]: _
       }
     }
-
   }
 }

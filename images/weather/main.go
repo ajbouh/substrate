@@ -10,7 +10,7 @@ import (
 )
 
 type HourlyReturns struct {
-	Forecast map[string]any `json:"forecast" desc:"The forecast for the next 24 hours."`
+	Forecast map[string]any `json:"forecast" doc:"The forecast for the next 24 hours."`
 }
 
 func main() {
@@ -21,7 +21,7 @@ func main() {
 				"hourly",
 				"Get the weather forecast for next 24 hours in a given ZIP code.",
 				func(ctx context.Context, t *struct{}, args struct {
-					ZipCode string `json:"zip_code" desc:"The 5-digit US ZIP code."`
+					ZipCode string `json:"zip_code" doc:"The 5-digit US ZIP code."`
 				}) (HourlyReturns, error) {
 					return HourlyReturns{
 						Forecast: map[string]any{

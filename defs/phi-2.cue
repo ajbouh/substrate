@@ -12,7 +12,7 @@ tests: "phi-2": assister: {
 resourcedirs: "huggingface:model:microsoft/phi-2:b10c3eba545ad279e7208ee3a5d644566f001670": _
 
 commands: "phi-2": {
-  (#commands["vllm"] & {[string]: run: http: request: #base_url: "/phi-2"})
+  (#commands["vllm"] & {[string]: #base_url: "/phi-2"})
 }
 
 services: "phi-2": {

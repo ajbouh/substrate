@@ -5,61 +5,66 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
 )
 
-func EnsureRunHTTPRequestURLHasAHost(baseURL string) commands.DefTransformFunc {
-	return func(ctx context.Context, commandName string, commandDef commands.Def) (string, commands.Def) {
-		if commandDef.Run == nil || commandDef.Run.HTTP == nil {
+func EnsureHTTPBasis(method, route string) commands.DefTransformFunc {
+	return func(ctx context.Context, commandName string, commandDef *commands.Msg) (string, *commands.Msg) {
+		// for each command, populate any missing run fields. this provides enough information for
+		// someone to "run" the associated command through this handler.
+		r := FindMsgBasis(commandDef)
+		if r.Cap != nil {
 			return commandName, commandDef
 		}
 
-		// is this a full URL? if not make it so.
-		if strings.HasPrefix(commandDef.Run.HTTP.Request.URL, "/") {
-			commandDef.Run.HTTP.Request.URL = baseURL + commandDef.Run.HTTP.Request.URL
-		}
+		new := commandDef.MustClone()
+		r = FindMsgBasis(new)
 
-		return commandName, commandDef
-	}
-}
-
-func EnsureRunHTTPField(method, route string) commands.DefTransformFunc {
-	return func(ctx context.Context, commandName string, commandDef commands.Def) (string, commands.Def) {
-		// for each command, populate any missing run fields. this provides enough information for
-		// someone to "run" the associated command through this handler.
-		if commandDef.Run == nil {
-			commandDef.Run = &commands.RunDef{}
-		}
-
-		if commandDef.Run.HTTP == nil {
-			commandDef.Run.HTTP = &commands.RunHTTPDef{
-				Parameters: map[string]commands.RunFieldDef{},
-				Returns:    map[string]commands.RunFieldDef{},
-				Request: commands.RunHTTPRequestDef{
-					URL:    route,
-					Method: method,
-					Headers: map[string][]string{
+		refHTTP := "http"
+		r.Msg = &commands.Msg{
+			Cap: &refHTTP,
+			Data: commands.Fields{
+				"request": commands.Fields{
+					"headers": map[string][]string{
 						"Content-Type": {"application/json"},
 					},
-					Body: map[string]any{
+					"url":    route,
+					"method": method,
+					"body": map[string]any{
 						"command":    commandName,
 						"parameters": map[string]any{},
 					},
 				},
-			}
+			},
+		}
 
-			for field := range commandDef.Parameters {
-				commandDef.Run.HTTP.Parameters[field] = commands.RunFieldDef{Path: `request.body.parameters.` + field}
+		parametersPrefix := commands.NewDataPointer("data", "parameters")
+		returnsPrefix := commands.NewDataPointer("data", "returns")
+
+		for pointer := range r.Meta {
+			if trimmed, ok := pointer.TrimPathPrefix(parametersPrefix); ok {
+				if r.MsgIn == nil {
+					r.MsgIn = commands.Bindings{}
+				}
+				r.MsgIn.Add(
+					commands.NewDataPointer(append([]string{"msg", "data", "request", "body", "parameters"}, trimmed.Path()...)...),
+					pointer,
+				)
 			}
-			for field := range commandDef.Returns {
-				commandDef.Run.HTTP.Returns[field] = commands.RunFieldDef{Path: `response.body.` + field}
+			if trimmed, ok := pointer.TrimPathPrefix(returnsPrefix); ok {
+				if r.MsgOut == nil {
+					r.MsgOut = commands.Bindings{}
+				}
+				r.MsgOut.Add(
+					pointer,
+					commands.NewDataPointer(append([]string{"msg", "data", "response", "body"}, trimmed.Path()...)...),
+				)
 			}
 		}
 
-		return commandName, commandDef
+		return commandName, new
 	}
 }
 

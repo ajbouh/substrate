@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 
 	"cuelang.org/go/cue"
@@ -35,7 +36,6 @@ import (
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 	"github.com/ajbouh/substrate/pkg/toolkit/exports"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
-	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
 )
@@ -182,10 +182,10 @@ func main() {
 				NotifyQueue    *notify.Queue
 				Slot           *notify.Slot[units.DefSetCommands]
 				ExportsChanged []notify.Notifier[exports.Changed]
-				HTTPClient     httpframework.HTTPClient
+				DefRunner      commands.DefRunner
 			}) {
 			commands := units.DefSetCommands{
-				HTTPClient: t.HTTPClient,
+				DefRunner: t.DefRunner,
 			}
 			err := e.DecodeLookupPath(cue.MakePath(cue.Str("commands")), &commands.DefsMap)
 			if err != nil {

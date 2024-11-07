@@ -12,7 +12,7 @@ tests: "llama-3-8b-instruct-awq": assister: {
 resourcedirs: "huggingface:model:casperhansen/llama-3-8b-instruct-awq:f7fbeb24da38e1dff1e2b01278d60c6cc074c5af": _
 
 commands: "llama-3-8b-instruct-awq": {
-  (#commands["vllm"] & {[string]: run: http: request: #base_url: "/llama-3-8b-instruct-awq"})
+  (#commands["vllm"] & {[string]: #base_url: "/llama-3-8b-instruct-awq"})
 }
 
 services: "llama-3-8b-instruct-awq": {

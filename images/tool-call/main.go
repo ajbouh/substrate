@@ -14,8 +14,8 @@ import (
 )
 
 type SuggestReturns struct {
-	Prompt  string             `json:"prompt" desc:"The prompt provided to the tool suggestion model"`
-	Choices []commands.Request `json:"choices" desc:"The suggested commands"`
+	Prompt  string             `json:"prompt" doc:"The prompt provided to the tool suggestion model"`
+	Choices []commands.Request `json:"choices" doc:"The suggested commands"`
 }
 
 func main() {
@@ -30,8 +30,8 @@ func main() {
 				"suggest",
 				"Suggest a command",
 				func(ctx context.Context, t *struct{}, args struct {
-					Input    string            `json:"input" desc:"The input to suggest a command for"`
-					Commands commands.DefIndex `json:"commands" desc:"The commands to suggest from"`
+					Input    string            `json:"input" doc:"The input to suggest a command for"`
+					Commands commands.DefIndex `json:"commands" doc:"The commands to suggest from"`
 				}) (SuggestReturns, error) {
 					input := args.Input
 					cmds := args.Commands
@@ -58,6 +58,7 @@ func main() {
 
 func translateDefs(def commands.DefIndex) []tools.Definition {
 	var td []tools.Definition
+
 	for name, d := range def {
 		d2 := tools.Definition{
 			Type: "function",
@@ -70,8 +71,22 @@ func translateDefs(def commands.DefIndex) []tools.Definition {
 				},
 			},
 		}
-		for paramName, param := range d.Parameters {
-			d2.Function.Parameters.Properties[paramName] = tools.Prop{Type: param.Type}
+
+		parametersPrefix := commands.NewDataPointer("data", "parameters")
+		for pointer, metadata := range d.Meta {
+			subpath, ok := pointer.TrimPathPrefix(parametersPrefix)
+			if !ok {
+				continue
+			}
+
+			p := subpath.Path()
+			if len(p) == 0 {
+				continue
+			}
+			paramName := p[0]
+
+			d2.Function.Parameters.Properties[paramName] = tools.Prop{Type: metadata.Type}
+
 			// TODO update commands to show which are required
 			d2.Function.Parameters.Required = append(d2.Function.Parameters.Required, paramName)
 		}
