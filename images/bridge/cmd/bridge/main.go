@@ -388,30 +388,12 @@ func (m *SessionHandler) serveSessionText(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func (m *SessionHandler) serveSessionUpdates(w http.ResponseWriter, r *http.Request) {
-	if !websocket.IsWebSocketUpgrade(r) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
-			"session_start":    m.Session.Start,
-			"event_stream_url": m.EventStreamURL,
-		})
-		return
-	}
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Print("upgrade:", err)
-		return
-	}
-	for range m.Session.UpdateHandler(r.Context()) {
-		data, err := cborenc.Marshal(View{
-			Session: m.Session,
-		})
-		fatal(err)
-		if err := conn.WriteMessage(websocket.BinaryMessage, data); err != nil {
-			log.Println("data:", err)
-			return
-		}
-	}
+func (m *SessionHandler) serveSessionData(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"session_start":    m.Session.Start,
+		"event_stream_url": m.EventStreamURL,
+	})
 }
 
 type SFURoute struct {
@@ -435,7 +417,7 @@ func (m *SFURoute) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 }
 
 func (m *SessionHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
-	mux.HandleFunc("GET /data", m.serveSessionUpdates)
+	mux.HandleFunc("GET /data", m.serveSessionData)
 	mux.HandleFunc("GET /text", m.serveSessionText)
 	mux.HandleFunc("POST /tracks/{track_id}", m.addEvent)
 }
