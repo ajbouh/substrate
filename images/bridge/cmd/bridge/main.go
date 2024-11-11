@@ -75,9 +75,15 @@ func main() {
 	sessionID := mustGetenv("BRIDGE_SESSION_ID")
 	eventURLPrefix := fmt.Sprintf("%s/bridge/%s", eventWriterURL, sessionID)
 
+	queryParams := url.Values{}
+	queryParams.Set("path_prefix", "bridge/"+sessionID)
+	eventStreamURL := fmt.Sprintf("%s?%s", mustGetenv("SUBSTRATE_STREAM_URL_PATH"), queryParams.Encode())
+
 	engine.Run(
 		&service.Service{},
-		&SessionHandler{},
+		&SessionHandler{
+			EventStreamURL: eventStreamURL,
+		},
 		sfu.NewSession(),
 		&PeerComponent{
 			SFUURL: fmt.Sprintf("ws://localhost:%d%s/sfu", port, basePath), // FIX: hardcoded host
@@ -304,7 +310,8 @@ var upgrader = websocket.Upgrader{
 }
 
 type SessionHandler struct {
-	Session *tracks.Session
+	Session        *tracks.Session
+	EventStreamURL string
 }
 
 func (m *SessionHandler) addEvent(w http.ResponseWriter, r *http.Request) {
@@ -367,6 +374,14 @@ func (m *SessionHandler) serveSessionText(w http.ResponseWriter, r *http.Request
 }
 
 func (m *SessionHandler) serveSessionUpdates(w http.ResponseWriter, r *http.Request) {
+	if !websocket.IsWebSocketUpgrade(r) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"session_start":    m.Session.Start,
+			"event_stream_url": m.EventStreamURL,
+		})
+		return
+	}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Print("upgrade:", err)

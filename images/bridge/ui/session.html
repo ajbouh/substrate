@@ -39,7 +39,7 @@ provideCommandsToIFrameParent('https://substrate.home.arpa', commands);
   <script type="module">
 import {Session} from "./ui/session.js";
 import {Topbar} from "./ui/topbar.js";
-import {decodeMessage} from "./ui/bridge.js";
+import {addEventsToModel, modelToViewEntries} from "./ui/bridge.js";
 import {Session as SFU} from "./webrtc/session.js";
 
 let webSocketURL = (() => {
@@ -103,11 +103,7 @@ const shareScreen = () => {
   });
 };
 
-let viewModel = {};
-let dataWS = new WebSocket(`${webSocketURL}/data`);
-dataWS.binaryType = 'arraybuffer';
-dataWS.onmessage = e => {
-  viewModel = decodeMessage(e.data);
+const redraw = () => {
   m.redraw()
   setTimeout(() => {
     const elt = document.getElementById("entries");
@@ -116,6 +112,27 @@ dataWS.onmessage = e => {
     }
   }, 0);
 }
+
+let viewModel = {};
+fetch(`./data`)
+  .then(response => response.json())
+  .then(data => {
+    const sessionStart = new Date(data.session_start).getTime();
+    viewModel = {
+      activeSession: {Start: sessionStart},
+      entries: [],
+    }
+    redraw();
+
+    let model = null;
+    let events = new EventSource(data.event_stream_url);
+    events.onmessage = (e) => {
+      const events = JSON.parse(e.data).events.map(evt => evt.fields);
+      model = addEventsToModel(events, model);
+      viewModel.entries = modelToViewEntries(model, sessionStart);
+      redraw();
+    };
+  });
 
 m.mount(document.querySelector("#body"), {
   view: () => [
