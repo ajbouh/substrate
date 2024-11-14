@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"runtime/debug"
 
 	"github.com/buke/quickjs-go"
 )
