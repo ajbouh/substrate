@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
@@ -31,27 +32,33 @@ func (s *Stream) Events() <-chan event.Notification {
 }
 
 func (s *Stream) tap(until event.ID) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	tap := func() bool {
+		s.mu.Lock()
+		defer s.mu.Unlock()
 
-	if s.pending != nil {
-		if until.Compare(*s.pending) > 1 {
-			s.pending = &until
+		if s.pending != nil {
+			if until.Compare(*s.pending) > 1 {
+				s.pending = &until
+			}
+			return false
 		}
-		return
-	}
+		s.pending = &until
+		return true
+	}()
 
-	s.tapCh <- struct{}{}
-	s.pending = &until
+	if tap {
+		s.tapCh <- struct{}{}
+	}
 }
 
-func (s *Stream) process(ctx context.Context, querier event.Querier, q *event.Query) error {
+func (s *Stream) process(ctx context.Context, querier event.Querier, q *event.Query) {
 	var after, until event.ID
 
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			s.eventCh <- event.Notification{Until: until, Error: ctx.Err()}
+			return
 		case <-s.tapCh:
 		}
 
@@ -62,6 +69,7 @@ func (s *Stream) process(ctx context.Context, querier event.Querier, q *event.Qu
 
 		// update cursor if this event is larger
 		if pendingUntil.Compare(until) <= 0 {
+			slog.Info("Stream.process() skip", "q", q, "pendingUntil", pendingUntil, "until", until)
 			continue
 		}
 		until = *pendingUntil
@@ -79,7 +87,9 @@ func (s *Stream) process(ctx context.Context, querier event.Querier, q *event.Qu
 		// todo consider modifying queryevents to visit
 		events, _, err := querier.QueryEvents(ctx, cloned)
 		if err != nil {
-			return err
+			slog.Info("Stream.process() error ", "q", q, "err", err)
+			s.eventCh <- event.Notification{Until: until, Error: err}
+			return
 		}
 
 		fresh := false
@@ -90,6 +100,7 @@ func (s *Stream) process(ctx context.Context, querier event.Querier, q *event.Qu
 			}
 		}
 
+		slog.Info("Stream.process() queried", "q", q, "fresh", fresh, "len(events)", len(events))
 		// don't send notification unless at least one event is newer than after
 		if fresh {
 			s.eventCh <- event.Notification{Until: until, Events: events}

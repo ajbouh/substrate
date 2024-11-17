@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 )
@@ -91,6 +92,26 @@ func (h *EventStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// at this time we only write the event fields as data. we don't yet include "since" or "data".
 	writeEvents := func(n event.Notification) error {
+		slog.Info("EventStreamHandler.ServeHTTP writeEvents()", "until", n.Until, "err", n.Error)
+
+		if n.Error != nil {
+			for _, b := range [][]byte{
+				[]byte("id: "),
+				[]byte(n.Until.String()),
+				[]byte("\nevent: streamerror"),
+				[]byte("\ndata: "),
+				[]byte(strconv.Quote(n.Error.Error())),
+				[]byte("\n\n"),
+			} {
+				_, err := w.Write(b)
+				if err != nil {
+					return err
+				}
+				w.(http.Flusher).Flush()
+			}
+			return n.Error
+		}
+
 		data, err := json.Marshal(n)
 		if err != nil {
 			return err
