@@ -26,7 +26,7 @@ ENV HOST=0.0.0.0
 # COPY images/llamafile/llama.cpp/server/public /srv/public
 ENTRYPOINT ["/bin/sh", "-c", "exec /usr/bin/llamafiler -l \"${HOST}:${PORT}\" -m \"${LLAMAFILE_GGUF}\" \"$@\"", "sh"]
 
-FROM docker.io/nvidia/cuda:12.6.2-devel-ubuntu22.04 as devel-llamafile-cuda
+FROM docker.io/nvidia/cuda:12.3.2-devel-ubuntu22.04 as devel-llamafile-cuda
 ARG LLAMAFILE_VERSION=0.8.16
 COPY --from=llamafile-gguf /usr/bin/llamafile /usr/bin/llamafiler /usr/bin/zipalign /usr/bin/
 # HACK we need to assimilate so this can run on github actions...
