@@ -137,28 +137,28 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 			}
 
 			vr, err := vmr.ResolveVectorManifold(ctx, vectorManifoldID)
-			if err != nil {
-				return nil, false, err
-			}
-
-			// track all vec ids
-			vecIDInt, ok := vecID.(int64)
-			if !ok {
-				return nil, false, fmt.Errorf("vector_data_rowid is not int64: %T", vecID)
-			}
-
-			if err != nil {
-				return nil, false, err
-			}
-			evt.Vector, err = vr.ReadVector(ctx, vecIDInt)
-
-			if vecDistance != nil {
-				vecDistanceFloat, ok := vecDistance.(float64)
+			if err == nil {
+				// track all vec ids
+				vecIDInt, ok := vecID.(int64)
 				if !ok {
-					return nil, false, fmt.Errorf("vector_data_nn_distance is not float64: %T", vecDistance)
+					return nil, false, fmt.Errorf("vector_data_rowid is not int64: %T", vecID)
 				}
 
-				evt.VectorDistance = &vecDistanceFloat
+				if err != nil {
+					return nil, false, err
+				}
+				evt.Vector, err = vr.ReadVector(ctx, vecIDInt)
+
+				if vecDistance != nil {
+					vecDistanceFloat, ok := vecDistance.(float64)
+					if !ok {
+						return nil, false, fmt.Errorf("vector_data_nn_distance is not float64: %T", vecDistance)
+					}
+
+					evt.VectorDistance = &vecDistanceFloat
+				}
+			} else {
+				slog.Info("could not resolve vector_manifold_id", "vector_manifold_id", vectorManifoldID, "err", err)
 			}
 		}
 
