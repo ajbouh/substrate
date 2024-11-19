@@ -43,11 +43,11 @@ func execContext(ctx context.Context, db Executor, query string, values ...any) 
 }
 
 func queryContext(ctx context.Context, db Querier, query string, values ...any) (*sql.Rows, error) {
-	start := time.Now()
-	var err error
-	defer func() {
-		slog.Info("Query", "sql", query, "values", values, "time", time.Since(start), "err", err)
-	}()
+	// start := time.Now()
+	// var err error
+	// defer func() {
+	// 	slog.Info("Query", "sql", query, "values", values, "time", time.Since(start), "err", err)
+	// }()
 
 	r, err := db.QueryContext(ctx, query, values...)
 	if err != nil {
