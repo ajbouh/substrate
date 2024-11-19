@@ -2,6 +2,7 @@ package event
 
 import (
 	"database/sql"
+	"encoding"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -13,11 +14,11 @@ import (
 type ID = ulid.ULID
 
 // should implement these interfaces. not sure how to demand that's the case though.
-// var _ sql.Scanner = (ID)(nil)
-// var _ encoding.TextMarshaler = (ID)(nil)
-// var _ encoding.TextUnmarshaler = (ID)(nil)
-// var _ encoding.BinaryMarshaler = (ID)(nil)
-// var _ encoding.BinaryUnmarshaler = (ID)(nil)
+var _ sql.Scanner = (*ID)(nil)
+var _ encoding.TextMarshaler = (*ID)(nil)
+var _ encoding.TextUnmarshaler = (*ID)(nil)
+var _ encoding.BinaryMarshaler = (*ID)(nil)
+var _ encoding.BinaryUnmarshaler = (*ID)(nil)
 
 var zeroValueID = ID{}
 

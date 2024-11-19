@@ -1,6 +1,7 @@
 package handle
 
 import (
+	"encoding"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -44,8 +45,22 @@ func getPathValueForField(field reflect.StructField, r *http.Request) (any, bool
 		return nil, false, nil
 	}
 
-	if field.Type.Kind() != reflect.String {
-		return nil, false, fmt.Errorf(`bad type for field with path struct tag %#v; must be string`, field)
+	t := field.Type
+	kind := t.Kind()
+	if kind == reflect.Pointer {
+		t = t.Elem()
+	}
+
+	ok = false
+	switch t.Kind() {
+	case reflect.String:
+		ok = true
+	default:
+		ok = reflect.PointerTo(t).Implements(reflect.TypeFor[encoding.TextUnmarshaler]())
+	}
+
+	if !ok {
+		return nil, false, fmt.Errorf(`bad type for field with path struct tag %#v; must be string, *string, or implement encoding.TextUnmarshaler, got %s; t=%s; kind=%s`, field, field.Type.String(), t.String(), t.Kind().String())
 	}
 
 	pathValue := r.PathValue(key)

@@ -309,7 +309,7 @@ var WriteTreeFieldsPathCommand = handle.HTTPCommand(
 	})
 
 type GetEventReturns struct {
-	Event *event.Event `json:"-"`
+	Event *event.Event `json:"event"`
 }
 
 var GetEventCommand = handle.HTTPCommand(
@@ -321,17 +321,12 @@ var GetEventCommand = handle.HTTPCommand(
 			Querier event.Querier
 		},
 		args struct {
-			ID    event.ID `json:"event" path:"event"`
-			Until event.ID `json:"until" query:"until"`
+			ID event.ID `json:"event" path:"event"`
 		},
 	) (GetEventReturns, error) {
 		returns := GetEventReturns{}
 		var err error
 		query := event.QueryByID(args.ID)
-		if !event.IsZeroID(args.Until) {
-			query.Until(args.Until)
-		}
-
 		returns.Event, err = event.QueryEvent(ctx, t.Querier, query)
 		return returns, err
 	})

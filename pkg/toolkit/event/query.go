@@ -77,6 +77,10 @@ func (q *Query) WithViewLimit(i int, detectMore bool) *Query {
 }
 
 func (q *Query) WithViewPlaceholder(name string, value any) *Query {
+	if q.ViewPlaceholders == nil {
+		q.ViewPlaceholders = map[string]any{}
+	}
+
 	q.ViewPlaceholders[name] = value
 	return q
 }
@@ -85,8 +89,14 @@ func (q *Query) AndWhereEvent(field string, ws ...Where) *Query {
 	for _, w := range ws {
 		switch o := w.(type) {
 		case *WhereCompare:
+			if q.EventsWhereCompare == nil {
+				q.EventsWhereCompare = map[string][]WhereCompare{}
+			}
 			q.EventsWhereCompare[field] = append(q.EventsWhereCompare[field], *o)
 		case *WherePrefix:
+			if q.EventsWherePrefix == nil {
+				q.EventsWherePrefix = map[string][]WherePrefix{}
+			}
 			q.EventsWherePrefix[field] = append(q.EventsWherePrefix[field], *o)
 		default:
 			panic(fmt.Sprintf("unknown where expression %T: %#v", w, w))
