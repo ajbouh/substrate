@@ -35,7 +35,7 @@ func (r *Ticker[Input, Events, Output]) Initialize() {
 
 func (r *Ticker[Input, Events, Output]) Tick(ctx context.Context, until event.ID) (tick *Tick[Input, Events, Output], err error) {
 	defer func() {
-		slog.Info("Ticker.Tick()", "T", fmt.Sprintf("%T", r), "strategyType", fmt.Sprintf("%T", r.Strategy), "t", r, "until", until, "r.Querier", r.Querier)
+		slog.Info("Ticker.Tick()", "T", fmt.Sprintf("%T", r), "strategyType", fmt.Sprintf("%T", r.Strategy), "t", r, "until", until, "r.Querier", r.Querier, "err", err)
 	}()
 
 	tick = &Tick[Input, Events, Output]{
@@ -46,7 +46,7 @@ func (r *Ticker[Input, Events, Output]) Tick(ctx context.Context, until event.ID
 
 	tick.Queries, err = tick.Strategy.Prepare(ctx, tick.Input)
 	if err != nil {
-		return tick, err
+		return
 	}
 
 	// eagerly accumulate results
@@ -65,7 +65,8 @@ func (r *Ticker[Input, Events, Output]) Tick(ctx context.Context, until event.ID
 	if err != nil {
 		errs = append(errs, err)
 	}
-	return tick, errors.Join(errs...)
+	err = errors.Join(errs...)
+	return
 }
 
 func setTaggedFields[T any, S any](t *T, tag string, values map[string]S) {

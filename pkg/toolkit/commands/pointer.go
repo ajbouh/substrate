@@ -58,6 +58,9 @@ func As[T any](o any) (t T, err error) {
 	}
 
 	err = json.Unmarshal(b, &t)
+	if err != nil {
+		err = fmt.Errorf("can't get as %T; %#v: %w", t, o, err)
+	}
 	return
 }
 
