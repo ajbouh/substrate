@@ -53,7 +53,16 @@ var (
 
 func typeExists(units []Unit, unit Unit) bool {
 	for _, u := range units {
+		if u == unit {
+			return true
+		}
+
 		a := reflect.ValueOf(unitFrom(unit))
+		isAnonymous := a.Type().PkgPath() == ""
+		if isAnonymous {
+			continue
+		}
+
 		b := reflect.ValueOf(unitFrom(u))
 		if a.Type() == b.Type() {
 			return true
