@@ -49,37 +49,45 @@ type CommandRuleTick = Tick[CommandRuleInput, CommandRuleEvents, *CommandRuleOut
 type CommandRuleTicker = Ticker[CommandRuleInput, CommandRuleEvents, *CommandRuleOutput]
 
 func (s *CommandStrategy) Prepare(ctx context.Context, input CommandRuleInput) (map[string][]event.Query, error) {
-	return map[string][]event.Query{
-		"conditions": event.MutateQueries(input.Conditions,
+	conditions := input.Conditions
+
+	if input.Cursor != nil {
+		event.MutateQueries(conditions,
 			event.AndWhereEventsFunc("id", &event.WhereCompare{Compare: ">", Value: input.Cursor.Since}),
-		),
+		)
+	}
+
+	return map[string][]event.Query{
+		"conditions": conditions,
 	}, nil
 }
 
-func (s *CommandStrategy) Do(ctx context.Context, input CommandRuleInput, gathered CommandRuleEvents) (*CommandRuleOutput, bool, error) {
+func (s *CommandStrategy) Do(ctx context.Context, input CommandRuleInput, gathered CommandRuleEvents, until event.ID) (*CommandRuleOutput, bool, error) {
 	ready := len(gathered.Conditions) > 0
 	if !ready {
 		return &CommandRuleOutput{}, false, nil
 	}
 
-	parameters := commands.Fields{
-		"rule": commands.Fields{
-			"path":       input.Path,
-			"conditions": input.Conditions,
+	data := commands.Fields{
+		"parameters": commands.Fields{
+			"rule": commands.Fields{
+				"path":       input.Path,
+				"conditions": input.Conditions,
+			},
+			"events": gathered.Conditions,
 		},
-		"events": gathered.Conditions,
 	}
 
 	var err error
 	var returns commands.Fields
 
-	returns, err = s.DefRunner.RunDef(ctx, &input.Command, parameters)
+	returns, err = s.DefRunner.RunDef(ctx, &input.Command, data)
 	if err != nil {
 		return nil, false, err
 	}
 
 	// HACK re-encoding like this is pretty inefficient...
-	returnsEvents, err := commands.GetPath[any](returns, "next")
+	returnsEvents, err := commands.GetPath[any](returns, "parameters", "next")
 	b, err := json.Marshal(returnsEvents)
 	if err != nil {
 		return nil, false, err

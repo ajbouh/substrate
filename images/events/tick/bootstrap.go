@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 	"sync"
 
@@ -13,8 +14,6 @@ import (
 type BootstrapInput struct {
 	RulesPathPrefix   string
 	CursorsPathPrefix string
-
-	Until event.ID
 }
 
 type BootstrapStrategy struct {
@@ -30,13 +29,15 @@ type BootstrapEvents struct {
 
 type BootstrapOutput struct{}
 
-type BoostrapTicker = Ticker[BootstrapInput, BootstrapEvents, BootstrapOutput]
-type BootstrapLoop = Loop[BootstrapInput, BootstrapEvents, BootstrapOutput]
+type BoostrapTicker = Ticker[*BootstrapInput, BootstrapEvents, BootstrapOutput]
+type BootstrapLoop = Loop[*BootstrapInput, BootstrapEvents, BootstrapOutput]
 
-var _ Strategy[BootstrapInput, BootstrapEvents, BootstrapOutput] = (*BootstrapStrategy)(nil)
+var _ Strategy[*BootstrapInput, BootstrapEvents, BootstrapOutput] = (*BootstrapStrategy)(nil)
 
 // find all rules in the rules prefix
-func (b *BootstrapStrategy) Prepare(ctx context.Context, input BootstrapInput) (map[string][]event.Query, error) {
+func (b *BootstrapStrategy) Prepare(ctx context.Context, input *BootstrapInput) (map[string][]event.Query, error) {
+	slog.Info("BootstrapStrategy.Prepare()", "input", input)
+
 	return map[string][]event.Query{
 		"rules": {
 			*event.QueryLatestByPathPrefix(input.RulesPathPrefix),
@@ -48,12 +49,24 @@ func (b *BootstrapStrategy) Prepare(ctx context.Context, input BootstrapInput) (
 	}, nil
 }
 
+func (t *BootstrapEvents) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.Attr{
+			Key:   "len(Rules)",
+			Value: slog.AnyValue(len(t.Rules)),
+		},
+		slog.Attr{
+			Key:   "len(Cursors)",
+			Value: slog.AnyValue(len(t.Cursors)),
+		},
+	)
+}
+
 // run each of them in parallel and wait for them all to be done.
-func (b *BootstrapStrategy) Do(ctx context.Context, input BootstrapInput, gathered BootstrapEvents) (BootstrapOutput, bool, error) {
-	var errs []error
+func (b *BootstrapStrategy) Do(ctx context.Context, input *BootstrapInput, gathered BootstrapEvents, until event.ID) (BootstrapOutput, bool, error) {
 	more := false
 	count := len(gathered.Rules)
-	if count > 0 {
+	if count == 0 {
 		return BootstrapOutput{}, more, nil
 	}
 
@@ -62,7 +75,7 @@ func (b *BootstrapStrategy) Do(ctx context.Context, input BootstrapInput, gather
 		return BootstrapOutput{}, more, err
 	}
 
-	cursors, err := event.Unmarshal[CommandRuleCursor](gathered.Rules, true)
+	cursors, err := event.Unmarshal[CommandRuleCursor](gathered.Cursors, true)
 	if err != nil {
 		return BootstrapOutput{}, more, err
 	}
@@ -88,7 +101,14 @@ func (b *BootstrapStrategy) Do(ctx context.Context, input BootstrapInput, gather
 		tickers = append(tickers, CommandRuleTicker{
 			Strategy: b.CommandStrategy,
 			Input:    rule,
+			Querier:  b.Querier,
 		})
+	}
+
+	slog.Info("BootstrapStrategy.Do()", "len(rules)", len(rules), "len(cursors)", len(cursors), "rules", rules, "cursors", cursors, "len(tickers)", len(tickers))
+
+	if len(tickers) == 0 {
+		return BootstrapOutput{}, more, nil
 	}
 
 	var wg sync.WaitGroup
@@ -102,12 +122,12 @@ func (b *BootstrapStrategy) Do(ctx context.Context, input BootstrapInput, gather
 		ticker := ticker
 		go func() {
 			defer wg.Done()
-			tick, err := ticker.Tick(ctx, input.Until)
+			tick, err := ticker.Tick(ctx, until)
 			if err == nil {
 				// if no error then forge an event that updates the cursor event for this rule.
 				cursor := CommandRuleCursor{
 					Path:  tick.Input.Cursor.Path,
-					Since: input.Until,
+					Since: until,
 				}
 				var cursorRaw json.RawMessage
 				cursorRaw, err = marshal(cursor)
@@ -124,6 +144,7 @@ func (b *BootstrapStrategy) Do(ctx context.Context, input BootstrapInput, gather
 		defer close(results)
 		wg.Wait()
 	}()
+	var errs []error
 	for result := range results {
 		if result.tick.More {
 			more = true
@@ -139,7 +160,7 @@ func (b *BootstrapStrategy) Do(ctx context.Context, input BootstrapInput, gather
 			continue
 		}
 
-		err = b.Writer.WriteEvents(ctx, input.Until, set, nil)
+		err = b.Writer.WriteEvents(ctx, until, set, nil)
 		if err != nil {
 			errs = append(errs, result.err)
 		}

@@ -33,38 +33,39 @@ func (r *Ticker[Input, Events, Output]) Initialize() {
 	slog.Info("Ticker.Initialize()", "T", fmt.Sprintf("%T", r), "strategyType", fmt.Sprintf("%T", r.Strategy), "t", r)
 }
 
-func (r *Ticker[Input, Events, Output]) Tick(ctx context.Context, until event.ID) (*Tick[Input, Events, Output], error) {
-	slog.Info("Ticker.Tick()", "T", fmt.Sprintf("%T", r), "strategyType", fmt.Sprintf("%T", r.Strategy), "t", r, "until", until)
+func (r *Ticker[Input, Events, Output]) Tick(ctx context.Context, until event.ID) (tick *Tick[Input, Events, Output], err error) {
+	defer func() {
+		slog.Info("Ticker.Tick()", "T", fmt.Sprintf("%T", r), "strategyType", fmt.Sprintf("%T", r.Strategy), "t", r, "until", until, "r.Querier", r.Querier)
+	}()
 
-	t := &Tick[Input, Events, Output]{
+	tick = &Tick[Input, Events, Output]{
 		Strategy: r.Strategy,
 		Input:    r.Input,
 		Until:    until,
 	}
 
-	var err error
-	t.Queries, err = t.Strategy.Prepare(ctx, t.Input)
+	tick.Queries, err = tick.Strategy.Prepare(ctx, tick.Input)
 	if err != nil {
-		return t, err
+		return tick, err
 	}
 
 	// eagerly accumulate results
-	results, more, errs := queryAllEventsUntil(ctx, r.Querier, t.Queries, until)
+	results, more, errs := queryAllEventsUntil(ctx, r.Querier, tick.Queries, until)
 	if more {
-		t.More = true
+		tick.More = true
 	}
 
 	// populate gathered
-	setTaggedFields(&t.Gathered, "eventquery", results)
+	setTaggedFields(&tick.Gathered, "eventquery", results)
 
-	t.Output, more, err = t.Strategy.Do(ctx, t.Input, t.Gathered)
+	tick.Output, more, err = tick.Strategy.Do(ctx, tick.Input, tick.Gathered, until)
 	if more {
-		t.More = true
+		tick.More = true
 	}
 	if err != nil {
 		errs = append(errs, err)
 	}
-	return t, errors.Join(errs...)
+	return tick, errors.Join(errs...)
 }
 
 func setTaggedFields[T any, S any](t *T, tag string, values map[string]S) {

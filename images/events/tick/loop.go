@@ -14,24 +14,32 @@ type Loop[Input any, Gathered any, Output any] struct {
 }
 
 func (l *Loop[Input, Gathered, Output]) Serve(ctx context.Context) {
-	more := true
-
-	for ctx.Err() == nil {
-		until, err := l.Querier.QueryMaxID(ctx)
+	var prevMax event.ID
+	for {
+		max, err := l.Querier.QueryMaxID(ctx)
 		if err != nil {
 			slog.Error("error reading latest eventID")
 		}
 
-		// todo streamer
+		if prevMax.Compare(max) != 0 {
+			prevMax = max
 
-		for ctx.Err() == nil || !more {
-			tick, err := l.Ticker.Tick(ctx, until)
-			if err != nil {
-				slog.Error("error during tick", "err", err)
-				return
+			// todo streamer
+
+			more := true
+			for ctx.Err() == nil && more {
+				tick, err := l.Ticker.Tick(ctx, max)
+				if err != nil {
+					slog.Error("error during tick", "err", err)
+					return
+				}
+
+				more = tick.More
 			}
+		}
 
-			more = tick.More
+		if ctx.Err() != nil {
+			break
 		}
 
 		// HACK polling here is kind of gross...
