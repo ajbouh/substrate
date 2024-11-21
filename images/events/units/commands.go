@@ -574,15 +574,15 @@ var QueryEventsCommand = handle.Command(
 		}
 
 		if args.After != nil {
-			sq.AndWhereEvent("id", &event.WhereCompare{Compare: ">", Value: *args.After})
+			sq.AndWhereEvent("id", &event.WhereCompare{Compare: ">", Value: args.After.String()})
 		}
 
 		if args.Until != nil {
-			sq.AndWhereEvent("id", &event.WhereCompare{Compare: "<=", Value: *args.Until})
+			sq.AndWhereEvent("id", &event.WhereCompare{Compare: "<=", Value: args.Until.String()})
 		}
 
 		if args.VectorInManifold != nil {
-			sq.AndWhereEvent("vector_manifold_id", &event.WhereCompare{Compare: "=", Value: *args.VectorInManifold})
+			sq.AndWhereEvent("vector_manifold_id", &event.WhereCompare{Compare: "=", Value: args.VectorInManifold.String()})
 
 			if args.VectorNear != nil {
 				sq.EventsNear = &event.VectorInput[float32]{

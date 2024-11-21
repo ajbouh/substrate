@@ -62,7 +62,7 @@ func (s *CommandStrategy) Prepare(ctx context.Context, input CommandRuleInput) (
 
 	if input.Cursor != nil {
 		event.MutateQueries(conditions,
-			event.AndWhereEventsFunc("id", &event.WhereCompare{Compare: ">", Value: input.Cursor.Since}),
+			event.AndWhereEventsFunc("id", &event.WhereCompare{Compare: ">", Value: input.Cursor.Since.String()}),
 		)
 	}
 
