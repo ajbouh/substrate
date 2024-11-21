@@ -29,12 +29,15 @@ import (
 	"github.com/ajbouh/substrate/images/bridge/workingset"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
+	"github.com/ajbouh/substrate/pkg/toolkit/event"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
+	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gopxl/beep"
 	"github.com/gorilla/websocket"
+	"github.com/oklog/ulid/v2"
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media/oggwriter"
 )
@@ -74,6 +77,31 @@ func main() {
 	eventWriterURL := mustGetenv("SUBSTRATE_EVENT_WRITER_URL")
 	sessionID := mustGetenv("BRIDGE_SESSION_ID")
 	eventURLPrefix := fmt.Sprintf("%s/bridge/%s", eventWriterURL, sessionID)
+	// Cursor path needs to be outisde of the session events so that updates to it
+	// don't re-trigger streaming
+	cursorURL := fmt.Sprintf("%s/bridge-cursor/%s", eventWriterURL, sessionID)
+
+	streamQuery := event.QueryLatestByPathPrefix(fmt.Sprintf("bridge/%s/", sessionID))
+	resp, err := http.Get(cursorURL)
+	fatal(err)
+
+	var ev struct {
+		Event event.Event `json:"event"`
+	}
+	var cursor EventCursor
+	switch resp.StatusCode {
+	case http.StatusOK:
+		body, err := io.ReadAll(resp.Body)
+		fatal(err)
+		log.Println("got cursor", string(body))
+		fatal(json.Unmarshal(body, &ev), "error decoding cursor event")
+		fatal(json.Unmarshal(ev.Event.Payload, &cursor), "error unmarshalling cursor", string(ev.Event.Payload))
+		streamQuery = streamQuery.After(cursor.LastProcessed)
+	case http.StatusNotFound:
+		// no cursor, start from the beginning
+	default:
+		fatal(fmt.Errorf("cursor: unexpected status code %d", resp.StatusCode))
+	}
 
 	queryParams := url.Values{}
 	queryParams.Set("path_prefix", "bridge/"+sessionID)
@@ -154,8 +182,61 @@ func main() {
 		httpevents.NewJSONRequester[transcribe.TranscriptionEvent]("PUT", eventURLPrefix+"/transcription"),
 		httpevents.NewJSONRequester[translate.TranslationEvent]("PUT", eventURLPrefix+"/translation"),
 		httpevents.NewJSONRequester[vad.ActivityEvent]("PUT", eventURLPrefix+"/voice-activity"),
+		httpevents.NewJSONRequester[EventCursor]("PUT", cursorURL),
+		NewEventStreamer(
+			mustGetenv("SUBSTRATE_EVENT_STREAM_URL"),
+			streamQuery,
+		),
 		workingset.CommandProvider{},
 	)
+}
+
+type EventCursor struct {
+	LastProcessed ulid.ULID `json:"last_processed"`
+}
+
+type EventStreamer struct {
+	NotifyQueue     *notify.Queue
+	CursorNotifiers []notify.Notifier[EventCursor]
+	Session         *tracks.Session
+	Subscription    interface{ Serve(context.Context) }
+}
+
+func NewEventStreamer(streamURL string, streamQuery *event.Query) *EventStreamer {
+	es := &EventStreamer{}
+	js := httpevents.NewJSONSubscription(
+		"POST",
+		streamURL,
+		streamQuery,
+		notify.On(es.HandleEvent),
+	)
+	js.Initialize()
+	es.Subscription = js
+	return es
+}
+
+func (es *EventStreamer) Serve(ctx context.Context) {
+	es.Subscription.Serve(ctx)
+}
+
+func (es *EventStreamer) HandleEvent(ctx context.Context, n event.Notification, t *struct{}) {
+	events, err := event.Unmarshal[tracks.JSONEvent](n.Events, true)
+	fatal(err)
+	for i, e := range events {
+		_, err := tracks.InsertJSONEvent(es.Session, e)
+		if err != nil {
+			log.Printf("error inserting event: %s", err)
+			j, err := json.Marshal(n.Events[i])
+			if err != nil {
+				log.Printf("error marshalling event: %s", err)
+				continue
+			}
+			log.Printf("event: %s", j)
+		}
+	}
+	notify.Later(es.NotifyQueue, es.CursorNotifiers, EventCursor{
+		LastProcessed: n.Until,
+	})
 }
 
 func mustGetenv(name string) string {
@@ -295,10 +376,14 @@ type View struct {
 	Session *tracks.Session
 }
 
-func fatal(err error) {
+func fatal(err error, msg ...string) {
+	args := []any{err}
+	for _, m := range msg {
+		args = append(args, m)
+	}
 	if err != nil {
 		log.Printf("FATAL")
-		log.Fatal(err)
+		log.Fatal(args...)
 	}
 }
 

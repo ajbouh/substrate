@@ -153,6 +153,7 @@ func (a *Agent) recordTextEvent(span tracks.Span, data *AssistantTextEvent) {
 	ev := RecordAssistantText(span, data)
 	notify.Later(a.NotifyQueue, a.AssistantTextNotifiers, AssistantTextNotification{
 		EventMeta: ev.EventMeta,
+		TrackID:   ev.Track().ID,
 		Data:      ev.Data.(*AssistantTextEvent),
 	})
 }

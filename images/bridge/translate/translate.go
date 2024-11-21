@@ -59,6 +59,7 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 	})
 	notify.Later(a.NotifyQueue, a.TranslationNotifiers, TranslationEvent{
 		EventMeta: ev.EventMeta,
+		TrackID:   ev.Track().ID,
 		Data:      ev.Data.(*TranslationRecord),
 	})
 }

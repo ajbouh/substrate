@@ -55,6 +55,15 @@ func (m *SHA256Digest) Scan(src any) error {
 	return ErrScanValue
 }
 
+func (m *SHA256Digest) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	_, err := hex.Decode(m[:], []byte(s))
+	return err
+}
+
 func (m *SHA256Digest) MarshalJSON() ([]byte, error) {
 	return json.Marshal(hex.EncodeToString(m[:]))
 }

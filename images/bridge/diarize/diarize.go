@@ -124,6 +124,7 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		})
 		notify.Later(a.NotifyQueue, a.SpeakerNameNotifiers, SpeakerNameEvent{
 			EventMeta: ev.EventMeta,
+			TrackID:   ev.Track().ID,
 			Data:      ev.Data.(*SpeakerName),
 		})
 	}
@@ -139,6 +140,7 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		})
 		notify.Later(a.NotifyQueue, a.SpeakerDetectedNotifiers, SpeakerDetectedEvent{
 			EventMeta: ev.EventMeta,
+			TrackID:   ev.Track().ID,
 			Data:      ev.Data.(*SpeakerDetected),
 		})
 	}
