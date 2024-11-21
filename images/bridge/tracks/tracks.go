@@ -84,7 +84,8 @@ type EventMeta struct {
 
 type EventT[T any] struct {
 	EventMeta
-	Data T
+	TrackID ID
+	Data    T
 }
 
 type Event struct {
@@ -329,8 +330,6 @@ func (t *Track) record(typ string, span Span, data any) Event {
 		Data:  data,
 		track: t,
 	}
-	t.events.Store(e.ID, e)
-	t.Session.Emit(e)
 	return e
 }
 
@@ -550,6 +549,39 @@ func RecordJSONEvent(track *Track, jsonData []byte) (*Event, error) {
 	data := reflect.New(typ)
 	json.Unmarshal(je.Data, data.Interface())
 	event := track.record(je.Type, s, data.Elem().Interface())
+	return &event, nil
+}
+
+type JSONEvent struct {
+	EventMeta
+	TrackID ID
+	Data    json.RawMessage
+}
+
+func InsertJSONEvent(session *Session, ev JSONEvent) (*Event, error) {
+	track := session.Track(ev.TrackID)
+	if track == nil {
+		return nil, fmt.Errorf("track %q not found", ev.TrackID)
+	}
+	if v, ok := track.events.Load(ev.ID); ok {
+		event := v.(Event)
+		return &event, nil
+	}
+	typ, ok := eventTypes[ev.Type]
+	if !ok {
+		return nil, fmt.Errorf("unknown event type %q", ev.Type)
+	}
+	data := reflect.New(typ)
+	json.Unmarshal(ev.Data, data.Interface())
+	evAny, loaded := track.events.LoadOrStore(ev.ID, Event{
+		EventMeta: ev.EventMeta,
+		Data:      data.Elem().Interface(),
+		track:     track,
+	})
+	event := evAny.(Event)
+	if !loaded {
+		track.Session.Emit(event)
+	}
 	return &event, nil
 }
 

@@ -102,6 +102,7 @@ func (a *OfferAgent) HandleEvent(event tracks.Event) {
 		})
 		notify.Later(a.NotifyQueue, a.OfferNotifiers, OfferNotification{
 			EventMeta: ev.EventMeta,
+			TrackID:   event.Track().ID,
 			Data:      ev.Data.(*OfferEvent),
 		})
 	}
@@ -155,6 +156,7 @@ func (a AutoTriggerAgent) HandleEvent(event tracks.Event) {
 		})
 		notify.Later(a.NotifyQueue, a.TriggerNotifiers, TriggerNotification{
 			EventMeta: ev.EventMeta,
+			TrackID:   event.Track().ID,
 			Data:      ev.Data.(*TriggerEvent),
 		})
 	}
@@ -190,6 +192,7 @@ func (a *CallAgent) HandleEvent(event tracks.Event) {
 		})
 		notify.Later(a.NotifyQueue, a.CallNotifiers, CallNotification{
 			EventMeta: ev.EventMeta,
+			TrackID:   ev.Track().ID,
 			Data:      ev.Data.(*CallEvent),
 		})
 	}

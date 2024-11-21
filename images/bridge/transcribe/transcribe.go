@@ -54,6 +54,7 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 	ev := RecordTranscription(annot.Span(), transcription)
 	notify.Later(a.NotifyQueue, a.ActivityEventNotifiers, TranscriptionEvent{
 		EventMeta: ev.EventMeta,
+		TrackID:   ev.Track().ID,
 		Data:      transcription,
 	})
 }

@@ -98,6 +98,7 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		ev := RecordActivity(annot.Track().Span(start, annot.End))
 		notify.Later(a.NotifyQueue, a.ActivityEventNotifiers, ActivityEvent{
 			EventMeta: ev.EventMeta,
+			TrackID:   ev.Track().ID,
 			Data:      struct{}{}, //*ev.Data.(*struct{}),
 		})
 	}
