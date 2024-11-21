@@ -18,15 +18,18 @@ export class StaticCommands {
 }
 
 export class Msg {
-  constructor(name, msg) {
+  constructor(name, msg, {basehref}={}) {
     this.name = name
     this.msg = msg
+    this.basehref = basehref
   }
 
   async run(parameters) {
-    return (await run({msg: this.msg, data: {parameters}}))?.returns
+    return (await run({msg: this.msg, data: {parameters}, basehref: this.basehref}))?.returns
   }
 }
+
+const urlSymbol = Symbol('url')
 
 export class Reflector {
   constructor(url) {
@@ -37,13 +40,15 @@ export class Reflector {
     return fetch(this.url, { method: "REFLECT" }).then(async (resp) => {
       await demandResponseIsOK(resp)
       const body = await resp.json()
-      return body.commands
+      const commands = body.commands
+      commands[urlSymbol] = resp.url
+      return commands
     })
   }
 
   async reflect() {
     const index = await this.index
-    return Object.fromEntries(Object.entries(index).map(([a, b]) => [a, new Msg(a, b)]))
+    return Object.fromEntries(Object.entries(index).map(([a, b]) => [a, new Msg(a, b, {basehref: index[urlSymbol]})]))
   }
 }
 
@@ -55,7 +60,7 @@ export async function reflect(url) {
 
 function parsePointer(p) {
   if (p[0] !== "#" || p[1] !== "/") {
-    throw new Exception(`invalid pointer, must start with "#/", got: ${p}`)
+    throw new Error(`invalid pointer, must start with "#/", got: ${p}`)
   }
   return p.substring(2).split('/').map(s => s.replaceAll("~1", "/").replaceAll("~0", "~"))
 }
@@ -86,16 +91,19 @@ async function demandResponseIsOK(response) {
   }
 }
 
-function merge(dst, src) {
+function merge(dst, src, keypath=() => []) {
   // console.log("merge", dst, src)
-  if (src) {
-    for (const [key, val] of Object.entries(src)) {
-      if (val !== null && typeof val === `object`) {
-        dst[key] ??=new val.__proto__.constructor()
-        merge(dst[key], val)
-      } else {
-        dst[key] = val
+  if (src !== undefined) {
+    if (typeof src !== `object`) {
+      throw new Error(`cannot merge keypath=${JSON.stringify([...keypath(), key])} dst=${JSON.stringify(dst)}; src=${JSON.stringify(src)}`)
+    }
+
+    for (let [key, srcVal] of Object.entries(src)) {
+      const dstVal = dst[key]
+      if (dstVal !== undefined) {
+        srcVal = merge(dstVal, srcVal, () => [...keypath(), key])
       }
+      dst[key] = srcVal
     }
   }
   return dst
@@ -113,55 +121,64 @@ function pluck(bindings, src) {
     }
   }
 
-  // console.log("pluck", dst, {bindings, src})
+  console.log("pluck", dst, {bindings, src})
   return dst
 }
 
-async function runWithCaps(caps, msg, data) {
-    // console.log("run", {msg, data})
+async function runWithCtx(ctx, msg, data) {
+    console.log("run", {msg, data})
     data = merge(msg.data ? clone(msg.data) : {}, data)
 
     if (msg.cap) {
-      const cap = caps[msg.cap]
+      const cap = ctx.caps[msg.cap]
       if (!cap) {
-        throw new Exception(`cannot run: unknown capability; cap=${msg.cap}; msg=${JSON.stringify(msg)}`)
+        throw new Error(`cannot run: unknown capability; cap=${msg.cap}; msg=${JSON.stringify(msg)}`)
       }
 
-      let {via, data: postData} = await cap(data)
+      let {via, data: postData} = await cap(ctx, data)
 
       // Do we have something to recurse on? Do it!
       if (via) {
-        postData = await runWithCaps(caps, via, postData)
+        postData = await runWithCtx(ctx, via, postData)
       }
       return postData
     } else if (msg.msg) {
       const preData = pluck(msg.msg_in, {data})?.msg?.data
-      const postData = await runWithCaps(caps, msg.msg, preData)
+      const postData = await runWithCtx(ctx, msg.msg, preData)
       // console.log({postData, 'msg.msg_out': msg.msg_out})
       return pluck(msg.msg_out, {msg: {data: postData}})?.data
     }
 }
 
-async function run({caps={http: HTTPCapability}, msg, data}) {
-  return await runWithCaps(caps, msg, data)
+async function run({caps={http: HTTPCapability}, msg, data, basehref}) {
+  return await runWithCtx({basehref, caps}, msg, data)
 }
 
-async function HTTPCapability({request: {method, body, headers, query, path, url: input}}) {
+async function HTTPCapability(ctx, {request}) {
+  let {method, body, headers, query, path, url} = request
+  let input = url
+
   if (path) {
     const pathEntries = Object.entries(path)
     if (pathEntries.length > 0) {
       for (const [k, v] of pathEntries) {
+        // path entries don't make much sense when null. so throw if we see one.
+        if (v == null) {
+          throw new Error(`got null path segment for {${k}}; url=${url}; request=${JSON.stringify(request)}`)
+        }
         let t = `{${k}}`
-        if (input.contains(t)) {
+        if (input.includes(t)) {
           input = input.replaceAll(t, v)
         }
         t = `{${k}...}`
-        if (input.contains(t)) {
+        if (input.includes(t)) {
           input = input.replaceAll(t, encodeURIComponent(v))
         }
       }
     }
   }
+
+  input = new URL(input, ctx.basehref).toString()
 
   if (query) {
     // set query if we have any
@@ -169,6 +186,10 @@ async function HTTPCapability({request: {method, body, headers, query, path, url
     if (queryEntries.length > 0) {
       const u = new URL(input)
       for (const [k, v] of queryEntries) {
+        // query entries don't make much sense when null. so skip if they are.
+        if (v == null) {
+          continue
+        }
         u.searchParams.set(k, v)
       }
       input = u.toString()

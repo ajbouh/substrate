@@ -224,5 +224,9 @@ func QueryEventWithFields[T any](ctx context.Context, q Querier, sq *Query) (*T,
 		return &events[0], err
 	}
 
+	if err == nil {
+		err = EventDoesNotExistErr
+	}
+
 	return nil, err
 }

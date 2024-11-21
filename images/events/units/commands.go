@@ -50,7 +50,7 @@ var GetTreeRawPathCommand = handle.HTTPCommand(
 		var err error
 		var query *event.Query
 
-		path := args.Path
+		path := "/" + args.Path
 		if strings.HasSuffix(path, "/") {
 			query = event.QueryLatestByPathPrefix(path)
 		} else {
@@ -135,7 +135,7 @@ var GetTreeDataPathCommand = handle.HTTPCommand(
 
 		returns := struct{}{}
 		var err error
-		query := event.QueryLatestByPath(args.Path)
+		query := event.QueryLatestByPath("/" + args.Path)
 		if !event.IsZeroID(args.Until) {
 			query.Until(args.Until)
 		}
@@ -192,7 +192,7 @@ var WriteTreeDataPathCommand = handle.HTTPCommand(
 		err = t.Writer.WriteEvents(ctx, args.Since,
 			&event.PendingEventSet{
 				FieldsList: []json.RawMessage{
-					json.RawMessage(fmt.Sprintf(`{"path":%q}`, args.Path)),
+					json.RawMessage(fmt.Sprintf(`{"path":%q}`, "/"+args.Path)),
 				},
 				DataList: []io.ReadCloser{
 					args.Reader,
@@ -233,7 +233,7 @@ var GetTreeFieldsPathCommand = handle.HTTPCommand(
 
 		returns := GetTreeFieldsPathReturns{}
 		var err error
-		query := event.QueryLatestByPath(args.Path)
+		query := event.QueryLatestByPath("/" + args.Path)
 		if !event.IsZeroID(args.Until) {
 			query.Until(args.Until)
 		}
@@ -285,7 +285,7 @@ var WriteTreeFieldsPathCommand = handle.HTTPCommand(
 		if err != nil {
 			return returns, err
 		}
-		fields["path"] = args.Path
+		fields["path"] = "/" + args.Path
 
 		rawFields, err := json.Marshal(fields)
 		if err != nil {
@@ -411,7 +411,7 @@ var EventPathLinksQueryCommand = handle.HTTPCommand(
 			Links: map[string]links.Link{},
 		}
 
-		query := event.QueryLatestByPath(args.Path)
+		query := event.QueryLatestByPath("/" + args.Path)
 		if !event.IsZeroID(args.Until) {
 			query.Until(args.Until)
 		}
@@ -517,11 +517,11 @@ var QueryEventsCommand = handle.Command(
 		sq.ViewBias = args.Bias
 
 		if args.PathPrefix != nil {
-			sq.AndWhereEvent("path", &event.WherePrefix{Prefix: *args.PathPrefix})
+			sq.AndWhereEvent("path", &event.WherePrefix{Prefix: "/" + *args.PathPrefix})
 		}
 
 		if args.Path != nil {
-			sq.AndWhereEvent("path", &event.WhereCompare{Compare: "=", Value: *args.Path})
+			sq.AndWhereEvent("path", &event.WhereCompare{Compare: "=", Value: "/" + *args.Path})
 		}
 
 		if args.TypePrefix != nil {

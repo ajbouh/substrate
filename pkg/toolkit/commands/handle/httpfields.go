@@ -39,7 +39,7 @@ type PathValuer interface {
 	PathValue(key string) string
 }
 
-func getPathValueForField(field reflect.StructField, r *http.Request) (any, bool, error) {
+func getPathValueForField(field reflect.StructField, r PathValuer) (any, bool, error) {
 	key, ok := field.Tag.Lookup("path")
 	if !ok {
 		return nil, false, nil

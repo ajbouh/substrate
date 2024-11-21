@@ -165,36 +165,45 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 }
 
 func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (commands.DefIndex, error) {
+	var errs []error
 	meta := commands.Meta{}
 	var params commands.Fields
 	inBindings := commands.Bindings{}
+	pathValuer := ContextPathValuer(ctx)
 	paramsType := reflect.TypeFor[Params]()
 	paramBinding := func(group, name string, field reflect.StructField) {
-		jsonTag, ok := field.Tag.Lookup("json")
-		if !ok {
-			return
-		}
-		fieldName, _, _ := strings.Cut(jsonTag, ",")
-		if fieldName == "-" {
-			return
-		}
-
 		if pathVar, ok := field.Tag.Lookup("path"); ok {
+			var pathVal any
+			var ok bool
+			var err error
+			if pathValuer != nil {
+				pathVal, ok, err = getPathValueForField(field, pathValuer)
+				if err != nil {
+					errs = append(errs, err)
+				} else if ok {
+					if params == nil {
+						params = commands.Fields{}
+					}
+					params.Set(name, pathVal)
+				}
+			}
+			slog.Info("paramBinding", "pathValuer", pathValuer, "name", name, "group", group, "pathVar", pathVar, "pathVal", pathVal, "ok", ok, "err", err)
+
 			inBindings.Add(
-				commands.NewDataPointer("msg", "data", "request", "url", "path", pathVar),
-				commands.NewDataPointer("data", group, pathVar),
+				commands.NewDataPointer("msg", "data", "request", "path", pathVar),
+				commands.NewDataPointer("data", group, name),
 			)
 			return
 		} else if queryVar, ok := field.Tag.Lookup("query"); ok {
 			inBindings.Add(
 				commands.NewDataPointer("msg", "data", "request", "query", queryVar),
-				commands.NewDataPointer("data", group, pathVar),
+				commands.NewDataPointer("data", group, name),
 			)
 			return
 		}
 
 		inBindings.Add(
-			commands.NewDataPointer("msg", "data", "request", "body", fieldName),
+			commands.NewDataPointer("msg", "data", "request", "body", name),
 			commands.NewDataPointer("data", group, name),
 		)
 	}
@@ -208,13 +217,16 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (com
 		return nil, fmt.Errorf("params type %s is not a struct for command named %q with func %T", paramsType.String(), r.Name, r.Func)
 	}
 
-	var returns commands.Fields
+	if len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+
 	outBindings := commands.Bindings{}
 	returnsType := reflect.TypeFor[Returns]()
 	returnsBinding := func(group, name string, field reflect.StructField) {
 		outBindings.Add(
-			commands.NewDataPointer("msg", "data", "response", "body", name),
 			commands.NewDataPointer("data", group, name),
+			commands.NewDataPointer("msg", "data", "response", "body", name),
 		)
 	}
 	switch returnsType.Kind() {
@@ -228,11 +240,13 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (com
 
 	def := &commands.Msg{
 		Description: r.Desc,
-		Data: commands.Fields{
+		Meta:        meta,
+	}
+
+	if params != nil {
+		def.Data = commands.Fields{
 			"parameters": params,
-			"returns":    returns,
-		},
-		Meta: meta,
+		}
 	}
 
 	if r.HTTPResourcePath != "" {
