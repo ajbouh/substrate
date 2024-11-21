@@ -27,13 +27,13 @@ func (b *Broker) CloneWithSpace(spaceID string) *Broker {
 }
 
 func (b *Broker) Reflect(ctx context.Context) (commands.DefIndex, error) {
-	slog.Info("Broker.Reflect()")
+	// slog.Info("Broker.Reflect()")
 	// return commands.DefIndex{}, nil
 
 	bindings := map[string]commands.BindEntry{}
 
 	err := EachInstanceTemplate(b.DefSetLoader.Load(), func(serviceName string, template *InstanceParameterTypes) {
-		slog.Info("Broker.Reflect()", "serviceName", serviceName, "template", *template)
+		// slog.Info("Broker.Reflect()", "serviceName", serviceName, "template", *template)
 
 		var spaceParams []string
 		var idParams []string

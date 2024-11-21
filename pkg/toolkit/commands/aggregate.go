@@ -2,8 +2,6 @@ package commands
 
 import (
 	"context"
-	"log/slog"
-	"reflect"
 )
 
 type Aggregate struct {
@@ -19,14 +17,14 @@ func (s *Aggregate) sources(ctx context.Context) []Source {
 	sources := make([]Source, 0, len(s.Sources)+len(s.Delegates))
 	sources = append(sources, s.Sources...)
 
-	slog.Info("Aggregate.sources", "sources", sources)
+	// slog.Info("Aggregate.sources", "sources", sources)
 
 	for _, s := range s.Delegates {
-		slog.Info("Aggregate.sources", "delegate", s, "delegatetype", reflect.TypeOf(s).String())
+		// slog.Info("Aggregate.sources", "delegate", s, "delegatetype", reflect.TypeOf(s).String())
 		sources = append(sources, s.Commands(ctx))
 	}
 
-	slog.Info("Aggregate.sources", "sources", sources)
+	// slog.Info("Aggregate.sources", "sources", sources)
 
 	// gross. filter out "drop" sources...
 	drop := map[Source]struct{}{}
@@ -62,10 +60,10 @@ func (s *Aggregate) AsSource(ctx context.Context, xform DefTransformFunc) *Dynam
 }
 
 func (s *Aggregate) GatherReflectorsExcluding(ctx context.Context, excluding []Reflector) []Reflector {
-	slog.Info("Aggregate.GatherReflectorsExcluding", "excluding", excluding)
+	// slog.Info("Aggregate.GatherReflectorsExcluding", "excluding", excluding)
 
 	sources := s.sources(ctx)
-	slog.Info("Aggregate.GatherReflectorsExcluding", "excluding", excluding, "sources", sources)
+	// slog.Info("Aggregate.GatherReflectorsExcluding", "excluding", excluding, "sources", sources)
 	reflectors := make([]Reflector, 0, len(sources)+len(s.Reflectors))
 
 	drop := map[Reflector]struct{}{}
@@ -91,7 +89,7 @@ func (s *Aggregate) GatherReflectorsExcluding(ctx context.Context, excluding []R
 		drop[reflector] = struct{}{}
 	}
 
-	slog.Info("Aggregate.GatherReflectorsExcluding", "excluding", excluding, "sources", sources, "reflectors", reflectors)
+	// slog.Info("Aggregate.GatherReflectorsExcluding", "excluding", excluding, "sources", sources, "reflectors", reflectors)
 
 	return reflectors
 }
