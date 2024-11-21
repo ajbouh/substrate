@@ -81,7 +81,8 @@ func main() {
 	// don't re-trigger streaming
 	cursorURL := fmt.Sprintf("%s/bridge-cursor/%s", eventWriterURL, sessionID)
 
-	streamQuery := event.QueryLatestByPathPrefix(fmt.Sprintf("bridge/%s/", sessionID))
+	pathPrefix := fmt.Sprintf("/bridge/%s/", sessionID)
+	streamQuery := event.QueryLatestByPathPrefix(pathPrefix)
 	resp, err := http.Get(cursorURL)
 	fatal(err)
 
@@ -104,7 +105,7 @@ func main() {
 	}
 
 	queryParams := url.Values{}
-	queryParams.Set("path_prefix", "bridge/"+sessionID)
+	queryParams.Set("path_prefix", pathPrefix)
 	eventStreamURL := fmt.Sprintf("%s?%s", mustGetenv("SUBSTRATE_STREAM_URL_PATH"), queryParams.Encode())
 
 	engine.Run(
