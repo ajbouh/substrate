@@ -13,15 +13,15 @@ import (
 
 type CommandRuleCursor struct {
 	Path    string `json:"path"`
-	Deleted bool   `json:"deleted"`
+	Deleted bool   `json:"deleted,omitempty"`
 
 	Since event.ID `json:"since"`
 }
 
 type CommandRuleInput struct {
 	Path     string `json:"path"`
-	Disabled bool   `json:"disabled"`
-	Deleted  bool   `json:"deleted"`
+	Disabled bool   `json:"disabled,omitempty"`
+	Deleted  bool   `json:"deleted,omitempty"`
 
 	Conditions []*event.Query `json:"conditions"`
 	Command    commands.Msg   `json:"command"`
