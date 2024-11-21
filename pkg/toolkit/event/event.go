@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"slices"
 
 	"github.com/oklog/ulid/v2"
 )
@@ -92,6 +93,16 @@ type VectorInput[T any] struct {
 	Data       []T `json:"data"`
 }
 
+func (v *VectorInput[T]) Clone() *VectorInput[T] {
+	if v == nil {
+		return v
+	}
+
+	return &VectorInput[T]{
+		ManifoldID: v.ManifoldID,
+		Data:       slices.Clone(v.Data),
+	}
+}
 func Unmarshal[T any](evts []Event, strict bool) ([]T, error) {
 	ts := make([]T, 0, len(evts))
 	var errs []error

@@ -336,7 +336,7 @@ type LinksQueryReturns struct {
 }
 
 func addEventRefHREFs(ctx context.Context, urls *EventURLs, l map[string]links.Link) error {
-	for _, v := range l {
+	for k, v := range l {
 		if v.Rel == "eventref" && v.Attributes != nil {
 			refEventV := v.Attributes["eventref:event"]
 			if refEvent, ok := refEventV.(string); ok {
@@ -347,6 +347,7 @@ func addEventRefHREFs(ctx context.Context, urls *EventURLs, l map[string]links.L
 				v.HREF = urls.URLForEvent(ctx, refEventID)
 			}
 		}
+		l[k] = v
 	}
 
 	return nil

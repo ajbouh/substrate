@@ -35,16 +35,16 @@ type BootstrapLoop = Loop[*BootstrapInput, BootstrapEvents, BootstrapOutput]
 var _ Strategy[*BootstrapInput, BootstrapEvents, BootstrapOutput] = (*BootstrapStrategy)(nil)
 
 // find all rules in the rules prefix
-func (b *BootstrapStrategy) Prepare(ctx context.Context, input *BootstrapInput) (map[string][]event.Query, error) {
+func (b *BootstrapStrategy) Prepare(ctx context.Context, input *BootstrapInput) (map[string][]*event.Query, error) {
 	slog.Info("BootstrapStrategy.Prepare()", "input", input)
 
-	return map[string][]event.Query{
+	return map[string][]*event.Query{
 		"rules": {
-			*event.QueryLatestByPathPrefix(input.RulesPathPrefix),
+			event.QueryLatestByPathPrefix(input.RulesPathPrefix),
 		},
 		// HACK it might be better if we kept the cursor directly within the rule itself
 		"cursors": {
-			*event.QueryLatestByPathPrefix(input.CursorsPathPrefix),
+			event.QueryLatestByPathPrefix(input.CursorsPathPrefix),
 		},
 	}, nil
 }
@@ -64,18 +64,28 @@ func (t *BootstrapEvents) LogValue() slog.Value {
 
 // run each of them in parallel and wait for them all to be done.
 func (b *BootstrapStrategy) Do(ctx context.Context, input *BootstrapInput, gathered BootstrapEvents, until event.ID) (BootstrapOutput, bool, error) {
+	var rules []CommandRuleInput
+	var cursors []CommandRuleCursor
+	var tickers []CommandRuleTicker
+	var err error
+
 	more := false
 	count := len(gathered.Rules)
+
+	defer func() {
+		slog.Info("BootstrapStrategy.Do()", "count", count, "len(rules)", len(rules), "len(cursors)", len(cursors), "rules", rules, "cursors", cursors, "len(tickers)", len(tickers), "err", err)
+	}()
+
 	if count == 0 {
 		return BootstrapOutput{}, more, nil
 	}
 
-	rules, err := event.Unmarshal[CommandRuleInput](gathered.Rules, true)
+	rules, err = event.Unmarshal[CommandRuleInput](gathered.Rules, true)
 	if err != nil {
 		return BootstrapOutput{}, more, err
 	}
 
-	cursors, err := event.Unmarshal[CommandRuleCursor](gathered.Cursors, true)
+	cursors, err = event.Unmarshal[CommandRuleCursor](gathered.Cursors, true)
 	if err != nil {
 		return BootstrapOutput{}, more, err
 	}
@@ -88,7 +98,7 @@ func (b *BootstrapStrategy) Do(ctx context.Context, input *BootstrapInput, gathe
 		cursorsMap[cursor.Path] = &cursor
 	}
 
-	tickers := make([]CommandRuleTicker, 0, len(rules))
+	tickers = make([]CommandRuleTicker, 0, len(rules))
 	for _, rule := range rules {
 		// ignore rules that are disabled or deleted.
 		if rule.Disabled || rule.Deleted {
@@ -96,7 +106,12 @@ func (b *BootstrapStrategy) Do(ctx context.Context, input *BootstrapInput, gathe
 		}
 
 		cursorPath := input.CursorsPathPrefix + strings.TrimPrefix(rule.Path, input.RulesPathPrefix)
-		rule.Cursor = cursorsMap[cursorPath]
+		cursor, ok := cursorsMap[cursorPath]
+		if !ok {
+			cursor = &CommandRuleCursor{}
+		}
+		cursor.Path = cursorPath
+		rule.Cursor = cursor
 
 		tickers = append(tickers, CommandRuleTicker{
 			Strategy: b.CommandStrategy,
@@ -104,8 +119,6 @@ func (b *BootstrapStrategy) Do(ctx context.Context, input *BootstrapInput, gathe
 			Querier:  b.Querier,
 		})
 	}
-
-	slog.Info("BootstrapStrategy.Do()", "len(rules)", len(rules), "len(cursors)", len(cursors), "rules", rules, "cursors", cursors, "len(tickers)", len(tickers))
 
 	if len(tickers) == 0 {
 		return BootstrapOutput{}, more, nil

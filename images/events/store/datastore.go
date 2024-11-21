@@ -9,7 +9,6 @@ import (
 
 	"github.com/ajbouh/substrate/images/events/db"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
-	"github.com/oklog/ulid/v2"
 )
 
 type EventDataCommitFunc func(bool) error
@@ -67,7 +66,7 @@ func (ds *ExternalDataStore) WriteEventData(ctx context.Context, tx db.Tx, id ev
 	return n, commit, nil
 }
 
-func (ds *ExternalDataStore) OpenEventData(ctx context.Context, id ulid.ULID) (io.ReadSeekCloser, error) {
+func (ds *ExternalDataStore) OpenEventData(ctx context.Context, id event.ID) (io.ReadSeekCloser, error) {
 	fileName := ds.resolve(id)
 	return os.Open(fileName)
 }
@@ -97,7 +96,7 @@ func (ds *DBDataStore) WriteEventData(ctx context.Context, tx db.Tx, id event.ID
 	return int64(len(data)), commit, nil
 }
 
-func (ds *DBDataStore) OpenEventData(ctx context.Context, id ulid.ULID) (io.ReadSeekCloser, error) {
+func (ds *DBDataStore) OpenEventData(ctx context.Context, id event.ID) (io.ReadSeekCloser, error) {
 	rows, err := ds.Querier.QueryContext(ctx, `SELECT data from "event_data" where event_id = ?`, id)
 	if err != nil {
 		return nil, err

@@ -44,17 +44,17 @@ type Query struct {
 	EventsWherePrefix  map[string][]WherePrefix  `json:"prefix,omitempty"`
 	EventsWhereCompare map[string][]WhereCompare `json:"compare,omitempty"`
 
-	EventsNear *VectorInput[float32] `json:"near"`
+	EventsNear *VectorInput[float32] `json:"near,omitempty"`
 
-	EventLimit *int `json:"limit"` // max number of underlying events, if set
+	EventLimit *int `json:"limit,omitempty"` // max number of underlying events, if set
 	// TODO do we need a bias here?
 
-	View             View           `json:"view"`
-	ViewLimit        *int           `json:"view_limit"` // max number returned, if set
-	ViewBias         *int           `json:"view_bias"`  // -1 if we want the earliest "Limit"-amount, 1 if we want the most recent "Limit"-amount, 0 if we want a comprehensive window of "Limit"-amount
-	ViewPlaceholders map[string]any `json:"view_parameter"`
+	View             View           `json:"view,omitempty"`
+	ViewLimit        *int           `json:"view_limit,omitempty"` // max number returned, if set
+	ViewBias         *int           `json:"view_bias,omitempty"`  // -1 if we want the earliest "Limit"-amount, 1 if we want the most recent "Limit"-amount, 0 if we want a comprehensive window of "Limit"-amount
+	ViewPlaceholders map[string]any `json:"view_parameter,omitempty"`
 
-	DetectMore bool `json:"detect_more"`
+	DetectMore bool `json:"detect_more,omitempty"`
 }
 
 func (q *Query) Until(id ID) *Query {
@@ -122,14 +122,21 @@ func (q *Query) Clone() *Query {
 	for k, v := range q.EventsWherePrefix {
 		wherePrefix[k] = slices.Clone(v)
 	}
+	// only a shallow copy of ViewPlaceholders
+	viewPlaceholders := map[string]any{}
+	for k, v := range q.ViewPlaceholders {
+		viewPlaceholders[k] = v
+	}
 	return &Query{
 		EventsWherePrefix:  wherePrefix,
 		EventsWhereCompare: whereCompare,
 		EventLimit:         clonePtr(q.EventLimit),
+		EventsNear:         q.EventsNear.Clone(),
 
-		View:      q.View,
-		ViewLimit: clonePtr(q.ViewLimit),
-		ViewBias:  clonePtr(q.ViewBias),
+		View:             q.View,
+		ViewLimit:        clonePtr(q.ViewLimit),
+		ViewBias:         clonePtr(q.ViewBias),
+		ViewPlaceholders: viewPlaceholders,
 
 		DetectMore: q.DetectMore,
 	}
@@ -137,10 +144,10 @@ func (q *Query) Clone() *Query {
 
 type QueryMutation func(q *Query)
 
-func MutateQueries(queries []Query, xforms ...QueryMutation) []Query {
+func MutateQueries(queries []*Query, xforms ...QueryMutation) []*Query {
 	for _, q := range queries {
 		for _, xform := range xforms {
-			xform(&q)
+			xform(q)
 		}
 	}
 	return queries

@@ -2,11 +2,14 @@ package commands
 
 import (
 	"context"
+	"strings"
 )
 
 type ReflectCapability struct {
 	Client       HTTPClient
 	DefTransform DefTransformFunc
+
+	BaseURL string
 }
 
 var _ Capability = (*ReflectCapability)(nil)
@@ -19,6 +22,9 @@ func (a *ReflectCapability) Apply(ctx context.Context, m Fields) (*Msg, Fields, 
 	url, err := Get[string](m, "url")
 	if err != nil {
 		return nil, nil, err
+	}
+	if strings.HasPrefix(url, "/") {
+		url = a.BaseURL + url
 	}
 
 	name, err := Get[string](m, "name")

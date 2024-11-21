@@ -117,7 +117,7 @@ func (r *VectorStore) ReadVector(ctx context.Context, vectorID int64) (*event.Ve
 	if !rows.Next() {
 		err = rows.Err()
 		if err != nil {
-			return nil, fmt.Errorf("missing vector data in table: %s id: %d", r.Table, vectorID, err)
+			return nil, fmt.Errorf("missing vector data in table: %s id: %d: %w", r.Table, vectorID, err)
 		}
 
 		return nil, fmt.Errorf("missing vector data in table: %s id: %d", r.Table, vectorID)
@@ -162,7 +162,7 @@ func (v *VectorManifoldStore) WriteVectorManifold(ctx context.Context, tx db.Exe
 		return fmt.Errorf("create event vector table, %q: %w", createEventVectorDataTable, err)
 	}
 
-	_, err = tx.ExecContext(ctx, `INSERT INTO "event_vector_manifolds" (id, "table", dtype, dimensions, metric) VALUES (?, ?, ?, ?, ?)`,
+	_, err = tx.ExecContext(ctx, `INSERT INTO "`+manifoldsTable+`" (id, "table", dtype, dimensions, metric) VALUES (?, ?, ?, ?, ?)`,
 		vm.ID,
 		table,
 		vm.DType,
@@ -173,7 +173,7 @@ func (v *VectorManifoldStore) WriteVectorManifold(ctx context.Context, tx db.Exe
 }
 
 func (r *VectorManifoldStore) ResolveVectorManifold(ctx context.Context, id event.ID) (VectorManifold, error) {
-	rows, err := r.Querier.QueryContext(ctx, `SELECT "table", dtype, dimensions, metric from "event_vector_manifolds" WHERE id = ? LIMIT 1`, id)
+	rows, err := r.Querier.QueryContext(ctx, `SELECT "table", dtype, dimensions, metric from "`+manifoldsTable+`" WHERE id = ? LIMIT 1`, id)
 	if err != nil {
 		return nil, err
 	}

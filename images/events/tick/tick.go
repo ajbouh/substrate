@@ -13,7 +13,7 @@ import (
 type Tick[Input any, Events any, Output any] struct {
 	Strategy Strategy[Input, Events, Output]
 	Input    Input
-	Queries  map[string][]event.Query
+	Queries  map[string][]*event.Query
 
 	Until    event.ID
 	Gathered Events
@@ -34,15 +34,15 @@ func (r *Ticker[Input, Events, Output]) Initialize() {
 }
 
 func (r *Ticker[Input, Events, Output]) Tick(ctx context.Context, until event.ID) (tick *Tick[Input, Events, Output], err error) {
-	defer func() {
-		slog.Info("Ticker.Tick()", "T", fmt.Sprintf("%T", r), "strategyType", fmt.Sprintf("%T", r.Strategy), "t", r, "until", until, "r.Querier", r.Querier, "err", err)
-	}()
-
 	tick = &Tick[Input, Events, Output]{
 		Strategy: r.Strategy,
 		Input:    r.Input,
 		Until:    until,
 	}
+
+	defer func() {
+		slog.Info("Ticker.Tick()", "T", fmt.Sprintf("%T", r), "strategyType", fmt.Sprintf("%T", r.Strategy), "t", r, "until", until, "r.Querier", r.Querier, "tick.Queries", tick.Queries, "err", err)
+	}()
 
 	tick.Queries, err = tick.Strategy.Prepare(ctx, tick.Input)
 	if err != nil {
@@ -69,7 +69,7 @@ func (r *Ticker[Input, Events, Output]) Tick(ctx context.Context, until event.ID
 	return
 }
 
-func setTaggedFields[T any, S any](t *T, tag string, values map[string]S) {
+func setTaggedFields[T any, S any](t *T, tag string, values map[string][]S) {
 	val := reflect.ValueOf(t).Elem()
 	typ := val.Type()
 	if t == nil {
@@ -81,19 +81,20 @@ func setTaggedFields[T any, S any](t *T, tag string, values map[string]S) {
 			continue
 		}
 
+		slog.Info("setTaggedFields", "tag", tag, "field", field, "len(values[tag])", len(values[tag]))
 		val.FieldByIndex(field.Index).Set(reflect.ValueOf(values[tag]))
 	}
 }
 
-func queryAllEventsUntil(ctx context.Context, querier event.Querier, queries map[string][]event.Query, until event.ID) (map[string][]event.Event, bool, []error) {
+func queryAllEventsUntil(ctx context.Context, querier event.Querier, keyedQueries map[string][]*event.Query, until event.ID) (map[string][]event.Event, bool, []error) {
 	var errs []error
 	var more bool
 	results := map[string][]event.Event{}
-	for key, queries := range queries {
+	for key, queries := range keyedQueries {
 		for _, q := range event.MutateQueries(queries,
 			event.AndWhereEventsFunc("id", &event.WhereCompare{Compare: "<=", Value: until}),
 		) {
-			events, qMore, err := querier.QueryEvents(ctx, &q)
+			events, qMore, err := querier.QueryEvents(ctx, q)
 			if err != nil {
 				errs = append(errs, err)
 				continue
@@ -103,6 +104,8 @@ func queryAllEventsUntil(ctx context.Context, querier event.Querier, queries map
 			}
 			results[key] = append(results[key], events...)
 		}
+
+		slog.Info("queryAllEventsUntil", "key", key, "len(results[key])", len(results[key]))
 	}
 
 	return results, more, errs

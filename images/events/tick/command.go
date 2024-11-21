@@ -3,6 +3,7 @@ package tick
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 
 	"github.com/ajbouh/substrate/images/events/db"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
@@ -22,8 +23,8 @@ type CommandRuleInput struct {
 	Disabled bool   `json:"disabled"`
 	Deleted  bool   `json:"deleted"`
 
-	Conditions []event.Query `json:"conditions"`
-	Command    commands.Msg  `json:"command"`
+	Conditions []*event.Query `json:"conditions"`
+	Command    commands.Msg   `json:"command"`
 
 	Cursor *CommandRuleCursor `json:"-"`
 }
@@ -48,8 +49,12 @@ var _ Strategy[CommandRuleInput, CommandRuleEvents, *CommandRuleOutput] = (*Comm
 type CommandRuleTick = Tick[CommandRuleInput, CommandRuleEvents, *CommandRuleOutput]
 type CommandRuleTicker = Ticker[CommandRuleInput, CommandRuleEvents, *CommandRuleOutput]
 
-func (s *CommandStrategy) Prepare(ctx context.Context, input CommandRuleInput) (map[string][]event.Query, error) {
+func (s *CommandStrategy) Prepare(ctx context.Context, input CommandRuleInput) (map[string][]*event.Query, error) {
 	conditions := input.Conditions
+
+	defer func() {
+		slog.Info("CommandStrategy.Prepare()", "input.Cursor", input.Cursor, "conditions", conditions, "input", input)
+	}()
 
 	if input.Cursor != nil {
 		event.MutateQueries(conditions,
@@ -57,12 +62,13 @@ func (s *CommandStrategy) Prepare(ctx context.Context, input CommandRuleInput) (
 		)
 	}
 
-	return map[string][]event.Query{
+	return map[string][]*event.Query{
 		"conditions": conditions,
 	}, nil
 }
 
 func (s *CommandStrategy) Do(ctx context.Context, input CommandRuleInput, gathered CommandRuleEvents, until event.ID) (*CommandRuleOutput, bool, error) {
+	slog.Info("CommandStrategy.Do()", "input", input, "input.Cursor", input.Cursor, "gathered", gathered, "until", until)
 	ready := len(gathered.Conditions) > 0
 	if !ready {
 		return &CommandRuleOutput{}, false, nil
@@ -82,12 +88,13 @@ func (s *CommandStrategy) Do(ctx context.Context, input CommandRuleInput, gather
 	var returns commands.Fields
 
 	returns, err = s.DefRunner.RunDef(ctx, &input.Command, data)
+	slog.Info("CommandStrategy.Do() RunDef", "command", input.Command, "data", data, "returns", returns, "err", err)
 	if err != nil {
 		return nil, false, err
 	}
 
 	// HACK re-encoding like this is pretty inefficient...
-	returnsEvents, err := commands.GetPath[any](returns, "parameters", "next")
+	returnsEvents, err := commands.GetPath[any](returns, "returns", "next")
 	b, err := json.Marshal(returnsEvents)
 	if err != nil {
 		return nil, false, err

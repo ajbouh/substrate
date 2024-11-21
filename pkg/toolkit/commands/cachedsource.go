@@ -24,5 +24,11 @@ func (h *CachedSource) Run(ctx context.Context, name string, params Fields) (Fie
 		return nil, ErrNoSuchCommand
 	}
 
-	return h.DefRunner.RunDef(ctx, def, params)
+	f, err := h.DefRunner.RunDef(ctx, def, Fields{"parameters": params})
+	if err != nil {
+		return nil, err
+	}
+
+	returns, _ := Get[Fields](f, "returns")
+	return returns, nil
 }

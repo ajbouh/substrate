@@ -31,7 +31,8 @@ func (l *Loop[Input, Gathered, Output]) Serve(ctx context.Context) {
 				tick, err := l.Ticker.Tick(ctx, max)
 				if err != nil {
 					slog.Error("error during tick", "err", err)
-					return
+					// return
+					break
 				}
 
 				more = tick.More

@@ -109,7 +109,9 @@ func (s *Service) initialize() {
 				return r, nil
 			},
 		},
-		&commands.ReflectCapability{},
+		&commands.ReflectCapability{
+			BaseURL: s.InternalSubstrateBaseURL,
+		},
 		&handle.HTTPResourceReflectHandler{
 			Debug:   true,
 			BaseURL: s.BaseURL,

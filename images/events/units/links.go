@@ -13,7 +13,7 @@ type EventWithLinks struct {
 }
 
 func (e *EventWithLinks) AddEventRefHREFs(ctx context.Context, urlForEvent func(ctx context.Context, eventID event.ID) string) error {
-	for _, v := range e.Links {
+	for k, v := range e.Links {
 		if v.Rel == "eventref" && v.Attributes != nil {
 			refEventV := v.Attributes["eventref:event"]
 			if refEvent, ok := refEventV.(string); ok {
@@ -24,6 +24,7 @@ func (e *EventWithLinks) AddEventRefHREFs(ctx context.Context, urlForEvent func(
 				v.HREF = urlForEvent(ctx, refEventID)
 			}
 		}
+		e.Links[k] = v
 	}
 
 	return nil

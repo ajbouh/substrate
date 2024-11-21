@@ -188,7 +188,7 @@ func (q *SelectExpr) Render(s []string, v []any) ([]string, []any) {
 
 func Render(e Expr) (string, []any) {
 	s, v := e.Render(nil, nil)
-	return strings.Join(s, " "), v
+	return strings.Join(s, " ") + ";", v
 }
 
 func renderExprSlice(s []string, v []any, prefix []string, delim string, exprs []Expr) ([]string, []any) {

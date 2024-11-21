@@ -56,7 +56,12 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 		return nil, false, err
 	}
 	stmt, v := db.Render(s)
-	slog.Info("QueryEvents", "sql", q, "max", max, "v", v)
+	results := []event.Event{}
+	numResults := 0
+
+	defer func() {
+		slog.Info("QueryEvents", "sql", q, "numResults", numResults, "max", max, "v", v, "stmt", stmt, "len(results)", len(results), "err", err)
+	}()
 	rows, err := es.Querier.QueryContext(ctx, stmt, v...)
 	if err != nil {
 		return nil, false, err
@@ -66,12 +71,11 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 
 	vmr := NewVectorManifoldCache(es.VectorManifoldResolver)
 
-	results := []event.Event{}
-	numResults := 0
 	for rows.Next() {
 		// we *could* read more, but we won't because we reached our nonzero max.
 		if max > 0 && numResults == max {
-			return results, true, rows.Err()
+			err = rows.Err()
+			return results, true, err
 		}
 		evt := &event.Event{}
 
@@ -136,23 +140,26 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 				return nil, false, err
 			}
 
-			vr, err := vmr.ResolveVectorManifold(ctx, vectorManifoldID)
+			var vr VectorManifold
+			vr, err = vmr.ResolveVectorManifold(ctx, vectorManifoldID)
 			if err == nil {
 				// track all vec ids
 				vecIDInt, ok := vecID.(int64)
 				if !ok {
-					return nil, false, fmt.Errorf("vector_data_rowid is not int64: %T", vecID)
+					err = fmt.Errorf("vector_data_rowid is not int64: %T", vecID)
+					return nil, false, err
 				}
 
+				evt.Vector, err = vr.ReadVector(ctx, vecIDInt)
 				if err != nil {
 					return nil, false, err
 				}
-				evt.Vector, err = vr.ReadVector(ctx, vecIDInt)
 
 				if vecDistance != nil {
 					vecDistanceFloat, ok := vecDistance.(float64)
 					if !ok {
-						return nil, false, fmt.Errorf("vector_data_nn_distance is not float64: %T", vecDistance)
+						err = fmt.Errorf("vector_data_nn_distance is not float64: %T", vecDistance)
+						return nil, false, err
 					}
 
 					evt.VectorDistance = &vecDistanceFloat
@@ -166,19 +173,25 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 		numResults++
 	}
 
-	return results, false, rows.Err()
+	err = rows.Err()
+	return results, false, err
 }
 
 func (es *EventStore) QueryMaxID(ctx context.Context) (event.ID, error) {
 	var id event.ID
-	rows, err := es.Querier.QueryContext(ctx, `SELECT max(id) as id from "events" LIMIT 1`)
+	var err error
+	defer func() {
+		slog.Info("QueryMaxID", "id", id, "err", err)
+	}()
+	rows, err := es.Querier.QueryContext(ctx, `SELECT max(id) as id from "`+eventsTable+`" LIMIT 1`)
 	if err != nil {
 		return id, err
 	}
 
 	defer rows.Close()
 	if !rows.Next() {
-		return id, sql.ErrNoRows
+		err = rows.Err()
+		return id, err
 	}
 
 	err = rows.Scan(&id)
@@ -186,7 +199,8 @@ func (es *EventStore) QueryMaxID(ctx context.Context) (event.ID, error) {
 		return id, err
 	}
 
-	return id, rows.Err()
+	err = rows.Err()
+	return id, err
 }
 
 func (es *EventStore) WriteEvents(ctx context.Context,
