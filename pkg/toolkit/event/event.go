@@ -2,6 +2,7 @@ package event
 
 import (
 	"database/sql"
+	"database/sql/driver"
 	"encoding"
 	"encoding/hex"
 	"encoding/json"
@@ -12,14 +13,56 @@ import (
 )
 
 // includes abstract counter, for ordering events
-type ID = ulid.ULID
+type ID ulid.ULID
 
-// should implement these interfaces. not sure how to demand that's the case though.
+var _ interface{ String() string } = ID{}
+var _ interface{ Time() uint64 } = ID{}
+
 var _ sql.Scanner = (*ID)(nil)
-var _ encoding.TextMarshaler = (*ID)(nil)
+var _ driver.Valuer = ID{}
+var _ encoding.TextMarshaler = ID{}
 var _ encoding.TextUnmarshaler = (*ID)(nil)
-var _ encoding.BinaryMarshaler = (*ID)(nil)
+var _ encoding.BinaryMarshaler = ID{}
 var _ encoding.BinaryUnmarshaler = (*ID)(nil)
+
+func (i ID) String() string {
+	return (ulid.ULID)(i).String()
+}
+func (i ID) Time() uint64 {
+	return (ulid.ULID)(i).Time()
+}
+
+func (i *ID) UnmarshalBinary(data []byte) error {
+	return (*ulid.ULID)(i).UnmarshalBinary(data)
+}
+
+func (i ID) MarshalBinary() (data []byte, err error) {
+	return (ulid.ULID)(i).MarshalBinary()
+}
+
+func (i *ID) UnmarshalText(text []byte) error {
+	return (*ulid.ULID)(i).UnmarshalText(text)
+}
+
+func (i ID) MarshalText() (text []byte, err error) {
+	return (ulid.ULID)(i).MarshalText()
+}
+
+// func (i *ID) Value() (driver.Value, error) {
+// 	return (*ulid.ULID)(i).Value()
+// }
+
+func (i *ID) Scan(src any) error {
+	return (*ulid.ULID)(i).Scan(src)
+}
+
+func (i ID) Value() (driver.Value, error) {
+	return (ulid.ULID)(i).String(), nil
+}
+
+func (i ID) Compare(o ID) int {
+	return ulid.ULID(i).Compare(ulid.ULID(o))
+}
 
 var zeroValueID = ID{}
 

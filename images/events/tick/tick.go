@@ -92,7 +92,7 @@ func queryAllEventsUntil(ctx context.Context, querier event.Querier, keyedQuerie
 	results := map[string][]event.Event{}
 	for key, queries := range keyedQueries {
 		for _, q := range event.MutateQueries(queries,
-			event.AndWhereEventsFunc("id", &event.WhereCompare{Compare: "<=", Value: until}),
+			event.AndWhereEventsFunc("id", &event.WhereCompare{Compare: "<=", Value: until.String()}),
 		) {
 			events, qMore, err := querier.QueryEvents(ctx, q)
 			if err != nil {

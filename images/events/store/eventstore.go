@@ -94,7 +94,7 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 		var vecDistance any
 
 		var fields []byte
-		err := rows.Scan(&idBytes, &atBytes, &sinceBytes,
+		err = rows.Scan(&idBytes, &atBytes, &sinceBytes,
 			&fields, &evt.FieldsSize, &evt.FieldsSHA256,
 			&dataSize, &dataSHA256,
 			&vecManifoldIDBytes, &vecID,
@@ -105,7 +105,7 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 		}
 
 		if len(idBytes) > 0 {
-			err := evt.ID.Scan([]byte(idBytes))
+			err = evt.ID.Scan(string(idBytes))
 			if err != nil {
 				slog.Info("QueryEvents ID.Scan", "err", err)
 				return nil, false, err
@@ -113,7 +113,7 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 		}
 
 		if len(atBytes) > 0 {
-			err := evt.At.Scan([]byte(atBytes))
+			err = evt.At.Scan(string(atBytes))
 			if err != nil {
 				slog.Info("QueryEvents At.Scan", "err", err)
 				return nil, false, err
@@ -121,7 +121,7 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 		}
 
 		if len(sinceBytes) > 0 {
-			err := evt.Since.Scan([]byte(sinceBytes))
+			err = evt.Since.Scan(string(sinceBytes))
 			if err != nil {
 				slog.Info("QueryEvents Since.Scan", "err", err)
 				return nil, false, err
@@ -142,7 +142,7 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 
 		if len(vecManifoldIDBytes) > 0 {
 			var vectorManifoldID event.ID
-			err := vectorManifoldID.Scan([]byte(vecManifoldIDBytes))
+			err = vectorManifoldID.Scan(string(vecManifoldIDBytes))
 			if err != nil {
 				slog.Info("QueryEvents vectorManifoldID", "err", err)
 				return nil, false, err
@@ -405,15 +405,15 @@ func (es *EventStore) WriteEvents(ctx context.Context,
 				}
 
 				if vectorManifoldID != nil {
-					_, err = tx.ExecContext(ctx, `INSERT INTO "events" (id, at, since, data_size, data_sha256, fields_size, fields_sha256, fields, vector_manifold_id, vector_data_rowid) VALUES (?, ?, ?, ?, ?, ?, ?, jsonb(?), ?, ?)`,
-						id, at, since,
+					_, err = tx.ExecContext(ctx, `INSERT INTO "`+eventsTable+`" (id, at, since, data_size, data_sha256, fields_size, fields_sha256, fields, vector_manifold_id, vector_data_rowid) VALUES (?, ?, ?, ?, ?, ?, ?, jsonb(?), ?, ?)`,
+						id.String(), at.String(), since.String(),
 						dataSize, dataDigest,
 						fieldsSize, fieldsDigest, fieldsBytes,
-						*vectorManifoldID, vectorDataRowid,
+						vectorManifoldID.String(), vectorDataRowid,
 					)
 				} else {
-					_, err = tx.ExecContext(ctx, `INSERT INTO "events" (id, at, since, data_size, data_sha256, fields_size, fields_sha256, fields) VALUES (?, ?, ?, ?, ?, ?, ?, jsonb(?))`,
-						id, at, since,
+					_, err = tx.ExecContext(ctx, `INSERT INTO "`+eventsTable+`" (id, at, since, data_size, data_sha256, fields_size, fields_sha256, fields) VALUES (?, ?, ?, ?, ?, ?, ?, jsonb(?))`,
+						id.String(), at.String(), since.String(),
 						dataSize, dataDigest,
 						fieldsSize, fieldsDigest, fieldsBytes,
 					)

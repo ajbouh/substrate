@@ -49,7 +49,7 @@ func eventQueryFromURLQuery(uq url.Values) (*event.Query, error) {
 			return nil, err
 		}
 
-		q.AndWhereEvent("id", &event.WhereCompare{Compare: ">", Value: after})
+		q.AndWhereEvent("id", &event.WhereCompare{Compare: ">", Value: after.String()})
 	}
 
 	if uq.Has("until") {
@@ -58,7 +58,7 @@ func eventQueryFromURLQuery(uq url.Values) (*event.Query, error) {
 			return nil, err
 		}
 
-		q.AndWhereEvent("id", &event.WhereCompare{Compare: "<=", Value: until})
+		q.AndWhereEvent("id", &event.WhereCompare{Compare: "<=", Value: until.String()})
 	}
 
 	return q, nil

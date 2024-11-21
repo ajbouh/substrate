@@ -76,11 +76,11 @@ func (s *Stream) process(ctx context.Context, querier event.Querier, q *event.Qu
 		until = *pendingUntil
 
 		cloned := q.Clone().AndWhereEvent("id",
-			&event.WhereCompare{Compare: "<=", Value: until},
+			&event.WhereCompare{Compare: "<=", Value: until.String()},
 		)
 		if s.useAdvancingAfter {
 			cloned.AndWhereEvent("id",
-				&event.WhereCompare{Compare: ">", Value: after},
+				&event.WhereCompare{Compare: ">", Value: after.String()},
 			)
 		}
 
