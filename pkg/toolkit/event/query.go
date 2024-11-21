@@ -58,11 +58,11 @@ type Query struct {
 }
 
 func (q *Query) Until(id ID) *Query {
-	return q.AndWhereEvent("id", &WhereCompare{Compare: "<=", Value: id})
+	return q.AndWhereEvent("id", &WhereCompare{Compare: "<=", Value: id.String()})
 }
 
 func (q *Query) After(after ID) *Query {
-	return q.AndWhereEvent("id", &WhereCompare{Compare: ">", Value: after})
+	return q.AndWhereEvent("id", &WhereCompare{Compare: ">", Value: after.String()})
 }
 
 func (q *Query) WithEventLimit(i int) *Query {
@@ -171,7 +171,7 @@ func NewQuery(view View) *Query {
 func QueryByID(id ID) *Query {
 	return NewQuery(ViewEvents).
 		WithViewLimit(1, false).
-		AndWhereEvent("id", &WhereCompare{Compare: "=", Value: id})
+		AndWhereEvent("id", &WhereCompare{Compare: "=", Value: id.String()})
 }
 
 func QueryLatestByPath(path string) *Query {
