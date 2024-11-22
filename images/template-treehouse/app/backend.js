@@ -93,7 +93,7 @@ async function sha256HexDigest(data) {
   
 export class EventFSStore {
     constructor(eventsBaseURL) {
-        this.eventsBaseURL = eventsBaseURL
+        this.eventsBaseURL = eventsBaseURL.endsWith('/') ? eventsBaseURL.slice(0, -1) : eventsBaseURL
         this.fileDigests = {}
     }
 
@@ -174,7 +174,7 @@ export class EventFSStore {
     }
 
     async _readWorkspace() {
-      const prefix = 'workspace/'
+      const prefix = '/workspace/'
       const nodePrefixLen = prefix.length + 'nodes/'.length
       const files = await this._readAllFiles(prefix)
       if (files == null) {
@@ -195,7 +195,7 @@ export class EventFSStore {
     }
 
     async _writeWorkspace({nodes, ...config}) {
-      const prefix = 'workspace/'
+      const prefix = '/workspace/'
       const nodePrefix = prefix + 'nodes/'
       const files = {
         [prefix + 'config']: JSON.stringify(config),
