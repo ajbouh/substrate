@@ -1,4 +1,3 @@
-import { Octokit } from "../vnd/octokit-18.12.0.min.js";
 import {setup} from "../lib/treehouse.min.js";
 import {SubstrateBackend} from "./backend.js"
 

@@ -125,7 +125,6 @@ func main() {
 		},
 		provisionerCache,
 		httpevents.NewJSONEventStream[*defset.DefSet](""),
-		&space.VSCodeEditingForSpace{},
 
 		&units.RootSpacesLinkQuerier{
 			SpaceURL: func(space string) string {
@@ -133,22 +132,13 @@ func main() {
 			},
 		},
 		space.CommitCommand,
-		space.LinksQueryCommand,
-		space.QueryLinksTreePathCommand,
 		space.DeleteCommand,
 		space.GetCommand,
-		space.WriteCommand,
 		substratehttp.ViewspecLinksCommand,
-
-		&space.SpacesFileTree{},
 
 		provisioner.NewCommand,
 		space.QueryCommand,
 		space.NewCommand,
-		space.CommandsRemoveCommand,
-		space.CommandsWriteCommand,
-		space.LinksRemoveCommand,
-		space.LinksWriteCommand,
 		substratehttp.EvalCommand,
 
 		// TODO how do we want to handle authentication for this?
@@ -206,7 +196,6 @@ func main() {
 
 		&space.SpacesViaContainerFilesystems{},
 		&space.SpaceLinks{},
-		&space.SpaceCommands{},
 		notify.On(func(ctx context.Context, e units.SpawnEventFields, sl *space.SpaceLinks) {
 			for name, p := range e.Links {
 				if p.Rel != "space" {

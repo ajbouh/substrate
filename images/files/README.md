@@ -1,1 +1,0 @@
-Originally based on https://github.com/sgreben/http-file-server

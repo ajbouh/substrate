@@ -19,7 +19,6 @@ require (
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/runtime-spec v1.1.1-0.20230922153023-c0e90434df2a
-	github.com/progrium/go-vscode v0.0.0-20240905182510-5c2c9c463118
 	github.com/rs/cors v1.10.1
 	github.com/sirupsen/logrus v1.9.3
 	golang.org/x/sync v0.8.0
@@ -160,4 +159,3 @@ replace github.com/ajbouh/substrate/pkg/cueloader => ../../pkg/cueloader
 
 replace github.com/ajbouh/substrate/pkg/toolkit => ../../pkg/toolkit
 
-replace github.com/progrium/go-vscode => github.com/ajbouh/go-vscode v0.0.0-20240920032523-9742bde89bb3

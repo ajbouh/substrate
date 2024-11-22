@@ -6,11 +6,11 @@ use (
 	./images/bb
 	./images/bridge
 	./images/chromestage
-	./images/files
 	./images/gstreamer-pipeline
 	./images/nvml
 	./images/screenshot
 	./images/sigar
+	./images/spaceview
 	./images/substrate
 	./images/sys
 	./images/tool-call

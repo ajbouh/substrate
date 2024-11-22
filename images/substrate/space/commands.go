@@ -3,7 +3,6 @@ package space
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -81,62 +80,6 @@ var DeleteCommand = handle.HTTPCommand(
 		}
 
 		return void, err
-	})
-
-var ReadCommand = handle.Command(
-	"space:tree:read-blob",
-	"Read a file",
-	func(ctx context.Context,
-		t *struct {
-			SpacesViaContainerFilesystems SpaceAsFS
-		},
-		args struct {
-			Space  string `json:"space" path:"space"`
-			Path   string `json:"path" path:"path"`
-			Writer http.ResponseWriter
-		},
-	) (Void, error) {
-		fsys, err := t.SpacesViaContainerFilesystems.SpaceAsFS(ctx, args.Space, false)
-		if err != nil {
-			return void, err
-		}
-
-		data, err := fs.ReadFile(fsys, args.Path)
-		if err != nil {
-			return void, err
-		}
-
-		_, err = args.Writer.Write(data)
-		return void, err
-
-	})
-
-var WriteCommand = handle.HTTPCommand(
-	"space:tree:write-blob", "Write a file",
-	"PUT /substrate/v1/spaces/{space}/tree/{path...}", "/substrate/v1/spaces/{space}/tree/{path...}",
-	func(ctx context.Context,
-		t *struct {
-			SpaceAsFS SpaceAsFS
-		},
-		args struct {
-			Space string        `json:"space" path:"space"`
-			Path  string        `json:"path" path:"path"`
-			Body  io.ReadCloser `json:"-"`
-		},
-	) (Void, error) {
-		defer args.Body.Close()
-
-		fsys, err := t.SpaceAsFS.SpaceAsFS(ctx, args.Space, false)
-		if err != nil {
-			return void, err
-		}
-
-		data, err := io.ReadAll(args.Body)
-		if err != nil {
-			return void, err
-		}
-
-		return void, fs.WriteFile(fsys, args.Path, data, 0644)
 	})
 
 var GetCommand = handle.HTTPCommand(

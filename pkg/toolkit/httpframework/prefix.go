@@ -16,6 +16,15 @@ func (f MiddlewareFuncAdapter) WrapHTTP(next http.Handler) http.Handler {
 type contextKey string
 
 var prefixKey = contextKey("prefix")
+var originalRequestKey = contextKey("originalRequest")
+
+func ContextPrefixOriginalRequest(ctx context.Context) *http.Request {
+	v, ok := ctx.Value(originalRequestKey).(*http.Request)
+	if ok {
+		return v
+	}
+	return nil
+}
 
 func ContextPrefix(ctx context.Context) string {
 	v, ok := ctx.Value(prefixKey).(string)
@@ -35,12 +44,18 @@ type StripPrefix struct {
 	Prefix string
 }
 
+func withOriginalRequest(ctx context.Context, r *http.Request) context.Context {
+	return context.WithValue(ctx, originalRequestKey, r)
+}
+
 func WithPrefix(ctx context.Context, prefix string) context.Context {
 	if prefix == "" {
 		return ctx
 	}
 
-	return context.WithValue(ctx, prefixKey, prefix)
+	existingPrefix := ContextPrefix(ctx)
+
+	return context.WithValue(ctx, prefixKey, existingPrefix+prefix)
 }
 
 func (m *StripPrefix) WithContext(ctx context.Context) context.Context {
@@ -57,7 +72,10 @@ func (m *StripPrefix) WrapHTTP(next http.Handler) http.Handler {
 		rp := strings.TrimPrefix(r.URL.RawPath, m.Prefix)
 		if len(p) < len(r.URL.Path) && (r.URL.RawPath == "" || len(rp) < len(r.URL.RawPath)) {
 			r2 := new(http.Request)
-			*r2 = *r.WithContext(context.WithValue(r.Context(), prefixKey, m.Prefix))
+			ctx := r.Context()
+			ctx = withOriginalRequest(ctx, r)
+			ctx = WithPrefix(ctx, m.Prefix)
+			*r2 = *r.WithContext(ctx)
 			r2.URL = new(url.URL)
 			*r2.URL = *r.URL
 			r2.URL.Path = p
