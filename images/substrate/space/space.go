@@ -2,6 +2,7 @@ package space
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -234,7 +235,9 @@ func (p *SpacesViaContainerFilesystems) ResolveSpaceView(ctx context.Context, sp
 
 	_, view, err := p.resolveExistingSpaceViewForSpaceID(ctx, spaceID, readOnly)
 	if view != nil || err != nil {
-		return view, err
+		if !errors.Is(err, activityspec.ErrNotFound) {
+			return view, err
+		}
 	}
 
 	if !createAllowed {
@@ -257,6 +260,12 @@ func (p *SpacesViaContainerFilesystems) ResolveSpaceView(ctx context.Context, sp
 			}
 
 			baseID = imgs[0]
+		} else {
+			slog.Info("")
+			err := p.DefSetLoader.Load().DecodeLookupPath(cue.MakePath(cue.Def("#var"), cue.Str("substrate"), cue.Str("image_ids"), cue.Str(baseID)), &baseID)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		s, spaceID := p.createContainerSpecForSpace(baseID, "")

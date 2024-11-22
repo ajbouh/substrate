@@ -38,6 +38,7 @@ import (
     event_writer_url: "/events;data=substrate-bootstrap-0/tree/fields"
 
     new_space_image: string
+    image_ids: [string]: string
   }
 }
 
@@ -107,6 +108,14 @@ resolve_image_id: {
 }
 
 #var: substrate: new_space_image: (resolve_image_id & {"image_tag": imagespecs["new-space"].image}).image
+for friendly_name, imagespec in imagespecs {
+  if image_ids[imagespec.image] != _|_ {
+    #var: substrate: "image_ids": (friendly_name): image_ids[imagespec.image]
+  }
+  if image_ids[imagespec.image] == _|_ {
+    #var: substrate: "image_ids": (friendly_name): imagespec.image
+  }
+}
 
 services: [key=string]: service & {
   "name": key

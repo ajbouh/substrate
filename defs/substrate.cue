@@ -24,6 +24,7 @@ import (
   substrate: event_writer_url: string
 
   substrate: new_space_image: string
+  substrate: image_ids: [string]: string
 }
 
 enable: "substrate": true
