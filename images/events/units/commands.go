@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/ajbouh/substrate/images/events/store"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 
@@ -33,9 +32,8 @@ var GetTreeRawPathCommand = handle.HTTPCommand(
 
 	func(ctx context.Context,
 		t *struct {
-			// Querier     event.Querier
-			// DataQuerier event.DataQuerier
-			EventStore *store.EventStore
+			Querier     event.Querier
+			DataQuerier event.DataQuerier
 		},
 		args struct {
 			Path     string   `json:"path" path:"path"`
@@ -61,7 +59,7 @@ var GetTreeRawPathCommand = handle.HTTPCommand(
 			query.Until(args.Until)
 		}
 
-		evts, _, err := event.QueryEvents(ctx, t.EventStore, query)
+		evts, _, err := event.QueryEvents(ctx, t.Querier, query)
 		if err != nil {
 			return returns, err
 		}
@@ -81,7 +79,7 @@ var GetTreeRawPathCommand = handle.HTTPCommand(
 			})
 
 			if evt.DataSize != nil && *evt.DataSize != 0 {
-				r, err := t.EventStore.QueryEventData(ctx, evt.ID)
+				r, err := t.DataQuerier.QueryEventData(ctx, evt.ID)
 				if err != nil {
 					return returns, err
 				}
