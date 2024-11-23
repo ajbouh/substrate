@@ -75,8 +75,10 @@ func main() {
 		units.LinksRemoveCommand,
 		units.QueryLinksTreePathCommand,
 
+		&units.Rebase{},
+		units.QueryLinksRebaseTreePathCommand,
+
 		&units.FileTree{
-			// Prefix: urlPrefix,
 			FS: fsys,
 		},
 

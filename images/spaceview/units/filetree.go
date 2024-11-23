@@ -13,8 +13,6 @@ import (
 )
 
 type FileTree struct {
-	Prefix string
-
 	FS fs.FS
 
 	CommandsHTTPSourceHandler *handle.HTTPResourceReflectHandler
@@ -23,11 +21,11 @@ type FileTree struct {
 var _ handle.HTTPResourceReflect = (*FileTree)(nil)
 
 func (x *FileTree) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
-	mux.Handle(x.Prefix+"/tree/{path...}", x)
+	mux.Handle("/tree/{path...}", x)
 }
 
 func (x *FileTree) GetHTTPResourceReflectPath() string {
-	return x.Prefix + "/tree/{path...}"
+	return "/tree/{path...}"
 }
 
 func (x *FileTree) Reflect(ctx context.Context) (commands.DefIndex, error) {
@@ -77,5 +75,5 @@ func (x *FileTree) Reflect(ctx context.Context) (commands.DefIndex, error) {
 }
 
 func (x *FileTree) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	http.StripPrefix(x.Prefix+"/tree", http.FileServerFS(x.FS)).ServeHTTP(w, r)
+	http.StripPrefix("/tree", http.FileServerFS(x.FS)).ServeHTTP(w, r)
 }
