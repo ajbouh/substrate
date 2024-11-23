@@ -2,7 +2,6 @@ import {reflect} from "/tool-call/js/commands.js"
 import {setup} from "../lib/treehouse.min.js";
 import {SubstrateBackend} from "./backend.js"
 
-
 console.log({'document.baseURI': document.baseURI})
 
 async function go() {
