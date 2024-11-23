@@ -87,13 +87,13 @@ var GetCommand = handle.HTTPCommand(
 	"GET /substrate/v1/spaces/{space}", "/substrate/v1/spaces/{space}",
 	func(ctx context.Context,
 		t *struct {
-			SpacesViaContainerFilesystems activityspec.SpaceViewResolver
+			SpaceViewResolver activityspec.SpaceViewResolver
 		},
 		args struct {
 			Space string `json:"space" path:"space"`
 		},
 	) (*activityspec.SpaceEntry, error) {
-		view, err := t.SpacesViaContainerFilesystems.ResolveSpaceView(ctx, args.Space, false, false, "user")
+		view, err := t.SpaceViewResolver.ResolveSpaceView(ctx, args.Space, false, false, "user")
 		if errors.Is(err, activityspec.ErrNotFound) {
 			return nil, &handle.HTTPStatusError{Status: http.StatusNotFound}
 		}
