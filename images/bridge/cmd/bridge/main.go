@@ -37,7 +37,6 @@ import (
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gopxl/beep"
 	"github.com/gorilla/websocket"
-	"github.com/oklog/ulid/v2"
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media/oggwriter"
 )
@@ -193,7 +192,7 @@ func main() {
 }
 
 type EventCursor struct {
-	LastProcessed ulid.ULID `json:"last_processed"`
+	LastProcessed event.ID `json:"last_processed"`
 }
 
 type EventStreamer struct {
