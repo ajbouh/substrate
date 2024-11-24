@@ -67,9 +67,11 @@ RUN --mount=from=dl-go,src=/dl,dst=/dl \
     tar -xvf /dl/go*$(dpkg --print-architecture).tar.gz \
     && ln -s /usr/local/go/bin/* /usr/bin/
 
+WORKDIR /home/workspace
+
 # TODO switch to using fetched extension package and vendored tools.
 RUN code-server --install-extension golang.Go \
-  && export GOPATH=/var/home/core/go \
+  && export GOPATH=$PWD/go \
   && go install golang.org/x/tools/gopls@latest \
   && go install github.com/cweill/gotests/gotests@v1.6.0 \
   && go install github.com/fatih/gomodifytags@v1.16.0 \
@@ -91,5 +93,4 @@ EXPOSE 8080
 # # docker-run.
 # USER 1000
 # ENV USER=coder
-WORKDIR /home/workspace
 ENTRYPOINT ["/usr/bin/entrypoint.sh"]

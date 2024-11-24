@@ -1,6 +1,0 @@
-enable nvidia-ctk-cdi-generate.service
-enable run-media-oob.mount
-enable debug-shell.service
-enable caddy.service
-enable substrateos-write-issues.service
-disable docker.service

@@ -5,17 +5,16 @@ set -eo pipefail
 HERE=$(cd $(dirname $0); pwd)
 
 # Assumes ~/.ssh/config has a stanza
-# Host substrate.home.arpa
-#     User core
+# Host substrate-*.local
+#     User root
 #     IdentityFile ~/.ssh/id_substrate
 
-: ${REMOTE_USER:=core}
-
 # how we connect
-: ${REMOTE_HOST:=$REMOTE_USER@substrate.home.arpa}
+# : ${REMOTE_HOST:=substrate.home.arpa}
+: ${REMOTE_HOST:=substrate-abbe.local}
 
 # where to put source code on remote machine
-: ${REMOTE_ROOT:=/var/home/$REMOTE_USER/source}
+: ${REMOTE_ROOT:=./source}
 
 # Remote branch to use
 : ${REMOTE_BRANCH:=main}
@@ -51,11 +50,14 @@ remote_reset_check() {
 }
 
 push() {
+  # make them absolute paths
+  REMOTE_ROOT="$(ssh $REMOTE_HOST "cd $REMOTE_ROOT; pwd")"
+  REMOTE_DIGEST_BASEPATH="$(ssh $REMOTE_HOST "cd $REMOTE_DIGEST_BASEPATH; pwd")"
+
   # only move forward if remote files are unchanged.
   remote_sanity_check
 
   ssh $REMOTE_HOST "mkdir -p $REMOTE_ROOT && git -C $REMOTE_ROOT init . && git -C $REMOTE_ROOT config receive.denyCurrentBranch ignore"
-  ssh $REMOTE_HOST "sudo chown -R $REMOTE_USER:$REMOTE_USER $REMOTE_ROOT"
   # remove the ready file before we make any other changes to it. this prevents file watching logic from seeing a partial sync. expect something else to put it back.
   ssh $REMOTE_HOST "rm -f $REMOTE_ROOT/defs/ready"
   git push --force ssh://${REMOTE_HOST}${REMOTE_ROOT}/.git +HEAD:$REMOTE_BRANCH

@@ -72,6 +72,7 @@ func (r *Loader) LoadCue(cueMu Lock, cc *cue.Context, config *load.Config) *Load
 	// log.Println("BuildStart")
 	l.BuildStart = time.Now()
 	l.BuildValue = cc.BuildInstance(instance)
+	l.Value = l.BuildValue
 	l.BuildEnd = time.Now()
 	// log.Println("BuildEnd")
 
@@ -81,7 +82,6 @@ func (r *Loader) LoadCue(cueMu Lock, cc *cue.Context, config *load.Config) *Load
 		return l
 	}
 
-	l.Value = l.BuildValue
 	// log.Println("TransformStart")
 	l.TransformStart = time.Now()
 	for _, transform := range r.transforms {

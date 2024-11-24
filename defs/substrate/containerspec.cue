@@ -75,41 +75,48 @@ import (
     [=~"\\.image$"]: quadlet.#Image
     [=~"\\.container$"]: quadlet.#Container
 
-    "\(#name).container": #systemd_service_name: "\(#name).service"
-    "\(#name).container": Container: {
-      Pull: string | *"never"
-      Image: #containerspec.image
-      ContainerName: #name
-      // HACK this might create a shell escaping issue...
-      if #containerspec.command != _|_ {
-        Exec: strings.Join(#containerspec.command, " ")
-      }
-      if #containerspec.mounts != _|_ {
-        Mount: [
-          for _, mount in #containerspec.mounts {
-            strings.Join([
-              if mount.type != _|_ {
-                "type=\(mount.type)",
-              }
-              if mount.source != _|_ {
-                "source=\(mount.source)",
-              }
-              if mount.destination != _|_ {
-                "destination=\(mount.destination)",
-              }
+    "\(#name).container": {
+      #systemd_service_name: "\(#name).service"
+      Container: {
+        Pull: string | *"never"
+
+        // So we can use bootc logically-bound images. See also: https://containers.github.io/bootc/logically-bound-images.html
+        "PodmanArgs": ["--storage-opt=additionalimagestore=/usr/lib/bootc/storage"]
+
+        // Image: "\(#name).image"
+        Image: #containerspec.image
+        ContainerName: #name
+        // HACK this might create a shell escaping issue...
+        if #containerspec.command != _|_ {
+          Exec: strings.Join(#containerspec.command, " ")
+        }
+        if #containerspec.mounts != _|_ {
+          Mount: [
+            for _, mount in #containerspec.mounts {
               strings.Join([
-                for mode in mount.mode {
-                  if mode == "rw" {
-                    "rw=true",
-                  }
-                  if mode == "ro" {
-                    "ro=true",
-                  }
+                if mount.type != _|_ {
+                  "type=\(mount.type)",
                 }
+                if mount.source != _|_ {
+                  "source=\(mount.source)",
+                }
+                if mount.destination != _|_ {
+                  "destination=\(mount.destination)",
+                }
+                strings.Join([
+                  for mode in mount.mode {
+                    if mode == "rw" {
+                      "rw=true",
+                    }
+                    if mode == "ro" {
+                      "ro=true",
+                    }
+                  }
+                ], ",")
               ], ",")
-            ], ",")
-          }
-        ]
+            }
+          ]
+        }
       }
     }
   }

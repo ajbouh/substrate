@@ -1,0 +1,84 @@
+FROM docker.io/library/golang:1.22 AS txtar-go-build
+ARG TXTAR_VERSION=v0.0.0-20241009180824-f66d83c29e7c
+RUN  --mount=type=cache,target=/go/pkg/mod \
+go install golang.org/x/exp/cmd/txtar@${TXTAR_VERSION}
+
+FROM docker.io/library/golang:1.22 AS cue-go-build
+ARG CUE_VERSION=v0.11.0
+RUN  --mount=type=cache,target=/go/pkg/mod \
+go install cuelang.org/go/cmd/cue@${CUE_VERSION}
+
+FROM docker.io/library/node:16 AS gotty-js-build
+WORKDIR /gotty
+COPY images/gotty/js/. /gotty/js
+COPY images/gotty/Makefile /gotty/
+RUN make bindata/static/js/gotty.js.map
+
+FROM docker.io/library/golang:1.20 AS gotty-go-build
+WORKDIR /gotty
+COPY images/gotty/. /gotty
+COPY --from=gotty-js-build /gotty/js/node_modules /gotty/js/node_modules
+COPY --from=gotty-js-build /gotty/bindata/static/js /gotty/bindata/static/js
+RUN touch /gotty/bindata/static/js/* && CGO_ENABLED=0 make
+
+FROM docker.io/library/golang:1.22 AS caddy-go-build
+WORKDIR /caddy
+COPY images/caddy/. .
+RUN  --mount=type=cache,target=/go/pkg/mod \
+  go build
+
+FROM ghcr.io/ublue-os/fedora-coreos:stable-nvidia-20241124 AS base
+
+FROM base AS overlay-build
+ARG NAMESPACE
+ARG CUE_DEV_DEFS
+ARG SUBSTRATE_LIVE_EDIT
+ARG SUBSTRATE_USER
+ARG SUBSTRATE_GROUP
+ARG SUBSTRATE_HOME
+ARG SUBSTRATE_SOURCE
+ARG SUBSTRATE_BUILD_FOCUS
+
+COPY images/substrateos/overlay /overlay
+COPY images/substrateos/build-overlay.sh /tmp/build-overlay.sh
+COPY tools/functions /tmp/tools/functions
+COPY defs /tmp/defs
+RUN --mount=from=txtar-go-build,src=/go/bin/txtar,dst=/tmp/tools/bin/txtar \
+    --mount=from=cue-go-build,src=/go/bin/cue,dst=/tmp/tools/bin/cue \
+    env \
+      "CUE_NATIVE=/tmp/tools/bin/cue" \
+      "TXTAR_NATIVE=/tmp/tools/bin/txtar" \
+      "CUE_DEV_DIR=/tmp/defs" \
+      "NAMESPACE=${NAMESPACE}" \
+      "CUE_DEV_DEFS=${CUE_DEV_DEFS}" \
+      "SUBSTRATE_LIVE_EDIT=${SUBSTRATE_LIVE_EDIT}" \
+      "SUBSTRATE_USER=${SUBSTRATE_USER}" \
+      "SUBSTRATE_GROUP=${SUBSTRATE_GROUP}" \
+      "SUBSTRATE_HOME=${SUBSTRATE_HOME}" \
+      "SUBSTRATE_SOURCE=${SUBSTRATE_SOURCE}" \
+      "SUBSTRATE_BUILD_FOCUS=${SUBSTRATE_BUILD_FOCUS}" \
+      /tmp/build-overlay.sh
+
+FROM scratch AS overlay
+COPY --from=overlay-build /overlay /
+
+FROM base AS dist
+
+## NOTES:
+# - /var/lib/alternatives is required to prevent failure with some RPM installs
+# - All RUN commands must end with ostree container commit
+#   see: https://coreos.github.io/rpm-ostree/container/#using-ostree-container-commit
+
+COPY images/substrateos/build-base.sh /tmp/build-base.sh
+RUN mkdir -p /var/lib/alternatives && \
+    /tmp/build-base.sh && \
+    ostree container commit
+
+COPY images/substrateos/build-custom.sh /tmp/build-custom.sh
+RUN --mount=from=caddy-go-build,src=/caddy/caddy,dst=/tmp/caddy/caddy \
+    --mount=from=gotty-go-build,src=/gotty/gotty,dst=/tmp/gotty/gotty \
+    /tmp/build-custom.sh && \
+    ostree container commit
+
+COPY --from=overlay /. /
+RUN ostree container commit

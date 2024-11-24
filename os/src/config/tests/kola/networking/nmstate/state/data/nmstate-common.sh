@@ -1,1 +1,0 @@
-../../data/nmstate-common.sh

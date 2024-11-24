@@ -15,7 +15,7 @@ func (p *SpacesViaContainerFilesystems) resolveBootstrapSpaceView(ctx context.Co
 		var newSpaceImage string
 		var err error
 
-		err = p.DefSetLoader.Load().DecodeLookupPath(cue.MakePath(cue.Def("#var"), cue.Str("substrate"), cue.Str("new_space_image")), &newSpaceImage)
+		err = p.DefSetLoader.Load().DecodeLookupPath(cue.MakePath(cue.Def("#var"), cue.Str("substrate"), cue.Str("image_ids"), cue.Str("new-space")), &newSpaceImage)
 		if err != nil {
 			return "", err
 		}

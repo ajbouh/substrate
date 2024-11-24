@@ -1,1 +1,0 @@
-../../data/ifname-karg-lib.sh

@@ -1,7 +1,0 @@
-variables:
-  stream: stable
-  prod: true
-
-releasever: 39
-
-include: manifests/substrateos.yaml

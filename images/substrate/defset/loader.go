@@ -60,6 +60,7 @@ func (l *Loader) loadDefSet(files map[string]string, cueLoadConfigWithFiles *loa
 	load := l.CueLoader.LoadCue(sds.CueMu, sds.CueContext, cueLoadConfigWithFiles)
 	if load.Err != nil {
 		sds.Err = fmt.Errorf("error loading cue defs: %w", load.Err)
+		sds.RootValue = load.Value
 		return sds
 	}
 
@@ -121,12 +122,12 @@ func (l *Loader) LoadDefSet() (*DefSet, bool) {
 		log.Printf("committing new defset without error")
 	} else if defSet == nil {
 		commit = true
-		log.Printf("committing new defset with error because we need *something*; err=%s", FmtErr(sds.Err))
+		log.Printf("committing new defset with error because we need *something*; err=%s", sds.FmtErr(sds.Err))
 	} else if defSet.Err != nil {
 		commit = true
-		log.Printf("committing new defset with error because the one we had did not have an error; err=%s", FmtErr(sds.Err))
+		log.Printf("committing new defset with error because the one we had also had an error; err=%s", sds.FmtErr(sds.Err))
 	} else {
-		log.Printf("skipping commit of new defset with error (because we already had one without an err); err=%s", FmtErr(sds.Err))
+		log.Printf("skipping commit of new defset with error (because we already had one without an err); err=%s", sds.FmtErr(sds.Err))
 	}
 
 	if commit {
@@ -137,13 +138,4 @@ func (l *Loader) LoadDefSet() (*DefSet, bool) {
 	}
 
 	return sds, commit
-}
-
-func FmtErr(err error) string {
-	errs := cueerrors.Errors(err)
-	messages := make([]string, 0, len(errs))
-	for _, err := range errs {
-		messages = append(messages, err.Error())
-	}
-	return strings.Join(messages, "\n")
 }

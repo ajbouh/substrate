@@ -24,7 +24,6 @@ import (
   substrate: event_stream_url: string
   substrate: event_writer_url: string
 
-  substrate: new_space_image: string
   substrate: image_ids: [string]: string
 }
 
@@ -70,13 +69,12 @@ daemons: "substrate": {
   environment: {
     "PORT": string | *"\(#var.substrate.internal_port)"
     "SUBSTRATE_DB": "\(substrate_data)/substrate.sqlite"
-    "SUBSTRATEFS_ROOT": #var.host_substratefs_root
     "SUBSTRATE_MACHINE_ID_FILE": #var.host_machine_id_file
     "SUBSTRATE_CUE_DEFS": string | *substrate_cue_defs
     if live_edit["substrate"] {
       "SUBSTRATE_CUE_DEFS_LIVE": substrate_cue_defs_live
     }
-    "SUBSTRATE_SOURCE_DIRECTORY": string | *#var.host_source_directory
+    "SUBSTRATE_SOURCE": string | *#var.host_source_directory
 
     // TODO pass in internal_host
     // TODO pass in internal_protocol
@@ -87,6 +85,8 @@ daemons: "substrate": {
     "SUBSTRATE_EVENT_STREAM_URL": string | *#var.substrate.event_stream_url
     "SUBSTRATE_EVENT_WRITER_URL": string | *#var.substrate.event_writer_url
 
+    "CUE_DEBUG": "1"
+
     #docker_socket: "/var/run/docker.sock"
 
     "DOCKER_HOST": "unix://\(#docker_socket)"
@@ -95,7 +95,6 @@ daemons: "substrate": {
   mounts: {
     (substrate_data): {source: "\(#var.namespace)-substrate_data" , type: "volume"}
     "/var/lib/containers/storage": {source: "/var/lib/containers/storage"}
-    (#var.host_substratefs_root): {source: #var.host_substratefs_root}
     (#var.host_machine_id_file): {source: #var.host_machine_id_file}
     "/etc/hostname": {source: #var.host_hostname_file}
     (environment.#docker_socket): {source: #var.host_docker_socket}
@@ -122,8 +121,8 @@ daemons: "substrate": {
     }
     "substrate.container": {
       Unit: {
-        Requires: ["podman.socket", "nvidia-ctk-cdi-generate.service", "ensure-substratefs-root.service", "ensure-oob-imagestore.service"]
-        After: ["podman.socket", "nvidia-ctk-cdi-generate.service", "ensure-substratefs-root.service", "ensure-oob-imagestore.service"]
+        Requires: ["podman.socket"]
+        After: ["podman.socket"]
       }
       Install: {
         WantedBy: ["multi-user.target", "default.target"]

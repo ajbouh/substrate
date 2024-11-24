@@ -226,12 +226,7 @@ func (p *SpacesViaContainerFilesystems) ResolveSpaceView(ctx context.Context, sp
 
 	// This makes it easy to request a *new* space.
 	if spaceID == "" || spaceID == "scratch" || spaceID == "fork:scratch" {
-		var newSpaceImage string
-		err := p.DefSetLoader.Load().DecodeLookupPath(cue.MakePath(cue.Def("#var"), cue.Str("substrate"), cue.Str("new_space_image")), &newSpaceImage)
-		if err != nil {
-			return nil, err
-		}
-		spaceID = "fork:" + newSpaceImage
+		spaceID = "fork:new-space"
 	}
 
 	_, view, err := p.resolveExistingSpaceViewForSpaceID(ctx, spaceID, readOnly)
@@ -261,7 +256,7 @@ func (p *SpacesViaContainerFilesystems) ResolveSpaceView(ctx context.Context, sp
 			}
 
 			baseID = imgs[0]
-		} else {
+		} else if !strings.HasPrefix(baseID, "sha256:") {
 			err := p.DefSetLoader.Load().DecodeLookupPath(cue.MakePath(cue.Def("#var"), cue.Str("substrate"), cue.Str("image_ids"), cue.Str(baseID)), &baseID)
 			if err != nil {
 				return nil, err
@@ -281,9 +276,7 @@ func (p *SpacesViaContainerFilesystems) ResolveSpaceView(ctx context.Context, sp
 			}
 		}
 		return view, err
-	}
-
-	if strings.HasPrefix(spaceID, spaceViewImagePrefix) {
+	} else if strings.HasPrefix(spaceID, spaceViewImagePrefix) {
 		baseID := strings.TrimPrefix(spaceID, spaceViewImagePrefix)
 		if mightBeRemote(baseID) {
 			imgs, err := images.Pull(ctx, baseID, &images.PullOptions{
@@ -299,7 +292,7 @@ func (p *SpacesViaContainerFilesystems) ResolveSpaceView(ctx context.Context, sp
 			}
 
 			baseID = imgs[0]
-		} else {
+		} else if !strings.HasPrefix(baseID, "sha256:") {
 			err := p.DefSetLoader.Load().DecodeLookupPath(cue.MakePath(cue.Def("#var"), cue.Str("substrate"), cue.Str("image_ids"), cue.Str(baseID)), &baseID)
 			if err != nil {
 				return nil, err

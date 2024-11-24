@@ -14,10 +14,12 @@ import (
 #Varset: {
   namespace: string @tag(namespace)
   cue_defs: string @tag(cue_defs)
-  build_source_directory: string | *"" @tag(build_source_directory)
 
-  host_substratefs_root: string
-  host_source_directory: string
+  host_user: string @tag(host_user)
+  host_group: string @tag(host_group)
+  host_home_directory: string @tag(host_home_directory)
+  host_source_directory: string @tag(host_source_directory)
+
   image_prefix: string | *"ghcr.io/ajbouh/substrate:substrate-"
   host_machine_id_file: "/etc/machine-id"
   host_hostname_file: "/etc/hostname"
@@ -38,7 +40,6 @@ import (
     event_stream_url: "/events;data=substrate-bootstrap-0/stream/events"
     event_writer_url: "/events;data=substrate-bootstrap-0/tree/fields"
 
-    new_space_image: string
     image_ids: [string]: string
   }
 }
@@ -46,23 +47,7 @@ import (
 #varsets: [string]: #Varset
 
 #varsets: substrateos: {
-  build_source_directory: string
-  host_source_directory: "/var/home/core/source"
-  host_substratefs_root: "/var/lib/substratefs"
   host_docker_socket: "/var/run/podman/podman.sock"
-}
-
-#varsets: docker_compose: {
-  namespace: string
-  build_source_directory: string
-  host_source_directory: build_source_directory
-
-  host_substratefs_root: "\(build_source_directory)/substratefs"
-  host_docker_socket: "/var/run/docker.sock"
-
-  substrate: {
-    network_name_prefix ?: "\(namespace)-substrate_"
-  }
 }
 
 #var: #Varset
@@ -92,9 +77,9 @@ imagespecs: [key=string] ?: imagespec.#ImageSpec
 // default to the ref itself in case image_ids is missing.
 image_ids ?: [ref=string]: string
 
-resourcedirs: [id=string]: {
-  "id": string & id
-  sha256: hex.Encode(cryptosha256.Sum256(id))
+resourcedirs: [rdid=string]: {
+  "id": string & rdid
+  sha256: hex.Encode(cryptosha256.Sum256(rdid))
   #imagespec: imagespec.#ImageSpec
   image_tag: #imagespec.image
 }
@@ -102,20 +87,17 @@ resourcedirs: [id=string]: {
 #alias: "resourcedirs": resourcedirs
 
 // helper for resolving image tag to image id
+resolve_image_ids: bool | *true @tag(resolve_image_ids,type=bool)
 resolve_image_id: {
   image_tag: string
-  if image_ids == _|_ { image: image_tag }
-  if image_ids != _|_ { image: image_ids[image_tag] }
+  if !resolve_image_ids || (image_ids == _|_) { image: image_tag }
+  if resolve_image_ids && (image_ids != _|_) { image: image_ids[image_tag] }
+  if (image_ids == _|_) { image: image_tag }
+  if (image_ids != _|_) { image: image_ids[image_tag] }
 }
 
-#var: substrate: new_space_image: (resolve_image_id & {"image_tag": imagespecs["new-space"].image}).image
-for friendly_name, imagespec in imagespecs {
-  if image_ids[imagespec.image] != _|_ {
-    #var: substrate: "image_ids": (friendly_name): image_ids[imagespec.image]
-  }
-  if image_ids[imagespec.image] == _|_ {
-    #var: substrate: "image_ids": (friendly_name): imagespec.image
-  }
+for key, def in imagespecs if enable[key] {
+  #var: substrate: "image_ids": (key): (resolve_image_id & {image_tag: def.image}).image
 }
 
 services: [key=string]: service & {
@@ -142,7 +124,7 @@ services: [key=string]: service & {
   }
 }
 
-calls: [key=string]: [id=string]: call.#HTTPCall
+calls: [key=string]: [callid=string]: call.#HTTPCall
 
 daemons: [key=string]: containerspec.#ContainerSpec & {
   image_tag: string | *imagespecs[key].image

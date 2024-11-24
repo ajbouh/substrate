@@ -1,0 +1,7 @@
+enable debug-shell.service
+enable caddy.service
+enable hostname-commit.service
+enable substrateos-write-issues.service
+enable podman.socket
+disable docker.service
+disable zincati.service

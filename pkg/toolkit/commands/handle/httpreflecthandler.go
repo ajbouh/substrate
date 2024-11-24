@@ -15,7 +15,7 @@ func EnsureHTTPBasis(method, route string) commands.DefTransformFunc {
 		// for each command, populate any missing run fields. this provides enough information for
 		// someone to "run" the associated command through this handler.
 		r := FindMsgBasis(commandDef)
-		if r.Cap != nil {
+		if r == nil || r.Cap != nil {
 			return commandName, commandDef
 		}
 

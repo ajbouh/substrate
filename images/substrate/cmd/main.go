@@ -185,7 +185,7 @@ func main() {
 			}
 			err := e.DecodeLookupPath(cue.MakePath(cue.Str("commands")), &commands.DefsMap)
 			if err != nil {
-				log.Printf("err on update: %s", defset.FmtErr(err))
+				log.Printf("err on update: %s", e.FmtErr(err))
 				t.Slot.StoreWithContext(ctx, nil)
 				return
 			}
@@ -218,8 +218,6 @@ func main() {
 			}
 		}),
 		&units.InstanceLinks{},
-
-		substratefs.NewLayout(mustGetenv("SUBSTRATEFS_ROOT")),
 
 		&notify.Slot[defset.DefSet]{},
 		&defset.Loader{
@@ -321,7 +319,7 @@ func main() {
 		notify.On(func(ctx context.Context, e *cueloader.CueModuleChanged, defsAnnouncer *httpevents.EventStream[*defset.DefSet]) {
 			// announce it
 			if e.Error != nil {
-				log.Printf("err on update: %s", defset.FmtErr(e.Error))
+				log.Printf("err on update: %s", e.Error.Error())
 			} else {
 				if b, err := cueloader.Marshal(e.Files, e.CueLoadConfigWithFiles); err == nil {
 					defsAnnouncer.AnnounceRaw(b)
@@ -330,6 +328,10 @@ func main() {
 				}
 			}
 		}),
+	}
+
+	if os.Getenv("SUBSTRATEFS_ROOT") != "" {
+		units = append(units, substratefs.NewLayout(mustGetenv("SUBSTRATEFS_ROOT")))
 	}
 
 	engine.Run(units...)

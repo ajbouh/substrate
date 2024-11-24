@@ -29,8 +29,8 @@ func cueDefsLoadTags() []string {
 		"cue_defs=" + mustGetenv("SUBSTRATE_CUE_DEFS"),
 	}
 
-	if os.Getenv("SUBSTRATE_SOURCE_DIRECTORY") != "" {
-		cueDefsLoadTags = append(cueDefsLoadTags, "build_source_directory="+os.Getenv("SUBSTRATE_SOURCE_DIRECTORY"))
+	if os.Getenv("SUBSTRATE_SOURCE") != "" {
+		cueDefsLoadTags = append(cueDefsLoadTags, "host_source_directory="+os.Getenv("SUBSTRATE_SOURCE"))
 	}
 
 	return cueDefsLoadTags

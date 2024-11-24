@@ -12,8 +12,12 @@ services: "qwen2.5-coder-32b-instruct": {
       model: "huggingface:model:Qwen/Qwen2.5-Coder-32B-Instruct-GGUF:6ad0cdf97c9a3cfd154faf15a973c93044ba5c7e:qwen2.5-coder-32b-instruct-q6_k.gguf"
     }
 
+    url_prefix: environment.SUBSTRATE_URL_PREFIX
+
     environment: {
       LLAMAFILE_GGUF: "/res/model/huggingface/local/qwen2.5-coder-32b-instruct-q6_k.gguf"
+      SUBSTRATE_URL_PREFIX: string
+      LLAMAFILE_URL_PREFIX: SUBSTRATE_URL_PREFIX
     }
   }
 }

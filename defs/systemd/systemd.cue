@@ -1,6 +1,7 @@
 package systemd
 
 import (
+  "list"
   "strings"
 )
 
@@ -31,7 +32,7 @@ import (
   #section_name: string
   #section: #Section
 
-  #out: strings.Join([
+  #lines: [
     "[\(#section_name)]",
     for k, v in #section {
       if ((v & string) != _|_) || ((v & bool) != _|_) || ((v & number) != _|_) {
@@ -53,20 +54,22 @@ import (
       }
     },
     ""
-  ], "\n")
+  ]
+  #out: strings.Join(#lines, "\n")
 }
 
 #render_unit: {
   #unit: #Unit
 
-  #out: strings.Join([
+  #lines: list.Concat([
     for section_name, section in #unit {
       (#render_section & {
         #section_name: section_name
         #section: section
-      }).#out,
+      }).#lines,
     }
-  ], "\n")
+  ])
+  #out: strings.Join(#lines, "\n")
 }
 
 // https://man.archlinux.org/man/systemd.preset.5.en

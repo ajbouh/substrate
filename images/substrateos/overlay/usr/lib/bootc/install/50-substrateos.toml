@@ -1,0 +1,4 @@
+# https://containers.github.io/bootc/man-md/bootc-install-config.html
+
+[install.filesystem.root]
+type = "xfs"

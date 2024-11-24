@@ -6,6 +6,10 @@ import (
 
 enable: "tool-call": true
 
+#var: {
+  host_source_directory: string
+}
+
 imagespecs: "tool-call": {
   image: "\(#var.image_prefix)tool-call"
   build: dockerfile: "images/tool-call/Dockerfile"

@@ -1,8 +1,10 @@
 package defs
 
 #var: {
+  host_user: string
+  host_group: string
+  host_home_directory: string
   host_docker_socket: string
-  host_substratefs_root: string
 }
 
 enable: "vscode-server": true
@@ -15,9 +17,9 @@ imagespecs: "vscode-server": {
 }
 
 "daemons": "vscode-server": {
-  #user: "core"
-  #group: "core"
-  #home: "/var/home/\(#user)"
+  #user: #var.host_user
+  #group: #var.host_group
+  #home: #var.host_home_directory
 
   environment: {
     #workspace: string | *#home
@@ -50,7 +52,6 @@ imagespecs: "vscode-server": {
   mounts: {
     (#home): {source: #home}
     (environment.#docker_socket): {source: #var.host_docker_socket}
-    (#var.host_substratefs_root): {source: #var.host_substratefs_root}
   }
 
   #systemd_quadlet_units: {

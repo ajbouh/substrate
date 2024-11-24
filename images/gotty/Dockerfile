@@ -11,9 +11,6 @@ COPY --from=js-build /gotty/js/node_modules /gotty/js/node_modules
 COPY --from=js-build /gotty/bindata/static/js /gotty/bindata/static/js
 RUN touch /gotty/bindata/static/js/* && CGO_ENABLED=0 make
 
-FROM scratch AS gotty
-COPY --from=go-build /gotty/gotty /
-
 FROM alpine:latest AS dist-alpine
 RUN apk update && \
     apk upgrade && \

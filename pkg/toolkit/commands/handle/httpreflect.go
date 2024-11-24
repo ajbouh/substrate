@@ -64,6 +64,10 @@ func (h *HTTPResourceReflectHandler) ReflectorForPathFuncExcluding(excluding ...
 }
 
 func FindMsgBasis(c *commands.Msg) *commands.Msg {
+	if c == nil {
+		return nil
+	}
+
 	for {
 		if c.Msg == nil {
 			return c
@@ -80,7 +84,7 @@ func EnsureRunHTTPRequestURLIncludesPrefix(prefix string) commands.DefTransformF
 		}
 
 		r := FindMsgBasis(commandDef)
-		if r.Cap == nil || *r.Cap != "http" {
+		if r == nil || r.Cap == nil || *r.Cap != "http" {
 			return commandName, commandDef
 		}
 

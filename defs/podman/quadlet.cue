@@ -23,7 +23,7 @@ import (
     Pull ?: string
 
     ContainerName: string
-    Image: string
+    Image ?: string
 
     PublishPort ?: [...string]
 
@@ -107,29 +107,29 @@ import (
     Label ?: string
     NetworkName ?: string
     Options ?: string
-    PodmanArgs ?: string
+    PodmanArgs ?: [...string]
     Subnet ?: string
   }
 }
 
 // https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html#image-units-image
 #Image: systemd.#Unit & {
-  // "Image": {
-  //   AllTags ?: bool
-  //   Arch ?: string
-  //   AuthFile ?: string
-  //   CertDir ?: string
-  //   ContainersConfModule ?: string
-  //   Creds ?: =~"^(.*):(.*)$"
-  //   DecryptionKey ?: string
-  //   GlobalArgs ?: string
-  //   "Image" ?: string
-  //   OS ?: string
-  //   PodmanArgs ?: string
-  //   TLSVerify ?: bool
-  //   Variant ?: string
-  // }
-  ...
+  "Image" ?: {
+    AllTags ?: bool
+    Arch ?: string
+    AuthFile ?: string
+    CertDir ?: string
+    ContainersConfModule ?: string
+    Creds ?: =~"^(.*):(.*)$"
+    DecryptionKey ?: string
+    GlobalArgs ?: [...string]
+    "Image": string
+    ImageTag ?: string
+    OS ?: string
+    PodmanArgs ?: [...string]
+    TLSVerify ?: bool
+    Variant ?: string
+  }
 }
 
 // https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html#volume-units-volume

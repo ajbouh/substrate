@@ -1,0 +1,63 @@
+#!/bin/bash
+
+set -exo pipefail
+
+HERE=$(cd $(dirname $0); pwd)
+ME=$(basename $0)
+
+# TODO do we need to specify this? can we pull it from bootc status?
+if [ -z "$OS_IMAGE_TAG" ]; then
+  OS_IMAGE_TAG=$(bootc status --format=json | jq -r '.spec.image.image')
+fi
+
+reexec_via_podman_run() {
+  exec podman run \
+    --privileged \
+    --pid=host \
+    --pull=never \
+    --rm \
+    --security-opt label=type:unconfined_t \
+    --env "OS_IMAGE_TAG=$OS_IMAGE_TAG" \
+    --env RUST_LOG=debug \
+    -v /dev:/dev \
+    -v /var/lib/containers:/var/lib/containers \
+    "$@"
+}
+
+install() {
+  dst_dev=$1
+  shift 1
+
+  if [ -z "$dst_dev" ]; then
+    echo >&2 "fatal: no destination device given"
+    exit 1
+  fi
+
+  reexec_via_podman_run \
+    -it \
+    $OS_IMAGE_TAG \
+    bootc install to-disk \
+      --wipe \
+      --skip-fetch-check \
+      $dst_dev \
+      "$@"
+}
+
+case "$1" in
+  install)
+    shift
+    install "$@"
+    ;;
+  shell)
+    shift
+    reexec_via_podman_run \
+        -it \
+        -v $HERE:$HERE \
+        -w $HERE \
+        $OS_IMAGE_TAG \
+        "$@"
+    ;;
+  *)
+  echo >&2 "usage: $0 dstdev"
+    ;;
+esac
