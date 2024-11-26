@@ -59,7 +59,6 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/emicklei/proto v1.13.2 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
-	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.1 // indirect
 	github.com/go-openapi/analysis v0.21.4 // indirect
 	github.com/go-openapi/errors v0.20.4 // indirect
@@ -133,7 +132,6 @@ require (
 	github.com/ulikunitz/xz v0.5.11 // indirect
 	github.com/vbatts/tar-split v0.11.5 // indirect
 	github.com/vbauerster/mpb/v8 v8.6.2 // indirect
-	github.com/x448/float16 v0.8.4 // indirect
 	go.mongodb.org/mongo-driver v1.11.3 // indirect
 	go.mozilla.org/pkcs7 v0.0.0-20210826202110-33d05740a352 // indirect
 	go.opencensus.io v0.24.0 // indirect
@@ -158,4 +156,3 @@ require (
 replace github.com/ajbouh/substrate/pkg/cueloader => ../../pkg/cueloader
 
 replace github.com/ajbouh/substrate/pkg/toolkit => ../../pkg/toolkit
-
