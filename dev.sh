@@ -300,7 +300,7 @@ systemd_reload() {
   set +x
   write_ready_file
 
-  printf "Visit: https://%s\n" "$(hostname)"
+  echo "Visit: https://$(hostname -f)"
 }
 
 os_installer() {

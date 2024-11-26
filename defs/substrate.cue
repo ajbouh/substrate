@@ -70,6 +70,7 @@ daemons: "substrate": {
     "PORT": string | *"\(#var.substrate.internal_port)"
     "SUBSTRATE_DB": "\(substrate_data)/substrate.sqlite"
     "SUBSTRATE_MACHINE_ID_FILE": #var.host_machine_id_file
+    "SUBSTRATE_HOSTNAME_FILE": "\(#var.host_hostname_file).host"
     "SUBSTRATE_CUE_DEFS": string | *substrate_cue_defs
     if live_edit["substrate"] {
       "SUBSTRATE_CUE_DEFS_LIVE": substrate_cue_defs_live
@@ -96,7 +97,7 @@ daemons: "substrate": {
     (substrate_data): {source: "\(#var.namespace)-substrate_data" , type: "volume"}
     "/var/lib/containers/storage": {source: "/var/lib/containers/storage"}
     (#var.host_machine_id_file): {source: #var.host_machine_id_file}
-    "/etc/hostname": {source: #var.host_hostname_file}
+    (environment.SUBSTRATE_HOSTNAME_FILE): {source: #var.host_hostname_file}
     (environment.#docker_socket): {source: #var.host_docker_socket}
     if live_edit["substrate"] {
       (substrate_cue_defs_live): {source: "\(#var.host_source_directory)/\(#var.cue_defs)"}

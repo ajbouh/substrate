@@ -13,7 +13,7 @@ After=local-fs.target
 Requires=local-fs.target
 
 [Service]
-ExecStart=/bin/sh -c 'echo "substrate-$(cat /etc/machine-id | head -c 4).home.arpa" > /etc/hostname; hostname -F /etc/hostname'
+ExecStart=/bin/sh -c 'hostnamectl hostname "substrate-$(cat /etc/machine-id | head -c 4).local"'
 Type=oneshot
 RemainAfterExit=yes
 

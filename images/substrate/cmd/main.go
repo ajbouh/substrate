@@ -79,9 +79,13 @@ func main() {
 	}
 	machineID := strings.Trim(string(machineIDData), "\n")
 
-	hostname, err := os.Hostname()
+	hostnameData, err := os.ReadFile(mustGetenv("SUBSTRATE_HOSTNAME_FILE"))
 	if err != nil {
-		log.Fatalf("couldn't get hostname: %s", err)
+		log.Fatalf("couldn't read machine id file: %s", err)
+	}
+	hostname := strings.Trim(string(hostnameData), "\n")
+	if strings.Count(hostname, ".") == 0 {
+		hostname = hostname + ".local"
 	}
 
 	internalSubstrateOrigin := mustGetenv("INTERNAL_SUBSTRATE_ORIGIN")

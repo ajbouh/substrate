@@ -8,7 +8,7 @@ ConditionPathExists=/etc/hostname
 
 [Service]
 Type=oneshot
-ExecStart=sh -c 'printf "Visit: https://%s\n" "$(hostname)" > /etc/issue.d/50_substrateos.issue'
+ExecStart=sh -c 'echo "Visit: https://$(hostname -f)" > /etc/issue.d/50_substrateos.issue'
 RemainAfterExit=yes
 
 [Install]

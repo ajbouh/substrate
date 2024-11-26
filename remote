@@ -4,14 +4,7 @@ set -eo pipefail
 
 HERE=$(cd $(dirname $0); pwd)
 
-# Assumes ~/.ssh/config has a stanza
-# Host substrate-*.local
-#     User root
-#     IdentityFile ~/.ssh/id_substrate
-
-# how we connect
-# : ${REMOTE_HOST:=substrate.home.arpa}
-: ${REMOTE_HOST:=substrate-abbe.local}
+: ${REMOTE_HOST_FILE:=$HERE/remote-host}
 
 # where to put source code on remote machine
 : ${REMOTE_ROOT:=./source}
@@ -21,11 +14,25 @@ HERE=$(cd $(dirname $0); pwd)
 
 : ${REMOTE_DIGEST_TOOL:='sha256sum | cut -d " " -f 1'}
 
-: ${REMOTE_DIGEST_BASEPATH:=$REMOTE_ROOT/.git}
+ensure_remote_host() {
+  if [ -z "$REMOTE_HOST"]; then
+    if [ ! -f $REMOTE_HOST_FILE ] || [ -z "$(cat $REMOTE_HOST_FILE)" ]; then
+      cat >&2 <<EOF
+fatal: $0: no REMOTE_HOST set
 
-REMOTE_DIGEST_LAST_HEAD=$REMOTE_DIGEST_BASEPATH/substrate-last-head
-REMOTE_DIGEST_LAST_STAGED=$REMOTE_DIGEST_BASEPATH/substrate-last-staged-digest
-REMOTE_DIGEST_LAST_UNSTAGED=$REMOTE_DIGEST_BASEPATH/substrate-last-unstaged-digest
+You can find substrate devices on your LAN with '$0 discover'
+then set one as the default with '$0 set-host REMOTE_HOST'
+
+Be sure your ~/.ssh/config has a stanza that looks like this (with an appropriate IdentityFile):
+  Host substrate-*.local
+      User root
+      IdentityFile ~/.ssh/id_substrate
+EOF
+      exit 1
+    fi
+    REMOTE_HOST=$(cat $REMOTE_HOST_FILE)
+  fi
+}
 
 fatal() {
   echo "fatal: $0: $@"
@@ -50,9 +57,14 @@ remote_reset_check() {
 }
 
 push() {
+  ensure_remote_host
   # make them absolute paths
-  REMOTE_ROOT="$(ssh $REMOTE_HOST "cd $REMOTE_ROOT; pwd")"
-  REMOTE_DIGEST_BASEPATH="$(ssh $REMOTE_HOST "cd $REMOTE_DIGEST_BASEPATH; pwd")"
+  REMOTE_ROOT="$(ssh $REMOTE_HOST "mkdir -p $REMOTE_ROOT; cd $REMOTE_ROOT; pwd")"
+  : ${REMOTE_DIGEST_BASEPATH:=$REMOTE_ROOT/.git}
+
+  REMOTE_DIGEST_LAST_HEAD=$REMOTE_DIGEST_BASEPATH/substrate-last-head
+  REMOTE_DIGEST_LAST_STAGED=$REMOTE_DIGEST_BASEPATH/substrate-last-staged-digest
+  REMOTE_DIGEST_LAST_UNSTAGED=$REMOTE_DIGEST_BASEPATH/substrate-last-unstaged-digest
 
   # only move forward if remote files are unchanged.
   remote_sanity_check
@@ -87,6 +99,7 @@ push() {
 }
 
 pull() {
+  ensure_remote_host
   # NB disable cache syncing for now because it seems to destroy xattrs
   # rsync -aP --no-perms --no-times --no-owner --no-group ${REMOTE_HOST}:${REMOTE_ROOT}/os/cache/. os/cache/
   # rsync -aP --no-perms --no-times --no-owner --no-group ${REMOTE_HOST}:${REMOTE_ROOT}/os/gen/oob/. os/gen/oob/
@@ -95,14 +108,27 @@ pull() {
 }
 
 pull_latest() {
+  ensure_remote_host
   LATEST_BUILD=$(ssh $REMOTE_HOST "readlink $REMOTE_ROOT/os/builds/latest")
   rsync -aP --no-perms --no-times --no-owner --no-group ${REMOTE_HOST}:${REMOTE_ROOT}/os/builds/$LATEST_BUILD os/builds/
   rsync -aP --no-perms --no-times --no-owner --no-group ${REMOTE_HOST}:${REMOTE_ROOT}/os/builds/latest os/builds/
 }
 
+discover() {
+  dns-sd -t 1 -B _substrate._tcp local.  | tail -n +5 | awk '{print $7 ".local"}' | sort -u
+}
+
+announce() {
+  # Advertise a proxy for a device that isn't fully/properly up. Works without needing to modify /etc/hosts
+  host=$1
+  ip=$2
+  exec dns-sd -P $host _substrate._tcp local. 80 $host.local $ip
+}
+
 case "$1" in
   ssh)
     shift
+    ensure_remote_host
     exec ssh $REMOTE_HOST "$@"
     ;;
   force-push)
@@ -122,10 +148,32 @@ case "$1" in
     shift
     pull_latest
     ;;
+  host)
+    shift
+    ensure_remote_host
+    echo $REMOTE_HOST
+    ;;
+  discover)
+    shift
+    discover
+    ;;
+  announce)
+    shift
+    announce "$@"
+    ;;
+  set-host)
+    shift
+    echo $1 > $REMOTE_HOST_FILE
+    ;;
   -h|--help)
     echo "usage: $0 ssh"
-    echo "       $0 pull"
+    echo "       $0 force-push"
     echo "       $0 push"
+    echo "       $0 pull"
+    echo "       $0 pull-latest"
+    echo "       $0 host"
+    echo "       $0 discover"
+    echo "       $0 use REMOTE_HOST"
     echo "       $0 ./dev.sh reload"
     ;;
   *)
