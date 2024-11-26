@@ -5,8 +5,12 @@ import {SubstrateBackend} from "./backend.js"
 console.log({'document.baseURI': document.baseURI})
 
 async function go() {
-  const baseMsgs = await reflect(document.baseURI)
-  const {links: baseLinks} = await baseMsgs['links:query'].run()
+  let baseMsgs = await reflect(document.baseURI)
+  let {links: baseLinks} = await baseMsgs['links:query'].run()
+  if (baseLinks['base']) {
+    baseMsgs = await reflect(baseLinks['base'].href);
+    ({links: baseLinks} = await baseMsgs['links:query'].run());
+  }
   const spaceMsgs = await reflect(baseLinks['space'].href)
   const {links: spaceLinks} = await spaceMsgs['links:query'].run()
   const eventstore = spaceLinks['eventstore'].href
@@ -20,4 +24,3 @@ setTimeout(() => {
     window.workbench.showNotice('firsttime');
   }
 }, 2000)
-
