@@ -31,9 +31,6 @@ ARG LLAMAFILE_VERSION=0.8.16
 COPY --from=llamafile-gguf /usr/bin/llamafile /usr/bin/llamafiler /usr/bin/zipalign /usr/bin/
 # HACK we need to assimilate so this can run on github actions...
 COPY --from=cosmos-scratch /usr/bin/assimilate.elf /usr/bin/
-RUN /usr/bin/assimilate.elf -c /usr/bin/llamafile
-RUN /usr/bin/assimilate.elf -c /usr/bin/llamafiler
-RUN /usr/bin/assimilate.elf -c /usr/bin/zipalign
 ENV LD_LIBRARY_PATH=/usr/local/cuda/targets/x86_64-linux/lib:/usr/local/cuda/compat:/lib:/lib64
 # HACK get llamafile to build stubs we can use at runtime. would be better to use a "only compile stubs" entrypoint
 RUN ldconfig && (/usr/bin/llamafiler -m /dev/null --recompile --gpu NVIDIA < /dev/null || true) \
@@ -51,7 +48,7 @@ COPY --from=devel-llamafile-cuda /sbin/ldconfig.real /sbin/ldconfig
 WORKDIR /root
 COPY --from=devel-llamafile-cuda /root/.cosmo /root/.cosmo
 COPY --from=devel-llamafile-cuda /usr/bin/llamafiler /usr/bin/
-COPY --from=llamafile-gguf /srv/public/. /srv/public/
+# COPY --from=llamafile-gguf /srv/public/. /srv/public/
 
 ENV PATH=/bin:/usr/bin
 ENV HOME=/root
