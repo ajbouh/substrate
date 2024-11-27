@@ -35,6 +35,7 @@ const cntrPrefix = "cntr:"
 const spaceIDPrefix = "sp-"
 const spaceIDBootstrapPrefix = "substrate-bootstrap-"
 const spaceViewForkPrefix = "fork:"
+const spaceViewImagePrefix = "image:"
 
 type SpacesViaContainerFilesystems struct {
 	P            *podmanprovisioner.P
@@ -261,7 +262,6 @@ func (p *SpacesViaContainerFilesystems) ResolveSpaceView(ctx context.Context, sp
 
 			baseID = imgs[0]
 		} else {
-			slog.Info("")
 			err := p.DefSetLoader.Load().DecodeLookupPath(cue.MakePath(cue.Def("#var"), cue.Str("substrate"), cue.Str("image_ids"), cue.Str(baseID)), &baseID)
 			if err != nil {
 				return nil, err
@@ -280,6 +280,33 @@ func (p *SpacesViaContainerFilesystems) ResolveSpaceView(ctx context.Context, sp
 				ForkedFromRef: baseID,
 			}
 		}
+		return view, err
+	}
+
+	if strings.HasPrefix(spaceID, spaceViewImagePrefix) {
+		baseID := strings.TrimPrefix(spaceID, spaceViewImagePrefix)
+		if mightBeRemote(baseID) {
+			imgs, err := images.Pull(ctx, baseID, &images.PullOptions{
+				// AllTags: *bool // AllTags can be specified to pull all tags of an image. Note that this only works if the image does not include a tag.
+				// Policy *string // Policy is the pull policy. Supported values are "missing", "never", "newer", "always". An empty string defaults to "always".
+				// Password *string // Password for authenticating against the registry.
+				// ProgressWriter *io.Writer // ProgressWriter is a writer where pull progress are sent.
+				// SkipTLSVerify *bool // SkipTLSVerify to skip HTTPS and certificate verification.
+				// Username *string // Username for authenticating against the registry.
+			})
+			if err != nil {
+				return nil, err
+			}
+
+			baseID = imgs[0]
+		} else {
+			err := p.DefSetLoader.Load().DecodeLookupPath(cue.MakePath(cue.Def("#var"), cue.Str("substrate"), cue.Str("image_ids"), cue.Str(baseID)), &baseID)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		view, err := p.spaceViewForReadOnlyImage(ctx, baseID)
 		return view, err
 	}
 
@@ -311,6 +338,26 @@ func (p *SpacesViaContainerFilesystems) spaceViewFor(ctx context.Context, contai
 					Source:      mountPath,
 					Destination: targetPrefix,
 					Mode:        mode,
+				},
+			}
+		},
+	}, nil
+}
+
+func (p *SpacesViaContainerFilesystems) spaceViewForReadOnlyImage(ctx context.Context, image string) (*activityspec.SpaceView, error) {
+	return &activityspec.SpaceView{
+		SpaceID:  spaceViewImagePrefix + image,
+		ReadOnly: true,
+		Await: func() error {
+			return nil
+		},
+		Mounts: func(targetPrefix string) []activityspec.ServiceInstanceDefSpawnMount {
+			return []activityspec.ServiceInstanceDefSpawnMount{
+				{
+					Type:        "image",
+					Source:      image,
+					Destination: targetPrefix,
+					Mode:        []string{"ro"},
 				},
 			}
 		},
