@@ -1,9 +1,9 @@
 # we'll pull dependencies of cosmos from here
-FROM docker.io/library/busybox as prereqs
-# FROM docker.io/tianon/toybox:latest as prereqs
+FROM docker.io/library/busybox AS prereqs
+# FROM docker.io/tianon/toybox:latest AS prereqs
 
 # define a starting point "scratch" image that can run APEs
-FROM scratch as cosmos-scratch
+FROM scratch AS cosmos-scratch
 COPY --from=prereqs /bin/uname /usr/bin/
 ADD --chmod=0755 https://cosmo.zip/pub/cosmos/v/3.9.2/bin/assimilate-x86_64.elf /usr/bin/assimilate.elf
 ADD --chmod=0755 https://cosmo.zip/pub/cosmos/v/3.9.2/bin/dash /bin/sh
@@ -12,8 +12,8 @@ RUN ["/usr/bin/assimilate.elf", "-c", "/bin/sh"]
 ADD --chmod=0755 https://cosmo.zip/pub/cosmos/v/3.9.2/bin/ape-x86_64.elf /usr/bin/ape
 ENV PATH=/bin:/usr/bin
 
-FROM cosmos-scratch as llamafile-gguf
-ARG LLAMAFILE_VERSION=0.8.16
+FROM cosmos-scratch AS llamafile-gguf
+ARG LLAMAFILE_VERSION=0.8.17
 ADD --chmod=0755 https://github.com/Mozilla-Ocho/llamafile/releases/download/${LLAMAFILE_VERSION}/llamafile-${LLAMAFILE_VERSION} /usr/bin/llamafile
 ADD --chmod=0755 https://github.com/Mozilla-Ocho/llamafile/releases/download/${LLAMAFILE_VERSION}/llamafiler-${LLAMAFILE_VERSION} /usr/bin/llamafiler
 ADD --chmod=0755 https://github.com/Mozilla-Ocho/llamafile/releases/download/${LLAMAFILE_VERSION}/zipalign-${LLAMAFILE_VERSION} /usr/bin/zipalign
@@ -26,8 +26,8 @@ ENV HOST=0.0.0.0
 # COPY images/llamafile/llama.cpp/server/public /srv/public
 ENTRYPOINT ["/bin/sh", "-c", "exec /usr/bin/llamafiler -l \"${HOST}:${PORT}\" -m \"${LLAMAFILE_GGUF}\" \"$@\"", "sh"]
 
-FROM docker.io/nvidia/cuda:12.3.2-devel-ubuntu22.04 as devel-llamafile-cuda
-ARG LLAMAFILE_VERSION=0.8.16
+FROM docker.io/nvidia/cuda:12.3.2-devel-ubuntu22.04 AS devel-llamafile-cuda
+ARG LLAMAFILE_VERSION=0.8.17
 COPY --from=llamafile-gguf /usr/bin/llamafile /usr/bin/llamafiler /usr/bin/zipalign /usr/bin/
 # HACK we need to assimilate so this can run on github actions...
 COPY --from=cosmos-scratch /usr/bin/assimilate.elf /usr/bin/
@@ -39,7 +39,7 @@ RUN ldconfig && (/usr/bin/llamafiler -m /dev/null --recompile --gpu NVIDIA < /de
   && find /root -name '*.so' -exec ldd {} ';' \
   && (cd /root/.llamafile/v/${LLAMAFILE_VERSION}; zipalign -j0 /usr/bin/llamafiler ggml-cuda.so)
 
-FROM cosmos-scratch as llamafile-gguf-cuda
+FROM cosmos-scratch AS llamafile-gguf-cuda
 COPY --from=devel-llamafile-cuda /usr/local/cuda/targets/x86_64-linux/lib/libcublas.so.12 /usr/local/cuda/targets/x86_64-linux/lib/libcublasLt.so.12 /usr/local/cuda/targets/x86_64-linux/lib/
 COPY --from=devel-llamafile-cuda /usr/local/cuda/compat/libcuda.so.1 /usr/local/cuda/compat/
 COPY --from=devel-llamafile-cuda /lib64/ld-linux-x86-64.so.2 /lib64/ld-linux-x86-64.so.2
