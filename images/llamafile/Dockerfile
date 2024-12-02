@@ -24,7 +24,7 @@ ENV PORT=8080
 ENV HOST=0.0.0.0
 # ENV LLAMAFILE_GGUF
 # COPY images/llamafile/llama.cpp/server/public /srv/public
-ENTRYPOINT ["/bin/sh", "-c", "exec /usr/bin/llamafiler -l \"${HOST}:${PORT}\" -m \"${LLAMAFILE_GGUF}\" \"$@\"", "sh"]
+ENTRYPOINT ["/bin/sh", "-c", "exec /usr/bin/llamafiler -l \"${HOST}:${PORT}\" -m \"${LLAMAFILE_GGUF}\" --url-prefix \"${LLAMAFILE_URL_PREFIX}\" \"$@\"", "sh"]
 
 FROM docker.io/nvidia/cuda:12.3.2-devel-ubuntu22.04 AS devel-llamafile-cuda
 ARG LLAMAFILE_VERSION=0.8.17
@@ -59,4 +59,4 @@ ENV PORT=8080
 ENV HOST=0.0.0.0
 # ENV LLAMAFILE_GGUF
 # HACK this ld.so.conf and ldconfig call is so gross. This is something that the nvidia ctk hooks are supposed to do automatically
-ENTRYPOINT ["/bin/sh", "-c", "echo /lib64 >> /etc/ld.so.conf; /sbin/ldconfig -v; exec /usr/bin/llamafiler -ngl \"${LLAMAFILE_N_GPU_LAYERS}\" -l \"${HOST}:${PORT}\" -m \"${LLAMAFILE_GGUF}\" \"$@\"", "sh"]
+ENTRYPOINT ["/bin/sh", "-c", "echo /usr/lib64 >> /etc/ld.so.conf; /sbin/ldconfig -v; exec /usr/bin/llamafiler -ngl \"${LLAMAFILE_N_GPU_LAYERS}\" -l \"${HOST}:${PORT}\" -m \"${LLAMAFILE_GGUF}\" --url-prefix \"${LLAMAFILE_URL_PREFIX}\" \"$@\"", "sh"]
