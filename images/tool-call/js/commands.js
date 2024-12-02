@@ -168,11 +168,11 @@ async function HTTPCapability(ctx, {request}) {
         }
         let t = `{${k}}`
         if (input.includes(t)) {
-          input = input.replaceAll(t, v)
+          input = input.replaceAll(t, encodeURIComponent(v))
         }
         t = `{${k}...}`
         if (input.includes(t)) {
-          input = input.replaceAll(t, encodeURIComponent(v))
+          input = input.replaceAll(t, v)
         }
       }
     }
