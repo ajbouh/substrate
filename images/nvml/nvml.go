@@ -86,7 +86,7 @@ func (m *Sampler) Terminate() {
 	}
 }
 
-func (m *Sampler) GetDevicePCIE(device *nvml.Device) (*DevicePCIE, error) {
+func (m *Sampler) GetDevicePCIE(device nvml.Device) (*DevicePCIE, error) {
 	d := &DevicePCIE{}
 
 	var ret nvml.Return
@@ -121,7 +121,7 @@ func (m *Sampler) GetDevicePCIE(device *nvml.Device) (*DevicePCIE, error) {
 	return d, nil
 }
 
-func (m *Sampler) GetDeviceThermalThresholds(device *nvml.Device) (*DeviceThermalThresholds, error) {
+func (m *Sampler) GetDeviceThermalThresholds(device nvml.Device) (*DeviceThermalThresholds, error) {
 	d := &DeviceThermalThresholds{}
 
 	var ret nvml.Return
@@ -166,7 +166,7 @@ func (m *Sampler) GetDeviceThermalThresholds(device *nvml.Device) (*DeviceTherma
 	return d, nil
 }
 
-func (m *Sampler) GetDeviceThermals(device *nvml.Device) (*DeviceThermals, error) {
+func (m *Sampler) GetDeviceThermals(device nvml.Device) (*DeviceThermals, error) {
 	d := &DeviceThermals{}
 
 	if nFans, ret := device.GetNumFans(); ret != nvml.SUCCESS {
@@ -210,7 +210,7 @@ func (m *Sampler) GetDeviceThermals(device *nvml.Device) (*DeviceThermals, error
 	return d, nil
 }
 
-func (m *Sampler) GetDevicePower(device *nvml.Device) (*DevicePower, error) {
+func (m *Sampler) GetDevicePower(device nvml.Device) (*DevicePower, error) {
 	d := &DevicePower{}
 
 	var ret nvml.Return
@@ -390,17 +390,17 @@ func (m *Sampler) Get() *Sample {
 
 		var err error
 
-		d.PCIE, err = m.GetDevicePCIE(&device)
+		d.PCIE, err = m.GetDevicePCIE(device)
 		if err != nil {
 			sample.Errors = append(sample.Errors, err.Error())
 		}
 
-		d.Thermals, err = m.GetDeviceThermals(&device)
+		d.Thermals, err = m.GetDeviceThermals(device)
 		if err != nil {
 			sample.Errors = append(sample.Errors, err.Error())
 		}
 
-		d.Power, err = m.GetDevicePower(&device)
+		d.Power, err = m.GetDevicePower(device)
 		if err != nil {
 			sample.Errors = append(sample.Errors, err.Error())
 		}

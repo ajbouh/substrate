@@ -27,7 +27,6 @@ RUN apt update \
 # https://github.com/golang/go/issues/27719#issuecomment-514747274
 RUN --mount=type=cache,target=/go/pkg/mod \
   go build \
-  -tags "remote exclude_graphdriver_btrfs btrfs_noversion exclude_graphdriver_devicemapper containers_image_openpgp"\
   -v \
   -o /substrated-defs-nvml ./cmd/nvml
 
