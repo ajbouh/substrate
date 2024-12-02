@@ -49,3 +49,40 @@ imagespecs: "llamafile": {
     }
     msg: data: request: url: "\(#base_url)/embedding"
 }
+
+#commands: "llamafile": "chat_completion": {
+    #base_url: string
+    // https://github.com/Mozilla-Ocho/llamafile/blob/main/llamafile/server/doc/v1_chat_completions.md
+    meta: {
+        "#/data/parameters/model": {type: "string"}
+        "#/data/parameters/stream": {
+            type: "bool"
+            description: #"If this field is optionally set to true, then this endpoint will return a text/event-stream using HTTP chunked transfer encoding. This allows your chatbot to rapidly show text as it's being genearted. The standard JSON response is slightly modified so that its message field will be named delta instead. It's assumed the client will reconstruct the full conversation."#
+        }
+        "#/data/parameters/messages": {type: "array<object<role:string, content:string>>"}
+        "#/data/parameters/max_tokens": {type: "integer"}
+        "#/data/parameters/max_completion_tokens": {type: "integer"}
+        "#/data/parameters/top_p": {type: "integer"}
+        "#/data/parameters/temperature": {type: "integer"}
+        "#/data/parameters/seed": {type: "integer"}
+        "#/data/parameters/presence_penalty": {type: "number"}
+        "#/data/parameters/frequency_penalty": {type: "number"}
+        "#/data/parameters/user": {type: "string"}
+        "#/data/parameters/stop": {type: "string|array<string>"}
+        "#/data/parameters/response_format": {type: "string|object"}
+
+        "#/data/returns/choices": {type: "array<object<finish_reason:string, index:integer, logprobs:null, message:object<content:string, role:string>>>"}
+        "#/data/returns/created": {type: "number"}
+        "#/data/returns/id": {type: "string"}
+        "#/data/returns/model": {type: "string"}
+        "#/data/returns/object": {type: "string"}
+        "#/data/returns/system_fingerprint": {type: "string"}
+        "#/data/returns/usage": {type: "object<completion_tokens:integer, prompt_tokens:integer, total_tokens:integer>>"}
+    }
+
+    // Hardcode this to false since msgs don't support streaming yet.
+    data: parameters: stream: false
+    data: parameters: model: "model"
+
+    msg: data: request: url: "\(#base_url)/v1/chat/completions"
+}
