@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/links"
@@ -96,7 +97,7 @@ var LinksRemoveCommand = handle.Command(
 
 var QueryLinksTreePathCommand = handle.HTTPCommand(
 	"links:query", "List links",
-	"GET /links/tree", "/tree/{path...}",
+	"GET /links/tree/{path...}", "/tree/{path...}",
 	func(ctx context.Context,
 		t *struct {
 			FS        fs.FS
@@ -123,9 +124,13 @@ var QueryLinksTreePathCommand = handle.HTTPCommand(
 			}
 
 			for _, entry := range entries {
+				href := t.SpaceURLs.SpaceTreePathURL(strings.TrimSuffix(args.Path, "/") + "/" + entry.Name())
+				if entry.IsDir() {
+					href = href + "/"
+				}
 				l.Links["child/"+entry.Name()] = links.Link{
 					Rel:  "child",
-					HREF: t.SpaceURLs.SpaceTreePathURL(args.Path + "/" + entry.Name()),
+					HREF: href,
 				}
 			}
 		}
@@ -133,7 +138,7 @@ var QueryLinksTreePathCommand = handle.HTTPCommand(
 		if args.Path != "/" && args.Path != "" {
 			l.Links["parent"] = links.Link{
 				Rel:  "parent",
-				HREF: t.SpaceURLs.SpaceTreePathURL(path.Dir(args.Path)),
+				HREF: t.SpaceURLs.SpaceTreePathURL(path.Dir(args.Path) + "/"),
 			}
 		}
 

@@ -33,10 +33,10 @@ func main() {
 
 	urls := &units.SpaceURLs{
 		SpaceTreePathURL: func(path string) string {
-			return urlPrefix + "/tree" + path
+			return urlPrefix + "/tree/" + strings.TrimPrefix(path, "/")
 		},
 		SpaceURL: func() string {
-			return urlPrefix
+			return urlPrefix + "/"
 		},
 	}
 
