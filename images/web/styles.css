@@ -1,0 +1,120 @@
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: 'Montserrat', sans-serif;
+    background-color: #fff;
+    display: flex;
+    flex-direction: column;
+    color: #555555;
+
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 40px;
+    background-color: #ffffff;
+    flex: 1; /* Ensures the container takes up available space */
+}
+
+.logo {
+    display: block;
+    margin: 0 auto 40px;
+    max-width: 400px; /* Set width to 400px */
+    height: auto;
+}
+
+p {
+    font-size: 16px;
+    margin: 0 0 40px;
+}
+
+.video-container {
+    position: relative;
+    padding-bottom: 56.25%; /* 16:9 aspect ratio */
+    height: 0;
+    overflow: hidden;
+    max-width: 100%;
+    background: #000;
+    margin-bottom: 40px;
+}
+
+.video-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.inventions-container {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 40px; /* Increased margin to add more padding between sections */
+    border-left: 2px solid #4CCD99;
+    padding-left: 15px;
+}
+
+.inventions-container h2 {
+    font-size: 20px;
+    color: #333333;
+    margin: 0;
+    text-align: left;
+    display: flex;
+    align-items: center;
+}
+
+.inventions-container .description {
+    font-size: 16px;
+    color: #555555;
+    font-weight: normal;
+    margin-left: 5px;
+}
+
+.inventions-container p {
+    font-size: 14px;
+    color: #555555;
+    text-align: left;
+    margin: 5px 0 0 0;
+}
+
+footer {
+    background-color: #000000;
+    color: #ffffff;
+    text-align: center;
+    padding: 20px 0;
+    width: 100%;
+    flex-shrink: 0; /* Ensures the footer stays at the bottom */
+}
+
+.footer-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.footer-text {
+    text-align: left;
+}
+
+.footer-text p {
+    margin: 0;
+}
+
+.footer-logo {
+    max-height: 100px;
+    height: auto;
+}
+
+.footer-content a {
+    color: #4CCD99;
+    text-decoration: none;
+}
+
+.footer-content a:hover {
+    text-decoration: underline;
+}
