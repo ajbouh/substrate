@@ -46,7 +46,7 @@ commands: "tool-call": {
       "#/data/returns/choices": {type: "[]command.Request"}
     }
 
-    command.#ViaHTTP
+    command.ViaHTTP
     #msg_request_body_parameter_prefix: "parameters/"
 
     msg: data: request: {

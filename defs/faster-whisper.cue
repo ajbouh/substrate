@@ -92,7 +92,7 @@ commands: "faster-whisper": {
         // "#/data/returns/all_language_probs": {type: "map[string,float]"}
         "#/data/returns/segments": {type: "object"}
     }
-    command.#ViaHTTP
+    command.ViaHTTP
     msg: data: request: {
       method: "POST"
       url: "/faster-whisper/v1/transcribe"
