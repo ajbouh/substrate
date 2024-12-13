@@ -34,7 +34,7 @@ commands: "quickjs": {
       "#/data/returns/result": {type: "object"}
     }
 
-    command.#ViaHTTP
+    command.ViaHTTP
     #msg_request_body_parameter_prefix: "parameters/"
 
     msg: data: request: {

@@ -63,7 +63,7 @@ commands: "seamlessm4t": {
       "#/data/returns/duration": {type: "float"}
       "#/data/returns/segments": {type: "object"}
     }
-    command.#ViaHTTP
+    command.ViaHTTP
     msg: data: request: {
       method: "POST"
       url: "/seamlessm4t/v1/transcribe"

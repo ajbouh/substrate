@@ -37,7 +37,7 @@ commands: "diarizer": {
 
       "#/data/returns/timespans": {type: "object"}
     }
-    command.#ViaHTTP
+    command.ViaHTTP
     msg: data: request: {
       method: "POST"
       url: "/diarizer/v1/diarize"

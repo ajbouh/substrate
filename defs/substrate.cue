@@ -162,7 +162,7 @@ commands: "substrate": {
     meta: {
       "#/data/returns/space": {type: "string", description: "ID of space created"}
     }
-    command.#ViaHTTP
+    command.ViaHTTP
     msg: data: request: {
         url: "/substrate/v1/spaces"
         method: "POST"
@@ -176,7 +176,7 @@ commands: "substrate": {
       "#/data/returns/space": {type: "string", description: "ID of space created"}
     }
 
-    command.#ViaHTTP
+    command.ViaHTTP
     msg: data: request: {
       url: "/substrate/v1/spaces"
       method: "POST"

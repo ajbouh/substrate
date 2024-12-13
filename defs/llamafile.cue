@@ -14,7 +14,7 @@ imagespecs: "llamafile": {
 
 #commands: "llamafile": [string]: {
     #base_url: string
-    command.#ViaHTTP
+    command.ViaHTTP
     msg: data: request: {
         method: "POST"
         headers: "Accept": ["application/json"]

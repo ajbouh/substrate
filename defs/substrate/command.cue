@@ -4,33 +4,33 @@ import (
     "strings"
 )
 
-#Fields: [string]: _
+Fields: [string]: _
 
-#Path: [...(string|int)]
+Path: [...(string|int)]
 
-#Meta: [string]: {
+Meta: [string]: {
     description ?: string
     type ?: string
     ...
 }
 
-#Msg: {
+Msg: {
     #name: string
 
-    msg ?: #Msg
+    msg ?: Msg
     cap ?: string
 
     msg_in ?: [dstpointer=string]: string
     msg_out ?: [dstpointer=string]: string
 
     description ?: string
-    data ?: #Fields
-    meta ?: #Meta
+    data ?: Fields
+    meta ?: Meta
 }
 
-#Command: #Msg
+Command: Msg
 
-#HTTPRequest: {
+HTTPRequest: {
     url: string
     query ?: [string]: [...string]
     path ?: [string]: string
@@ -40,20 +40,20 @@ import (
     body ?: _
 }
 
-#HTTPResponse: {
+HTTPResponse: {
     headers ?: [string]: [...string]
     body ?: _
 }
 
-#ViaHTTP: (#Msg & {
+ViaHTTP: (Msg & {
     // We use this to generate in and out bindings
 
-    meta: #Meta
+    meta: Meta
 
     msg: {
         data: {
-            request: #HTTPRequest
-            response: #HTTPResponse
+            request: HTTPRequest
+            response: HTTPResponse
         }
 
         cap: "http"

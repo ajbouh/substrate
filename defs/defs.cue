@@ -141,9 +141,9 @@ daemons: [key=string]: containerspec.#ContainerSpec & {
 }
 
 // "Templates" can be stored here
-#commands: [key=string]: [commandname=string]: {#name: commandname} & command.#Command
+#commands: [key=string]: [commandname=string]: {#name: commandname} & command.Command
 
-commands: [key=string]: [commandname=string]: {#name: commandname} & command.#Command
+commands: [key=string]: [commandname=string]: {#name: commandname} & command.Command
 
 if #var.use_bootc_storage {
   // So we can use bootc logically-bound images. See also: https://containers.github.io/bootc/logically-bound-images.html
