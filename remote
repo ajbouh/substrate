@@ -15,7 +15,7 @@ HERE=$(cd $(dirname $0); pwd)
 : ${REMOTE_DIGEST_TOOL:='sha256sum | cut -d " " -f 1'}
 
 ensure_remote_host() {
-  if [ -z "$REMOTE_HOST"]; then
+  if [ -z "$REMOTE_HOST" ]; then
     if [ ! -f $REMOTE_HOST_FILE ] || [ -z "$(cat $REMOTE_HOST_FILE)" ]; then
       cat >&2 <<EOF
 fatal: $0: no REMOTE_HOST set
@@ -32,6 +32,18 @@ EOF
     fi
     REMOTE_HOST=$(cat $REMOTE_HOST_FILE)
   fi
+}
+
+ensure_remote_root() {
+  ensure_remote_host
+
+  # make them absolute paths
+  REMOTE_ROOT="$(ssh $REMOTE_HOST "mkdir -p $REMOTE_ROOT; cd $REMOTE_ROOT; pwd")"
+  : ${REMOTE_DIGEST_BASEPATH:=$REMOTE_ROOT/.git}
+
+  REMOTE_DIGEST_LAST_HEAD=$REMOTE_DIGEST_BASEPATH/substrate-last-head
+  REMOTE_DIGEST_LAST_STAGED=$REMOTE_DIGEST_BASEPATH/substrate-last-staged-digest
+  REMOTE_DIGEST_LAST_UNSTAGED=$REMOTE_DIGEST_BASEPATH/substrate-last-unstaged-digest
 }
 
 fatal() {
@@ -53,18 +65,13 @@ remote_sanity_check() {
 }
 
 remote_reset_check() {
+  ensure_remote_root
+
   ssh $REMOTE_HOST "rm -f $REMOTE_DIGEST_LAST_HEAD $REMOTE_DIGEST_LAST_STAGED $REMOTE_DIGEST_LAST_UNSTAGED"
 }
 
 push() {
-  ensure_remote_host
-  # make them absolute paths
-  REMOTE_ROOT="$(ssh $REMOTE_HOST "mkdir -p $REMOTE_ROOT; cd $REMOTE_ROOT; pwd")"
-  : ${REMOTE_DIGEST_BASEPATH:=$REMOTE_ROOT/.git}
-
-  REMOTE_DIGEST_LAST_HEAD=$REMOTE_DIGEST_BASEPATH/substrate-last-head
-  REMOTE_DIGEST_LAST_STAGED=$REMOTE_DIGEST_BASEPATH/substrate-last-staged-digest
-  REMOTE_DIGEST_LAST_UNSTAGED=$REMOTE_DIGEST_BASEPATH/substrate-last-unstaged-digest
+  ensure_remote_root
 
   # only move forward if remote files are unchanged.
   remote_sanity_check
