@@ -193,6 +193,7 @@ set_os_vars() {
   SUBSTRATE_HOME="$HOME"
   SUBSTRATE_SOURCE="$HERE"
   SUBSTRATE_LIVE_EDIT=false
+  SUBSTRATE_USE_BOOTC_STORAGE=true
 }
 
 set_live_edit_vars() {
@@ -240,6 +241,11 @@ systemd_reload() {
     images="substrateos-overlay $images"
   fi
 
+  # If we are on a machine that *does not* have bootc storage, then do not reference it in generated quadlets.
+  if ! [ -e /usr/lib/bootc/storage ]; then
+    SUBSTRATE_USE_BOOTC_STORAGE=false
+  fi
+
   check_cue_dev_expr_as_cue
 
   docker_compose_file=$(pick_docker_compose_yml substrate)
@@ -251,7 +257,7 @@ systemd_reload() {
 
   # reconstruct the parts of the overlay we can safely reload.
   RELOAD_OVERLAY_BASEDIR=images/substrateos/gen/reload
-  rm -rf $RELOAD_OVERLAY_BASEDIR
+  sudo rm -rf $RELOAD_OVERLAY_BASEDIR
   mkdir -p $RELOAD_OVERLAY_BASEDIR
   
   # Export just the files we can load into an existing system
@@ -262,8 +268,8 @@ systemd_reload() {
     src=$1
     dst=$2
 
-    mkdir -p ${RELOAD_OVERLAY_BASEDIR}${dst}
-    cp -r ${SUBSTRATEOS_OVERLAY_IMAGE_DIR}$src ${RELOAD_OVERLAY_BASEDIR}${dst}
+    sudo mkdir -p ${RELOAD_OVERLAY_BASEDIR}${dst}
+    sudo cp -rp ${SUBSTRATEOS_OVERLAY_IMAGE_DIR}$src ${RELOAD_OVERLAY_BASEDIR}${dst}
   }
 
   # /etc is writable so this is fine
@@ -272,7 +278,7 @@ systemd_reload() {
   # systemd overrides go in /etc
   stage_dir /usr/share/containers/systemd/. /etc/containers/systemd/
 
-  stage_dir '/usr/lib/systemd/*' /etc/systemd/
+  stage_dir /usr/lib/systemd/. /etc/systemd/
 
   sudo $PODMAN image unmount $SUBSTRATEOS_OVERLAY_IMAGE
 

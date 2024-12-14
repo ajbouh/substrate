@@ -22,6 +22,12 @@ detect_dev_cue_tag_args() {
   fi
   CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t live_edit=$SUBSTRATE_LIVE_EDIT"
 
+  if [ -z "$SUBSTRATE_USE_BOOTC_STORAGE" ]; then
+    echo >&2 "SUBSTRATE_USE_BOOTC_STORAGE not set"
+    exit 2
+  fi
+  CUE_DEV_TAG_ARGS="$CUE_DEV_TAG_ARGS -t use_bootc_storage=$SUBSTRATE_USE_BOOTC_STORAGE"
+
   if [ -z "$CUE_DEV_DEFS" ]; then
     echo >&2 "CUE_DEV_DEFS not set"
     exit 2

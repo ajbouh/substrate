@@ -61,6 +61,8 @@ import (
   }
 }
 
+#use_bootc_storage: bool | *true @tag(use_bootc_storage,type=bool)
+
 #SystemdQuadletUnits: {
   #containerspec: #ContainerSpec
   #name: string
@@ -80,8 +82,10 @@ import (
       Container: {
         Pull: string | *"never"
 
-        // So we can use bootc logically-bound images. See also: https://containers.github.io/bootc/logically-bound-images.html
-        "PodmanArgs": ["--storage-opt=additionalimagestore=/usr/lib/bootc/storage"]
+        if #use_bootc_storage {
+          // So we can use bootc logically-bound images. See also: https://containers.github.io/bootc/logically-bound-images.html
+          "PodmanArgs": ["--storage-opt=additionalimagestore=/usr/lib/bootc/storage"]
+        }
 
         // Image: "\(#name).image"
         Image: #containerspec.image

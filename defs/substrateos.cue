@@ -9,9 +9,12 @@ imagespecs: "substrateos-overlay": {
   build: target: "overlay"
   
   build: args: {
+    #use_bootc_storage: bool @tag(use_bootc_storage,type=bool)
+
     NAMESPACE: string @tag(namespace)
     CUE_DEV_DEFS: string @tag(cue_defs)
     SUBSTRATE_LIVE_EDIT: string @tag(live_edit)
+    "SUBSTRATE_USE_BOOTC_STORAGE": "\(#use_bootc_storage)"
     SUBSTRATE_USER: string @tag(host_user)
     SUBSTRATE_GROUP: string @tag(host_group)
     SUBSTRATE_HOME: string @tag(host_home_directory)
