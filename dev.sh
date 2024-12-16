@@ -269,7 +269,7 @@ systemd_reload() {
     dst=$2
 
     sudo mkdir -p ${RELOAD_OVERLAY_BASEDIR}${dst}
-    sudo cp -rp ${SUBSTRATEOS_OVERLAY_IMAGE_DIR}$src ${RELOAD_OVERLAY_BASEDIR}${dst}
+    sudo rsync -i -v -a ${SUBSTRATEOS_OVERLAY_IMAGE_DIR}$src ${RELOAD_OVERLAY_BASEDIR}${dst}
   }
 
   # /etc is writable so this is fine
@@ -282,8 +282,10 @@ systemd_reload() {
 
   sudo $PODMAN image unmount $SUBSTRATEOS_OVERLAY_IMAGE
 
+  sudo find $RELOAD_OVERLAY_BASEDIR
+
   # use rsync to avoid writing files that don't change.
-  sudo rsync -i -a --no-times --checksum $RELOAD_OVERLAY_BASEDIR/* /
+  sudo rsync -i -v -a --no-times --checksum $RELOAD_OVERLAY_BASEDIR/* /
 
   sudo systemctl daemon-reload
 
