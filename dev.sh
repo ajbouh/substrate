@@ -175,7 +175,7 @@ build_imagespecs() {
     if ! sudo $PODMAN image exists $image_tag 1>&2; then
       # build needed resourcedirs one by one directly via podman
       # this avoids starving resourcedir fetches of bandwidth and avoids the wasted copies in the buildx bake approach
-      podman build $(print_cue_dev_expr_as text \
+      sudo podman build $(print_cue_dev_expr_as text \
         -e "overlay.imagespec_by_image_tag[\"$image_tag\"].#podman_build_options" )
     fi
   done
