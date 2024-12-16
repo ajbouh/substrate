@@ -28,6 +28,7 @@ import (
 	"github.com/ajbouh/substrate/images/bridge/webrtc/trackstreamer"
 	"github.com/ajbouh/substrate/images/bridge/workingset"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
@@ -143,7 +144,7 @@ func main() {
 			SampleRate:   format.SampleRate.N(time.Second),
 			SampleWindow: 24 * time.Second,
 		}),
-		cmdSource,
+		// cmdSource,
 		transcribe.Agent{
 			Source:  cmdSource,
 			Command: getEnv("BRIDGE_TRANSCRIBE_COMMAND", "transcribe"),
@@ -183,11 +184,58 @@ func main() {
 		httpevents.NewJSONRequester[translate.TranslationEvent]("PUT", eventURLPrefix+"/translation"),
 		httpevents.NewJSONRequester[vad.ActivityEvent]("PUT", eventURLPrefix+"/voice-activity"),
 		httpevents.NewJSONRequester[EventCursor]("PUT", cursorURL),
-		NewEventStreamer(
-			mustGetenv("SUBSTRATE_EVENT_STREAM_URL"),
-			streamQuery,
-		),
+		// NewEventStreamer(
+		// 	mustGetenv("SUBSTRATE_EVENT_STREAM_URL"),
+		// 	streamQuery,
+		// ),
 		workingset.CommandProvider{},
+		EventCommands{},
+	)
+}
+
+type EventCommands struct {
+	Session *tracks.Session
+}
+
+type Void struct {
+	Next []any `json:"next" doc:""`
+}
+
+func (es *EventCommands) Commands(ctx context.Context) commands.Source {
+	sources := []commands.Source{
+		commands.List[commands.Source](
+			handle.Command("handle",
+				"Add a URL to the working set",
+				func(ctx context.Context, t *struct{}, args struct {
+					Events []event.Event `json:"events" doc:""`
+				}) (Void, error) {
+					r := Void{
+						Next: []any{},
+					}
+					events, err := event.Unmarshal[tracks.JSONEvent](args.Events, true)
+					if err != nil {
+						return r, err
+					}
+					for i, e := range events {
+						_, err := tracks.InsertJSONEvent(es.Session, e)
+						if err != nil {
+							log.Printf("error inserting event: %s", err)
+							j, err2 := json.Marshal(args.Events[i])
+							if err2 != nil {
+								log.Printf("error marshalling event: %s", err2)
+							} else {
+								log.Printf("event: %s", j)
+							}
+							return r, err
+						}
+					}
+					return r, nil
+				}),
+		),
+	}
+
+	return commands.Prefixed("events:",
+		commands.Dynamic(nil, nil, func() []commands.Source { return sources }),
 	)
 }
 
