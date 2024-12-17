@@ -9,7 +9,7 @@ imagespecs: "substrateos-overlay": {
   build: target: "overlay"
   
   build: args: {
-    #use_bootc_storage: bool @tag(use_bootc_storage,type=bool)
+    #use_bootc_storage: string @tag(use_bootc_storage)
 
     NAMESPACE: string @tag(namespace)
     CUE_DEV_DEFS: string @tag(cue_defs)

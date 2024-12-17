@@ -61,11 +61,10 @@ import (
   }
 }
 
-#use_bootc_storage: bool | *true @tag(use_bootc_storage,type=bool)
-
 #SystemdQuadletUnits: {
   #containerspec: #ContainerSpec
   #name: string
+  #use_bootc_storage: bool
 
   #out: {
     if #containerspec.#systemd_quadlet_units != _|_ {
