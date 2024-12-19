@@ -100,12 +100,14 @@ func (s *Service) initialize() {
 				// slog.Info("considering transform for command", "name", n, "d.Run.HTTP.Request.URL", d.Run.HTTP.Request.URL)
 				urlStr := r.URL.String()
 				// Accept "//" as a prefix that means "against the substrate gateway URL"
-				if strings.HasPrefix(urlStr, "//") {
-					trimmed := strings.TrimPrefix(urlStr, "//")
-					var err error
-					r.URL, err = url.Parse(s.InternalSubstrateBaseURL + trimmed)
-					return r, err
-				}
+				// if strings.HasPrefix(r.URL.Path, "//") {
+				// 	trimmed := strings.TrimPrefix(r.URL.Path, "/")
+				// 	var err error
+				// 	// TODO url join instead?
+				// 	r.URL, err = url.Parse(s.InternalSubstrateBaseURL + trimmed)
+				// 	log.Printf("Rewrite: %s -> %s", urlStr, r.URL.String())
+				// 	return r, err
+				// }
 				if strings.HasPrefix(urlStr, s.ExternalSubstrateBaseURL) {
 					trimmed := strings.TrimPrefix(urlStr, s.ExternalSubstrateBaseURL)
 					var err error
@@ -118,6 +120,29 @@ func (s *Service) initialize() {
 		},
 		&commands.ReflectCapability{
 			BaseURL: s.InternalSubstrateBaseURL,
+			DefTransform: func(ctx context.Context, name string, commandDef *commands.Msg) (string, *commands.Msg) {
+				def := handle.FindMsgBasis(commandDef)
+				if def == nil || def.Cap == nil || *def.Cap != "http" {
+					return name, def
+				}
+				u, err := commands.GetPath[string](def.Data, "request", "url")
+				if err != nil {
+					return name, def
+				}
+				if !strings.HasPrefix(u, "/") {
+					return name, def
+				}
+				// u, err = url.JoinPath(s.InternalSubstrateBaseURL, u)
+				// if err != nil {
+				// 	return name, def
+				// }
+				u = s.InternalSubstrateBaseURL + u
+				out := handle.FindMsgBasis(def.MustClone())
+				if err := commands.SetPath(out.Data, []string{"request", "url"}, u); err != nil {
+					return name, def
+				}
+				return name, out
+			},
 		},
 		&handle.HTTPResourceReflectHandler{
 			Debug:   true,

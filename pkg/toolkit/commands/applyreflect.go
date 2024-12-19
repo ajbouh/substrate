@@ -53,6 +53,7 @@ func (a *ReflectCapability) Apply(ctx context.Context, m Fields) (*Msg, Fields, 
 	if !ok {
 		return nil, nil, ErrNoSuchCommand
 	}
+	log.Printf("ReflectCapability.Apply: def=%#v", def)
 
 	return def, Fields{"parameters": parameters}, nil
 }
