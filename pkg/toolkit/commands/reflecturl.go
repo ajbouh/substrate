@@ -3,13 +3,23 @@ package commands
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log"
 	"net/http"
 )
 
 func unmarshal[T any](r *http.Response) (T, error) {
 	defer r.Body.Close()
 	var v T
-	err := json.NewDecoder(r.Body).Decode(&v)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return v, err
+	}
+	err = json.Unmarshal(body, &v)
+	if err != nil {
+		log.Printf("ReflectURL: error unmarshalling body: %v\n%s", err, string(body))
+	}
+	// err := json.NewDecoder(r.Body).Decode(&v)
 	return v, err
 }
 
