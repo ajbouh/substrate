@@ -36,6 +36,7 @@ const spaceIDPrefix = "sp-"
 const spaceIDBootstrapPrefix = "substrate-bootstrap-"
 const spaceViewForkPrefix = "fork:"
 const spaceViewImagePrefix = "image:"
+const spaceViewSystemPrefix = "system:"
 
 type SpacesViaContainerFilesystems struct {
 	P            *podmanprovisioner.P
@@ -271,6 +272,10 @@ func (p *SpacesViaContainerFilesystems) ResolveSpaceView(ctx context.Context, sp
 			}
 		}
 		return view, err
+	} else if strings.HasPrefix(spaceID, spaceViewSystemPrefix) {
+		baseID := strings.TrimPrefix(spaceID, spaceViewSystemPrefix)
+		view, err := p.spaceViewForSystemSpace(ctx, baseID)
+		return view, err
 	} else if strings.HasPrefix(spaceID, spaceViewImagePrefix) {
 		baseID := strings.TrimPrefix(spaceID, spaceViewImagePrefix)
 		if mightBeRemote(baseID) {
@@ -332,6 +337,34 @@ func (p *SpacesViaContainerFilesystems) spaceViewFor(ctx context.Context, contai
 	}, nil
 }
 
+func (p *SpacesViaContainerFilesystems) spaceViewForSystemSpace(ctx context.Context, name string) (*activityspec.SpaceView, error) {
+	var path string
+	err := p.DefSetLoader.Load().DecodeLookupPath(cue.MakePath(cue.Def("#var"), cue.Str("substrate"), cue.Str("system_spaces"), cue.Str(name)), &path)
+	if err != nil {
+		return nil, err
+	}
+
+	var mode []string
+	mode = append(mode, "rw")
+
+	return &activityspec.SpaceView{
+		SpaceID:  spaceViewSystemPrefix + name,
+		ReadOnly: true,
+		Await: func() error {
+			return nil
+		},
+		Mounts: func(targetPrefix string) []activityspec.ServiceInstanceDefSpawnMount {
+			return []activityspec.ServiceInstanceDefSpawnMount{
+				{
+					Type:        "bind",
+					Source:      path,
+					Destination: targetPrefix,
+					Mode:        mode,
+				},
+			}
+		},
+	}, nil
+}
 func (p *SpacesViaContainerFilesystems) spaceViewForReadOnlyImage(ctx context.Context, image string) (*activityspec.SpaceView, error) {
 	return &activityspec.SpaceView{
 		SpaceID:  spaceViewImagePrefix + image,

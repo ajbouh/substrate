@@ -41,6 +41,7 @@ import (
     event_writer_url: "/events;data=substrate-bootstrap-0/tree/fields"
 
     image_ids: [string]: string
+    system_spaces: [string]: string
   }
 }
 
@@ -96,6 +97,12 @@ resolve_image_id: {
 
 for key, def in imagespecs if enable[key] {
   #var: substrate: "image_ids": (key): (resolve_image_id & {image_tag: def.image}).image
+}
+
+#var: substrate: "system_spaces": {
+  "source": #var.host_source_directory
+  "home": #var.host_home_directory
+  "root": "/"
 }
 
 services: [key=string]: service & {
