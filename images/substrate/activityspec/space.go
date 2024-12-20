@@ -21,6 +21,7 @@ type SpaceQuerier interface {
 type SpaceEntry struct {
 	SpaceID   string `json:"space_id"`
 	CreatedAt string `json:"created_at"`
+	HREF      string `json:"href"`
 }
 
 type SpaceView struct {

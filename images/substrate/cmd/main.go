@@ -135,11 +135,7 @@ func main() {
 		provisionerCache,
 		httpevents.NewJSONEventStream[*defset.DefSet](""),
 
-		&units.RootSpacesLinkQuerier{
-			SpaceURL: func(space string) string {
-				return "/substrate/v1/spaces/" + space
-			},
-		},
+		&units.RootSpacesLinkQuerier{},
 		space.CommitCommand,
 		space.DeleteCommand,
 		space.GetCommand,
