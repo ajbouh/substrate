@@ -18,7 +18,7 @@ mkdir -p /overlay
 
 write_directory_from_cue_txtar \
     /overlay/ \
-    -t "resolve_image_ids=false" \
+    -t "resolve_image_ids=$SUBSTRATE_RESOLVE_IMAGE_IDS" \
     -t "buildx_bake_docker_compose_focus=$SUBSTRATE_BUILD_FOCUS" \
     -e 'overlay.overlay_txtar.#out'
 

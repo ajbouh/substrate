@@ -34,18 +34,18 @@ let txtar = {
 overlay: {
   // a focus key can be the key of services, imagespecs, or a resourcedir image_tag
   // focus keys do not enable things for which enabled[focus_key]: false
-  focus_keys_raw: string | *"" @tag(buildx_bake_docker_compose_focus)
+  focus_keys_raw: *"" | string @tag(buildx_bake_docker_compose_focus)
   focus_keys: [...string]
   if focus_keys_raw == "" { focus_keys: [] }
   if focus_keys_raw != "" { focus_keys: strings.Split(focus_keys_raw, " ") }
 
-  block_image_tags_raw: string | *"" @tag(buildx_bake_docker_compose_block_tags)
+  block_image_tags_raw: *"" | string @tag(buildx_bake_docker_compose_block_tags)
   block_image_tags: {[string]: true}
   if block_image_tags_raw != "" {
     block_image_tags: { for key in strings.Split(block_image_tags_raw, "\n") { (key): true } }
   }
 
-  buildx_bake_metadata_raw: string | *"" @tag(buildx_bake_metadata)
+  buildx_bake_metadata_raw: *"" | string @tag(buildx_bake_metadata)
   // buildx_bake_metadata ?: {
   //   "buildx.build.warnings": _
   //   [string]: {
@@ -68,11 +68,13 @@ overlay: {
   if buildx_bake_metadata_raw != "" {
     buildx_bake_metadata: json.Unmarshal(buildx_bake_metadata_raw)
     buildx_bake_image_ids_txtar: (txtar & {
-      for key, buildx_bake_metadata_entry in buildx_bake_metadata if (enable[key] == _|_) || enable[key] {
-        "defs/image_id_\(key).cue": """
-          package defs
-          image_ids: \"\(imagespecs[key].image)\": \"\(buildx_bake_metadata_entry[buildx_bake_metadata_image_digest_key])\"
-          """,
+      #files: {
+        for key, buildx_bake_metadata_entry in buildx_bake_metadata if (enable[key] == _|_) || enable[key] {
+          "defs/image_id_\(key).cue": """
+            package defs
+            image_ids: \"\(imagespecs[key].image)\": \"\(buildx_bake_metadata_entry[buildx_bake_metadata_image_digest_key])\"
+            """,
+        }
       }
     })
   }

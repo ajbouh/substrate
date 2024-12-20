@@ -38,6 +38,7 @@ ARG SUBSTRATE_GROUP
 ARG SUBSTRATE_HOME
 ARG SUBSTRATE_SOURCE
 ARG SUBSTRATE_BUILD_FOCUS
+ARG SUBSTRATE_RESOLVE_IMAGE_IDS
 ARG SUBSTRATE_USE_BOOTC_STORAGE
 
 COPY images/substrateos/overlay /overlay
@@ -52,6 +53,7 @@ RUN --mount=from=txtar-go-build,src=/go/bin/txtar,dst=/tmp/tools/bin/txtar \
       "CUE_DEV_DIR=/tmp/defs" \
       "NAMESPACE=${NAMESPACE}" \
       "CUE_DEV_DEFS=${CUE_DEV_DEFS}" \
+      "SUBSTRATE_RESOLVE_IMAGE_IDS=${SUBSTRATE_RESOLVE_IMAGE_IDS}" \
       "SUBSTRATE_USE_BOOTC_STORAGE=${SUBSTRATE_USE_BOOTC_STORAGE}" \
       "SUBSTRATE_LIVE_EDIT=${SUBSTRATE_LIVE_EDIT}" \
       "SUBSTRATE_USER=${SUBSTRATE_USER}" \
@@ -59,10 +61,11 @@ RUN --mount=from=txtar-go-build,src=/go/bin/txtar,dst=/tmp/tools/bin/txtar \
       "SUBSTRATE_HOME=${SUBSTRATE_HOME}" \
       "SUBSTRATE_SOURCE=${SUBSTRATE_SOURCE}" \
       "SUBSTRATE_BUILD_FOCUS=${SUBSTRATE_BUILD_FOCUS}" \
-      /tmp/build-overlay.sh
+      /tmp/build-overlay.sh; \
+      find /overlay
 
 FROM scratch AS overlay
-COPY --from=overlay-build /overlay /
+COPY --from=overlay-build /overlay/. /
 
 FROM base AS dist
 
