@@ -155,13 +155,6 @@ func (p *SpacesViaContainerFilesystems) resolveExistingSpaceViewForSpaceID(ctx c
 			view, err := p.spaceViewFor(ctx, containerID, spaceID, readOnly)
 			return containerID, view, err
 		}
-
-		if hasSpaceIDPrefix {
-			// try importing from legacy space source
-			view, err := p.resolveLegacySpaceView(ctx, spaceID, readOnly)
-			return containerID, view, err
-		}
-
 		if hasBootstrapPrefix {
 			view, err := p.resolveBootstrapSpaceView(ctx, spaceID, readOnly)
 			return containerID, view, err

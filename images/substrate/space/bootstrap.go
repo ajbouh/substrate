@@ -20,7 +20,7 @@ func (p *SpacesViaContainerFilesystems) resolveBootstrapSpaceView(ctx context.Co
 			return "", err
 		}
 
-		slog.Info("resolveLegacySpaceView seeking creating container")
+		slog.Info("resolveBootstrapSpaceView seeking creating container")
 		s, _ := p.createContainerSpecForSpace(newSpaceImage, spaceID)
 
 		c, err := containers.CreateWithSpec(ctx, s, nil)
@@ -28,7 +28,7 @@ func (p *SpacesViaContainerFilesystems) resolveBootstrapSpaceView(ctx context.Co
 			return "", err
 		}
 
-		slog.Info("resolveLegacySpaceView done")
+		slog.Info("resolveBootstrapSpaceView done")
 		return c.ID, nil
 	})
 

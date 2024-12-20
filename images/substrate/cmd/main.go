@@ -26,7 +26,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/ajbouh/substrate/images/substrate/defset"
-	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 	substratehttp "github.com/ajbouh/substrate/images/substrate/http"
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
 	podmanprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/podman"
@@ -332,10 +331,6 @@ func main() {
 				}
 			}
 		}),
-	}
-
-	if os.Getenv("SUBSTRATEFS_ROOT") != "" {
-		units = append(units, substratefs.NewLayout(mustGetenv("SUBSTRATEFS_ROOT")))
 	}
 
 	engine.Run(units...)
