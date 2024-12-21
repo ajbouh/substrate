@@ -1,11 +1,18 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/containers/podman/v4/libpod/define"
+	"github.com/containers/podman/v4/pkg/bindings"
+	"github.com/containers/podman/v4/pkg/specgen"
+	specs "github.com/opencontainers/runtime-spec/specs-go"
 
 	"github.com/ajbouh/substrate/images/spaceview/units"
 
@@ -18,7 +25,12 @@ import (
 )
 
 func main() {
-	fsys := workingpathfs.New(localfs.New(), "/spaces/space")
+	spaceDir := "/spaces/space"
+	spacePTYDir := spaceDir
+	spaceHostDir := os.Getenv("SUBSTRATE_SPACE_space_HOST_DIR")
+	slog.Info("spaceview", "spaceHostDir", spaceHostDir)
+
+	fsys := workingpathfs.New(localfs.New(), spaceDir)
 
 	// HACK don't let this be available.
 	urlPrefix := strings.TrimSuffix(os.Getenv("SUBSTRATE_URL_PREFIX"), "/")
@@ -80,6 +92,44 @@ func main() {
 
 		&units.FileTree{
 			FS: fsys,
+		},
+
+		&units.PodmanContainerPTY{
+			Image:    "docker.io/library/alpine:latest",
+			StartCmd: []string{"sh", "-c", "sleep infinity"},
+
+			Connect: func(ctx context.Context) (context.Context, error) {
+				return bindings.NewConnection(context.Background(), os.Getenv("DOCKER_HOST"))
+			},
+			Prepare: func(ctx context.Context, s *specgen.SpecGenerator) error {
+				s.Annotations = map[string]string{}
+				s.Annotations[define.RunOCIKeepOriginalGroups] = "1"
+
+				s.SelinuxOpts = []string{
+					"disable",
+				}
+
+				// if cudaAllowed {
+				// 	s.Devices = []specs.LinuxDevice{
+				// 		{
+				// 			Path: "nvidia.com/gpu=all",
+				// 		},
+				// 	}
+				// }
+
+				// mount the space
+				s.Mounts = append(s.Mounts, specs.Mount{
+					Type:        "bind",
+					Source:      spaceHostDir,
+					Destination: spacePTYDir,
+					Options:     []string{"rw"},
+				})
+				return nil
+			},
+
+			PTYUser: "root",
+			PTYCmd:  []string{"sh"},
+			PTYDir:  "/",
 		},
 
 		&units.VSCodeEditingForFS{

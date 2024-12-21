@@ -12,6 +12,10 @@ import (
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 )
 
+type MakePTY interface {
+	MakePTY() (io.ReadWriteCloser, error)
+}
+
 type VSCodeEditingForFS struct {
 	Host   string
 	Prefix string
@@ -19,24 +23,7 @@ type VSCodeEditingForFS struct {
 
 	FS fs.FS
 
-	workbench *vscode.Workbench
-}
-
-func (s *VSCodeEditingForFS) Initialize() {
-	s.workbench = &vscode.Workbench{
-		Scheme: s.Scheme,
-		Host:   s.Host,
-		Prefix: s.Prefix + "/vscode",
-		ProductConfiguration: product.Configuration{
-			NameLong: "Substrate Space Editor",
-		},
-		MakePTY: func() (io.ReadWriteCloser, error) {
-			// cmd := exec.Command("/bin/bash")
-			// return pty.Start(cmd)
-			return nil, io.EOF
-		},
-		FS: s.FS,
-	}
+	MakePTY MakePTY
 }
 
 func (s *VSCodeEditingForFS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -44,7 +31,17 @@ func (s *VSCodeEditingForFS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// if r2 == nil {
 	// 	r2 = r
 	// }
-	s.workbench.ServeHTTP(w, r2)
+	workbench := &vscode.Workbench{
+		Scheme: s.Scheme,
+		Host:   s.Host,
+		Prefix: s.Prefix + "/vscode",
+		ProductConfiguration: product.Configuration{
+			NameLong: "Substrate Space Editor",
+		},
+		MakePTY: s.MakePTY.MakePTY,
+		FS:      s.FS,
+	}
+	workbench.ServeHTTP(w, r2)
 }
 
 func (s *VSCodeEditingForFS) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {

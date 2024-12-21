@@ -1,11 +1,5 @@
 FROM docker.io/library/golang:1.22-bookworm AS source
 
-RUN apt update && \
-  apt install -y -V --no-install-recommends \
-  git-lfs && \
-  apt clean && \
-  rm -rf /var/lib/apt/lists/*
-
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
 COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \

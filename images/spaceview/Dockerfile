@@ -27,6 +27,7 @@ FROM source AS build
 RUN --mount=type=cache,target=/go/pkg/mod \
   GOPRIVATE=github.com/*/go-vscode \
   CGO_ENABLED=0 GOOS=linux go build \
+  -tags "remote exclude_graphdriver_btrfs btrfs_noversion exclude_graphdriver_devicemapper containers_image_openpgp"\
   -v \
   -installsuffix 'static' \
   -o /spaceview ./cmd/spaceview
