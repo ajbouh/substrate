@@ -21,12 +21,6 @@ COPY --from=gotty-js-build /gotty/js/node_modules /gotty/js/node_modules
 COPY --from=gotty-js-build /gotty/bindata/static/js /gotty/bindata/static/js
 RUN touch /gotty/bindata/static/js/* && CGO_ENABLED=0 make
 
-FROM docker.io/library/golang:1.22 AS caddy-go-build
-WORKDIR /caddy
-COPY images/caddy/. .
-RUN  --mount=type=cache,target=/go/pkg/mod \
-  go build
-
 FROM ghcr.io/ublue-os/fedora-coreos:stable-nvidia-20241124 AS base
 
 FROM base AS overlay-build
@@ -80,8 +74,7 @@ RUN mkdir -p /var/lib/alternatives && \
     ostree container commit
 
 COPY images/substrateos/build-custom.sh /tmp/build-custom.sh
-RUN --mount=from=caddy-go-build,src=/caddy/caddy,dst=/tmp/caddy/caddy \
-    --mount=from=gotty-go-build,src=/gotty/gotty,dst=/tmp/gotty/gotty \
+RUN --mount=from=gotty-go-build,src=/gotty/gotty,dst=/tmp/gotty/gotty \
     /tmp/build-custom.sh && \
     ostree container commit
 

@@ -67,8 +67,8 @@ tests: "substrate": go: {
 
 daemons: "substrate": {
   environment: {
-    "PORT": string | *"\(#var.substrate.internal_port)"
-    "SUBSTRATE_DB": "\(substrate_data)/substrate.sqlite"
+    "PORT": "443"
+    "HOST": "0.0.0.0"
     "SUBSTRATE_MACHINE_ID_FILE": #var.host_machine_id_file
     "SUBSTRATE_HOSTNAME_FILE": "\(#var.host_hostname_file).host"
     "SUBSTRATE_CUE_DEFS": string | *substrate_cue_defs
