@@ -50,6 +50,17 @@ func main() {
 		SpaceURL: func() string {
 			return urlPrefix + "/"
 		},
+		SpaceEditorURL: func(path string) string {
+			url := urlPrefix + "/vscode/"
+			if path != "" {
+				if strings.HasSuffix(path, "/") {
+					url += "?folder=hostfs:" + path
+				} else {
+					url += `?payload=[["openFile","hostfs:` + path + `"]]`
+				}
+			}
+			return url
+		},
 	}
 
 	engine.Run(
@@ -73,6 +84,10 @@ func main() {
 
 		&units.SpaceLinks{
 			Static: links.Links{
+				"editor": links.Link{
+					Rel:  "editor",
+					HREF: urls.SpaceEditorURL(""),
+				},
 				"tree": links.Link{
 					Rel:  "tree",
 					HREF: urls.SpaceTreePathURL(""),

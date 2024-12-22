@@ -15,6 +15,7 @@ import (
 
 type SpaceURLs struct {
 	SpaceTreePathURL func(path string) string
+	SpaceEditorURL   func(path string) string
 	SpaceURL         func() string
 }
 
@@ -66,7 +67,7 @@ type LinksQueryReturns struct {
 }
 
 var LinksWriteCommand = handle.Command(
-	"links:write", "",
+	"links:write", "Write a set of links to the space.",
 	func(ctx context.Context,
 		spaceLinks *SpaceLinks,
 		args struct {
@@ -78,7 +79,7 @@ var LinksWriteCommand = handle.Command(
 )
 
 var LinksRemoveCommand = handle.Command(
-	"links:remove", "",
+	"links:remove", "Remove one or more links from the space.",
 	func(ctx context.Context,
 		spaceLinks *SpaceLinks,
 		args struct {
@@ -133,6 +134,12 @@ var QueryLinksTreePathCommand = handle.HTTPCommand(
 					HREF: href,
 				}
 			}
+		} else {
+			l.Links["editor"] = links.Link{
+				Rel:  "editor",
+				HREF: t.SpaceURLs.SpaceEditorURL(args.Path),
+			}
+
 		}
 
 		if args.Path != "/" && args.Path != "" {
