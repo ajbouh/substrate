@@ -12,8 +12,8 @@ import (
 )
 
 // Serves FileTree, but nested under servicespec.
-// /rebase/{servicespec}/tree/{path...}
-// The links:query command for rebase/{servicespec}/tree/{path...} contains everything in /tree/{path...}, but *also* has a link to "base", which is /{servicespec}/
+// /atop/{servicespec}/tree/{path...}
+// The links:query command for atop/{servicespec}/tree/{path...} contains everything in /tree/{path...}, but *also* has a link to "atop", which is /{servicespec}/
 // Files served here can use this to "get back to" the thing they are a UI for
 
 type Rebase struct {
@@ -22,18 +22,18 @@ type Rebase struct {
 
 func (s *Rebase) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	// use "path" here to match filetree routes
-	mux.Handle("GET /rebase/{servicespec}/tree/{path...}", s)
-	mux.Handle("HEAD /rebase/{servicespec}/tree/{path...}", s)
+	mux.Handle("GET /atop/{servicespec}/tree/{path...}", s)
+	mux.Handle("HEAD /atop/{servicespec}/tree/{path...}", s)
 }
 
 func (s *Rebase) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	servicespec := r.PathValue("servicespec")
-	http.StripPrefix("/rebase/"+servicespec, s.FileTree).ServeHTTP(w, r)
+	http.StripPrefix("/atop/"+servicespec, s.FileTree).ServeHTTP(w, r)
 }
 
 var QueryLinksRebaseTreePathCommand = handle.HTTPCommand(
 	"links:query", "List links",
-	"GET /links/rebase/{servicespec}", "/rebase/{servicespec}/tree/{path...}",
+	"GET /links/atop/{servicespec}", "/atop/{servicespec}/tree/{path...}",
 	func(ctx context.Context,
 		t *struct {
 			FS        fs.FS
@@ -57,8 +57,8 @@ var QueryLinksRebaseTreePathCommand = handle.HTTPCommand(
 			return lqr, err
 		}
 
-		lqr.Links["base"] = links.Link{
-			Rel:  "base",
+		lqr.Links["atop"] = links.Link{
+			Rel:  "atop",
 			HREF: "/" + args.Servicespec + "/",
 		}
 

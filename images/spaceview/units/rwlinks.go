@@ -14,9 +14,10 @@ import (
 )
 
 type SpaceURLs struct {
-	SpaceTreePathURL func(path string) string
-	SpaceEditorURL   func(path string) string
-	SpaceURL         func() string
+	SpaceTreePathURL     func(path string) string
+	SpaceAtopTreePathURL func(otherSpaceID, path string) string
+	SpaceEditorURL       func(path string) string
+	SpaceURL             func() string
 }
 
 type SpaceLinks struct {

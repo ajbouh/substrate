@@ -47,6 +47,9 @@ func main() {
 		SpaceTreePathURL: func(path string) string {
 			return urlPrefix + "/tree/" + strings.TrimPrefix(path, "/")
 		},
+		SpaceAtopTreePathURL: func(servicespec string, path string) string {
+			return urlPrefix + "/atop/" + url.PathEscape(servicespec) + "/tree/" + strings.TrimPrefix(path, "/")
+		},
 		SpaceURL: func() string {
 			return urlPrefix + "/"
 		},
