@@ -25,9 +25,8 @@ type GetSpacesReturns struct {
 	Spaces []activityspec.SpaceEntry `json:"spaces"`
 }
 
-var QueryCommand = handle.HTTPCommand(
+var QueryCommand = handle.Command(
 	"space:query", "List all spaces",
-	"GET /substrate/v1/spaces", "/substrate/v1/spaces/{space}",
 	func(ctx context.Context,
 		t *struct {
 			SpaceQueriers []activityspec.SpaceQuerier
