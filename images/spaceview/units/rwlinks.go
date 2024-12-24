@@ -80,7 +80,7 @@ var LinksWriteCommand = handle.Command(
 )
 
 var LinksRemoveCommand = handle.Command(
-	"links:remove", "Remove one or more links from the space.",
+	"links:delete", "Remove one or more links from the space.",
 	func(ctx context.Context,
 		spaceLinks *SpaceLinks,
 		args struct {
