@@ -11,6 +11,8 @@ export class SubstrateBackend {
     } else {
       this.index = new SearchIndex_Dumb();
     }
+
+    this.changes = new EventFSChanges(this.files, eventsBaseURL);
   }
 }
 
@@ -90,9 +92,36 @@ async function sha256HexDigest(data) {
   const hashBuffer = await window.crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(hashBuffer), (b) => b.toString(16).padStart(2, "0")).join("");
 }
-  
+
+export class EventFSChanges {
+  constructor(store, eventsBaseURL) {
+    this.store = store
+    this.eventsBaseURL = eventsBaseURL.endsWith('/') ? eventsBaseURL.slice(0, -1) : eventsBaseURL
+    this.eventSources = []
+  }
+
+  registerNotifier(cb) {
+    const query = new URLSearchParams()
+    const nodePathPrefix = this.store.nodePathPrefix
+    query.set('path_prefix', nodePathPrefix)
+    const es = new EventSource(this.eventsBaseURL + "/stream/events?" + query.toString())
+
+    es.addEventListener('message', (ev) => {
+      const data = JSON.parse(ev.data)
+      console.log({'ev.data': data})
+      const updated = data.events.filter(({fields: {path}, data_sha256}) => path && (this.store.fileDigests[path] !== data_sha256))
+      if (updated.length > 0) {
+        cb(updated.map(({fields: {path}}) => path.substring(nodePathPrefix.length)))
+      }
+    })
+    this.eventSources.push(es)
+  }
+}
+
 export class EventFSStore {
     constructor(eventsBaseURL) {
+        this.pathPrefix = '/workspace/'
+        this.nodePathPrefix = this.pathPrefix + "nodes/"
         this.eventsBaseURL = eventsBaseURL.endsWith('/') ? eventsBaseURL.slice(0, -1) : eventsBaseURL
         this.fileDigests = {}
     }
@@ -174,8 +203,7 @@ export class EventFSStore {
     }
 
     async _readWorkspace() {
-      const prefix = '/workspace/'
-      const nodePrefixLen = prefix.length + 'nodes/'.length
+      const prefix = this.pathPrefix
       const files = await this._readAllFiles(prefix)
       if (files == null) {
         return null
@@ -195,8 +223,8 @@ export class EventFSStore {
     }
 
     async _writeWorkspace({nodes, ...config}) {
-      const prefix = '/workspace/'
-      const nodePrefix = prefix + 'nodes/'
+      const prefix = this.pathPrefix
+      const nodePrefix = this.nodePathPrefix
       const files = {
         [prefix + 'config']: JSON.stringify(config),
       }
