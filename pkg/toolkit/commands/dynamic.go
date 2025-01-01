@@ -30,14 +30,14 @@ func (c *DynamicReflector) Reflect(ctx context.Context) (DefIndex, error) {
 }
 
 type DynamicRunner struct {
-	Runners      func() []Runner
+	Runners      func(ctx context.Context) []Runner
 	RunTransform RunTransformFunc
 }
 
 var _ Runner = (*DynamicRunner)(nil)
 
 func (c *DynamicRunner) Run(ctx context.Context, name string, p Fields) (Fields, error) {
-	return Run(ctx, c.RunTransform, name, p, c.Runners()...)
+	return Run(ctx, c.RunTransform, name, p, c.Runners(ctx)...)
 }
 
 type DynamicSource[T Source] struct {

@@ -52,7 +52,10 @@ func (c *HTTPRunHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux)
 	for pattern, runners := range grouped {
 		runners := runners
 		if pattern == "" {
-			mux.Handle(c.CatchallRunnerPattern, CatchallRunnersHandler(c.Debug, runners))
+			runner := &commands.DynamicRunner{
+				Runners: func(ctx context.Context) []commands.Runner { return runners },
+			}
+			mux.Handle(c.CatchallRunnerPattern, RunnerHandler(c.Debug, runner))
 		} else {
 			// there shouldn't be more than one runner per (non-catchall) pattern, but
 			// we expect mux.Handle will panic if there's more than one.
@@ -67,10 +70,7 @@ func (c *HTTPRunHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux)
 }
 
 // Returns a http.Handler to run any command handled by commands.Runner
-func CatchallRunnersHandler(debug bool, runners []commands.Runner) http.Handler {
-	runner := &commands.DynamicRunner{
-		Runners: func() []commands.Runner { return runners },
-	}
+func RunnerHandler(debug bool, runner commands.Runner) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var commandRequest commands.Request
 		var errMsg map[string]any
@@ -87,7 +87,10 @@ func CatchallRunnersHandler(debug bool, runners []commands.Runner) http.Handler 
 			return
 		}
 
-		res, err := runner.Run(r.Context(), commandRequest.Command, commandRequest.Parameters)
+		ctx := r.Context()
+		ctx = WithPathValuer(ctx, r)
+
+		res, err := runner.Run(ctx, commandRequest.Command, commandRequest.Parameters)
 		if err != nil {
 			serveError(debug, w, err, http.StatusInternalServerError, errMsg)
 			return

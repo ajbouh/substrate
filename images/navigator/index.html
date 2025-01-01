@@ -69,6 +69,33 @@
                 const {ReflectCommands} = import(`${hostName}/tool-call/js/commands.js`);
                 const {h, render, html} = import(Renkon.spaceURL("./preact.standalone.module.js"));
                 const {initGrammar, translate} = import("./parser.js");
+                const {msgtun} = import("./msgtun.js");
+
+                const viewMsgTun = ((viewCommands, msgtun) => {
+                    return Events.observe(async (notifier) => {
+                        const o = {}
+                        const expose = (name, parameterNames) => {
+                            o[name] = {
+                                description: `${name}`,
+                                parameters: Object.fromEntries(parameterNames.map(p => [p, {}])),
+                                run: (params) => {
+                                    notifier({type: name, ...params})
+                                },
+                            }
+                        }
+
+                        // TODO pull these automatically from viewCommands by parsing the object directly
+                        expose("go", ["url"])
+                        expose("newTab", [""])
+                        expose("switchTab", ["tab"])
+                        expose("doMsgInput", ["input", "id"])
+
+                        const {url, disconnect} = await msgtun(o)
+
+                        console.log("msgtun", {url, disconnect})
+                    }, {queued: true});
+                })(viewCommands, msgtun);
+                Events.send(viewMsgInbox, viewMsgTun)
 
                 const tabsWithSectionUpdate = (now, tabId, newSection) => { // newSection: {id, input, value}
                     // the request is an invocation
