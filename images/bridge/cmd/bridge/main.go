@@ -33,7 +33,6 @@ import (
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
-	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gopxl/beep"
@@ -184,10 +183,6 @@ func main() {
 		httpevents.NewJSONRequester[translate.TranslationEvent]("PUT", eventURLPrefix+"/translation"),
 		httpevents.NewJSONRequester[vad.ActivityEvent]("PUT", eventURLPrefix+"/voice-activity"),
 		httpevents.NewJSONRequester[EventCursor]("PUT", cursorURL),
-		// NewEventStreamer(
-		// 	mustGetenv("SUBSTRATE_EVENT_STREAM_URL"),
-		// 	streamQuery,
-		// ),
 		workingset.CommandProvider{},
 		EventCommands{},
 	)
@@ -241,50 +236,6 @@ func (es *EventCommands) Commands(ctx context.Context) commands.Source {
 
 type EventCursor struct {
 	LastProcessed event.ID `json:"last_processed"`
-}
-
-type EventStreamer struct {
-	NotifyQueue     *notify.Queue
-	CursorNotifiers []notify.Notifier[EventCursor]
-	Session         *tracks.Session
-	Subscription    interface{ Serve(context.Context) }
-}
-
-func NewEventStreamer(streamURL string, streamQuery *event.Query) *EventStreamer {
-	es := &EventStreamer{}
-	js := httpevents.NewJSONSubscription(
-		"POST",
-		streamURL,
-		streamQuery,
-		notify.On(es.HandleEvent),
-	)
-	js.Initialize()
-	es.Subscription = js
-	return es
-}
-
-func (es *EventStreamer) Serve(ctx context.Context) {
-	es.Subscription.Serve(ctx)
-}
-
-func (es *EventStreamer) HandleEvent(ctx context.Context, n event.Notification, t *struct{}) {
-	events, err := event.Unmarshal[tracks.JSONEvent](n.Events, true)
-	fatal(err)
-	for i, e := range events {
-		_, err := tracks.InsertJSONEvent(es.Session, e)
-		if err != nil {
-			log.Printf("error inserting event: %s", err)
-			j, err := json.Marshal(n.Events[i])
-			if err != nil {
-				log.Printf("error marshalling event: %s", err)
-				continue
-			}
-			log.Printf("event: %s", j)
-		}
-	}
-	notify.Later(es.NotifyQueue, es.CursorNotifiers, EventCursor{
-		LastProcessed: n.Until,
-	})
 }
 
 func mustGetenv(name string) string {
