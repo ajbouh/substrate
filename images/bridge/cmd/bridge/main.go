@@ -78,33 +78,8 @@ func main() {
 	eventWriterURL := mustGetenv("SUBSTRATE_EVENT_WRITER_URL")
 	sessionID := mustGetenv("BRIDGE_SESSION_ID")
 	eventURLPrefix := fmt.Sprintf("%s/bridge/%s", eventWriterURL, sessionID)
-	// Cursor path needs to be outisde of the session events so that updates to it
-	// don't re-trigger streaming
-	cursorURL := fmt.Sprintf("%s/bridge-cursor/%s", eventWriterURL, sessionID)
 
 	pathPrefix := fmt.Sprintf("/bridge/%s/", sessionID)
-	streamQuery := event.QueryLatestByPathPrefix(pathPrefix)
-	resp, err := http.Get(cursorURL)
-	fatal(err)
-
-	var ev struct {
-		Event event.Event `json:"event"`
-	}
-	var cursor EventCursor
-	switch resp.StatusCode {
-	case http.StatusOK:
-		body, err := io.ReadAll(resp.Body)
-		fatal(err)
-		log.Println("got cursor", string(body))
-		fatal(json.Unmarshal(body, &ev), "error decoding cursor event")
-		fatal(json.Unmarshal(ev.Event.Payload, &cursor), "error unmarshalling cursor", string(ev.Event.Payload))
-		streamQuery = streamQuery.After(cursor.LastProcessed)
-	case http.StatusNotFound:
-		// no cursor, start from the beginning
-	default:
-		fatal(fmt.Errorf("cursor: unexpected status code %d", resp.StatusCode))
-	}
-
 	queryParams := url.Values{}
 	queryParams.Set("path_prefix", pathPrefix)
 	eventStreamURL := fmt.Sprintf("%s?%s", mustGetenv("SUBSTRATE_STREAM_URL_PATH"), queryParams.Encode())
@@ -191,7 +166,6 @@ func main() {
 		httpevents.NewJSONRequester[transcribe.TranscriptionEvent]("PUT", eventURLPrefix+"/transcription"),
 		httpevents.NewJSONRequester[translate.TranslationEvent]("PUT", eventURLPrefix+"/translation"),
 		httpevents.NewJSONRequester[vad.ActivityEvent]("PUT", eventURLPrefix+"/voice-activity"),
-		httpevents.NewJSONRequester[EventCursor]("PUT", cursorURL),
 		workingset.CommandProvider{},
 		EventCommands{},
 		// RequestBodyLogger{},
