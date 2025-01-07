@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
-	"github.com/containers/podman/v4/libpod/define"
-	"github.com/containers/podman/v4/pkg/bindings/containers"
-	"github.com/containers/podman/v4/pkg/bindings/system"
-	"github.com/containers/podman/v4/pkg/domain/entities"
+	"github.com/containers/podman/v5/libpod/define"
+	"github.com/containers/podman/v5/pkg/bindings/containers"
+	"github.com/containers/podman/v5/pkg/bindings/system"
+	"github.com/containers/podman/v5/pkg/domain/entities"
 )
 
 type StatusEvent struct {
@@ -144,7 +144,7 @@ func (c *ContainerStatusCheck) Status(ctx context.Context) (provisioner.Event, e
 
 func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan provisioner.Event, error) {
 	statusCh := make(chan provisioner.Event)
-	errEventChan := make(chan error)
+	// errEventChan := make(chan error, 1)
 
 	go func() {
 		defer close(statusCh)
@@ -177,7 +177,6 @@ func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan provisi
 		go func() {
 			err := system.Events(ctx, eventChan, cancelChan, eventsOptions)
 			log.Printf("event channel done backend:%s status:%s err:%s", c.containerID, c.containerJSON.State.Status, err)
-			errEventChan <- err
 		}()
 
 		// Check the current status of the container
@@ -216,20 +215,27 @@ func (c *ContainerStatusCheck) StatusStream(ctx context.Context) (<-chan provisi
 						Time:    now.Format(time.RFC3339Nano),
 					})
 				}
-			case err := <-errEventChan:
-				now := time.Now().UTC()
-				emit(&StatusEvent{
-					Err:  err,
-					Time: now.Format(time.RFC3339Nano),
-				})
-			case event := <-eventChan:
-				log.Printf("__event backend:%s status:%s action:%s event:%#v", c.containerID, c.containerJSON.State.Status, event.Action, event)
-				// Do we already know it's ready? If so, that's all we care about.
-				emit(&StatusEvent{
-					Backend: c.containerID,
-					State:   StateFromDockerStatus(event.Action, ready),
-					Time:    time.Unix(event.Time, event.TimeNano).Format(time.RFC3339Nano),
-				})
+			// case err := <-errEventChan:
+			// 	now := time.Now().UTC()
+			// 	emit(&StatusEvent{
+			// 		Err:  err,
+			// 		Time: now.Format(time.RFC3339Nano),
+			// 	})
+			case event, ok := <-eventChan:
+				if !ok {
+					emit(&StatusEvent{
+						Err:  err,
+						Time: now.Format(time.RFC3339Nano),
+					})
+				} else {
+					log.Printf("__event backend:%s status:%s action:%s event:%#v", c.containerID, c.containerJSON.State.Status, event.Action, event)
+					// Do we already know it's ready? If so, that's all we care about.
+					emit(&StatusEvent{
+						Backend: c.containerID,
+						State:   StateFromDockerStatus(string(event.Action), ready),
+						Time:    time.Unix(event.Time, event.TimeNano).Format(time.RFC3339Nano),
+					})
+				}
 			}
 		}
 	}()

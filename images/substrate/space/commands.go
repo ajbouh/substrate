@@ -12,8 +12,8 @@ import (
 	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/containers/common/pkg/auth"
 	"github.com/containers/image/v5/types"
-	"github.com/containers/podman/v4/pkg/bindings/containers"
-	"github.com/containers/podman/v4/pkg/bindings/images"
+	"github.com/containers/podman/v5/pkg/bindings/containers"
+	"github.com/containers/podman/v5/pkg/bindings/images"
 	"tractor.dev/toolkit-go/engine/fs"
 )
 

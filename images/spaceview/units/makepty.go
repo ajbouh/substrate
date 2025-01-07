@@ -9,10 +9,10 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/containers/podman/v4/pkg/api/handlers"
-	"github.com/containers/podman/v4/pkg/bindings/containers"
-	"github.com/containers/podman/v4/pkg/specgen"
-	docker "github.com/docker/docker/api/types"
+	"github.com/containers/podman/v5/pkg/api/handlers"
+	"github.com/containers/podman/v5/pkg/bindings/containers"
+	"github.com/containers/podman/v5/pkg/specgen"
+	dockerContainer "github.com/docker/docker/api/types/container"
 )
 
 type PodmanContainerPTY struct {
@@ -68,7 +68,8 @@ func (m *PodmanContainerPTY) init() (string, error) {
 	}
 
 	s := specgen.NewSpecGenerator(m.Image, false)
-	s.Remove = true
+	remove := true
+	s.Remove = &remove
 	s.Command = m.StartCmd
 	s.WorkDir = m.StartDir
 	s.Env = map[string]string{}
@@ -141,7 +142,7 @@ func (m *PodmanContainerPTY) MakePTY() (io.ReadWriteCloser, error) {
 		}
 
 		sessionID, err := containers.ExecCreate(ctx, containerID, &handlers.ExecCreateConfig{
-			ExecConfig: docker.ExecConfig{
+			ExecOptions: dockerContainer.ExecOptions{
 				User:         m.PTYUser,
 				Cmd:          m.PTYCmd,
 				Env:          env,

@@ -15,8 +15,9 @@ import (
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 
 	nettypes "github.com/containers/common/libnetwork/types"
-	"github.com/containers/podman/v4/pkg/bindings/containers"
-	"github.com/containers/podman/v4/pkg/specgen"
+	"github.com/containers/podman/v5/libpod/define"
+	"github.com/containers/podman/v5/pkg/bindings/containers"
+	"github.com/containers/podman/v5/pkg/specgen"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 )
 
@@ -143,12 +144,16 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 	}
 
 	s := specgen.NewSpecGenerator(imageID, false)
-	s.Remove = true
+	remove := true
+	s.Remove = &remove
 	s.Env = map[string]string{}
 	s.Labels = labels
 	s.Command = append([]string{}, as.ServiceInstanceDef.Command...)
 
-	s.Privileged = as.ServiceInstanceDef.Privileged
+	// HACK so we keep the video and render group and permissions are valid.
+	s.Privileged = &as.ServiceInstanceDef.Privileged
+	s.Annotations = map[string]string{}
+	s.Annotations[define.RunOCIKeepOriginalGroups] = "1"
 
 	// Recognized resource types include:
 	// - "core": maximum core dump size (ulimit -c)
@@ -172,7 +177,7 @@ func (p *P) Spawn(ctx context.Context, as *activityspec.ServiceSpawnResolution) 
 		Hard: uint64(65000),
 		Soft: uint64(65000),
 	})
-	s.Init = as.ServiceInstanceDef.Init
+	s.Init = &as.ServiceInstanceDef.Init
 
 	if p.Prep != nil {
 		p.Prep(s)

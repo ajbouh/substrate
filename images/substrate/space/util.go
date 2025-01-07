@@ -5,7 +5,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/containers/podman/v4/pkg/bindings/containers"
+	"github.com/containers/podman/v5/pkg/bindings/containers"
 	"github.com/containers/storage/types"
 )
 

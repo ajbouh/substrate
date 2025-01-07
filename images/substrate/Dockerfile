@@ -1,4 +1,6 @@
-FROM docker.io/library/golang:1.22-bookworm AS source
+# FROM cgr.dev/chainguard/go:latest-dev AS source 
+# (go 1.24.5)
+FROM cgr.dev/chainguard/go:latest-dev@sha256:e494d603a72a6a2f503574f8e33a809178eca31153d5752d1bf6e950211ae50a AS source
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
 COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
@@ -39,7 +41,7 @@ FROM source AS test
 
 FROM docker.io/tianon/toybox:latest AS toybox
 
-FROM gcr.io/distroless/base-nossl-debian12 AS dist
+FROM cgr.dev/chainguard/wolfi-base AS dist
 
 ARG CUE_DEFS_SOURCE
 ARG CUE_DEFS_TARGET

@@ -6,7 +6,7 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
-	"github.com/containers/podman/v4/pkg/bindings/containers"
+	"github.com/containers/podman/v5/pkg/bindings/containers"
 )
 
 func (p *SpacesViaContainerFilesystems) resolveBootstrapSpaceView(ctx context.Context, spaceID string, readOnly bool) (*activityspec.SpaceView, error) {

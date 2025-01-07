@@ -36,12 +36,10 @@ ARG VSCODE_ARTIFACT_URL=https://github.com/progrium/vscode-web/releases/download
 RUN apk add -u curl
 RUN curl -qLo /vscode-web.zip ${VSCODE_ARTIFACT_URL}
 
-FROM docker.io/library/golang:1.23-bookworm AS source
-RUN apt update && \
-  apt install -y -V --no-install-recommends \
-  git-lfs && \
-  apt clean && \
-  rm -rf /var/lib/apt/lists/*
+# FROM cgr.dev/chainguard/go:latest-dev AS source 
+# (go 1.24.5)
+FROM cgr.dev/chainguard/go:latest-dev@sha256:e494d603a72a6a2f503574f8e33a809178eca31153d5752d1bf6e950211ae50a AS source
+RUN apk add --no-cache git-lfs
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/go-vscode/
 COPY pkg/go-vscode/go.mod pkg/go-vscode/go.sum ./
@@ -75,7 +73,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
   -installsuffix 'static' \
   -o /spaceview ./cmd/spaceview
 
-FROM gcr.io/distroless/static AS dist
+FROM cgr.dev/chainguard/static AS dist
 
 # USER nonroot:nonroot
 ENV PORT 8080

@@ -18,8 +18,8 @@ import (
 	"github.com/caddyserver/certmagic"
 
 	"cuelang.org/go/cue"
-	"github.com/containers/podman/v4/pkg/bindings"
-	"github.com/containers/podman/v4/pkg/specgen"
+	"github.com/containers/podman/v5/pkg/bindings"
+	"github.com/containers/podman/v5/pkg/specgen"
 	"github.com/oklog/ulid/v2"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/rs/cors"

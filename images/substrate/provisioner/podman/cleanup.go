@@ -5,9 +5,9 @@ import (
 	"errors"
 	"log"
 
-	"github.com/containers/podman/v4/pkg/bindings/containers"
-	"github.com/containers/podman/v4/pkg/bindings/network"
-	"github.com/containers/podman/v4/pkg/domain/entities"
+	"github.com/containers/podman/v5/pkg/bindings/containers"
+	"github.com/containers/podman/v5/pkg/bindings/network"
+	"github.com/containers/podman/v5/pkg/domain/entities"
 )
 
 func boolPtr(b bool) *bool {
