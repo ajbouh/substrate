@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -107,6 +109,10 @@ func main() {
 	queryParams.Set("path_prefix", pathPrefix)
 	eventStreamURL := fmt.Sprintf("%s?%s", mustGetenv("SUBSTRATE_STREAM_URL_PATH"), queryParams.Encode())
 
+	toolSelect := &tools.OpenAICompleter{
+		Template: "tool-select",
+	}
+
 	engine.Run(
 		&service.Service{},
 		&SessionHandler{
@@ -143,7 +149,9 @@ func main() {
 			SampleRate:   format.SampleRate.N(time.Second),
 			SampleWindow: 24 * time.Second,
 		}),
-		// cmdSource,
+		&commandSourceInjector{
+			Source: cmdSource,
+		},
 		transcribe.Agent{
 			Source:  cmdSource,
 			Command: getEnv("BRIDGE_TRANSCRIBE_COMMAND", "transcribe"),
@@ -155,8 +163,9 @@ func main() {
 		},
 		&tools.OfferAgent{
 			Name:      "bridge",
-			Completer: tools.OpenAICompleter("tool-select"),
+			Completer: toolSelect,
 		},
+		toolSelect,
 		&tools.AutoTriggerAgent{},
 		&tools.CallAgent{
 			Name: "bridge",
@@ -168,8 +177,8 @@ func main() {
 			},
 		},
 		assistant.Agent{
-			DefaultAssistants: []assistant.Client{
-				must(newAssistantClient("bridge", must(assistant.DefaultPromptTemplateForName("bridge")))),
+			DefaultAssistants: map[string]string{
+				"bridge": must(assistant.DefaultPromptTemplateForName("bridge")),
 			},
 			NewClient: newAssistantClient,
 		},
@@ -185,6 +194,7 @@ func main() {
 		httpevents.NewJSONRequester[EventCursor]("PUT", cursorURL),
 		workingset.CommandProvider{},
 		EventCommands{},
+		// RequestBodyLogger{},
 	)
 }
 
@@ -200,7 +210,7 @@ func (es *EventCommands) Commands(ctx context.Context) commands.Source {
 	sources := []commands.Source{
 		commands.List[commands.Source](
 			handle.Command("handle",
-				"Add a URL to the working set",
+				"Inserts events into the session",
 				func(ctx context.Context, t *struct{}, args struct {
 					Events []event.Event `json:"events" doc:""`
 				}) (Void, error) {
@@ -234,6 +244,23 @@ func (es *EventCommands) Commands(ctx context.Context) commands.Source {
 	)
 }
 
+type RequestBodyLogger struct {
+	Log *slog.Logger
+}
+
+func (l *RequestBodyLogger) WrapHTTP(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("error reading body: %s", err), http.StatusInternalServerError)
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		l.Log.Info("request", "method", r.Method, "url", r.URL.String(), "body", string(body))
+		next.ServeHTTP(w, r)
+	})
+}
+
 type EventCursor struct {
 	LastProcessed event.ID `json:"last_processed"`
 }
@@ -265,6 +292,16 @@ func (l eventLogger) HandleEvent(e tracks.Event) {
 		}
 	}
 	log.Printf("event: %s %s %s-%s %#v", e.Type, e.ID, time.Duration(e.Start), time.Duration(e.End), e.Data)
+}
+
+type commandSourceInjector struct {
+	URLReflector commands.URLReflector
+
+	Source *commands.URLBasedSource
+}
+
+func (csi *commandSourceInjector) Initialize() {
+	csi.Source.URLReflector = csi.URLReflector
 }
 
 type commandSourceRegistry struct {

@@ -171,6 +171,7 @@ type CompletionResponse struct {
 // If using a fine-tuned model, simply provide the model's ID in the CompletionRequest object,
 // and the server will use the model's parameters to generate the completion.
 func doCompletion(
+	reflector commands.URLReflector,
 	endpoint, command string,
 	request *CompletionRequest,
 ) (response *CompletionResponse, err error) {
@@ -179,7 +180,7 @@ func doCompletion(
 		req.Model = "/res/model/huggingface/local"
 		request = &req
 	}
-	src, _, err := (&commands.TransformingDefRunner{}).ReflectURL(context.TODO(), endpoint)
+	src, _, err := reflector.ReflectURL(context.TODO(), endpoint)
 	if err != nil {
 		return nil, err
 	}

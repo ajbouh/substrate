@@ -11,6 +11,7 @@ import (
 	"github.com/ajbouh/substrate/images/bridge/assistant/prompts"
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
@@ -78,7 +79,9 @@ type OfferAgent struct {
 
 	Name      string
 	Registry  ToolLister
-	Completer func(map[string]any) (string, string, error)
+	Completer interface {
+		Complete(map[string]any) (string, string, error)
+	}
 }
 
 func (a *OfferAgent) HandleEvent(event tracks.Event) {
@@ -113,7 +116,7 @@ func (a *OfferAgent) CompleteTool(input string) (string, []Call[any], error) {
 	if err != nil {
 		return "", nil, err
 	}
-	prompt, resp, err := a.Completer(map[string]any{
+	prompt, resp, err := a.Completer.Complete(map[string]any{
 		"UserInput": input,
 		"ToolDefs":  defs,
 	})
@@ -198,13 +201,16 @@ func (a *CallAgent) HandleEvent(event tracks.Event) {
 	}
 }
 
-func OpenAICompleter(template string) func(map[string]any) (string, string, error) {
-	return func(templateArgs map[string]any) (string, string, error) {
-		prompt, err := prompts.Render(template, templateArgs)
-		if err != nil {
-			return prompt, "", err
-		}
-		resp, err := openai.CompleteWithFrontmatter(prompt)
-		return prompt, resp, err
+type OpenAICompleter struct {
+	Reflector commands.URLReflector
+	Template  string
+}
+
+func (oc *OpenAICompleter) Complete(templateArgs map[string]any) (string, string, error) {
+	prompt, err := prompts.Render(oc.Template, templateArgs)
+	if err != nil {
+		return prompt, "", err
 	}
+	resp, err := openai.CompleteWithFrontmatter(oc.Reflector, prompt)
+	return prompt, resp, err
 }

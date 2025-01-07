@@ -7,14 +7,15 @@ import (
 	"strings"
 
 	"github.com/adrg/frontmatter"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 )
 
-func CompleteWithFrontmatter(promptWithFrontmatter string) (string, error) {
+func CompleteWithFrontmatter(reflector commands.URLReflector, promptWithFrontmatter string) (string, error) {
 	endpoint, command, req, err := parseFrontmatter(promptWithFrontmatter)
 	if err != nil {
 		return "", err
 	}
-	return Complete(endpoint, command, req)
+	return Complete(reflector, endpoint, command, req)
 }
 
 func parseFrontmatter(input string) (string, string, *CompletionRequest, error) {
@@ -37,8 +38,8 @@ type requestFrontmatter struct {
 	Command           string `json:"command"`
 }
 
-func Complete(endpoint, command string, req *CompletionRequest) (string, error) {
-	resp, err := doCompletion(endpoint, command, req)
+func Complete(reflector commands.URLReflector, endpoint, command string, req *CompletionRequest) (string, error) {
+	resp, err := doCompletion(reflector, endpoint, command, req)
 	if err != nil {
 		return "", err
 	}

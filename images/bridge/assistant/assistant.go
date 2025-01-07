@@ -70,8 +70,10 @@ type Agent struct {
 
 	Session           *tracks.Session
 	StoragePaths      *tracks.SessionStoragePaths
-	DefaultAssistants []Client
-	NewClient         func(name, promptTemplate string) (Client, error)
+	DefaultAssistants map[string]string
+	defaultAssistants []Client
+	Reflector         commands.URLReflector
+	NewClient         func(reflector commands.URLReflector, name, promptTemplate string) (Client, error)
 }
 
 type Void struct{}
@@ -126,7 +128,9 @@ func (a *Agent) Initialize() {
 			return -cmp.Compare(a.Start, b.Start)
 		})
 		agent := &sessionAgent{
-			NewClient:       a.NewClient,
+			NewClient: func(name, promptTemplate string) (Client, error) {
+				return a.NewClient(a.Reflector, name, promptTemplate)
+			},
 			assistants:      make(map[string]eventClient),
 			recordTextEvent: a.recordTextEvent,
 		}
@@ -134,6 +138,14 @@ func (a *Agent) Initialize() {
 			agent.handleSetPrompt(e)
 		}
 		sess.Listen(agent)
+	}
+
+	for name, prompt := range a.DefaultAssistants {
+		client, err := a.NewClient(a.Reflector, name, prompt)
+		if err != nil {
+			log.Fatalf("assistant: error creating default client %q: %s", name, err)
+		}
+		a.defaultAssistants = append(a.defaultAssistants, client)
 	}
 
 	if a.StoragePaths != nil {
@@ -146,7 +158,7 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 	if annot.Type != "transcription" {
 		return
 	}
-	handleTranscription(a.DefaultAssistants, annot, a.recordTextEvent)
+	handleTranscription(a.defaultAssistants, annot, a.recordTextEvent)
 }
 
 func (a *Agent) recordTextEvent(span tracks.Span, data *AssistantTextEvent) {
@@ -281,18 +293,20 @@ func DefaultPromptTemplateForName(name string) (string, error) {
 }
 
 type OpenAIClient struct {
-	Name     string
-	Template *template.Template
+	Name      string
+	Template  *template.Template
+	Reflector commands.URLReflector
 }
 
-func OpenAIClientGenerator(name, promptTemplate string) (Client, error) {
+func OpenAIClientGenerator(reflector commands.URLReflector, name, promptTemplate string) (Client, error) {
 	tmpl, err := prompts.ParseTemplate(promptTemplate)
 	if err != nil {
 		return nil, err
 	}
 	return OpenAIClient{
-		Name:     name,
-		Template: tmpl,
+		Name:      name,
+		Template:  tmpl,
+		Reflector: reflector,
 	}, nil
 }
 
@@ -315,6 +329,6 @@ func (a OpenAIClient) Complete(speaker, input string) (string, string, error) {
 	if err != nil {
 		return prompt, "", err
 	}
-	resp, err := openai.CompleteWithFrontmatter(prompt)
+	resp, err := openai.CompleteWithFrontmatter(a.Reflector, prompt)
 	return prompt, resp, err
 }
