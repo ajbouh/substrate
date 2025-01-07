@@ -9,6 +9,8 @@ imagespecs: "spaceview": {
 
 #var: host_docker_socket: string
 
+live_edit: "spaceview": bool
+
 services: "spaceview": {
   instances: [string]: {
     environment: {
@@ -27,6 +29,12 @@ services: "spaceview": {
 
     mounts: {
       (environment.#docker_socket): {source: #var.host_docker_socket}
+    }
+
+    if live_edit["spaceview"] {
+      mounts: {
+        "/go/src/github.com/ajbouh/substrate/pkg/go-vscode/extension/": { source: "\(#var.host_source_directory)/pkg/go-vscode/extension/", mode: ["ro"] }
+      }
     }
   }
 }

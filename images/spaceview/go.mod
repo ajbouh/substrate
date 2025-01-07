@@ -5,12 +5,14 @@ go 1.22.1
 toolchain go1.22.2
 
 require (
+	github.com/ajbouh/substrate/pkg/go-vscode v0.0.0-00010101000000-000000000000
 	github.com/ajbouh/substrate/pkg/toolkit v0.0.0-00010101000000-000000000000
 	github.com/containers/podman/v4 v4.9.5
 	github.com/docker/docker v24.0.7+incompatible
-	github.com/progrium/go-vscode v0.0.0-20240905182510-5c2c9c463118
 	tractor.dev/toolkit-go v0.0.0-20240916212610-32b5098759db
 )
+
+require github.com/opencontainers/runtime-spec v1.1.1-0.20230922153023-c0e90434df2a
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
@@ -45,6 +47,7 @@ require (
 	github.com/docker/go-connections v0.4.1-0.20231031175723-0b8c1f4e07a0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/elnormous/contenttype v1.0.4 // indirect
+	github.com/evanw/esbuild v0.24.2 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.3 // indirect
@@ -94,7 +97,6 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0-rc5 // indirect
 	github.com/opencontainers/runc v1.1.10 // indirect
-	github.com/opencontainers/runtime-spec v1.1.1-0.20230922153023-c0e90434df2a // indirect
 	github.com/opencontainers/runtime-tools v0.9.1-0.20230914150019-408c51e934dc // indirect
 	github.com/opencontainers/selinux v1.11.0 // indirect
 	github.com/ostreedev/ostree-go v0.0.0-20210805093236-719684c64e4f // indirect
@@ -144,4 +146,4 @@ replace github.com/ajbouh/substrate/pkg/cueloader => ../../pkg/cueloader
 
 replace github.com/ajbouh/substrate/pkg/toolkit => ../../pkg/toolkit
 
-replace github.com/progrium/go-vscode => github.com/ajbouh/go-vscode v0.0.0-20241122204707-cca2b7c42e19
+replace github.com/ajbouh/substrate/pkg/go-vscode => ../../pkg/go-vscode

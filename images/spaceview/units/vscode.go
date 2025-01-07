@@ -6,8 +6,8 @@ import (
 	"io/fs"
 	"net/http"
 
-	"github.com/progrium/go-vscode"
-	"github.com/progrium/go-vscode/product"
+	"github.com/ajbouh/substrate/pkg/go-vscode"
+	"github.com/ajbouh/substrate/pkg/go-vscode/product"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 )
@@ -27,7 +27,7 @@ type VSCodeEditingForFS struct {
 }
 
 func (s *VSCodeEditingForFS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	r2 := httpframework.ContextPrefixOriginalRequest(r.Context())
+	r2 := httpframework.ContextOriginalRequest(r.Context())
 	// if r2 == nil {
 	// 	r2 = r
 	// }
@@ -37,6 +37,13 @@ func (s *VSCodeEditingForFS) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Prefix: s.Prefix + "/vscode",
 		ProductConfiguration: product.Configuration{
 			NameLong: "Substrate Space Editor",
+
+			LinkProtectionTrustedDomains: []string{
+				s.Scheme + "://" + s.Host,
+			},
+		},
+		ConfigurationDefaults: map[string]any{
+			"substrate.spaceTreePrefixURL": s.Scheme + "://" + s.Host + s.Prefix + "/tree/",
 		},
 		MakePTY: s.MakePTY.MakePTY,
 		FS:      s.FS,
