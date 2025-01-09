@@ -127,14 +127,17 @@ func main() {
 		&commandSourceInjector{
 			Source: cmdSource,
 		},
-		transcribe.Agent{
-			Source:  cmdSource,
+		transcribe.Agent{},
+		&transcribe.Command{
+			URL:     getEnv("BRIDGE_COMMANDS_URL", "http://localhost:8090/"),
 			Command: getEnv("BRIDGE_TRANSCRIBE_COMMAND", "transcribe"),
 		},
 		translate.Agent{
-			Source:         cmdSource,
-			Command:        getEnv("BRIDGE_TRANSLATE_COMMAND", "transcribe"),
 			TargetLanguage: "en",
+		},
+		&translate.Command{
+			URL:     getEnv("BRIDGE_COMMANDS_URL", "http://localhost:8090/"),
+			Command: getEnv("BRIDGE_TRANSLATE_COMMAND", "transcribe"),
 		},
 		&tools.OfferAgent{
 			Name:      "bridge",

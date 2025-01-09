@@ -5,9 +5,9 @@ import (
 	"log"
 	"strings"
 
+	"github.com/ajbouh/substrate/images/bridge/calls"
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
-	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
@@ -20,12 +20,13 @@ type TranslationRecord struct {
 	Translation *Translation
 }
 
+type Command = calls.CommandCall[Request, Translation]
+
 type Agent struct {
 	NotifyQueue          *notify.Queue
 	TranslationNotifiers []notify.Notifier[TranslationEvent]
 
-	Source         commands.Source
-	Command        string
+	Command        *Command
 	TargetLanguage string
 }
 
@@ -42,7 +43,7 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		return
 	}
 
-	r, err := commands.CallSource[Translation](context.TODO(), a.Source, a.Command, &Request{
+	r, err := a.Command.Call(context.TODO(), Request{
 		SourceLanguage: in.SourceLanguage,
 		TargetLanguage: a.TargetLanguage,
 		Text:           in.Text(),

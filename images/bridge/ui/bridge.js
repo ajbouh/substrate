@@ -53,7 +53,7 @@ export function modelToViewEntries(model, sessionStart) {
       span: { start: t.Start, end: t.End },
       start: new Date(sessionStart + (t.Start / NanosToMillis)),
       end: new Date(sessionStart + (t.End / NanosToMillis)),
-      words: t.Data.segments.flatMap(s => s.words).map(w => {
+      words: (t.Data.segments || []).flatMap(s => s.words).map(w => {
         const start = t.Start + (w.start * NanosToSeconds);
         const end = t.Start + (w.end * NanosToSeconds);
         return {
