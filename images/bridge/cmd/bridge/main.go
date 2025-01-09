@@ -84,6 +84,8 @@ func main() {
 		Template: "tool-select",
 	}
 
+	brigeCommandsURL := getEnv("BRIDGE_COMMANDS_URL", "http://localhost:8090/")
+
 	engine.Run(
 		&service.Service{},
 		&SessionHandler{
@@ -122,14 +124,14 @@ func main() {
 		}),
 		transcribe.Agent{},
 		&transcribe.Command{
-			URL:     getEnv("BRIDGE_COMMANDS_URL", "http://localhost:8090/"),
+			URL:     brigeCommandsURL,
 			Command: getEnv("BRIDGE_TRANSCRIBE_COMMAND", "transcribe"),
 		},
 		translate.Agent{
 			TargetLanguage: "en",
 		},
 		&translate.Command{
-			URL:     getEnv("BRIDGE_COMMANDS_URL", "http://localhost:8090/"),
+			URL:     brigeCommandsURL,
 			Command: getEnv("BRIDGE_TRANSLATE_COMMAND", "transcribe"),
 		},
 		&tools.OfferAgent{
@@ -144,7 +146,7 @@ func main() {
 		diarize.Agent{},
 		&diarize.PyannoteClient{},
 		&diarize.Command{
-			URL:     getEnv("BRIDGE_COMMANDS_URL", "http://localhost:8090/"),
+			URL:     brigeCommandsURL,
 			Command: getEnv("BRIDGE_DIARIZE_COMMAND", "diarize"),
 		},
 		assistant.Agent{
