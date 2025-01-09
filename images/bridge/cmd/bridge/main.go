@@ -71,10 +71,6 @@ func main() {
 		session = tracks.NewSession()
 	}
 
-	cmdSource := &commands.URLBasedSource{
-		URL: getEnv("BRIDGE_COMMANDS_URL", "http://localhost:8090/"),
-	}
-
 	eventWriterURL := mustGetenv("SUBSTRATE_EVENT_WRITER_URL")
 	sessionID := mustGetenv("BRIDGE_SESSION_ID")
 	eventURLPrefix := fmt.Sprintf("%s/bridge/%s", eventWriterURL, sessionID)
@@ -124,9 +120,6 @@ func main() {
 			SampleRate:   format.SampleRate.N(time.Second),
 			SampleWindow: 24 * time.Second,
 		}),
-		&commandSourceInjector{
-			Source: cmdSource,
-		},
 		transcribe.Agent{},
 		&transcribe.Command{
 			URL:     getEnv("BRIDGE_COMMANDS_URL", "http://localhost:8090/"),
@@ -148,11 +141,11 @@ func main() {
 		&tools.CallAgent{
 			Name: "bridge",
 		},
-		diarize.Agent{
-			Client: &diarize.PyannoteClient{
-				Source:  cmdSource,
-				Command: getEnv("BRIDGE_DIARIZE_COMMAND", "diarize"),
-			},
+		diarize.Agent{},
+		&diarize.PyannoteClient{},
+		&diarize.Command{
+			URL:     getEnv("BRIDGE_COMMANDS_URL", "http://localhost:8090/"),
+			Command: getEnv("BRIDGE_DIARIZE_COMMAND", "diarize"),
 		},
 		assistant.Agent{
 			DefaultAssistants: map[string]string{
