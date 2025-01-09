@@ -138,7 +138,6 @@ daemons: "substrate": {
           // To make localhost forwarding work (e.g. qemu, publish on the same port)
           "\(Environment.PORT):\(Environment.PORT)",
         ]
-        AddDevice: ["nvidia.com/gpu=all"]
         Network: [
           "substrate-external.network",
           "substrate-internal.network",

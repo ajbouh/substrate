@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -72,7 +71,8 @@ func main() {
 	var err error
 
 	cudaAllowed := false
-	if _, err := exec.LookPath("nvidia-smi"); err == nil {
+
+	if _, err := os.Stat("/sys/bus/pci/drivers/nvidia"); err == nil {
 		cudaAllowed = true
 	}
 
