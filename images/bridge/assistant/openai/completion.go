@@ -6,6 +6,7 @@ package openai
 import (
 	"context"
 
+	"github.com/ajbouh/substrate/images/bridge/calls"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 )
 
@@ -171,7 +172,7 @@ type CompletionResponse struct {
 // If using a fine-tuned model, simply provide the model's ID in the CompletionRequest object,
 // and the server will use the model's parameters to generate the completion.
 func doCompletion(
-	reflector commands.URLReflector,
+	runner commands.DefRunner,
 	endpoint, command string,
 	request *CompletionRequest,
 ) (response *CompletionResponse, err error) {
@@ -180,9 +181,5 @@ func doCompletion(
 		req.Model = "/res/model/huggingface/local"
 		request = &req
 	}
-	src, _, err := reflector.ReflectURL(context.TODO(), endpoint)
-	if err != nil {
-		return nil, err
-	}
-	return commands.CallSource[CompletionResponse](context.TODO(), src, command, request)
+	return calls.CallDef[CompletionResponse](context.TODO(), runner, endpoint, command, request)
 }

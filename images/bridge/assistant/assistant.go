@@ -72,8 +72,8 @@ type Agent struct {
 	StoragePaths      *tracks.SessionStoragePaths
 	DefaultAssistants map[string]string
 	defaultAssistants []Client
-	Reflector         commands.URLReflector
-	NewClient         func(reflector commands.URLReflector, name, promptTemplate string) (Client, error)
+	Runner            commands.DefRunner
+	NewClient         func(_ commands.DefRunner, name, promptTemplate string) (Client, error)
 }
 
 type Void struct{}
@@ -129,7 +129,7 @@ func (a *Agent) Initialize() {
 		})
 		agent := &sessionAgent{
 			NewClient: func(name, promptTemplate string) (Client, error) {
-				return a.NewClient(a.Reflector, name, promptTemplate)
+				return a.NewClient(a.Runner, name, promptTemplate)
 			},
 			assistants:      make(map[string]eventClient),
 			recordTextEvent: a.recordTextEvent,
@@ -141,7 +141,7 @@ func (a *Agent) Initialize() {
 	}
 
 	for name, prompt := range a.DefaultAssistants {
-		client, err := a.NewClient(a.Reflector, name, prompt)
+		client, err := a.NewClient(a.Runner, name, prompt)
 		if err != nil {
 			log.Fatalf("assistant: error creating default client %q: %s", name, err)
 		}
@@ -293,20 +293,20 @@ func DefaultPromptTemplateForName(name string) (string, error) {
 }
 
 type OpenAIClient struct {
-	Name      string
-	Template  *template.Template
-	Reflector commands.URLReflector
+	Name     string
+	Template *template.Template
+	Runner   commands.DefRunner
 }
 
-func OpenAIClientGenerator(reflector commands.URLReflector, name, promptTemplate string) (Client, error) {
+func OpenAIClientGenerator(runner commands.DefRunner, name, promptTemplate string) (Client, error) {
 	tmpl, err := prompts.ParseTemplate(promptTemplate)
 	if err != nil {
 		return nil, err
 	}
 	return OpenAIClient{
-		Name:      name,
-		Template:  tmpl,
-		Reflector: reflector,
+		Name:     name,
+		Template: tmpl,
+		Runner:   runner,
 	}, nil
 }
 
@@ -329,6 +329,6 @@ func (a OpenAIClient) Complete(speaker, input string) (string, string, error) {
 	if err != nil {
 		return prompt, "", err
 	}
-	resp, err := openai.CompleteWithFrontmatter(a.Reflector, prompt)
+	resp, err := openai.CompleteWithFrontmatter(a.Runner, prompt)
 	return prompt, resp, err
 }

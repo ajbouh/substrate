@@ -202,8 +202,8 @@ func (a *CallAgent) HandleEvent(event tracks.Event) {
 }
 
 type OpenAICompleter struct {
-	Reflector commands.URLReflector
-	Template  string
+	Runner   commands.DefRunner
+	Template string
 }
 
 func (oc *OpenAICompleter) Complete(templateArgs map[string]any) (string, string, error) {
@@ -211,6 +211,6 @@ func (oc *OpenAICompleter) Complete(templateArgs map[string]any) (string, string
 	if err != nil {
 		return prompt, "", err
 	}
-	resp, err := openai.CompleteWithFrontmatter(oc.Reflector, prompt)
+	resp, err := openai.CompleteWithFrontmatter(oc.Runner, prompt)
 	return prompt, resp, err
 }
