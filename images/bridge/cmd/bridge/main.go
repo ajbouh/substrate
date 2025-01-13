@@ -161,21 +161,27 @@ func main() {
 		httpevents.NewJSONRequester[tools.CallNotification]("PUT", eventURLPrefix+"/tools/call"),
 		httpevents.NewJSONRequester[diarize.SpeakerDetectedEvent]("PUT", eventURLPrefix+"/diarize/speaker-detected"),
 		httpevents.NewJSONRequester[diarize.SpeakerNameEvent]("PUT", eventURLPrefix+"/diarize/speaker-name"),
-		httpevents.NewJSONRequester[transcribe.TranscriptionEvent]("PUT", eventURLPrefix+"/transcription"),
+		// httpevents.NewJSONRequester[transcribe.TranscriptionEvent]("PUT", eventURLPrefix+"/transcription"),
 		httpevents.NewJSONRequester[translate.TranslationEvent]("PUT", eventURLPrefix+"/translation"),
 		httpevents.NewJSONRequester[vad.ActivityEvent]("PUT", eventURLPrefix+"/voice-activity"),
 		workingset.CommandProvider{},
-		EventCommands{},
+		EventCommands{
+			PathPrefix: pathPrefix,
+		},
 		// RequestBodyLogger{},
 	)
 }
 
 type EventCommands struct {
-	Session *tracks.Session
+	Session    *tracks.Session
+	PathPrefix string
+	Handlers   []interface {
+		HandleEvent2(context.Context, tracks.Event) ([]tracks.PathEvent, error)
+	}
 }
 
-type Void struct {
-	Next []any `json:"next" doc:""`
+type EventResult struct {
+	Next []tracks.PathEvent `json:"next" doc:""`
 }
 
 func (es *EventCommands) Commands(ctx context.Context) commands.Source {
@@ -185,16 +191,16 @@ func (es *EventCommands) Commands(ctx context.Context) commands.Source {
 				"Inserts events into the session",
 				func(ctx context.Context, t *struct{}, args struct {
 					Events []event.Event `json:"events" doc:""`
-				}) (Void, error) {
-					r := Void{
-						Next: []any{},
+				}) (EventResult, error) {
+					r := EventResult{
+						Next: []tracks.PathEvent{},
 					}
-					events, err := event.Unmarshal[tracks.JSONEvent](args.Events, true)
+					jsonEvents, err := event.Unmarshal[tracks.JSONEvent](args.Events, true)
 					if err != nil {
 						return r, err
 					}
-					for i, e := range events {
-						_, err := tracks.InsertJSONEvent(es.Session, e)
+					for i, e := range jsonEvents {
+						event, isNew, err := tracks.InsertJSONEvent(es.Session, e)
 						if err != nil {
 							log.Printf("error inserting event: %s", err)
 							j, err2 := json.Marshal(args.Events[i])
@@ -204,6 +210,19 @@ func (es *EventCommands) Commands(ctx context.Context) commands.Source {
 								log.Printf("event: %s", j)
 							}
 							return r, err
+						}
+						if isNew {
+							// we eventually want these to be async, but could wait until
+							// splitting it into separate services which would be processing
+							// events independently
+							for _, h := range es.Handlers {
+								pe, err := h.HandleEvent2(ctx, *event)
+								if err != nil {
+									log.Printf("error processing event: %s", err)
+									continue
+								}
+								r.Next = append(r.Next, pe...)
+							}
 						}
 					}
 					return r, nil

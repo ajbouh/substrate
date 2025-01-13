@@ -88,6 +88,27 @@ type EventT[T any] struct {
 	Data    T
 }
 
+type PathEvent struct {
+	EventMeta
+	TrackID ID
+	Path    string `json:"path"`
+	Data    any
+}
+
+func NewEvent(span Span, path, typ string, data any) PathEvent {
+	return PathEvent{
+		EventMeta: EventMeta{
+			ID:    NewID(),
+			Start: span.Start(),
+			End:   span.End(),
+			Type:  typ,
+		},
+		Path:    path,
+		TrackID: span.Track().ID,
+		Data:    data,
+	}
+}
+
 type Event struct {
 	EventMeta
 	Data  any
@@ -558,18 +579,18 @@ type JSONEvent struct {
 	Data    json.RawMessage
 }
 
-func InsertJSONEvent(session *Session, ev JSONEvent) (*Event, error) {
+func InsertJSONEvent(session *Session, ev JSONEvent) (_ *Event, _isNew bool, _ error) {
 	track := session.Track(ev.TrackID)
 	if track == nil {
-		return nil, fmt.Errorf("track %q not found", ev.TrackID)
+		return nil, false, fmt.Errorf("track %q not found", ev.TrackID)
 	}
 	if v, ok := track.events.Load(ev.ID); ok {
 		event := v.(Event)
-		return &event, nil
+		return &event, false, nil
 	}
 	typ, ok := eventTypes[ev.Type]
 	if !ok {
-		return nil, fmt.Errorf("unknown event type %q", ev.Type)
+		return nil, false, fmt.Errorf("unknown event type %q", ev.Type)
 	}
 	data := reflect.New(typ)
 	json.Unmarshal(ev.Data, data.Interface())
@@ -582,7 +603,7 @@ func InsertJSONEvent(session *Session, ev JSONEvent) (*Event, error) {
 	if !loaded {
 		track.Session.Emit(event)
 	}
-	return &event, nil
+	return &event, !loaded, nil
 }
 
 var eventTypes = map[string]reflect.Type{}

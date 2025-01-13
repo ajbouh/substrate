@@ -2,44 +2,35 @@ package transcribe
 
 import (
 	"context"
-	"log"
 	"strings"
 
 	"github.com/ajbouh/substrate/images/bridge/audio"
 	"github.com/ajbouh/substrate/images/bridge/calls"
 	"github.com/ajbouh/substrate/images/bridge/tracks"
-	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
 var RecordTranscription = tracks.EventRecorder[*Transcription]("transcription")
 
-type TranscriptionEvent tracks.EventT[*Transcription]
-
 type Command = calls.CommandCall[Request, Transcription]
 
 type Agent struct {
-	NotifyQueue            *notify.Queue
-	ActivityEventNotifiers []notify.Notifier[TranscriptionEvent]
-
 	Command *Command
 }
 
-func (a *Agent) HandleEvent(annot tracks.Event) {
+func (a *Agent) HandleEvent2(ctx context.Context, annot tracks.Event) ([]tracks.PathEvent, error) {
 	if annot.Type != "activity" {
-		return
+		return nil, nil
 	}
 
 	pcm, err := audio.StreamAll(annot.Span().Audio())
 	if err != nil {
-		log.Println("transcribe:", err)
-		return
+		return nil, err
 	}
 	b, err := audio.ToWav(pcm, 16000)
 	if err != nil {
-		log.Println("transcribe:", err)
-		return
+		return nil, err
 	}
-	transcription, err := a.Command.Call(context.TODO(), Request{
+	transcription, err := a.Command.Call(ctx, Request{
 		Task:      "transcribe",
 		AudioData: &b,
 		AudioMetadata: AudioMetadata{
@@ -47,16 +38,12 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 		},
 	})
 	if err != nil {
-		log.Println("transcribe:", err)
-		return
+		return nil, err
 	}
 
-	ev := RecordTranscription(annot.Span(), transcription)
-	notify.Later(a.NotifyQueue, a.ActivityEventNotifiers, TranscriptionEvent{
-		EventMeta: ev.EventMeta,
-		TrackID:   ev.Track().ID,
-		Data:      transcription,
-	})
+	return []tracks.PathEvent{
+		tracks.NewEvent(annot.Span(), "/transcription", "transcription", transcription),
+	}, nil
 }
 
 type AudioMetadata struct {
