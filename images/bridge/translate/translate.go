@@ -2,13 +2,12 @@ package translate
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"strings"
 
 	"github.com/ajbouh/substrate/images/bridge/calls"
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
-	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
 var recordTranslation = tracks.EventRecorder[*TranslationRecord]("translation")
@@ -23,46 +22,43 @@ type TranslationRecord struct {
 type Command = calls.CommandCall[Request, Translation]
 
 type Agent struct {
-	NotifyQueue          *notify.Queue
-	TranslationNotifiers []notify.Notifier[TranslationEvent]
-
 	Command        *Command
 	TargetLanguage string
 }
 
-func (a *Agent) HandleEvent(annot tracks.Event) {
+func (a *Agent) HandleEvent2(ctx context.Context, annot tracks.Event) ([]tracks.PathEvent, error) {
 	if annot.Type != "transcription" {
-		return
+		return nil, nil
 	}
 
 	in := annot.Data.(*transcribe.Transcription)
 	// This doesn't account for fuzzy matching, so SourceLanguage
 	// comes back as "en", but the canonical for target seems to be "eng".
 	if in.SourceLanguage == a.TargetLanguage {
-		log.Println("skipping translation for:", in, "already in target language", a.TargetLanguage)
-		return
+		slog.InfoContext(ctx, "skipping translation, already in target language", "transcription", in, "target", a.TargetLanguage)
+		return nil, nil
 	}
 
-	r, err := a.Command.Call(context.TODO(), Request{
+	r, err := a.Command.Call(ctx, Request{
 		SourceLanguage: in.SourceLanguage,
 		TargetLanguage: a.TargetLanguage,
 		Text:           in.Text(),
 	})
 	if err != nil {
-		log.Println("translate:", err)
-		return
+		slog.ErrorContext(ctx, "error translating", "error", err)
+		return nil, err
 	}
-	log.Println("translated", r)
+	slog.InfoContext(ctx, "translation completed", "translation", r)
 
-	ev := recordTranslation(annot.Span(), &TranslationRecord{
-		SourceEvent: annot.ID,
-		Translation: r,
-	})
-	notify.Later(a.NotifyQueue, a.TranslationNotifiers, TranslationEvent{
-		EventMeta: ev.EventMeta,
-		TrackID:   ev.Track().ID,
-		Data:      ev.Data.(*TranslationRecord),
-	})
+	return []tracks.PathEvent{
+		tracks.NewEvent(
+			annot.Span(), "/translation", "translation",
+			&TranslationRecord{
+				SourceEvent: annot.ID,
+				Translation: r,
+			},
+		),
+	}, nil
 }
 
 type Request struct {

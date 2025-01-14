@@ -159,10 +159,6 @@ func main() {
 		httpevents.NewJSONRequester[tools.OfferNotification]("PUT", eventURLPrefix+"/tools/offer"),
 		httpevents.NewJSONRequester[tools.TriggerNotification]("PUT", eventURLPrefix+"/tools/trigger"),
 		httpevents.NewJSONRequester[tools.CallNotification]("PUT", eventURLPrefix+"/tools/call"),
-		httpevents.NewJSONRequester[diarize.SpeakerDetectedEvent]("PUT", eventURLPrefix+"/diarize/speaker-detected"),
-		httpevents.NewJSONRequester[diarize.SpeakerNameEvent]("PUT", eventURLPrefix+"/diarize/speaker-name"),
-		// httpevents.NewJSONRequester[transcribe.TranscriptionEvent]("PUT", eventURLPrefix+"/transcription"),
-		httpevents.NewJSONRequester[translate.TranslationEvent]("PUT", eventURLPrefix+"/translation"),
 		httpevents.NewJSONRequester[vad.ActivityEvent]("PUT", eventURLPrefix+"/voice-activity"),
 		workingset.CommandProvider{},
 		EventCommands{
