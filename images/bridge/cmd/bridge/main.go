@@ -181,7 +181,7 @@ type EventCommands struct {
 }
 
 type EventResult struct {
-	Next []tracks.PathEvent `json:"next" doc:""`
+	Next []event.PendingEvent `json:"next" doc:""`
 }
 
 func (es *EventCommands) Commands(ctx context.Context) commands.Source {
@@ -195,7 +195,7 @@ func (es *EventCommands) Commands(ctx context.Context) commands.Source {
 					r := EventResult{
 						// XXX is the events service processing this?
 						// not seeing new events show up
-						Next: []tracks.PathEvent{},
+						Next: []event.PendingEvent{},
 					}
 					jsonEvents, err := event.Unmarshal[tracks.JSONEvent](args.Events, true)
 					if err != nil {
@@ -216,15 +216,17 @@ func (es *EventCommands) Commands(ctx context.Context) commands.Source {
 							// splitting it into separate services which would be processing
 							// events independently
 							for _, h := range es.Handlers {
-								pe, err := h.HandleEvent2(ctx, *event)
+								results, err := h.HandleEvent2(ctx, *event)
 								if err != nil {
 									slog.InfoContext(ctx, "error processing event", "err", err)
 									continue
 								}
-								for _, p := range pe {
-									p.Path = es.PathPrefix + p.Path
+								pes, err := es.toPendingEvents(results)
+								if err != nil {
+									slog.InfoContext(ctx, "error converting to pending events", "err", err)
+									continue
 								}
-								r.Next = append(r.Next, pe...)
+								r.Next = append(r.Next, pes...)
 							}
 						}
 					}
@@ -236,6 +238,19 @@ func (es *EventCommands) Commands(ctx context.Context) commands.Source {
 	return commands.Prefixed("events:",
 		commands.Dynamic(nil, nil, func() []commands.Source { return sources }),
 	)
+}
+
+func (es *EventCommands) toPendingEvents(events []tracks.PathEvent) ([]event.PendingEvent, error) {
+	var pes []event.PendingEvent
+	for _, e := range events {
+		e.Path = es.PathPrefix + e.Path
+		pe, err := json.Marshal(e)
+		if err != nil {
+			return nil, err
+		}
+		pes = append(pes, event.PendingEvent{Fields: pe})
+	}
+	return pes, nil
 }
 
 type RequestBodyLogger struct {
