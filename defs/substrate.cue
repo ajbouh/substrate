@@ -51,7 +51,6 @@ imagespecs: "substrate": {
 }
 
 let substrate_cue_defs_live = "/live/defs"
-let substrate_data = "/var/lib/substrate/data"
 
 tests: "substrate": go: {
   build: {
@@ -95,7 +94,7 @@ daemons: "substrate": {
   }
 
   mounts: {
-    (substrate_data): {source: "\(#var.namespace)-substrate_data" , type: "volume"}
+    ("\(#var.host_source_directory)/mnt"): {source: "\(#var.host_source_directory)/mnt"}
     "/var/lib/containers/storage": {source: "/var/lib/containers/storage"}
     (#var.host_machine_id_file): {source: #var.host_machine_id_file}
     (environment.SUBSTRATE_HOSTNAME_FILE): {source: #var.host_hostname_file}

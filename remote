@@ -147,6 +147,35 @@ case "$1" in
     shift
     push
     ;;
+  mount)
+    shift
+    ensure_remote_host
+    FSNAME=$1
+    LOCAL_FS_ROOT=${2:-.}
+    LOCAL_SOCKET=$HERE/.substrate-space.$FSNAME.9p.sock
+    REMOTE_SOCKET=/root/.substrate-space.$FSNAME.9p.sock
+    REMOTE_MOUNT_POINT=$REMOTE_ROOT/mnt/$FSNAME
+    REMOTE_SPACE_DEF=$REMOTE_ROOT/defs/system_space_$FSNAME.cue
+    # clean up if needed
+    rm -f $LOCAL_SOCKET
+    exec ./dev.sh \
+      p9ufs \
+        -unix \
+        -root $LOCAL_FS_ROOT \
+        $LOCAL_SOCKET \
+          ssh \
+            -t \
+            -R $REMOTE_SOCKET:$LOCAL_SOCKET \
+            -o ExitOnForwardFailure=yes \
+            -o StreamLocalBindUnlink=yes \
+            $REMOTE_HOST \
+              "(! (mount | grep -q $REMOTE_MOUNT_POINT) || umount $REMOTE_MOUNT_POINT) && \
+                mount -v -m -t 9p -o rw,trans=unix $REMOTE_SOCKET $REMOTE_MOUNT_POINT && \
+                trap 'rm -f $REMOTE_SPACE_DEF; umount $REMOTE_MOUNT_POINT' EXIT && \
+                echo 'package defs' > $REMOTE_SPACE_DEF && \
+                echo '#var: substrate: system_spaces: (\"$FSNAME\"):' \"\\\"\$(cd $REMOTE_MOUNT_POINT; pwd)\\\"\" >> $REMOTE_SPACE_DEF && \
+                sleep infinity"
+    ;;
   pull)
     shift
     pull

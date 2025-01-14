@@ -17,6 +17,17 @@ case "$CUE_NATIVE_SUFFIX" in
 esac
 CUE_NATIVE=$HERE/tools/cue/${CUE_PREFIX}${CUE_NATIVE_SUFFIX}
 
+GO_VERSION="1.23.4"
+GO_PREFIX=go-v${GO_VERSION}-
+GO_NATIVE_SUFFIX=$(uname -s | tr "[:upper:]" "[:lower:]")-$(uname -m)
+# HACK use amd64
+case "$GO_NATIVE_SUFFIX" in
+  linux-x86_64)
+    GO_NATIVE_SUFFIX=linux-amd64
+    ;;
+esac
+GO_NATIVE=$HERE/tools/go/${GO_PREFIX}${GO_NATIVE_SUFFIX}
+
 BUILDX_VERSION="0.19.1"
 BUILDX_PREFIX=buildx-v${BUILDX_VERSION}.
 BUILDX_NATIVE_SUFFIX=$(uname -s | tr "[:upper:]" "[:lower:]")_$(uname -m)
@@ -87,6 +98,33 @@ ensure_txtar() {
 txtar() {
   ensure_txtar
   $TXTAR_NATIVE "$@"
+}
+
+ensure_go() {
+  # lazily unpack and download a native version of cue
+  if [ ! -e $GO_NATIVE ]; then
+    GO_ARTIFACT=$HERE/tools/go/${GO_PREFIX}${GO_NATIVE_SUFFIX}.tar.gz
+    if [ ! -f $GO_ARTIFACT ]; then
+      mkdir -p $(dirname $GO_ARTIFACT)
+      curl -L https://go.dev/dl/go${GO_VERSION}.${GO_NATIVE_SUFFIX}.tar.gz > $GO_ARTIFACT
+    fi
+    if [ -f $GO_ARTIFACT ]; then
+      rm -rf $GO_NATIVE.tmp
+      mkdir $GO_NATIVE.tmp
+      tar -C $GO_NATIVE.tmp -xv -f $GO_ARTIFACT --strip-components=1
+      mv $GO_NATIVE.tmp $GO_NATIVE
+    fi
+  fi
+}
+
+go() {
+  ensure_go
+  $GO_NATIVE/bin/go "$@"
+}
+
+go_exec() {
+  ensure_go
+  exec $GO_NATIVE/bin/go "$@"
 }
 
 ensure_buildx() {
@@ -367,6 +405,10 @@ case "$1" in
     shift
     cue "$@"
     ;;
+  go)
+    shift
+    go "$@"
+    ;;
   txtar)
     shift
     txtar "$@"
@@ -378,6 +420,10 @@ case "$1" in
   efibootmgr-bootnext)
     shift
     efibootmgr --bootnext "$@"
+    ;;
+  p9ufs)
+    shift
+    go_exec run -a ./images/p9ufs/main.go "$@"
     ;;
   expr-dump)
     shift
