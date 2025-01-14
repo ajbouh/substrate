@@ -221,6 +221,9 @@ func (es *EventCommands) Commands(ctx context.Context) commands.Source {
 									slog.InfoContext(ctx, "error processing event", "err", err)
 									continue
 								}
+								for _, p := range pe {
+									p.Path = es.PathPrefix + p.Path
+								}
 								r.Next = append(r.Next, pe...)
 							}
 						}
