@@ -398,11 +398,6 @@ case "$1" in
     systemd_reload "$@"
     systemd_logs
     ;;
-  oob-make|os-oob-make)
-    shift
-    set_os_vars
-    os_oob_make
-    ;;
   os-shell)
     shift
     set_os_vars
