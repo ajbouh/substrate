@@ -57,17 +57,17 @@ func main() {
 	basePath := os.Getenv("SUBSTRATE_URL_PREFIX")
 	// ensure the path starts and ends with a slash for setting <base href>
 	baseHref := must(url.JoinPath("/", basePath, "/"))
-	log.Println("got basePath", baseHref, "from SUBSTRATE_URL_PREFIX", basePath)
+	slog.Info("bridge starting", "baseHref", baseHref, "SUBSTRATE_URL_PREFIX", basePath)
 
 	sessionDir := getEnv("BRIDGE_SESSION_DIR", "./session")
 
-	log.Println("loading session from disk")
+	slog.Info("loading session from disk")
 	session, err := tracks.LoadSession(sessionDir)
 	if err != nil {
 		if !errors.Is(err, tracks.ErrSessionNotFound) {
 			fatal(err)
 		}
-		log.Println("session not found, creating a new one")
+		slog.Info("session not found, creating a new one")
 		session = tracks.NewSession()
 	}
 
@@ -168,7 +168,7 @@ func main() {
 		EventCommands{
 			PathPrefix: pathPrefix,
 		},
-		// RequestBodyLogger{},
+		RequestBodyLogger{},
 	)
 }
 
@@ -193,24 +193,24 @@ func (es *EventCommands) Commands(ctx context.Context) commands.Source {
 					Events []event.Event `json:"events" doc:""`
 				}) (EventResult, error) {
 					r := EventResult{
+						// XXX is the events service processing this?
+						// not seeing new events show up
 						Next: []tracks.PathEvent{},
 					}
 					jsonEvents, err := event.Unmarshal[tracks.JSONEvent](args.Events, true)
 					if err != nil {
+						slog.ErrorContext(ctx, "events:handle unable to Unmarshal", "err", err)
 						return r, err
 					}
-					for i, e := range jsonEvents {
+					slog.InfoContext(ctx, "events:handle", "num_events", len(jsonEvents))
+					for _, e := range jsonEvents {
 						event, isNew, err := tracks.InsertJSONEvent(es.Session, e)
 						if err != nil {
-							log.Printf("error inserting event: %s", err)
-							j, err2 := json.Marshal(args.Events[i])
-							if err2 != nil {
-								log.Printf("error marshalling event: %s", err2)
-							} else {
-								log.Printf("event: %s", j)
-							}
-							return r, err
+							slog.InfoContext(ctx, "error inserting event", "err", err)
+							continue
+							// return r, err
 						}
+						slog.InfoContext(ctx, "events:handle", "event_id", event.ID, "type", event.Type, "isNew", isNew)
 						if isNew {
 							// we eventually want these to be async, but could wait until
 							// splitting it into separate services which would be processing
@@ -218,7 +218,7 @@ func (es *EventCommands) Commands(ctx context.Context) commands.Source {
 							for _, h := range es.Handlers {
 								pe, err := h.HandleEvent2(ctx, *event)
 								if err != nil {
-									log.Printf("error processing event: %s", err)
+									slog.InfoContext(ctx, "error processing event", "err", err)
 									continue
 								}
 								r.Next = append(r.Next, pe...)
@@ -282,7 +282,7 @@ func (l eventLogger) HandleEvent(e tracks.Event) {
 			return
 		}
 	}
-	log.Printf("event: %s %s %s-%s %#v", e.Type, e.ID, time.Duration(e.Start), time.Duration(e.End), e.Data)
+	slog.Info("event", "type", e.Type, "id", e.ID, "start", time.Duration(e.Start), "end", time.Duration(e.End), "data", e.Data)
 }
 
 type commandSourceInjector struct {
@@ -372,7 +372,7 @@ func (pc *PeerComponent) Serve(ctx context.Context) {
 	pc.peer.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 		sessTrack := pc.Session.NewTrack(pc.Format)
 
-		log.Printf("got track %s %s", track.ID(), track.Kind())
+		slog.InfoContext(ctx, "got track", "id", track.ID(), "kind", track.Kind())
 		if track.Kind() != webrtc.RTPCodecTypeAudio {
 			return
 		}
@@ -390,7 +390,7 @@ func (pc *PeerComponent) Serve(ctx context.Context) {
 			chunk := beep.Take(chunkSize, s)
 			sessTrack.AddAudio(chunk)
 			if err := chunk.Err(); err != nil {
-				log.Printf("track %s: %s", track.ID(), err)
+				slog.InfoContext(ctx, "error in AddAudio", "track_id", track.ID(), "err", err)
 				break
 			}
 		}
@@ -442,9 +442,6 @@ type SessionHandler struct {
 }
 
 func (m *SessionHandler) addEvent(w http.ResponseWriter, r *http.Request) {
-	for _, t := range m.Session.Tracks() {
-		log.Printf("track: %s", t.ID)
-	}
 	trackID := tracks.ID(r.PathValue("track_id"))
 	track := m.Session.Track(trackID)
 	if track == nil {
@@ -486,7 +483,7 @@ func (m *SessionHandler) serveSessionText(w http.ResponseWriter, r *http.Request
 		}).
 		ParseFS(ui.Dir, "session.tmpl.txt")
 	if err != nil {
-		log.Printf("error parsing template for session %s: %s", snapshot.ID, err)
+		slog.Info("error parsing template", "session_id", snapshot.ID, "err", err)
 		http.Error(w, fmt.Sprintf("template parse error: %s", err), http.StatusInternalServerError)
 		return
 	}
@@ -496,7 +493,7 @@ func (m *SessionHandler) serveSessionText(w http.ResponseWriter, r *http.Request
 		"NativeLanguages": map[string]bool{"en": true},
 	})
 	if err != nil {
-		log.Printf("error executing template for session %s: %s", snapshot.ID, err)
+		slog.Info("error executing template", "session_id", snapshot.ID, "err", err)
 	}
 }
 
@@ -516,12 +513,12 @@ func (m *SFURoute) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	mux.HandleFunc("GET /sfu", func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			log.Print("upgrade:", err)
+			slog.InfoContext(r.Context(), "error upgrading to WebSocket", "err", err)
 			return
 		}
 		peer, err := m.SFU.AddPeer(conn)
 		if err != nil {
-			log.Print("peer:", err)
+			slog.InfoContext(r.Context(), "error in AddPeer", "err", err)
 			return
 		}
 		peer.HandleSignals()
