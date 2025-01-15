@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -18,7 +19,6 @@ import (
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
-	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
 var RecordAssistantText = tracks.EventRecorder[*AssistantTextEvent]("assistant-text")
@@ -65,13 +65,12 @@ type Client interface {
 }
 
 type Agent struct {
-	NotifyQueue            *notify.Queue
-	AssistantTextNotifiers []notify.Notifier[AssistantTextNotification]
+	mu         sync.RWMutex
+	assistants map[string]eventClient
 
 	Session           *tracks.Session
 	StoragePaths      *tracks.SessionStoragePaths
 	DefaultAssistants map[string]string
-	defaultAssistants []Client
 	Runner            commands.DefRunner
 	NewClient         func(_ commands.DefRunner, name, promptTemplate string) (Client, error)
 }
@@ -117,35 +116,26 @@ func (a *Agent) Commands(ctx context.Context) commands.Source {
 
 func (a *Agent) Initialize() {
 	sess := a.Session
-	if a.NewClient != nil {
-		var promptEvents []tracks.Event
-		for _, t := range sess.Tracks() {
-			promptEvents = append(promptEvents, t.Events("assistant-set-prompt")...)
-		}
-		// sort in reverse order to create clients based on the latest prompt first
-		// then we'll skip initializing clients for older prompts
-		slices.SortFunc(promptEvents, func(a, b tracks.Event) int {
-			return -cmp.Compare(a.Start, b.Start)
-		})
-		agent := &sessionAgent{
-			NewClient: func(name, promptTemplate string) (Client, error) {
-				return a.NewClient(a.Runner, name, promptTemplate)
-			},
-			assistants:      make(map[string]eventClient),
-			recordTextEvent: a.recordTextEvent,
-		}
-		for _, e := range promptEvents {
-			agent.handleSetPrompt(e)
-		}
-		sess.Listen(agent)
-	}
+	ctx := context.TODO()
 
 	for name, prompt := range a.DefaultAssistants {
-		client, err := a.NewClient(a.Runner, name, prompt)
+		_, err := a.setPrompt(ctx, nil, name, prompt)
 		if err != nil {
 			log.Fatalf("assistant: error creating default client %q: %s", name, err)
 		}
-		a.defaultAssistants = append(a.defaultAssistants, client)
+	}
+
+	var promptEvents []tracks.Event
+	for _, t := range sess.Tracks() {
+		promptEvents = append(promptEvents, t.Events("assistant-set-prompt")...)
+	}
+	// sort in reverse order to create clients based on the latest prompt first
+	// then we'll skip initializing clients for older prompts
+	slices.SortFunc(promptEvents, func(a, b tracks.Event) int {
+		return -cmp.Compare(a.Start, b.Start)
+	})
+	for _, e := range promptEvents {
+		a.handleSetPrompt(ctx, e)
 	}
 
 	if a.StoragePaths != nil {
@@ -154,44 +144,28 @@ func (a *Agent) Initialize() {
 	}
 }
 
-func (a *Agent) HandleEvent(annot tracks.Event) {
-	if annot.Type != "transcription" {
-		return
-	}
-	handleTranscription(a.defaultAssistants, annot, a.recordTextEvent)
-}
-
-func (a *Agent) recordTextEvent(span tracks.Span, data *AssistantTextEvent) {
-	ev := RecordAssistantText(span, data)
-	notify.Later(a.NotifyQueue, a.AssistantTextNotifiers, AssistantTextNotification{
-		EventMeta: ev.EventMeta,
-		TrackID:   ev.Track().ID,
-		Data:      ev.Data.(*AssistantTextEvent),
-	})
-}
-
-type sessionAgent struct {
-	mu              sync.RWMutex
-	NewClient       func(name, promptTemplate string) (Client, error)
-	assistants      map[string]eventClient
-	recordTextEvent func(tracks.Span, *AssistantTextEvent)
-}
-
 type eventClient struct {
 	Client Client
-	Event  tracks.EventMeta
+	Event  *tracks.EventMeta
 }
 
-func (a *sessionAgent) HandleEvent(annot tracks.Event) {
+func (a *Agent) HandleEvent2(ctx context.Context, annot tracks.Event) ([]tracks.PathEvent, error) {
 	switch annot.Type {
 	case "assistant-set-prompt":
-		a.handleSetPrompt(annot)
+		return a.handleSetPrompt(ctx, annot)
 	case "transcription":
-		handleTranscription(a.getAssistants(), annot, a.recordTextEvent)
+		return handleTranscription(ctx, a.getAssistants(), annot)
 	}
+	return nil, nil
 }
 
-func eventBefore(a, b tracks.EventMeta) bool {
+func eventBefore(a, b *tracks.EventMeta) bool {
+	if a == nil {
+		return true
+	}
+	if b == nil {
+		return false
+	}
 	if a.Start < b.Start {
 		return true
 	}
@@ -201,35 +175,43 @@ func eventBefore(a, b tracks.EventMeta) bool {
 	return a.ID.Compare(b.ID) < 0
 }
 
-func (a *sessionAgent) handleSetPrompt(annot tracks.Event) {
+func (a *Agent) handleSetPrompt(ctx context.Context, annot tracks.Event) ([]tracks.PathEvent, error) {
+	in := annot.Data.(*AssistantPromptEvent)
+	return a.setPrompt(ctx, &annot.EventMeta, in.Name, in.PromptTemplate)
+}
+
+func (a *Agent) setPrompt(ctx context.Context, meta *tracks.EventMeta, name, promptTemplate string) ([]tracks.PathEvent, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	in := annot.Data.(*AssistantPromptEvent)
-	prev, hasPrev := a.assistants[in.Name]
-	if hasPrev && eventBefore(annot.EventMeta, prev.Event) {
-		log.Printf("assistant: not updating %q, existing client from %s newer than %s", in.Name, prev.Event.Start, annot.Start)
-		return
+	prev, hasPrev := a.assistants[name]
+	if hasPrev && eventBefore(meta, prev.Event) {
+		slog.InfoContext(ctx, "assistant: not updating, have existing newer client", "name", name, "existing", prev.Event, "new", meta)
+		return nil, nil
 	}
 	record := eventClient{
-		Event: annot.EventMeta,
+		Event: meta,
 	}
-	if in.PromptTemplate != "" {
+	if promptTemplate != "" {
 		var err error
-		record.Client, err = a.NewClient(in.Name, in.PromptTemplate)
+		record.Client, err = a.NewClient(a.Runner, name, promptTemplate)
 		if err != nil {
-			log.Printf("assistant: error creating client %q at %s: %s", in.Name, annot.Start, err)
-			return
+			slog.InfoContext(ctx, "assistant: error creating client", "name", name, "event", meta, "error", err)
+			return nil, err
 		}
 	}
 	if hasPrev {
-		log.Printf("assistant: replacing %q client from %s with newer %s", in.Name, prev.Event.Start, annot.Start)
+		slog.InfoContext(ctx, "assistant: replacing client", "name", name, "existing", prev.Event, "new", meta)
 	} else {
-		log.Printf("assistant: adding %q client at %s", in.Name, annot.Start)
+		slog.InfoContext(ctx, "assistant: adding client", "name", name, "new", meta)
 	}
-	a.assistants[in.Name] = record
+	if a.assistants == nil {
+		a.assistants = make(map[string]eventClient)
+	}
+	a.assistants[name] = record
+	return nil, nil
 }
 
-func (a *sessionAgent) getAssistants() []Client {
+func (a *Agent) getAssistants() []Client {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
 	out := make([]Client, 0, len(a.assistants))
@@ -241,17 +223,40 @@ func (a *sessionAgent) getAssistants() []Client {
 	return out
 }
 
-func handleTranscription(clients []Client, annot tracks.Event, record func(tracks.Span, *AssistantTextEvent)) {
+func handleTranscription(ctx context.Context, clients []Client, annot tracks.Event) ([]tracks.PathEvent, error) {
 	in := annot.Data.(*transcribe.Transcription)
 
 	if len(in.Segments) == 0 || len(in.Segments[0].Words) == 0 {
-		log.Printf("assistant: transcription had no segments or words")
-		return
+		slog.InfoContext(ctx, "assistant: transcription had no segments or words")
+		return nil, nil
+	}
+	outCh := make(chan tracks.PathEvent)
+	record := func(span tracks.Span, data *AssistantTextEvent) {
+		outCh <- tracks.NewEvent(
+			span,
+			"/assistant/text",
+			"assistant-text",
+			data,
+		)
 	}
 	text := strings.TrimSpace(in.Text())
+	var wg sync.WaitGroup
+	wg.Add(len(clients))
 	for _, client := range clients {
-		go respond(client, annot, text, record)
+		go func() {
+			respond(client, annot, text, record)
+			wg.Done()
+		}()
 	}
+	go func() {
+		wg.Wait()
+		close(outCh)
+	}()
+	var out []tracks.PathEvent
+	for ev := range outCh {
+		out = append(out, ev)
+	}
+	return out, nil
 }
 
 func matchesAssistantName(client Client, text string) bool {

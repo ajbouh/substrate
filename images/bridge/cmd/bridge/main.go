@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 
@@ -155,7 +156,7 @@ func main() {
 			},
 			NewClient: newAssistantClient,
 		},
-		httpevents.NewJSONRequester[assistant.AssistantTextNotification]("PUT", eventURLPrefix+"/assistant/text"),
+		// httpevents.NewJSONRequester[assistant.AssistantTextNotification]("PUT", eventURLPrefix+"/assistant/text"),
 		// httpevents.NewJSONRequester[tools.OfferNotification]("PUT", eventURLPrefix+"/tools/offer"),
 		// httpevents.NewJSONRequester[tools.TriggerNotification]("PUT", eventURLPrefix+"/tools/trigger"),
 		// httpevents.NewJSONRequester[tools.CallNotification]("PUT", eventURLPrefix+"/tools/call"),
@@ -236,10 +237,18 @@ func (es *EventCommands) Commands(ctx context.Context) commands.Source {
 	)
 }
 
+func pathJoin(a, b string) string {
+	a = strings.TrimRight(a, "/")
+	b = strings.TrimLeft(b, "/")
+	return a + "/" + b
+}
+
+// TODO add "links" for storing relationship of events:
+// in the event, add a `links` field, with `{[linkname]: {rel: "eventref", "eventref:event": othereventid, "eventref:start": X, "eventref:end": Y, "eventref:unit": "second", "eventref:axis": "audiotrack/1"}`
 func (es *EventCommands) toPendingEvents(events []tracks.PathEvent) ([]event.PendingEvent, error) {
 	var pes []event.PendingEvent
 	for _, e := range events {
-		e.Path = es.PathPrefix + e.Path
+		e.Path = pathJoin(es.PathPrefix, e.Path)
 		pe, err := json.Marshal(e)
 		if err != nil {
 			return nil, err
