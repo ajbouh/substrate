@@ -334,7 +334,7 @@ systemd_reload() {
 }
 
 os_installer() {
-  OS_BUNDLED_IMAGES="events tool-call nvml sigar new-space spaceview mdns template-treehouse"
+  OS_BUNDLED_IMAGES="events tool-call nvml sigar new-space spaceview mdns template-treehouse substrate"
   docker_compose_file=$(pick_docker_compose_yml substrate)
   build_images $docker_compose_file $OS_BUNDLED_IMAGES
 
