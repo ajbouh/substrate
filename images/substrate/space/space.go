@@ -253,7 +253,7 @@ func (p *SpacesViaContainerFilesystems) ResolveSpaceView(ctx context.Context, sp
 
 			baseID = imgs[0]
 		} else if !strings.HasPrefix(baseID, "sha256:") {
-			err := p.DefSetLoader.Load().DecodeLookupPath(cue.MakePath(cue.Def("#var"), cue.Str("substrate"), cue.Str("image_ids"), cue.Str(baseID)), &baseID)
+			_, err := p.DefSetLoader.Load().DecodeLookupPathIfExists(cue.MakePath(cue.Def("#var"), cue.Str("substrate"), cue.Str("image_ids"), cue.Str(baseID)), &baseID)
 			if err != nil {
 				return nil, err
 			}
@@ -293,7 +293,7 @@ func (p *SpacesViaContainerFilesystems) ResolveSpaceView(ctx context.Context, sp
 
 			baseID = imgs[0]
 		} else if !strings.HasPrefix(baseID, "sha256:") {
-			err := p.DefSetLoader.Load().DecodeLookupPath(cue.MakePath(cue.Def("#var"), cue.Str("substrate"), cue.Str("image_ids"), cue.Str(baseID)), &baseID)
+			_, err := p.DefSetLoader.Load().DecodeLookupPathIfExists(cue.MakePath(cue.Def("#var"), cue.Str("substrate"), cue.Str("image_ids"), cue.Str(baseID)), &baseID)
 			if err != nil {
 				return nil, err
 			}

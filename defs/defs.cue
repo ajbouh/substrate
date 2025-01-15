@@ -93,8 +93,8 @@ resourcedirs: [rdid=string]: {
 resolve_image_ids: *true | bool @tag(resolve_image_ids,type=bool)
 resolve_image_id: {
   image_tag: string
-  if !resolve_image_ids { image: image_tag }
-  if resolve_image_ids { image: image_ids[image_tag] }
+  if !resolve_image_ids || (image_ids[image_tag] == _|_) { image: image_tag }
+  if resolve_image_ids && (image_ids[image_tag] != _|_) { image: image_ids[image_tag] }
 }
 
 for key, def in imagespecs if enable[key] {

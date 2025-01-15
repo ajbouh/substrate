@@ -215,7 +215,7 @@ overlay: {
     systemd_units: watcher_units
 
     // add a preset enabling liveedit .path
-    systemd_presets: "60-liveedit-paths.preset": {
+    systemd_presets: "60-liveedit-\(daemon_key)-paths.preset": {
       ("\(daemon_key)-liveedit.path"): "enable"
       ("\(daemon_key)-liveedit.service"): "enable"
     }
@@ -245,7 +245,7 @@ overlay: {
   for key, quadlets in systemd_daemon_quadlets {
     for basename, quadlet in quadlets {
       if basename =~ "\\.container$" {
-        systemd_presets: "50-containers.preset": (quadlet.#systemd_service_name): "enable"
+        systemd_presets: "50-containers-\(quadlet.#systemd_service_name).preset": (quadlet.#systemd_service_name): "enable"
       }
     }
   }
