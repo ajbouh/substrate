@@ -170,7 +170,40 @@ case "$1" in
     ;;
   set-host)
     shift
-    echo $1 > $REMOTE_HOST_FILE
+    host=$1
+    echo $host > $REMOTE_HOST_FILE
+
+    cat >&2 <<EOF
+If this is the first time you are using this device, you need to add your authorized authorized_key first by visiting:
+
+http://substrate:substrate@$host:8181/
+EOF
+
+    identityfile=$(ssh -G $host | grep identityfile | awk '{print $2}')
+    identityfile="${identityfile/#\~/$HOME}"
+    if [ -n "$identityfile" ]; then
+      pubkeyfile="${identityfile}.pub"
+      if [ -e $pubkeyfile ]; then
+        pubkey=$(cat $pubkeyfile)
+      fi
+    fi
+
+    if [ -n "$pubkey" ]; then
+      cat >&2 <<EOF
+
+Run these commands on the shell linked above to add your configured IdentityFile as an authorized key
+  mkdir -p ~/.ssh/
+  echo "$pubkey" >> ~/.ssh/authorized_keys
+
+EOF
+    else
+      cat >&2 <<EOF
+Be sure your ~/.ssh/config has a stanza that looks like this (with an appropriate IdentityFile):
+  Host substrate-*.local
+      User root
+      IdentityFile ~/.ssh/id_substrate
+EOF
+    fi
     ;;
   -h|--help)
     echo "usage: $0 ssh"
