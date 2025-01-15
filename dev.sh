@@ -354,8 +354,7 @@ os_installer() {
     -f images/substrateos/Containerfile \
     .
 
-  export OS_IMAGE_TAG=$SUBSTRATEOS_IMAGE
-  exec sudo images/substrateos/overlay/usr/bin/substrateos-installer "$@"
+  exec sudo env OS_IMAGE_TAG=$SUBSTRATEOS_IMAGE images/substrateos/overlay/usr/bin/substrateos-installer "$@"
 }
 
 set +x
