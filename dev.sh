@@ -371,6 +371,14 @@ case "$1" in
     shift
     txtar "$@"
     ;;
+  efibootmgr)
+    shift
+    efibootmgr "$@"
+    ;;
+  efibootmgr-bootnext)
+    shift
+    efibootmgr --bootnext "$@"
+    ;;
   expr-dump)
     shift
     set_os_vars
