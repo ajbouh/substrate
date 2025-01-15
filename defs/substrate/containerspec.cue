@@ -64,7 +64,6 @@ import (
 #SystemdQuadletUnits: {
   #containerspec: #ContainerSpec
   #name: string
-  #use_bootc_storage: bool
 
   #out: {
     if #containerspec.#systemd_quadlet_units != _|_ {
@@ -80,11 +79,6 @@ import (
       #systemd_service_name: "\(#name).service"
       Container: {
         Pull: string | *"never"
-
-        if #use_bootc_storage {
-          // So we can use bootc logically-bound images. See also: https://containers.github.io/bootc/logically-bound-images.html
-          "PodmanArgs": ["--storage-opt=additionalimagestore=/usr/lib/bootc/storage"]
-        }
 
         // Image: "\(#name).image"
         Image: #containerspec.image

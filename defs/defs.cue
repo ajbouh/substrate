@@ -20,6 +20,8 @@ import (
   host_home_directory: string @tag(host_home_directory)
   host_source_directory: string @tag(host_source_directory)
 
+  use_bootc_storage: *false | bool @tag(use_bootc_storage,type=bool)
+
   image_prefix: string | *"ghcr.io/ajbouh/substrate:substrate-"
   host_machine_id_file: "/etc/machine-id"
   host_hostname_file: "/etc/hostname"
@@ -140,3 +142,10 @@ daemons: [key=string]: containerspec.#ContainerSpec & {
 #commands: [key=string]: [commandname=string]: {#name: commandname} & command.#Command
 
 commands: [key=string]: [commandname=string]: {#name: commandname} & command.#Command
+
+if #var.use_bootc_storage {
+  // So we can use bootc logically-bound images. See also: https://containers.github.io/bootc/logically-bound-images.html
+  podman_storage_conf: storage: options: additionalimagestores: [
+    "/usr/lib/bootc/storage",
+  ]
+}

@@ -10,6 +10,16 @@ if [ -z "$OS_IMAGE_TAG" ]; then
   OS_IMAGE_TAG=$(bootc status --format=json | jq -r '.spec.image.image')
 fi
 
+# We either need to mount the existing bootc storage or fake it. This is because
+# if our storage.conf file references it in additionalimagestores and it doesn't exist,
+# then it causes problems with podman operations during install.
+MOUNT_BOOTC_STORAGE_OPT=
+if [ -e /usr/lib/bootc/storage ]; then
+  MOUNT_BOOTC_STORAGE_OPT="-v /usr/lib/bootc/storage:/sysroot/ostree/bootc/storage"
+else
+  MOUNT_BOOTC_STORAGE_OPT="--mount=type=tmpfs,tmpfs-size=1M,destination=/sysroot/ostree/bootc/storage"
+fi
+
 reexec_via_podman_run() {
   exec podman run \
     --privileged \
@@ -19,12 +29,15 @@ reexec_via_podman_run() {
     --security-opt label=type:unconfined_t \
     --env "OS_IMAGE_TAG=$OS_IMAGE_TAG" \
     --env RUST_LOG=debug \
+    $MOUNT_BOOTC_STORAGE_OPT \
     -v /dev:/dev \
     -v /var/lib/containers:/var/lib/containers \
     "$@"
 }
 
 install() {
+  bootc --version
+
   dst_dev=$1
   shift 1
 

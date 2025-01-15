@@ -3,6 +3,7 @@ package defs
 
 import (
   "encoding/json"
+  "encoding/toml"
   "list"
   "strings"
 
@@ -78,8 +79,6 @@ overlay: {
       }
     })
   }
-
-  use_bootc_storage: *false | bool @tag(use_bootc_storage,type=bool)
 
   systemd_daemon_quadlets: [string]: _
   systemd_image_quadlets: [string]: systemd.#Unit
@@ -181,7 +180,7 @@ overlay: {
   systemd_daemon_quadlets: {...} & {
     for key in daemon_keyset {
       let def = daemons[key]
-      let quadlets = (containerspec.#SystemdQuadletUnits & {#name: key, #containerspec: def, #use_bootc_storage: use_bootc_storage}).#out
+      let quadlets = (containerspec.#SystemdQuadletUnits & {#name: key, #containerspec: def}).#out
       for basename, quadlet in quadlets {
         (key): (basename): quadlet
       }
@@ -194,7 +193,7 @@ overlay: {
   ]
   for daemon_key in daemon_keyset {
     let def = daemons[daemon_key]
-    let quadlets = (containerspec.#SystemdQuadletUnits & {#name: daemon_key, #containerspec: def, #use_bootc_storage: use_bootc_storage}).#out
+    let quadlets = (containerspec.#SystemdQuadletUnits & {#name: daemon_key, #containerspec: def}).#out
     let quadlet_service = "\(daemon_key).service"
 
     systemd_units_to_start: (quadlet_service): true
@@ -275,6 +274,8 @@ overlay: {
       for basename, preset in systemd_presets {
         "usr/lib/systemd/system-preset/\(basename)": (systemd.#render_preset & {#preset: preset, #header: preset_header}).#out
       }
+
+      "etc/containers/storage.conf": toml.Marshal(podman_storage_conf)
     }
   })
 

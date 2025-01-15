@@ -75,6 +75,7 @@ daemons: "substrate": {
     if live_edit["substrate"] {
       "SUBSTRATE_CUE_DEFS_LIVE": substrate_cue_defs_live
     }
+    "SUBSTRATE_USE_BOOTC_STORAGE": string | *"\(#var.use_bootc_storage)"
     "SUBSTRATE_SOURCE": string | *#var.host_source_directory
 
     // TODO pass in internal_host
