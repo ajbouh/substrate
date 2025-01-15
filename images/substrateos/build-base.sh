@@ -12,4 +12,5 @@ set -exo pipefail
 
 rpm-ostree install \
     bootc \
+    ipmitool \
     tailscale
