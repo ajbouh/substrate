@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"strings"
 
 	"github.com/ajbouh/substrate/images/bridge/assistant/openai"
@@ -12,7 +13,6 @@ import (
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
-	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 )
 
 var recordOffer = tracks.EventRecorder[*OfferEvent]("tool-offer")
@@ -74,9 +74,6 @@ type CallNotification tracks.EventT[*CallEvent]
 // back to the OpenAI endpoint to generate a human-readable summary.
 
 type OfferAgent struct {
-	NotifyQueue    *notify.Queue
-	OfferNotifiers []notify.Notifier[OfferNotification]
-
 	Name      string
 	Registry  ToolLister
 	Completer interface {
@@ -84,31 +81,33 @@ type OfferAgent struct {
 	}
 }
 
-func (a *OfferAgent) HandleEvent(event tracks.Event) {
-	switch event.Type {
-	case "transcription":
-		in := event.Data.(*transcribe.Transcription)
-		text := in.Text()
-		if !strings.Contains(strings.ToLower(text), a.Name) {
-			return
-		}
-		prompt, calls, err := a.CompleteTool(text)
-		if err != nil {
-			log.Printf("tools: error completing tool: %v", err)
-			return
-		}
-		ev := recordOffer(event.Span(), &OfferEvent{
-			SourceEvent: event.ID,
-			Name:        a.Name,
-			Prompt:      prompt,
-			Calls:       calls,
-		})
-		notify.Later(a.NotifyQueue, a.OfferNotifiers, OfferNotification{
-			EventMeta: ev.EventMeta,
-			TrackID:   event.Track().ID,
-			Data:      ev.Data.(*OfferEvent),
-		})
+func (a *OfferAgent) HandleEvent2(ctx context.Context, event tracks.Event) ([]tracks.PathEvent, error) {
+	if event.Type != "transcription" {
+		return nil, nil
 	}
+	in := event.Data.(*transcribe.Transcription)
+	text := in.Text()
+	if !strings.Contains(strings.ToLower(text), a.Name) {
+		return nil, nil
+	}
+	prompt, calls, err := a.CompleteTool(text)
+	if err != nil {
+		slog.ErrorContext(ctx, "tools: error completing tool", "err", err)
+		return nil, err
+	}
+	return []tracks.PathEvent{
+		tracks.NewEvent(
+			event.Span(),
+			"/tools/offer",
+			"tool-offer",
+			&OfferEvent{
+				SourceEvent: event.ID,
+				Name:        a.Name,
+				Prompt:      prompt,
+				Calls:       calls,
+			},
+		),
+	}, nil
 }
 
 func (a *OfferAgent) CompleteTool(input string) (string, []Call[any], error) {
@@ -139,66 +138,64 @@ func (a *OfferAgent) CompleteTool(input string) (string, []Call[any], error) {
 	return prompt, []Call[any]{out}, nil
 }
 
-type AutoTriggerAgent struct {
-	NotifyQueue      *notify.Queue
-	TriggerNotifiers []notify.Notifier[TriggerNotification]
-}
+type AutoTriggerAgent struct{}
 
-func (a AutoTriggerAgent) HandleEvent(event tracks.Event) {
-	switch event.Type {
-	case "tool-offer":
-		offer := event.Data.(*OfferEvent)
-		if len(offer.Calls) == 0 {
-			return
-		}
-		ev := recordTrigger(event.Span(), &TriggerEvent{
-			SourceEvent: offer.SourceEvent,
-			OfferEvent:  event.ID,
-			Name:        offer.Name,
-			Call:        offer.Calls[0],
-		})
-		notify.Later(a.NotifyQueue, a.TriggerNotifiers, TriggerNotification{
-			EventMeta: ev.EventMeta,
-			TrackID:   event.Track().ID,
-			Data:      ev.Data.(*TriggerEvent),
-		})
+func (a AutoTriggerAgent) HandleEvent2(ctx context.Context, event tracks.Event) ([]tracks.PathEvent, error) {
+	if event.Type != "tool-offer" {
+		return nil, nil
 	}
+	offer := event.Data.(*OfferEvent)
+	if len(offer.Calls) == 0 {
+		return nil, nil
+	}
+	return []tracks.PathEvent{
+		tracks.NewEvent(
+			event.Span(),
+			"/tools/trigger",
+			"tool-trigger",
+			&TriggerEvent{
+				SourceEvent: offer.SourceEvent,
+				OfferEvent:  event.ID,
+				Name:        offer.Name,
+				Call:        offer.Calls[0],
+			},
+		),
+	}, nil
 }
 
 type CallAgent struct {
-	NotifyQueue   *notify.Queue
-	CallNotifiers []notify.Notifier[CallNotification]
-
 	Name   string
 	Runner Runner
 }
 
-func (a *CallAgent) HandleEvent(event tracks.Event) {
-	switch event.Type {
-	case "tool-trigger":
-		trigger := event.Data.(*TriggerEvent)
-		if trigger.Name != a.Name {
-			return
-		}
-		result, err := a.Runner.RunTool(context.TODO(), trigger.Call)
-		if err != nil {
-			return // FIXME
-		}
-		ev := recordCall(event.Span(), &CallEvent{
-			Name:         a.Name,
-			SourceEvent:  trigger.SourceEvent,
-			TriggerEvent: event.ID,
-			Call:         trigger.Call,
-			Response: Response[any]{
-				Content: result,
-			},
-		})
-		notify.Later(a.NotifyQueue, a.CallNotifiers, CallNotification{
-			EventMeta: ev.EventMeta,
-			TrackID:   ev.Track().ID,
-			Data:      ev.Data.(*CallEvent),
-		})
+func (a *CallAgent) HandleEvent2(ctx context.Context, event tracks.Event) ([]tracks.PathEvent, error) {
+	if event.Type != "tool-trigger" {
+		return nil, nil
 	}
+	trigger := event.Data.(*TriggerEvent)
+	if trigger.Name != a.Name {
+		return nil, nil
+	}
+	result, err := a.Runner.RunTool(context.TODO(), trigger.Call)
+	if err != nil {
+		return nil, err
+	}
+	return []tracks.PathEvent{
+		tracks.NewEvent(
+			event.Span(),
+			"/tools/call",
+			"tool-call",
+			&CallEvent{
+				Name:         a.Name,
+				SourceEvent:  trigger.SourceEvent,
+				TriggerEvent: event.ID,
+				Call:         trigger.Call,
+				Response: Response[any]{
+					Content: result,
+				},
+			},
+		),
+	}, nil
 }
 
 type OpenAICompleter struct {
