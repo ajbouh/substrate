@@ -386,6 +386,11 @@ case "$1" in
     set +x
     print_cue_dev_expr_as cue -e "$@"
     ;;
+  ready)
+    shift
+    set_os_vars
+    write_ready_file
+    ;;
   reload|systemd-reload)
     shift
     set_os_vars
