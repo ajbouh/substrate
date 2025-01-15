@@ -36,8 +36,6 @@ reexec_via_podman_run() {
 }
 
 install() {
-  bootc --version
-
   dst_dev=$1
   shift 1
 
