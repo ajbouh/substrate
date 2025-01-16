@@ -4,7 +4,7 @@ Navigator {
 
   Head
     = "@" ident -- viewCommand
-    | ident (":" ident)? -- service
+    | serviceName (":" serviceName)? -- service
 
   Params = Param*
 
@@ -18,8 +18,9 @@ Navigator {
     | string                            -- string
     | number                            -- number
 
-  ident
-    = letter (alnum | "_")*
+  ident = letter (alnum | "_")*
+
+  serviceName = letter (alnum | "_" | "-")*
 
   key = ident | string
 
