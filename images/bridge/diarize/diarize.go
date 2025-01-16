@@ -132,7 +132,7 @@ func (a *Agent) HandleEvent2(ctx context.Context, annot tracks.Event) ([]tracks.
 			slog.InfoContext(ctx, "diarization: outside of range", "mapping", ts)
 		}
 		out = append(out, tracks.NewEvent(
-			initSpan,
+			outSpan,
 			"/diarize/speaker-detected",
 			"diarize-speaker-detected",
 			&SpeakerDetected{
