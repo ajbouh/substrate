@@ -2,11 +2,13 @@ package openai
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/adrg/frontmatter"
+	"github.com/ajbouh/substrate/images/bridge/calls"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 )
 
@@ -39,7 +41,7 @@ type requestFrontmatter struct {
 }
 
 func Complete(runner commands.DefRunner, endpoint, command string, req *CompletionRequest) (string, error) {
-	resp, err := doCompletion(runner, endpoint, command, req)
+	resp, err := calls.CallDef[CompletionResponse](context.TODO(), runner, endpoint, command, req)
 	if err != nil {
 		return "", err
 	}

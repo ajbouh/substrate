@@ -3,13 +3,6 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 package openai
 
-import (
-	"context"
-
-	"github.com/ajbouh/substrate/images/bridge/calls"
-	"github.com/ajbouh/substrate/pkg/toolkit/commands"
-)
-
 var (
 // ErrCompletionUnsupportedModel              = errors.New("this model is not supported with this method, please use CreateChatCompletion client method instead") //nolint:lll
 // ErrCompletionStreamNotSupported            = errors.New("streaming is not supported with this method, please use CreateCompletionStream")                      //nolint:lll
@@ -108,7 +101,9 @@ const (
 
 // CompletionRequest represents a request structure for completion API.
 type CompletionRequest struct {
-	Model string `json:"model" yaml:"model"`
+	// The "model" field is injected automatically when calling via the command
+	// API, so exclude it from this request.
+	// Model string `json:"model" yaml:"model"`
 	// XXX seems like API may support a list of strings too, is that helpful, or
 	// just limit to full strings?
 	Prompt      string  `json:"prompt,omitempty" yaml:"prompt,omitempty"`
@@ -164,22 +159,4 @@ type CompletionResponse struct {
 	Usage   Usage              `json:"usage"`
 
 	// httpHeader
-}
-
-// CreateCompletion — API call to create a completion. This is the main endpoint of the API. Returns new text as well
-// as, if requested, the probabilities over each alternative token at each position.
-//
-// If using a fine-tuned model, simply provide the model's ID in the CompletionRequest object,
-// and the server will use the model's parameters to generate the completion.
-func doCompletion(
-	runner commands.DefRunner,
-	endpoint, command string,
-	request *CompletionRequest,
-) (response *CompletionResponse, err error) {
-	if request.Model == "" {
-		req := *request
-		req.Model = "/res/model/huggingface/local"
-		request = &req
-	}
-	return calls.CallDef[CompletionResponse](context.TODO(), runner, endpoint, command, request)
 }
