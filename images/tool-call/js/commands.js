@@ -76,12 +76,14 @@ function set(o, path, v) {
   const fragments = parsePointer(path)
   const last = fragments[fragments.length - 1]
   for (const fragment of fragments.slice(0, fragments.length - 1)) {
+    if (o === undefined && v === undefined) { return } // early return for noop
     if (!(fragment in o)) {
       o[fragment] = (/^[0-9]/.test(fragment)) ? [] : {}
     }
     o = o[fragment]
   }
   // console.log("set", o, path, "<-", v)
+  if (o === undefined && v === undefined) { return } // early return for noop
   o[last] = v
 }
 

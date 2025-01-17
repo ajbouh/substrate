@@ -24,4 +24,5 @@ services: "qwen2.5-coder-32b-instruct": {
 
 commands: "qwen2.5-coder-32b-instruct": {
   "chat_completion": (#commands["llamafile"]["chat_completion"] & {#base_url: "/qwen2.5-coder-32b-instruct"})
+  "completion": (#commands["llamafile"]["completion"] & {#base_url: "/qwen2.5-coder-32b-instruct"})
 }
