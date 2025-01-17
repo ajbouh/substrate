@@ -3,8 +3,8 @@ Navigator {
   Command = Head Params spaces
 
   Head
-    = "@" ident -- viewCommand
-    | serviceName (":" serviceName)? -- service
+    = "@" msgName -- viewMsg
+    | msgName -- msg
 
   Params = Param*
 
@@ -18,10 +18,9 @@ Navigator {
     | string                            -- string
     | number                            -- number
 
+  msgName = letter (alnum | "_" | "-" | ":" | ".")*
+
   ident = letter (alnum | "_")*
-
-  serviceName = letter (alnum | "_" | "-")*
-
   key = ident | string
 
   number
@@ -61,13 +60,13 @@ export function initGrammar() {
 
                 return {...command, params: pValue};
             },
-            Head_viewCommand(_a, i) {
+            Head_viewMsg(_a, m) {
                 // console.log("Head_viewCommand", i.sourceString);
                 return {viewCommand: true, command: i.sourceString};
             },
 
-            Head_service(s, _c, a) {
-                // console.log("Head_service", s.sourceString, a.sourceString);
+            Head_msg(m) {
+                // console.log("Head_msgName", s.sourceString, a.sourceString);
                 return {command: this.sourceString};
             },
             
