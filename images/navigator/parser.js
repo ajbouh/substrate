@@ -16,6 +16,7 @@ Navigator {
     | "[" Json ("," Json)* ","? "]"     -- array1
     | "["  "]"                          -- array0
     | string                            -- string
+    | templateString                    -- templateString
     | number                            -- number
 
   ident = letter (alnum | "_")*
@@ -30,9 +31,15 @@ Navigator {
 
   string = "\"" doubleStringCharacter* "\""
 
+  templateString = "\u{0060}" templateStringCharacter* "\u{0060}"
+
   doubleStringCharacter
     = "\\" any           -- escaped
     | ~"\"" any          -- nonEscaped
+
+  templateStringCharacter
+    = "\\" any           -- escaped
+    | ~"\u{0060}" any          -- nonEscaped
 
   empty =
   space
@@ -151,6 +158,10 @@ export function initGrammar() {
             },
 
             string(_od, s, _cd) {
+                return s.sourceString;
+            },
+
+            templateString(_od, s, _cd) {
                 return s.sourceString;
             }
         }

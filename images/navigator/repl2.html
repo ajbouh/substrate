@@ -177,7 +177,7 @@
                                     [h("span", {}, "> "),
                                      h("div", {class: "inputHolder", display: "flex"}, [
                                          h("div", {class: "inputWidth"}, [
-                                             h("input", {class: "inputInput", value: tab.input || "", onKeydown: (evt) => commandKeyHandler(evt, i)}),
+                                             h("textarea", {class: "inputInput", value: tab.input || "", onKeydown: (evt) => commandKeyHandler(evt, i)}),
                                          ]),
                                      ])
                                     ]),
@@ -221,7 +221,7 @@
                 const overlayMover = ((request) => {
                     const last = document.querySelector("#commandContainer").lastChild;
                     if (!last) {return;}
-                    const focusInput = last.querySelector("input");
+                    const focusInput = last.querySelector("textarea");
                     if (!focusInput) {return;}
                     const rect = focusInput.getBoundingClientRect();
                     const inputOverlay = document.querySelector("#inputOverlay");
@@ -309,8 +309,9 @@
                     margin: 4px;
                 }
 
-                .commandEditor input {
+                .commandEditor textarea {
                     width: 80vh;
+                    height: fit-content;
                     border: 0px;
                     background: transparent;
                 }
