@@ -105,6 +105,10 @@ func main() {
 		units.LinksRemoveCommand,
 		units.QueryLinksTreePathCommand,
 
+		&units.EsbuildRoute{
+			BaseDir: spaceDir,
+		},
+
 		&units.Rebase{},
 		units.QueryLinksRebaseTreePathCommand,
 
