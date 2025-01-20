@@ -152,12 +152,13 @@ case "$1" in
     ensure_remote_host
     FSNAME=$1
     LOCAL_FS_ROOT=${2:-.}
-    LOCAL_SOCKET=$HERE/.substrate-space.$FSNAME.9p.sock
-    REMOTE_SOCKET=/root/.substrate-space.$FSNAME.9p.sock
-    REMOTE_MOUNT_POINT=$REMOTE_ROOT/mnt/$FSNAME
+    LOCAL_SOCKET=$HERE/mnt/substrate-mount.$FSNAME.9p.sock
+    REMOTE_SOCKET=/mnt/substrate-mount.$FSNAME.9p.sock
+    REMOTE_MOUNT_POINT=/mnt/substrate-mount-$FSNAME
     REMOTE_SPACE_DEF=$REMOTE_ROOT/defs/system_space_$FSNAME.cue
     # clean up if needed
     rm -f $LOCAL_SOCKET
+    mkdir -p $(dirname $LOCAL_SOCKET)
     exec ./dev.sh \
       p9ufs \
         -unix \

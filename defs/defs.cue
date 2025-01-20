@@ -42,6 +42,8 @@ import (
     event_stream_url: "/events;data=substrate-bootstrap-0/stream/events"
     event_writer_url: "/events;data=substrate-bootstrap-0/tree/fields"
 
+    mount_root: "/mnt"
+
     image_ids: [string]: string
     system_spaces: [string]: string
   }

@@ -15,6 +15,7 @@ import (
   host_machine_id_file: string
   host_hostname_file: string
 
+  substrate: mount_root: string
   substrate: network_name_prefix: string | *""
   substrate: internal_network_name: string
   substrate: external_network_name: string
@@ -94,7 +95,7 @@ daemons: "substrate": {
   }
 
   mounts: {
-    ("\(#var.host_source_directory)/mnt"): {source: "\(#var.host_source_directory)/mnt"}
+    (#var.substrate.mount_root): {source: #var.substrate.mount_root}
     "/var/lib/containers/storage": {source: "/var/lib/containers/storage"}
     (#var.host_machine_id_file): {source: #var.host_machine_id_file}
     (environment.SUBSTRATE_HOSTNAME_FILE): {source: #var.host_hostname_file}
