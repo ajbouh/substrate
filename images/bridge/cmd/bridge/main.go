@@ -37,7 +37,6 @@ import (
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/gopxl/beep"
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
@@ -156,10 +155,6 @@ func main() {
 			},
 			NewClient: newAssistantClient,
 		},
-		// httpevents.NewJSONRequester[assistant.AssistantTextNotification]("PUT", eventURLPrefix+"/assistant/text"),
-		// httpevents.NewJSONRequester[tools.OfferNotification]("PUT", eventURLPrefix+"/tools/offer"),
-		// httpevents.NewJSONRequester[tools.TriggerNotification]("PUT", eventURLPrefix+"/tools/trigger"),
-		// httpevents.NewJSONRequester[tools.CallNotification]("PUT", eventURLPrefix+"/tools/call"),
 		httpevents.NewJSONRequester[vad.ActivityEvent]("PUT", eventURLPrefix+"/voice-activity"),
 		workingset.CommandProvider{},
 		EventCommands{
@@ -275,10 +270,6 @@ func (l *RequestBodyLogger) WrapHTTP(next http.Handler) http.Handler {
 	})
 }
 
-type EventCursor struct {
-	LastProcessed event.ID `json:"last_processed"`
-}
-
 func mustGetenv(name string) string {
 	value := os.Getenv(name)
 	if value == "" {
@@ -286,14 +277,6 @@ func mustGetenv(name string) string {
 	}
 	return value
 }
-
-var cborenc = func() cbor.EncMode {
-	opts := cbor.CoreDetEncOptions()
-	opts.Time = cbor.TimeRFC3339
-	em, err := opts.EncMode()
-	fatal(err)
-	return em
-}()
 
 type eventLogger struct {
 	exclude []string
@@ -306,16 +289,6 @@ func (l eventLogger) HandleEvent(e tracks.Event) {
 		}
 	}
 	slog.Info("event", "type", e.Type, "id", e.ID, "start", time.Duration(e.Start), "end", time.Duration(e.End), "data", e.Data)
-}
-
-type commandSourceInjector struct {
-	URLReflector commands.URLReflector
-
-	Source *commands.URLBasedSource
-}
-
-func (csi *commandSourceInjector) Initialize() {
-	csi.Source.URLReflector = csi.URLReflector
 }
 
 type commandSourceRegistry struct {
@@ -420,10 +393,6 @@ func (pc *PeerComponent) Serve(ctx context.Context) {
 	})
 
 	pc.peer.HandleSignals()
-}
-
-type View struct {
-	Session *tracks.Session
 }
 
 func fatal(err error, msg ...string) {
