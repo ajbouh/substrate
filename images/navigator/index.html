@@ -3,6 +3,7 @@
     <head>
         <meta charset="utf-8"> 
         <script src="./ohm.js"></script>
+        <script src="./markdown-it.min.js"></script>
     </head>
     <body>
         <div id="renkon">
@@ -15,28 +16,32 @@
                     return new URL('/', window.location.href).toString();
                 })();
 
-                (() => {
-                    if (hostName !== "/") {
-                        document.querySelector("#topUrl").value = hostName;
-                    }
-                })();
-                
+                const md = (() => {
+                    return window.markdownit();
+                })()
+
                 const {ReflectCommands} = import(`${hostName}/tool-call/js/commands.js`);
                 const {h, render, html} = import(Renkon.spaceURL("./preact.standalone.module.js"));
                 const {initGrammar, translate} = import("./parser.js");
 
-                const viewCommands = {go: (input) => {
-                    const url = input.params.url;
-                    console.log("go", url);
-                    if (!url) {return;}
-                    document.querySelector("#topUrlInput").value = url;
-                    Events.send(goRequest, url)
-                }};
+                const viewCommands = {
+                    go: (input) => {
+                        const url = input.params.url;
+                        console.log("go", url);
+                        if (!url) {return;}
+                        Events.send(goRequest, url)
+                        return "went to " + url
+                    },
+                    tab: () => {
+                        Events.send(tabRequest, {type: "newTab", url: "/~/"})
+                        return "new tab"
+                    },
+                    ping: () => {
+                        return "pong"
+                    },
+                };
                 
-                const topUrlInput = Events.or(
-                    Events.listener(document.querySelector("#topUrl"), "keydown", topUrlKeyHandler),
-                    goRequest
-                );
+                const topUrlInput = goRequest;
 
                 const commandRequest = Events.receiver();
                 const viewCommandRequest = Events.receiver();
@@ -79,6 +84,19 @@
                         return new ReflectCommands(targetUrl).reflect();
                 })(targetUrl);
                 
+                const description = ((reflectResponse) => {
+                    const describeCmd = reflectResponse['describe']
+                    // TODO run describeCmd to get description
+                    const description = `# This is the mock description
+                    
+It has multiple lines and is written in markdown
+                    `
+                    console.log("description", {reflectResponse, description})
+                    return description
+                })(reflectResponse)
+
+                document.querySelector("#rootBar").innerHTML = md.render(description);
+
                 const suggestionDOMs = ((reflectResponse) => {
                     const keys = Object.keys(reflectResponse).sort();
                     console.log(keys);
@@ -102,7 +120,8 @@
                         try {
                             translated = translate(evt.target.value);
                         } catch(e) {
-                            console.log(e.reason, e.expected, e.pos);
+                            console.log({e})
+                            // console.log(e.reason, e.expected, e.pos);
                         }
                         if (!translated) {return;}
                         if (translated.viewCommand) {
@@ -115,26 +134,29 @@
 
                 const invokeViewCommand = ((viewCommandRequest) => {
                     const command = viewCommandRequest.value;
+                    const input = viewCommandRequest.input;
+                    const id = viewCommandRequest.index;
 
                     const cmd = viewCommands[command.command];
                     if (!cmd) {return;}
-                    return cmd(command);
-                })(viewCommandRequest);
+                    return {id, input: input, value: cmd(command)}
+                })(Events.change(viewCommandRequest));
 
                 const invokeCommandResponse = ((commandRequest, reflectResponse) => {
                     const command = commandRequest.value;
                     const input = commandRequest.input;
+                    const id = commandRequest.index;
 
                     const cmd = reflectResponse[command.command];
                     if (!cmd) {return;}
-                    return {id: commandRequest.index, input: input, value: cmd.run(command.params)}
+                    return {id, input: input, value: cmd.run(command.params)}
                 })(commandRequest, reflectResponse);
 
                 const invokeCommand = Events.resolvePart(invokeCommandResponse.value, invokeCommandResponse);
 
                 console.log("invokeCommand", invokeCommand);
 
-                const tabs = Behaviors.collect({current: 0, tabs: [{tabId: 0, url: "/", sections: [{}]}]}, Events.or(Events.change(invokeCommand), goRequest, tabRequest), (now, request) => {
+                const tabs = Behaviors.collect({current: 0, tabs: [{tabId: 0, url: "/", sections: [{}]}]}, Events.or(Events.change(invokeCommand), Events.change(invokeViewCommand), tabRequest), (now, request) => {
                     console.log("tabs", request);
                     if (typeof request === "object" && request.type === "tabRequest") {
                         // the request is to switch tabs
@@ -143,7 +165,12 @@
                         }
                         return {current: request.value, tabs: now.tabs};
                     }
-                    
+    
+                    if (typeof request === "object" && request.type === "newTab") {
+                        const newTabId = now.tabs[now.tabs.length - 1].tabId + 1;
+                        return {current: newTabId, tabs: [...now.tabs, {tabId: newTabId, url: now.tabs[now.current].url, sections: [{}]}]};
+                    }
+
                     if (typeof request === "object" && typeof request.id === "number") {
                         // the request is an invocation
                         const tabId = now.current;
@@ -155,15 +182,17 @@
                         newTabs[tabId] = {tabId, url: newTab.url, sections: newSections};
                         return {current: tabId,  tabs: newTabs};
                     }
-                        
-                    if (typeof request === "string") {
-                        // a bad way to check it but
-                        // this is when request is coming from the second argument or Events.or, goRequest
-                        const newTabId = now.tabs[now.tabs.length - 1].tabId + 1;
-                        const result = {current: newTabId, tabs: [...now.tabs, {tabId: newTabId, url: request, sections: [{}]}]};
-                        return result;
-                    }
                 });
+
+                (() => {
+                    if (viewCommandRequest !== undefined) {
+                        return
+                    }
+                    const input = `@go url: "/"`
+                    const translated = translate(input)
+                    Events.send(viewCommandRequest, {value: translated, input, index: 0});
+                })()
+
 
                 const reflowRequester = () => Events.send(reflowRequest, "foo")
 
@@ -232,11 +261,7 @@
             </script>
             <div id="container" style="height: 100%">
                 <div id="urlTabs"></div>
-                <div id="topUrl"><input id="topUrlInput" value="/"/></div>
-                <div id="rootBar">
-                    <div id="rootLabel">Substrate Root</div>
-                    <div id="rootSubLabel">Top-level things you can do with Substrate</div>
-                </div>
+                <div id="rootBar"></div>
                 <div id="commandContainer"></div>
                 <div id="inputOverlay"></div>
             </div>
@@ -266,17 +291,6 @@
                     background-color: #808080;
                 }
                     
-                #topUrl {
-                    width: 100%;
-                    height: fit-content;
-                    background-color: transparent;
-                }
-
-                #topUrl input {
-                    width: 90%;
-                    border: 1px solid black;
-                }
-
                 #rootBar {
                     background-color: #f4f4f4;
                     display: flex;
