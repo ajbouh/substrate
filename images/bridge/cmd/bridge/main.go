@@ -72,11 +72,8 @@ func main() {
 		session = tracks.NewSession()
 	}
 
-	eventWriterURL := mustGetenv("SUBSTRATE_EVENT_WRITER_URL")
-	sessionID := mustGetenv("BRIDGE_SESSION_ID")
-	eventURLPrefix := fmt.Sprintf("%s/tree/fields/bridge/%s", eventWriterURL, sessionID)
-
-	pathPrefix := fmt.Sprintf("/bridge/%s/", sessionID)
+	eventURLPrefix := mustGetenv("SUBSTRATE_EVENT_WRITER_URL")
+	pathPrefix := mustGetenv("BRIDGE_EVENT_PATH_PREFIX")
 	queryParams := url.Values{}
 	queryParams.Set("path_prefix", pathPrefix)
 	eventStreamURL := fmt.Sprintf("%s?%s", mustGetenv("SUBSTRATE_STREAM_URL_PATH"), queryParams.Encode())
@@ -163,7 +160,7 @@ func main() {
 			BridgeURL:       baseHref,
 		},
 		&EventWriteCommand{
-			URL:     eventWriterURL,
+			URL:     mustGetenv("SUBSTRATE_EVENT_COMMANDS_URL"),
 			Command: "events:write",
 		},
 		RequestBodyLogger{},
@@ -213,12 +210,9 @@ func ptr[T any](t T) *T {
 }
 
 func (es *EventCommands) Initialize() {
-	// if true {
-	// 	return
-	// }
 	rules := []CommandRuleInput{
 		{
-			Path: "/rules/defs/test",
+			Path: "/rules/defs" + es.EventPathPrefix,
 			Conditions: []*event.Query{
 				{
 					EventsWherePrefix: map[string][]event.WherePrefix{
