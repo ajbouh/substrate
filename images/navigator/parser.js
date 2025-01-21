@@ -69,7 +69,7 @@ export function initGrammar() {
             },
             Head_viewMsg(_a, m) {
                 // console.log("Head_viewCommand", i.sourceString);
-                return {viewCommand: true, command: i.sourceString};
+                return {viewCommand: true, command: m.sourceString};
             },
 
             Head_msg(m) {
