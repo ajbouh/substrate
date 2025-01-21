@@ -45,6 +45,8 @@ func CallDef[Out, In any](ctx context.Context, runner commands.DefRunner, url, c
 		return nil, err
 	}
 
+	slog.InfoContext(ctx, "CallDef", "url", url, "command", command, "params", paramFields)
+
 	resultFields, err := runner.RunDef(ctx, Cap(
 		"reflect", commands.Fields{
 			"url":        url,

@@ -19,6 +19,7 @@ import (
 
 	"github.com/ajbouh/substrate/images/bridge/assistant"
 	"github.com/ajbouh/substrate/images/bridge/assistant/tools"
+	"github.com/ajbouh/substrate/images/bridge/calls"
 	"github.com/ajbouh/substrate/images/bridge/diarize"
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
@@ -73,7 +74,7 @@ func main() {
 
 	eventWriterURL := mustGetenv("SUBSTRATE_EVENT_WRITER_URL")
 	sessionID := mustGetenv("BRIDGE_SESSION_ID")
-	eventURLPrefix := fmt.Sprintf("%s/bridge/%s", eventWriterURL, sessionID)
+	eventURLPrefix := fmt.Sprintf("%s/tree/fields/bridge/%s", eventWriterURL, sessionID)
 
 	pathPrefix := fmt.Sprintf("/bridge/%s/", sessionID)
 	queryParams := url.Values{}
@@ -158,22 +159,106 @@ func main() {
 		httpevents.NewJSONRequester[vad.ActivityEvent]("PUT", eventURLPrefix+"/voice-activity"),
 		workingset.CommandProvider{},
 		EventCommands{
-			PathPrefix: pathPrefix,
+			EventPathPrefix: pathPrefix,
+			BridgeURL:       baseHref,
+		},
+		&EventWriteCommand{
+			URL:     eventWriterURL,
+			Command: "events:write",
 		},
 		RequestBodyLogger{},
 	)
 }
 
+type WriteEventsInput struct {
+	Events []event.PendingEvent `json:"events"`
+}
+
+type WriteEventsReturns struct {
+	IDs []event.ID `json:"ids"`
+
+	FieldsSHA256s []*event.SHA256Digest `json:"fields_sha256s"`
+	DataSHA256s   []*event.SHA256Digest `json:"data_sha256s"`
+}
+
+type EventWriteCommand = calls.CommandCall[WriteEventsInput, WriteEventsReturns]
+
 type EventCommands struct {
-	Session    *tracks.Session
-	PathPrefix string
-	Handlers   []interface {
+	Session         *tracks.Session
+	EventPathPrefix string
+	BridgeURL       string
+	Handlers        []interface {
 		HandleEvent2(context.Context, tracks.Event) ([]tracks.PathEvent, error)
 	}
+	WriteEvents *EventWriteCommand
 }
 
 type EventResult struct {
 	Next []event.PendingEvent `json:"next" doc:""`
+}
+
+type CommandRuleInput struct {
+	Path     string `json:"path"`
+	Disabled bool   `json:"disabled,omitempty"`
+	Deleted  bool   `json:"deleted,omitempty"`
+
+	Conditions []*event.Query `json:"conditions"`
+	Command    commands.Msg   `json:"command"`
+
+	// Cursor *CommandRuleCursor `json:"-"`
+}
+
+func ptr[T any](t T) *T {
+	return &t
+}
+
+func (es *EventCommands) Initialize() {
+	// if true {
+	// 	return
+	// }
+	rules := []CommandRuleInput{
+		{
+			Path: "/rules/defs/test",
+			Conditions: []*event.Query{
+				{
+					EventsWherePrefix: map[string][]event.WherePrefix{
+						"path": {{Prefix: es.EventPathPrefix}},
+					},
+				},
+			},
+			Command: commands.Msg{
+				Meta: commands.Meta{
+					"#/data/parameters/events": {Type: "any"},
+					"#/data/returns/events":    {Type: "any"},
+				},
+				MsgIn: commands.Bindings{
+					"#/msg/data/parameters/events": "#/data/parameters/events",
+				},
+				MsgOut: commands.Bindings{
+					"#/data/returns/next": "#/msg/data/returns/next",
+				},
+				Msg: &commands.Msg{
+					Cap: ptr("reflect"),
+					Data: commands.Fields{
+						"url":  es.BridgeURL,
+						"name": "events:handle",
+					},
+				},
+			},
+		},
+	}
+	events := make([]event.PendingEvent, 0, len(rules))
+	for _, r := range rules {
+		b, err := json.Marshal(r)
+		fatal(err)
+		events = append(events, event.PendingEvent{
+			ConflictKeys: []string{"conditions", "command"},
+			Fields:       b,
+		})
+	}
+	r, err := es.WriteEvents.Call(context.TODO(), WriteEventsInput{Events: events})
+	fatal(err)
+	slog.Info("initialized rules", "result", r)
 }
 
 func (es *EventCommands) Commands(ctx context.Context) commands.Source {
@@ -243,7 +328,7 @@ func pathJoin(a, b string) string {
 func (es *EventCommands) toPendingEvents(events []tracks.PathEvent) ([]event.PendingEvent, error) {
 	var pes []event.PendingEvent
 	for _, e := range events {
-		e.Path = pathJoin(es.PathPrefix, e.Path)
+		e.Path = pathJoin(es.EventPathPrefix, e.Path)
 		pe, err := json.Marshal(e)
 		if err != nil {
 			return nil, err

@@ -16,7 +16,7 @@ services: "bridge": {
     url_prefix: environment.SUBSTRATE_URL_PREFIX
 
     environment: {
-      SUBSTRATE_EVENT_WRITER_URL: "http://substrate:8080/events;data=\(parameters.sessions.value)/tree/fields"
+      SUBSTRATE_EVENT_WRITER_URL: "http://substrate:8080/events;data=\(parameters.sessions.value)"
       SUBSTRATE_STREAM_URL_PATH: "/events;data=\(parameters.sessions.value)/stream/events"
       SUBSTRATE_EVENT_STREAM_URL: "http://substrate:8080\(SUBSTRATE_STREAM_URL_PATH)"
       BRIDGE_COMMANDS_URL: "http://substrate:8080/"
