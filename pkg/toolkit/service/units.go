@@ -99,15 +99,6 @@ func (s *Service) initialize() {
 			Rewrite: func(r *http.Request) (*http.Request, error) {
 				// slog.Info("considering transform for command", "name", n, "d.Run.HTTP.Request.URL", d.Run.HTTP.Request.URL)
 				urlStr := r.URL.String()
-				// Accept "//" as a prefix that means "against the substrate gateway URL"
-				// if strings.HasPrefix(r.URL.Path, "//") {
-				// 	trimmed := strings.TrimPrefix(r.URL.Path, "/")
-				// 	var err error
-				// 	// TODO url join instead?
-				// 	r.URL, err = url.Parse(s.InternalSubstrateBaseURL + trimmed)
-				// 	log.Printf("Rewrite: %s -> %s", urlStr, r.URL.String())
-				// 	return r, err
-				// }
 				if strings.HasPrefix(urlStr, s.ExternalSubstrateBaseURL) {
 					trimmed := strings.TrimPrefix(urlStr, s.ExternalSubstrateBaseURL)
 					var err error
