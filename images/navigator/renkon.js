@@ -6816,7 +6816,9 @@ function findReferences(node, {
             }
           } else if (callee.property.type === "Identifier" && callee.property.name === "send") {
             const arg = node2.arguments[0];
-            if (arg.type === "Identifier") ;
+            if (arg.type === "Identifier") {
+              forceVars.push(arg);
+            }
           }
         } else if (callee.object.name === "Behaviors") {
           if (callee.property.type === "Identifier" && callee.property.name === "collect") {
