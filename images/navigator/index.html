@@ -4,6 +4,8 @@
         <meta charset="utf-8"> 
         <script src="./ohm.js"></script>
         <script src="./markdown-it.min.js"></script>
+        <link rel="stylesheet" href="./msg.css">
+        <link rel="stylesheet" href="./msgindex.css">
     </head>
     <body>
         <div id="renkon">
@@ -96,20 +98,6 @@ It has multiple lines and is written in markdown
                 })(reflectResponse)
 
                 document.querySelector("#rootBar").innerHTML = md.render(description);
-
-                const suggestionDOMs = ((reflectResponse) => {
-                    const keys = Object.keys(reflectResponse).sort();
-                    console.log(keys);
-                    return keys.map((key) => {
-                        return h("div", {
-                            id: `msg-${key}`,
-                            class: "suggestionLine",
-                            onclick: (evt) => Events.send(suggestion, {name: evt.target.textContent})
-                        }, key);
-                    });
-                })(reflectResponse);
-
-                render(suggestionDOMs, document.querySelector("#inputOverlay"));
 
                 const commandKeyHandler = (evt, i) => {
                     if (evt.key === "Enter") {
@@ -247,29 +235,51 @@ It has multiple lines and is written in markdown
                     return;
                 })(tabs, sectionDOMs);
 
-                const overlayMover = ((request) => {
-                    const last = document.querySelector("#commandContainer").lastChild;
-                    if (!last) {return;}
-                    const focusInput = last.querySelector("textarea");
-                    if (!focusInput) {return;}
-                    const rect = focusInput.getBoundingClientRect();
-                    const inputOverlay = document.querySelector("#inputOverlay");
-                    inputOverlay.style.top = `${rect.bottom + 5}px`;
-                    inputOverlay.style.left = `${rect.left}px`;
-                })(Events.timer(100));
-                
+                const {dom: msgDOM} = import("./msg.js")
+                const jsonpointer = import("./jsonpointer.js")
+
+                const msgindex = reflectResponse
+
+                const msgindexDOM = (({msgindex}) => {
+                    const entries = Object.entries(msgindex)
+                    return h('div', {}, [
+                        h('select', {
+                            size: entries.length + 1,
+                            style: {
+                                height: '100%',
+                                width: '100%',
+                            },
+                            onchange: (ev) => {
+                                Events.send(msgindexrecv, ev.target.value)
+                            },
+                        }, entries.map(([name, msg]) => {
+                            return h('option', {value: name}, name)
+                        })),
+                    ])
+                })({msgindex})
+            
+                const msgindexrecv = Events.receiver()
+                console.log({msgindexrecv})
+
+                render(msgindexDOM, document.querySelector("#msgindex"))
+
+                const msg = msgindex[msgindexrecv]
+                const mymsgDOM = msgDOM({h, html, jsonpointer, md, msg})
+                render(mymsgDOM, document.querySelector("#msg"))
             </script>
             <div id="container" style="height: 100%">
                 <div id="urlTabs"></div>
                 <div id="rootBar"></div>
                 <div id="commandContainer"></div>
-                <div id="inputOverlay"></div>
+                <div id="msgindexroot">
+                    <div id="msgindex"></div>
+                    <div id="msg"></div>
+                </div>
             </div>
             <style>
                 #container {
                     display: flex;
                     flex-direction: column;
-                    border: 2px solid black;
                     
                 }
                 #urlTabs {
@@ -372,17 +382,6 @@ It has multiple lines and is written in markdown
                     width: 0px;
                     overflow: visible;
                 }
-
-                #inputOverlay {
-                    position: absolute;
-                    display: flex;
-                    flex-direction: column;
-                    min-width: 300px;
-                    min-height: 80px;
-                    border: 1px solid black;
-                    background-color: #f4f4f4;
-                }
-                                
             </style>
         </div>
         <script type="module">
