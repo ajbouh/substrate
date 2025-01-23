@@ -117,7 +117,7 @@
 	.command-panel.overlay {
 		position: fixed;
 		bottom: 0;
-		left: 0;
+		right: 0;
 		width: 10em;
 		height: auto;
 		border: 1px solid black;

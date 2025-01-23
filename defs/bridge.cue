@@ -15,10 +15,12 @@ services: "bridge": {
     environment: [string]: string
     url_prefix: environment.SUBSTRATE_URL_PREFIX
 
+
     environment: {
-      SUBSTRATE_EVENT_WRITER_URL: "http://substrate:8080/events;data=\(parameters.sessions.value)/tree/fields"
+      SUBSTRATE_EVENT_COMMANDS_URL: "http://substrate:8080/events;data=\(parameters.sessions.value)/"
+      SUBSTRATE_EVENT_WRITER_URL: "http://substrate:8080/events;data=\(parameters.sessions.value)/tree/fields/bridge/\(parameters.id.value)"
       SUBSTRATE_STREAM_URL_PATH: "/events;data=\(parameters.sessions.value)/stream/events"
-      SUBSTRATE_EVENT_STREAM_URL: "http://substrate:8080\(SUBSTRATE_STREAM_URL_PATH)"
+      BRIDGE_EVENT_PATH_PREFIX: "/bridge/\(parameters.id.value)/"
       BRIDGE_COMMANDS_URL: "http://substrate:8080/"
       BRIDGE_TRANSCRIBE_COMMAND: "faster-whisper:transcribe-data"
       BRIDGE_TRANSLATE_COMMAND: "seamlessm4t:translate"

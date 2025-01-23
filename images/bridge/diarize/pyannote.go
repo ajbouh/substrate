@@ -5,13 +5,14 @@ import (
 	"time"
 
 	"github.com/ajbouh/substrate/images/bridge/audio"
-	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/images/bridge/calls"
 	"github.com/gopxl/beep"
 )
 
+type Command = calls.CommandCall[Request, Response]
+
 type PyannoteClient struct {
-	Source  commands.Source
-	Command string
+	Command *Command
 }
 
 func float64ToDuration(f float64) time.Duration {
@@ -27,10 +28,9 @@ func (a *PyannoteClient) Diarize(stream beep.Streamer, format beep.Format) ([]Sp
 	if err != nil {
 		return nil, err
 	}
-	request := &Request{
+	resp, err := a.Command.Call(context.TODO(), Request{
 		AudioData: b,
-	}
-	resp, err := commands.CallSource[Response](context.TODO(), a.Source, a.Command, request)
+	})
 	if err != nil {
 		return nil, err
 	}

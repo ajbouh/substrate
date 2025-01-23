@@ -2,7 +2,7 @@ package local
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -47,7 +47,7 @@ func NewPeer(url string) (*Peer, error) {
 			return
 		}
 		if writeErr := peer.Signal("candidate", i.ToJSON()); writeErr != nil {
-			log.Println(writeErr)
+			slog.Error("OnICECandidate: Signal failed", "err", writeErr)
 		}
 	})
 
@@ -56,7 +56,7 @@ func NewPeer(url string) (*Peer, error) {
 		switch p {
 		case webrtc.PeerConnectionStateFailed:
 			if err := peer.Close(); err != nil {
-				log.Print(err)
+				slog.Error("OnConnectionStateChange: Close failed", "err", err)
 			}
 		case webrtc.PeerConnectionStateClosed:
 			//s.Sync()
@@ -64,7 +64,7 @@ func NewPeer(url string) (*Peer, error) {
 	})
 
 	rtcpeer.OnTrack(func(t *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
-		log.Println("received track:", t.ID())
+		slog.Info("OnTrack", "track_id", t.ID())
 		// trackLocal := s.addTrack(t)
 		// defer s.removeTrack(trackLocal)
 
@@ -90,10 +90,10 @@ func (p *Peer) HandleSignals() {
 	for {
 		_, raw, err := p.ws.ReadMessage()
 		if err != nil {
-			log.Println(err)
+			slog.Error("HandleSignals: ReadMessage failed", "err", err)
 			return
 		} else if err := json.Unmarshal(raw, &sig); err != nil {
-			log.Println(err)
+			slog.Error("HandleSignals: ReadMessage Unmarshal failed", "err", err)
 			return
 		}
 
@@ -101,39 +101,39 @@ func (p *Peer) HandleSignals() {
 		case "offer":
 			offer := webrtc.SessionDescription{}
 			if err := json.Unmarshal([]byte(sig.Data), &offer); err != nil {
-				log.Println(err)
+				slog.Error("HandleSignals: offer Unmarshal failed", "err", err)
 				return
 			}
 
 			if err := p.SetRemoteDescription(offer); err != nil {
-				log.Println(err)
+				slog.Error("HandleSignals: SetRemoteDescription failed", "err", err)
 				return
 			}
 
 			answer, err := p.CreateAnswer(nil)
 			if err != nil {
-				log.Println(err)
+				slog.Error("HandleSignals: CreateAnswer failed", "err", err)
 				return
 			}
 
 			if err := p.SetLocalDescription(answer); err != nil {
-				log.Println(err)
+				slog.Error("HandleSignals: SetLocalDescription failed", "err", err)
 				return
 			}
 
 			if err := p.Signal("answer", answer); err != nil {
-				log.Println(err)
+				slog.Error("HandleSignals: Signal failed", "err", err)
 				return
 			}
 		case "candidate":
 			candidate := webrtc.ICECandidateInit{}
 			if err := json.Unmarshal([]byte(sig.Data), &candidate); err != nil {
-				log.Println(err)
+				slog.Error("HandleSignals: candidate Unmarshal failed", "err", err)
 				return
 			}
 
 			if err := p.AddICECandidate(candidate); err != nil {
-				log.Println(err)
+				slog.Error("HandleSignals: AddICECandidate failed", "err", err)
 				return
 			}
 		}

@@ -52,7 +52,7 @@ func (a *Interpreter) RunDef(ctx context.Context, d *Msg, data Fields) (Fields, 
 		var via *Msg
 		via, postData, err = capability.Apply(ctx, data)
 		if err != nil {
-			return nil, fmt.Errorf("error applying capability %s: %w", *d.Cap, err)
+			return nil, fmt.Errorf("error applying capability! %s: %w", *d.Cap, err)
 		}
 
 		// Do we have something to recurse on? Do it!

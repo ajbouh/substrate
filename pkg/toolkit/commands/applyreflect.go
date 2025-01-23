@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"log"
 	"strings"
 )
 
@@ -23,8 +24,10 @@ func (a *ReflectCapability) Apply(ctx context.Context, m Fields) (*Msg, Fields, 
 	if err != nil {
 		return nil, nil, err
 	}
+	log.Printf("ReflectCapability.Apply: url=%q", url)
 	if strings.HasPrefix(url, "/") {
 		url = a.BaseURL + url
+		log.Printf("ReflectCapability.Apply (with prefix): url=%q", url)
 	}
 
 	name, err := Get[string](m, "name")
@@ -50,6 +53,7 @@ func (a *ReflectCapability) Apply(ctx context.Context, m Fields) (*Msg, Fields, 
 	if !ok {
 		return nil, nil, ErrNoSuchCommand
 	}
+	log.Printf("ReflectCapability.Apply: def=%#v", def)
 
 	return def, Fields{"parameters": parameters}, nil
 }

@@ -1,12 +1,12 @@
 package diarize
 
 import (
-	"log"
+	"context"
+	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/ajbouh/substrate/images/bridge/tracks"
-	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/gopxl/beep"
 	"github.com/technosophos/moniker"
 )
@@ -71,10 +71,6 @@ func (t TimeRange) Sub(d time.Duration) TimeRange {
 }
 
 type Agent struct {
-	NotifyQueue              *notify.Queue
-	SpeakerDetectedNotifiers []notify.Notifier[SpeakerDetectedEvent]
-	SpeakerNameNotifiers     []notify.Notifier[SpeakerNameEvent]
-
 	Client  Client
 	Sampler Sampler
 	mutex   sync.Map
@@ -94,9 +90,9 @@ func (a *Agent) lock(id tracks.ID) *sync.Mutex {
 	return m
 }
 
-func (a *Agent) HandleEvent(annot tracks.Event) {
+func (a *Agent) HandleEvent2(ctx context.Context, annot tracks.Event) ([]tracks.PathEvent, error) {
 	if annot.Type != "activity" {
-		return
+		return nil, nil
 	}
 
 	// Only process one sample per-track at a time to avoid race conditions for
@@ -106,44 +102,46 @@ func (a *Agent) HandleEvent(annot tracks.Event) {
 	sampleAudio, samples := a.Sampler.CollectSamples(annot.Track())
 	speakers, err := a.Client.Diarize(beep.Seq(sampleAudio, annot.Span().Audio()), annot.Track().AudioFormat())
 	if err != nil {
-		log.Println("diarize:", err)
-		return
+		return nil, err
 	}
 	if len(speakers) == 0 {
-		log.Println("diarize: no speakers detected")
-		return
+		slog.InfoContext(ctx, "diarize: no speakers detected")
+		return nil, nil
 	}
 
 	mapped, newIDs := samples.MapSpeakers(speakers)
 
+	var out []tracks.PathEvent
+
 	initSpan := annot.Span().Span(0, 0)
 	for _, id := range newIDs {
-		ev := recordSpeakerName(initSpan, &SpeakerName{
-			SpeakerID: id,
-			Name:      namer.Name(),
-		})
-		notify.Later(a.NotifyQueue, a.SpeakerNameNotifiers, SpeakerNameEvent{
-			EventMeta: ev.EventMeta,
-			TrackID:   ev.Track().ID,
-			Data:      ev.Data.(*SpeakerName),
-		})
+		out = append(out, tracks.NewEvent(
+			initSpan,
+			"/diarize/speaker-name",
+			"diarize-speaker-name",
+			&SpeakerName{
+				SpeakerID: id,
+				Name:      namer.Name(),
+			},
+		))
 	}
 	for _, ts := range mapped {
 		outSpan := spanRelative(annot.Span(), ts.Range.Start, ts.Range.End)
 		outSpan = clamp(annot.Span(), outSpan)
 		if outSpan.Length() <= 0 {
-			log.Printf("got diarization outside of range: %#v", ts)
+			slog.InfoContext(ctx, "diarization: outside of range", "mapping", ts)
 		}
-		ev := recordSpeakerDetected(outSpan, &SpeakerDetected{
-			SpeakerID:           ts.SpeakerID,
-			InternalSpeakerName: ts.InternalSpeakerName,
-		})
-		notify.Later(a.NotifyQueue, a.SpeakerDetectedNotifiers, SpeakerDetectedEvent{
-			EventMeta: ev.EventMeta,
-			TrackID:   ev.Track().ID,
-			Data:      ev.Data.(*SpeakerDetected),
-		})
+		out = append(out, tracks.NewEvent(
+			outSpan,
+			"/diarize/speaker-detected",
+			"diarize-speaker-detected",
+			&SpeakerDetected{
+				SpeakerID:           ts.SpeakerID,
+				InternalSpeakerName: ts.InternalSpeakerName,
+			},
+		))
 	}
+	return out, nil
 }
 
 // returns the Span offset from the beginning of `in` by `start` and `end`

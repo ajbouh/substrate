@@ -1,21 +1,25 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"text/template"
 	"time"
 
 	"github.com/ajbouh/substrate/images/bridge/assistant"
 	"github.com/ajbouh/substrate/images/bridge/assistant/tools"
+	"github.com/ajbouh/substrate/images/bridge/calls"
 	"github.com/ajbouh/substrate/images/bridge/diarize"
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
@@ -28,13 +32,12 @@ import (
 	"github.com/ajbouh/substrate/images/bridge/webrtc/trackstreamer"
 	"github.com/ajbouh/substrate/images/bridge/workingset"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
-	"github.com/ajbouh/substrate/pkg/toolkit/notify"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/gopxl/beep"
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
@@ -55,57 +58,31 @@ func main() {
 	basePath := os.Getenv("SUBSTRATE_URL_PREFIX")
 	// ensure the path starts and ends with a slash for setting <base href>
 	baseHref := must(url.JoinPath("/", basePath, "/"))
-	log.Println("got basePath", baseHref, "from SUBSTRATE_URL_PREFIX", basePath)
+	slog.Info("bridge starting", "baseHref", baseHref, "SUBSTRATE_URL_PREFIX", basePath)
 
 	sessionDir := getEnv("BRIDGE_SESSION_DIR", "./session")
 
-	log.Println("loading session from disk")
+	slog.Info("loading session from disk")
 	session, err := tracks.LoadSession(sessionDir)
 	if err != nil {
 		if !errors.Is(err, tracks.ErrSessionNotFound) {
 			fatal(err)
 		}
-		log.Println("session not found, creating a new one")
+		slog.Info("session not found, creating a new one")
 		session = tracks.NewSession()
 	}
 
-	cmdSource := &commands.URLBasedSource{
-		URL: getEnv("BRIDGE_COMMANDS_URL", "http://localhost:8090/"),
-	}
-
-	eventWriterURL := mustGetenv("SUBSTRATE_EVENT_WRITER_URL")
-	sessionID := mustGetenv("BRIDGE_SESSION_ID")
-	eventURLPrefix := fmt.Sprintf("%s/bridge/%s", eventWriterURL, sessionID)
-	// Cursor path needs to be outisde of the session events so that updates to it
-	// don't re-trigger streaming
-	cursorURL := fmt.Sprintf("%s/bridge-cursor/%s", eventWriterURL, sessionID)
-
-	pathPrefix := fmt.Sprintf("/bridge/%s/", sessionID)
-	streamQuery := event.QueryLatestByPathPrefix(pathPrefix)
-	resp, err := http.Get(cursorURL)
-	fatal(err)
-
-	var ev struct {
-		Event event.Event `json:"event"`
-	}
-	var cursor EventCursor
-	switch resp.StatusCode {
-	case http.StatusOK:
-		body, err := io.ReadAll(resp.Body)
-		fatal(err)
-		log.Println("got cursor", string(body))
-		fatal(json.Unmarshal(body, &ev), "error decoding cursor event")
-		fatal(json.Unmarshal(ev.Event.Payload, &cursor), "error unmarshalling cursor", string(ev.Event.Payload))
-		streamQuery = streamQuery.After(cursor.LastProcessed)
-	case http.StatusNotFound:
-		// no cursor, start from the beginning
-	default:
-		fatal(fmt.Errorf("cursor: unexpected status code %d", resp.StatusCode))
-	}
-
+	eventURLPrefix := mustGetenv("SUBSTRATE_EVENT_WRITER_URL")
+	pathPrefix := mustGetenv("BRIDGE_EVENT_PATH_PREFIX")
 	queryParams := url.Values{}
 	queryParams.Set("path_prefix", pathPrefix)
 	eventStreamURL := fmt.Sprintf("%s?%s", mustGetenv("SUBSTRATE_STREAM_URL_PATH"), queryParams.Encode())
+
+	toolSelect := &tools.OpenAICompleter{
+		Template: "tool-select",
+	}
+
+	brigeCommandsURL := getEnv("BRIDGE_COMMANDS_URL", "http://localhost:8090/")
 
 	engine.Run(
 		&service.Service{},
@@ -143,99 +120,232 @@ func main() {
 			SampleRate:   format.SampleRate.N(time.Second),
 			SampleWindow: 24 * time.Second,
 		}),
-		cmdSource,
-		transcribe.Agent{
-			Source:  cmdSource,
+		transcribe.Agent{},
+		&transcribe.Command{
+			URL:     brigeCommandsURL,
 			Command: getEnv("BRIDGE_TRANSCRIBE_COMMAND", "transcribe"),
 		},
 		translate.Agent{
-			Source:         cmdSource,
-			Command:        getEnv("BRIDGE_TRANSLATE_COMMAND", "transcribe"),
 			TargetLanguage: "en",
+		},
+		&translate.Command{
+			URL:     brigeCommandsURL,
+			Command: getEnv("BRIDGE_TRANSLATE_COMMAND", "transcribe"),
 		},
 		&tools.OfferAgent{
 			Name:      "bridge",
-			Completer: tools.OpenAICompleter("tool-select"),
+			Completer: toolSelect,
 		},
+		toolSelect,
 		&tools.AutoTriggerAgent{},
 		&tools.CallAgent{
 			Name: "bridge",
 		},
-		diarize.Agent{
-			Client: &diarize.PyannoteClient{
-				Source:  cmdSource,
-				Command: getEnv("BRIDGE_DIARIZE_COMMAND", "diarize"),
-			},
+		diarize.Agent{},
+		&diarize.PyannoteClient{},
+		&diarize.Command{
+			URL:     brigeCommandsURL,
+			Command: getEnv("BRIDGE_DIARIZE_COMMAND", "diarize"),
 		},
 		assistant.Agent{
-			DefaultAssistants: []assistant.Client{
-				must(newAssistantClient("bridge", must(assistant.DefaultPromptTemplateForName("bridge")))),
+			DefaultAssistants: map[string]string{
+				"bridge": must(assistant.DefaultPromptTemplateForName("bridge")),
 			},
 			NewClient: newAssistantClient,
 		},
-		httpevents.NewJSONRequester[assistant.AssistantTextNotification]("PUT", eventURLPrefix+"/assistant/text"),
-		httpevents.NewJSONRequester[tools.OfferNotification]("PUT", eventURLPrefix+"/tools/offer"),
-		httpevents.NewJSONRequester[tools.TriggerNotification]("PUT", eventURLPrefix+"/tools/trigger"),
-		httpevents.NewJSONRequester[tools.CallNotification]("PUT", eventURLPrefix+"/tools/call"),
-		httpevents.NewJSONRequester[diarize.SpeakerDetectedEvent]("PUT", eventURLPrefix+"/diarize/speaker-detected"),
-		httpevents.NewJSONRequester[diarize.SpeakerNameEvent]("PUT", eventURLPrefix+"/diarize/speaker-name"),
-		httpevents.NewJSONRequester[transcribe.TranscriptionEvent]("PUT", eventURLPrefix+"/transcription"),
-		httpevents.NewJSONRequester[translate.TranslationEvent]("PUT", eventURLPrefix+"/translation"),
 		httpevents.NewJSONRequester[vad.ActivityEvent]("PUT", eventURLPrefix+"/voice-activity"),
-		httpevents.NewJSONRequester[EventCursor]("PUT", cursorURL),
-		NewEventStreamer(
-			mustGetenv("SUBSTRATE_EVENT_STREAM_URL"),
-			streamQuery,
-		),
 		workingset.CommandProvider{},
+		EventCommands{
+			EventPathPrefix: pathPrefix,
+			BridgeURL:       baseHref,
+		},
+		&EventWriteCommand{
+			URL:     mustGetenv("SUBSTRATE_EVENT_COMMANDS_URL"),
+			Command: "events:write",
+		},
+		RequestBodyLogger{},
 	)
 }
 
-type EventCursor struct {
-	LastProcessed event.ID `json:"last_processed"`
+type WriteEventsInput struct {
+	Events []event.PendingEvent `json:"events"`
 }
 
-type EventStreamer struct {
-	NotifyQueue     *notify.Queue
-	CursorNotifiers []notify.Notifier[EventCursor]
+type WriteEventsReturns struct {
+	IDs []event.ID `json:"ids"`
+
+	FieldsSHA256s []*event.SHA256Digest `json:"fields_sha256s"`
+	DataSHA256s   []*event.SHA256Digest `json:"data_sha256s"`
+}
+
+type EventWriteCommand = calls.CommandCall[WriteEventsInput, WriteEventsReturns]
+
+type EventCommands struct {
 	Session         *tracks.Session
-	Subscription    interface{ Serve(context.Context) }
-}
-
-func NewEventStreamer(streamURL string, streamQuery *event.Query) *EventStreamer {
-	es := &EventStreamer{}
-	js := httpevents.NewJSONSubscription(
-		"POST",
-		streamURL,
-		streamQuery,
-		notify.On(es.HandleEvent),
-	)
-	js.Initialize()
-	es.Subscription = js
-	return es
-}
-
-func (es *EventStreamer) Serve(ctx context.Context) {
-	es.Subscription.Serve(ctx)
-}
-
-func (es *EventStreamer) HandleEvent(ctx context.Context, n event.Notification, t *struct{}) {
-	events, err := event.Unmarshal[tracks.JSONEvent](n.Events, true)
-	fatal(err)
-	for i, e := range events {
-		_, err := tracks.InsertJSONEvent(es.Session, e)
-		if err != nil {
-			log.Printf("error inserting event: %s", err)
-			j, err := json.Marshal(n.Events[i])
-			if err != nil {
-				log.Printf("error marshalling event: %s", err)
-				continue
-			}
-			log.Printf("event: %s", j)
-		}
+	EventPathPrefix string
+	BridgeURL       string
+	Handlers        []interface {
+		HandleEvent2(context.Context, tracks.Event) ([]tracks.PathEvent, error)
 	}
-	notify.Later(es.NotifyQueue, es.CursorNotifiers, EventCursor{
-		LastProcessed: n.Until,
+	WriteEvents *EventWriteCommand
+}
+
+type EventResult struct {
+	Next []event.PendingEvent `json:"next" doc:""`
+}
+
+type CommandRuleInput struct {
+	Path     string `json:"path"`
+	Disabled bool   `json:"disabled,omitempty"`
+	Deleted  bool   `json:"deleted,omitempty"`
+
+	Conditions []*event.Query `json:"conditions"`
+	Command    commands.Msg   `json:"command"`
+
+	// Cursor *CommandRuleCursor `json:"-"`
+}
+
+func ptr[T any](t T) *T {
+	return &t
+}
+
+func (es *EventCommands) Initialize() {
+	rules := []CommandRuleInput{
+		{
+			Path: "/rules/defs" + es.EventPathPrefix,
+			Conditions: []*event.Query{
+				{
+					EventsWherePrefix: map[string][]event.WherePrefix{
+						"path": {{Prefix: es.EventPathPrefix}},
+					},
+				},
+			},
+			Command: commands.Msg{
+				Meta: commands.Meta{
+					"#/data/parameters/events": {Type: "any"},
+					"#/data/returns/events":    {Type: "any"},
+				},
+				MsgIn: commands.Bindings{
+					"#/msg/data/parameters/events": "#/data/parameters/events",
+				},
+				MsgOut: commands.Bindings{
+					"#/data/returns/next": "#/msg/data/returns/next",
+				},
+				Msg: &commands.Msg{
+					Cap: ptr("reflect"),
+					Data: commands.Fields{
+						"url":  es.BridgeURL,
+						"name": "events:handle",
+					},
+				},
+			},
+		},
+	}
+	events := make([]event.PendingEvent, 0, len(rules))
+	for _, r := range rules {
+		b, err := json.Marshal(r)
+		fatal(err)
+		events = append(events, event.PendingEvent{
+			ConflictKeys: []string{"conditions", "command"},
+			Fields:       b,
+		})
+	}
+	r, err := es.WriteEvents.Call(context.TODO(), WriteEventsInput{Events: events})
+	fatal(err)
+	slog.Info("initialized rules", "result", r)
+}
+
+func (es *EventCommands) Commands(ctx context.Context) commands.Source {
+	sources := []commands.Source{
+		commands.List[commands.Source](
+			handle.Command("handle",
+				"Inserts events into the session",
+				func(ctx context.Context, t *struct{}, args struct {
+					Events []event.Event `json:"events" doc:""`
+				}) (EventResult, error) {
+					r := EventResult{
+						// XXX is the events service processing this?
+						// not seeing new events show up
+						Next: []event.PendingEvent{},
+					}
+					jsonEvents, err := event.Unmarshal[tracks.JSONEvent](args.Events, true)
+					if err != nil {
+						slog.ErrorContext(ctx, "events:handle unable to Unmarshal", "err", err)
+						return r, err
+					}
+					slog.InfoContext(ctx, "events:handle", "num_events", len(jsonEvents))
+					for _, e := range jsonEvents {
+						event, isNew, err := tracks.InsertJSONEvent(es.Session, e)
+						if err != nil {
+							slog.InfoContext(ctx, "error inserting event", "err", err)
+							continue
+							// return r, err
+						}
+						slog.InfoContext(ctx, "events:handle", "event_id", event.ID, "type", event.Type, "isNew", isNew)
+						if isNew {
+							// we eventually want these to be async, but could wait until
+							// splitting it into separate services which would be processing
+							// events independently
+							for _, h := range es.Handlers {
+								results, err := h.HandleEvent2(ctx, *event)
+								if err != nil {
+									slog.InfoContext(ctx, "error processing event", "err", err)
+									continue
+								}
+								pes, err := es.toPendingEvents(results)
+								if err != nil {
+									slog.InfoContext(ctx, "error converting to pending events", "err", err)
+									continue
+								}
+								r.Next = append(r.Next, pes...)
+							}
+						}
+					}
+					return r, nil
+				}),
+		),
+	}
+
+	return commands.Prefixed("events:",
+		commands.Dynamic(nil, nil, func() []commands.Source { return sources }),
+	)
+}
+
+func pathJoin(a, b string) string {
+	a = strings.TrimRight(a, "/")
+	b = strings.TrimLeft(b, "/")
+	return a + "/" + b
+}
+
+// TODO add "links" for storing relationship of events:
+// in the event, add a `links` field, with `{[linkname]: {rel: "eventref", "eventref:event": othereventid, "eventref:start": X, "eventref:end": Y, "eventref:unit": "second", "eventref:axis": "audiotrack/1"}`
+func (es *EventCommands) toPendingEvents(events []tracks.PathEvent) ([]event.PendingEvent, error) {
+	var pes []event.PendingEvent
+	for _, e := range events {
+		e.Path = pathJoin(es.EventPathPrefix, e.Path)
+		pe, err := json.Marshal(e)
+		if err != nil {
+			return nil, err
+		}
+		pes = append(pes, event.PendingEvent{Fields: pe})
+	}
+	return pes, nil
+}
+
+type RequestBodyLogger struct {
+	Log *slog.Logger
+}
+
+func (l *RequestBodyLogger) WrapHTTP(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("error reading body: %s", err), http.StatusInternalServerError)
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		l.Log.Info("request", "method", r.Method, "url", r.URL.String(), "body", string(body))
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -247,14 +357,6 @@ func mustGetenv(name string) string {
 	return value
 }
 
-var cborenc = func() cbor.EncMode {
-	opts := cbor.CoreDetEncOptions()
-	opts.Time = cbor.TimeRFC3339
-	em, err := opts.EncMode()
-	fatal(err)
-	return em
-}()
-
 type eventLogger struct {
 	exclude []string
 }
@@ -265,7 +367,7 @@ func (l eventLogger) HandleEvent(e tracks.Event) {
 			return
 		}
 	}
-	log.Printf("event: %s %s %s-%s %#v", e.Type, e.ID, time.Duration(e.Start), time.Duration(e.End), e.Data)
+	slog.Info("event", "type", e.Type, "id", e.ID, "start", time.Duration(e.Start), "end", time.Duration(e.End), "data", e.Data)
 }
 
 type commandSourceRegistry struct {
@@ -345,7 +447,7 @@ func (pc *PeerComponent) Serve(ctx context.Context) {
 	pc.peer.OnTrack(func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 		sessTrack := pc.Session.NewTrack(pc.Format)
 
-		log.Printf("got track %s %s", track.ID(), track.Kind())
+		slog.InfoContext(ctx, "got track", "id", track.ID(), "kind", track.Kind())
 		if track.Kind() != webrtc.RTPCodecTypeAudio {
 			return
 		}
@@ -363,17 +465,13 @@ func (pc *PeerComponent) Serve(ctx context.Context) {
 			chunk := beep.Take(chunkSize, s)
 			sessTrack.AddAudio(chunk)
 			if err := chunk.Err(); err != nil {
-				log.Printf("track %s: %s", track.ID(), err)
+				slog.InfoContext(ctx, "error in AddAudio", "track_id", track.ID(), "err", err)
 				break
 			}
 		}
 	})
 
 	pc.peer.HandleSignals()
-}
-
-type View struct {
-	Session *tracks.Session
 }
 
 func fatal(err error, msg ...string) {
@@ -415,9 +513,6 @@ type SessionHandler struct {
 }
 
 func (m *SessionHandler) addEvent(w http.ResponseWriter, r *http.Request) {
-	for _, t := range m.Session.Tracks() {
-		log.Printf("track: %s", t.ID)
-	}
 	trackID := tracks.ID(r.PathValue("track_id"))
 	track := m.Session.Track(trackID)
 	if track == nil {
@@ -459,7 +554,7 @@ func (m *SessionHandler) serveSessionText(w http.ResponseWriter, r *http.Request
 		}).
 		ParseFS(ui.Dir, "session.tmpl.txt")
 	if err != nil {
-		log.Printf("error parsing template for session %s: %s", snapshot.ID, err)
+		slog.Info("error parsing template", "session_id", snapshot.ID, "err", err)
 		http.Error(w, fmt.Sprintf("template parse error: %s", err), http.StatusInternalServerError)
 		return
 	}
@@ -469,7 +564,7 @@ func (m *SessionHandler) serveSessionText(w http.ResponseWriter, r *http.Request
 		"NativeLanguages": map[string]bool{"en": true},
 	})
 	if err != nil {
-		log.Printf("error executing template for session %s: %s", snapshot.ID, err)
+		slog.Info("error executing template", "session_id", snapshot.ID, "err", err)
 	}
 }
 
@@ -489,12 +584,12 @@ func (m *SFURoute) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	mux.HandleFunc("GET /sfu", func(w http.ResponseWriter, r *http.Request) {
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			log.Print("upgrade:", err)
+			slog.InfoContext(r.Context(), "error upgrading to WebSocket", "err", err)
 			return
 		}
 		peer, err := m.SFU.AddPeer(conn)
 		if err != nil {
-			log.Print("peer:", err)
+			slog.InfoContext(r.Context(), "error in AddPeer", "err", err)
 			return
 		}
 		peer.HandleSignals()
