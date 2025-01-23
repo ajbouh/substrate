@@ -88,7 +88,7 @@ export function initGrammar() {
 
             Param(key, _c, json) {
                 // console.log("Param", key.sourceString, json.sourceString);
-                return {key: key.sourceString, value: json.toCommand()}
+                return {key: key.toCommand(), value: json.toCommand()}
             },
 
             Json_object1(_ob, param1, rest, rest2, _cc, _cb) {
@@ -145,7 +145,7 @@ export function initGrammar() {
             },
 
             key(k) {
-                return k.sourceString;
+                return k.toCommand();
             },
 
             number_fract(i, _p, f) {
