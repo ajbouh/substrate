@@ -13,7 +13,7 @@ type ParameterType struct {
 }
 
 type InstanceParameterTypes struct {
-	Parameters map[string]ParameterType `json:"parameters`
+	Parameters map[string]ParameterType `json:"parameters"`
 }
 
 func EachInstanceTemplate(defSet *defset.DefSet, f func(serviceName string, instanceTemplate *InstanceParameterTypes)) error {
