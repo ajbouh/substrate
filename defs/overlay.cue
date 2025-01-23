@@ -3,6 +3,7 @@ package defs
 
 import (
   "encoding/json"
+  "encoding/toml"
   "list"
   "strings"
 
@@ -34,18 +35,18 @@ let txtar = {
 overlay: {
   // a focus key can be the key of services, imagespecs, or a resourcedir image_tag
   // focus keys do not enable things for which enabled[focus_key]: false
-  focus_keys_raw: string | *"" @tag(buildx_bake_docker_compose_focus)
+  focus_keys_raw: *"" | string @tag(buildx_bake_docker_compose_focus)
   focus_keys: [...string]
   if focus_keys_raw == "" { focus_keys: [] }
   if focus_keys_raw != "" { focus_keys: strings.Split(focus_keys_raw, " ") }
 
-  block_image_tags_raw: string | *"" @tag(buildx_bake_docker_compose_block_tags)
+  block_image_tags_raw: *"" | string @tag(buildx_bake_docker_compose_block_tags)
   block_image_tags: {[string]: true}
   if block_image_tags_raw != "" {
     block_image_tags: { for key in strings.Split(block_image_tags_raw, "\n") { (key): true } }
   }
 
-  buildx_bake_metadata_raw: string | *"" @tag(buildx_bake_metadata)
+  buildx_bake_metadata_raw: *"" | string @tag(buildx_bake_metadata)
   // buildx_bake_metadata ?: {
   //   "buildx.build.warnings": _
   //   [string]: {
@@ -68,16 +69,16 @@ overlay: {
   if buildx_bake_metadata_raw != "" {
     buildx_bake_metadata: json.Unmarshal(buildx_bake_metadata_raw)
     buildx_bake_image_ids_txtar: (txtar & {
-      for key, buildx_bake_metadata_entry in buildx_bake_metadata if (enable[key] == _|_) || enable[key] {
-        "defs/image_id_\(key).cue": """
-          package defs
-          image_ids: \"\(imagespecs[key].image)\": \"\(buildx_bake_metadata_entry[buildx_bake_metadata_image_digest_key])\"
-          """,
+      #files: {
+        for key, buildx_bake_metadata_entry in buildx_bake_metadata if (enable[key] == _|_) || enable[key] {
+          "defs/image_id_\(key).cue": """
+            package defs
+            image_ids: \"\(imagespecs[key].image)\": \"\(buildx_bake_metadata_entry[buildx_bake_metadata_image_digest_key])\"
+            """,
+        }
       }
     })
   }
-
-  use_bootc_storage: *false | bool @tag(use_bootc_storage,type=bool)
 
   systemd_daemon_quadlets: [string]: _
   systemd_image_quadlets: [string]: systemd.#Unit
@@ -179,7 +180,7 @@ overlay: {
   systemd_daemon_quadlets: {...} & {
     for key in daemon_keyset {
       let def = daemons[key]
-      let quadlets = (containerspec.#SystemdQuadletUnits & {#name: key, #containerspec: def, #use_bootc_storage: use_bootc_storage}).#out
+      let quadlets = (containerspec.#SystemdQuadletUnits & {#name: key, #containerspec: def}).#out
       for basename, quadlet in quadlets {
         (key): (basename): quadlet
       }
@@ -192,7 +193,7 @@ overlay: {
   ]
   for daemon_key in daemon_keyset {
     let def = daemons[daemon_key]
-    let quadlets = (containerspec.#SystemdQuadletUnits & {#name: daemon_key, #containerspec: def, #use_bootc_storage: use_bootc_storage}).#out
+    let quadlets = (containerspec.#SystemdQuadletUnits & {#name: daemon_key, #containerspec: def}).#out
     let quadlet_service = "\(daemon_key).service"
 
     systemd_units_to_start: (quadlet_service): true
@@ -214,7 +215,7 @@ overlay: {
     systemd_units: watcher_units
 
     // add a preset enabling liveedit .path
-    systemd_presets: "60-liveedit-paths.preset": {
+    systemd_presets: "60-liveedit-\(daemon_key)-paths.preset": {
       ("\(daemon_key)-liveedit.path"): "enable"
       ("\(daemon_key)-liveedit.service"): "enable"
     }
@@ -244,7 +245,7 @@ overlay: {
   for key, quadlets in systemd_daemon_quadlets {
     for basename, quadlet in quadlets {
       if basename =~ "\\.container$" {
-        systemd_presets: "50-containers.preset": (quadlet.#systemd_service_name): "enable"
+        systemd_presets: "50-containers-\(quadlet.#systemd_service_name).preset": (quadlet.#systemd_service_name): "enable"
       }
     }
   }
@@ -273,6 +274,8 @@ overlay: {
       for basename, preset in systemd_presets {
         "usr/lib/systemd/system-preset/\(basename)": (systemd.#render_preset & {#preset: preset, #header: preset_header}).#out
       }
+
+      "etc/containers/storage.conf": toml.Marshal(podman_storage_conf)
     }
   })
 

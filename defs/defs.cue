@@ -20,6 +20,8 @@ import (
   host_home_directory: string @tag(host_home_directory)
   host_source_directory: string @tag(host_source_directory)
 
+  use_bootc_storage: *false | bool @tag(use_bootc_storage,type=bool)
+
   image_prefix: string | *"ghcr.io/ajbouh/substrate:substrate-"
   host_machine_id_file: "/etc/machine-id"
   host_hostname_file: "/etc/hostname"
@@ -40,7 +42,10 @@ import (
     event_stream_url: "/events;data=substrate-bootstrap-0/stream/events"
     event_writer_url: "/events;data=substrate-bootstrap-0/tree/fields"
 
+    mount_root: "/mnt"
+
     image_ids: [string]: string
+    system_spaces: [string]: string
   }
 }
 
@@ -87,17 +92,21 @@ resourcedirs: [rdid=string]: {
 #alias: "resourcedirs": resourcedirs
 
 // helper for resolving image tag to image id
-resolve_image_ids: bool | *true @tag(resolve_image_ids,type=bool)
+resolve_image_ids: *true | bool @tag(resolve_image_ids,type=bool)
 resolve_image_id: {
   image_tag: string
-  if !resolve_image_ids || (image_ids == _|_) { image: image_tag }
-  if resolve_image_ids && (image_ids != _|_) { image: image_ids[image_tag] }
-  if (image_ids == _|_) { image: image_tag }
-  if (image_ids != _|_) { image: image_ids[image_tag] }
+  if !resolve_image_ids || (image_ids[image_tag] == _|_) { image: image_tag }
+  if resolve_image_ids && (image_ids[image_tag] != _|_) { image: image_ids[image_tag] }
 }
 
 for key, def in imagespecs if enable[key] {
   #var: substrate: "image_ids": (key): (resolve_image_id & {image_tag: def.image}).image
+}
+
+#var: substrate: "system_spaces": {
+  "source": #var.host_source_directory
+  "home": #var.host_home_directory
+  "root": "/"
 }
 
 services: [key=string]: service & {
@@ -135,3 +144,10 @@ daemons: [key=string]: containerspec.#ContainerSpec & {
 #commands: [key=string]: [commandname=string]: {#name: commandname} & command.#Command
 
 commands: [key=string]: [commandname=string]: {#name: commandname} & command.#Command
+
+if #var.use_bootc_storage {
+  // So we can use bootc logically-bound images. See also: https://containers.github.io/bootc/logically-bound-images.html
+  podman_storage_conf: storage: options: additionalimagestores: [
+    "/usr/lib/bootc/storage",
+  ]
+}

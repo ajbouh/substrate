@@ -25,9 +25,8 @@ type GetSpacesReturns struct {
 	Spaces []activityspec.SpaceEntry `json:"spaces"`
 }
 
-var QueryCommand = handle.HTTPCommand(
+var QueryCommand = handle.Command(
 	"space:query", "List all spaces",
-	"GET /substrate/v1/spaces", "/substrate/v1/spaces/{space}",
 	func(ctx context.Context,
 		t *struct {
 			SpaceQueriers []activityspec.SpaceQuerier
@@ -88,6 +87,7 @@ var GetCommand = handle.HTTPCommand(
 	func(ctx context.Context,
 		t *struct {
 			SpaceViewResolver activityspec.SpaceViewResolver
+			SpaceURLs         SpaceURLs
 		},
 		args struct {
 			Space string `json:"space" path:"space"`
@@ -104,6 +104,7 @@ var GetCommand = handle.HTTPCommand(
 		return &activityspec.SpaceEntry{
 			SpaceID:   view.SpaceID,
 			CreatedAt: view.CreatedAt,
+			HREF:      t.SpaceURLs.SpaceURLFunc(view.SpaceID),
 		}, nil
 	})
 
@@ -113,6 +114,7 @@ var NewCommand = handle.Command(
 	func(ctx context.Context,
 		t *struct {
 			SpaceViewResolver activityspec.SpaceViewResolver
+			SpaceURLs         SpaceURLs
 		},
 		args struct {
 			SpaceSpec     string `json:"spacespec"`
@@ -126,6 +128,7 @@ var NewCommand = handle.Command(
 
 		return &activityspec.SpaceEntry{
 			SpaceID: view.SpaceID,
+			HREF:    t.SpaceURLs.SpaceURLFunc(view.SpaceID),
 		}, nil
 	})
 

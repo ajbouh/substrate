@@ -18,7 +18,7 @@ type contextKey string
 var prefixKey = contextKey("prefix")
 var originalRequestKey = contextKey("originalRequest")
 
-func ContextPrefixOriginalRequest(ctx context.Context) *http.Request {
+func ContextOriginalRequest(ctx context.Context) *http.Request {
 	v, ok := ctx.Value(originalRequestKey).(*http.Request)
 	if ok {
 		return v

@@ -15,6 +15,7 @@ import (
   host_machine_id_file: string
   host_hostname_file: string
 
+  substrate: mount_root: string
   substrate: network_name_prefix: string | *""
   substrate: internal_network_name: string
   substrate: external_network_name: string
@@ -51,7 +52,6 @@ imagespecs: "substrate": {
 }
 
 let substrate_cue_defs_live = "/live/defs"
-let substrate_data = "/var/lib/substrate/data"
 
 tests: "substrate": go: {
   build: {
@@ -67,14 +67,15 @@ tests: "substrate": go: {
 
 daemons: "substrate": {
   environment: {
-    "PORT": string | *"\(#var.substrate.internal_port)"
-    "SUBSTRATE_DB": "\(substrate_data)/substrate.sqlite"
+    "PORT": "443"
+    "HOST": "0.0.0.0"
     "SUBSTRATE_MACHINE_ID_FILE": #var.host_machine_id_file
     "SUBSTRATE_HOSTNAME_FILE": "\(#var.host_hostname_file).host"
     "SUBSTRATE_CUE_DEFS": string | *substrate_cue_defs
     if live_edit["substrate"] {
       "SUBSTRATE_CUE_DEFS_LIVE": substrate_cue_defs_live
     }
+    "SUBSTRATE_USE_BOOTC_STORAGE": string | *"\(#var.use_bootc_storage)"
     "SUBSTRATE_SOURCE": string | *#var.host_source_directory
 
     // TODO pass in internal_host
@@ -94,7 +95,7 @@ daemons: "substrate": {
   }
 
   mounts: {
-    (substrate_data): {source: "\(#var.namespace)-substrate_data" , type: "volume"}
+    (#var.substrate.mount_root): {source: #var.substrate.mount_root}
     "/var/lib/containers/storage": {source: "/var/lib/containers/storage"}
     (#var.host_machine_id_file): {source: #var.host_machine_id_file}
     (environment.SUBSTRATE_HOSTNAME_FILE): {source: #var.host_hostname_file}
@@ -138,7 +139,6 @@ daemons: "substrate": {
           // To make localhost forwarding work (e.g. qemu, publish on the same port)
           "\(Environment.PORT):\(Environment.PORT)",
         ]
-        AddDevice: ["nvidia.com/gpu=all"]
         Network: [
           "substrate-external.network",
           "substrate-internal.network",

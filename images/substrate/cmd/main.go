@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -16,6 +15,8 @@ import (
 
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
+	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
+	"github.com/caddyserver/certmagic"
 
 	"cuelang.org/go/cue"
 	"github.com/containers/podman/v4/pkg/bindings"
@@ -25,8 +26,9 @@ import (
 	"github.com/rs/cors"
 	"github.com/sirupsen/logrus"
 
+	"github.com/ajbouh/substrate/images/substrate/caddy/caddypki"
+	"github.com/ajbouh/substrate/images/substrate/caddy/caddytls"
 	"github.com/ajbouh/substrate/images/substrate/defset"
-	substratefs "github.com/ajbouh/substrate/images/substrate/fs"
 	substratehttp "github.com/ajbouh/substrate/images/substrate/http"
 	"github.com/ajbouh/substrate/images/substrate/provisioner"
 	podmanprovisioner "github.com/ajbouh/substrate/images/substrate/provisioner/podman"
@@ -69,7 +71,8 @@ func main() {
 	var err error
 
 	cudaAllowed := false
-	if _, err := exec.LookPath("nvidia-smi"); err == nil {
+
+	if _, err := os.Stat("/sys/bus/pci/drivers/nvidia"); err == nil {
 		cudaAllowed = true
 	}
 
@@ -110,6 +113,29 @@ func main() {
 			BaseURL:      origin,
 			ExportsRoute: "/substrate/v1/exports",
 		},
+
+		// for substrate managing its own tls
+		certmagic.NewDefault(),
+		&certmagic.FileStorage{Path: "/tmp/ca"},
+		&caddypki.CA{},
+		&caddypki.PKI{},
+		&caddytls.InternalIssuer{},
+		&units.CertMagicTLSConfig{
+			DomainNames: []string{
+				// for now we assume .local and that the internal issuer is enough.
+				hostname,
+			},
+		},
+
+		// Define a server for internal use. It's not clear that this is the right answer
+		// long term, but it allows us to delay certificate validation concerns and to
+		// decouple the "external" network from the internal one.
+		&httpframework.Framework{
+			// Note that we expect `substrate`` to resolve to the internal address.
+			ListenAddr: "substrate:8080",
+			TLSConfig:  &units.NoopTLSConfig{},
+		},
+
 		&podmanprovisioner.P{
 			Connect: func(ctx context.Context) (context.Context, error) {
 				return bindings.NewConnection(ctx, os.Getenv("DOCKER_HOST"))
@@ -136,11 +162,7 @@ func main() {
 		provisionerCache,
 		httpevents.NewJSONEventStream[*defset.DefSet](""),
 
-		&units.RootSpacesLinkQuerier{
-			SpaceURL: func(space string) string {
-				return "/substrate/v1/spaces/" + space
-			},
-		},
+		&units.RootSpacesLinkQuerier{},
 		space.CommitCommand,
 		space.DeleteCommand,
 		space.GetCommand,
@@ -332,10 +354,6 @@ func main() {
 				}
 			}
 		}),
-	}
-
-	if os.Getenv("SUBSTRATEFS_ROOT") != "" {
-		units = append(units, substratefs.NewLayout(mustGetenv("SUBSTRATEFS_ROOT")))
 	}
 
 	engine.Run(units...)

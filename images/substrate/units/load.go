@@ -27,6 +27,7 @@ func cueDefsLoadTags() []string {
 		"live_edit=" + liveEdit,
 		"namespace=" + mustGetenv("SUBSTRATE_NAMESPACE"),
 		"cue_defs=" + mustGetenv("SUBSTRATE_CUE_DEFS"),
+		"use_bootc_storage=" + mustGetenv("SUBSTRATE_USE_BOOTC_STORAGE"),
 	}
 
 	if os.Getenv("SUBSTRATE_SOURCE") != "" {

@@ -34,6 +34,18 @@ func (s *DefSet) DecodeLookupPath(p cue.Path, target any) error {
 	return s.RootValue.LookupPath(p).Decode(target)
 }
 
+func (s *DefSet) DecodeLookupPathIfExists(p cue.Path, target any) (bool, error) {
+	s.CueMu.Lock()
+	defer s.CueMu.Unlock()
+
+	v := s.RootValue.LookupPath(p)
+	if !v.Exists() {
+		return false, nil
+	}
+
+	return true, v.Decode(target)
+}
+
 func (s *DefSet) LookupServiceInstanceJSON(ctx context.Context, serviceName, instanceName string, path cue.Path) ([]byte, error) {
 	s.CueMu.Lock()
 	defer s.CueMu.Unlock()

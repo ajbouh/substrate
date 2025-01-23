@@ -6,7 +6,7 @@ StartLimitInterval=5
 StartLimitBurst=10
 LimitNOFILE=102400
 # TODO switch to using socket activation, see also https://github.com/coreos/go-systemd/tree/main/examples/activation/httpserver
-ExecStart=/usr/bin/gotty --permit-write --port 8181 --credential "substrate:substrate" --path /debug/shell /bin/bash
+ExecStart=/usr/bin/gotty --permit-write --port 8181 --credential "substrate:substrate" /bin/bash
 Restart=always
 RestartSec=120
 

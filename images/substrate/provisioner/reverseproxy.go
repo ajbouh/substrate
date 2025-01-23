@@ -59,6 +59,16 @@ func provisioningReverseProxy(
 			// defer slog.Info("provisioningReverseProxy proxy.Rewrite done", "ttl", ttl, "urlin", r.In.URL.String(), "urlout", r.Out.URL.String())
 
 		},
+		ModifyResponse: func(r *http.Response) error {
+			// Do not pass these headers through. They are the gateway's responsibility to manage.
+			// Leaving them in can cause them to be repeated in the final response.
+			r.Header.Del("Access-Control-Allow-Origin")
+			r.Header.Del("Access-Control-Allow-Credentials")
+			r.Header.Del("Access-Control-Allow-Methods")
+			r.Header.Del("Access-Control-Allow-Headers")
+			return nil
+		},
+
 		// ErrorHandler is an optional function that handles errors reaching the backend or errors from ModifyResponse.
 		// If nil, the default is to log the provided error and return a 502 Status Bad Gateway response.
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, err error) {

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
+	"log/slog"
 	"path/filepath"
 	"strings"
 
@@ -62,9 +62,13 @@ func RemoveFiles(fsys fs.FS, files ...string) error {
 }
 
 func readAllJSONFilesWithSuffix[T any](fsys fs.FS, baseDir string, suffix string) (map[string]T, error) {
+	slog.Info("readAllJSONFilesWithSuffix", "baseDir", baseDir, "suffix", suffix)
 	m := map[string]T{}
 	var errs []error
+	baseDirPrefix := baseDir + "/"
 	err := fs.WalkDir(fsys, baseDir, func(p string, d fs.DirEntry, err error) error {
+		slog.Info("readAllJSONFilesWithSuffix", "baseDir", baseDir, "suffix", suffix, "p", p, "d", d, "err", err)
+
 		if err != nil && errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
@@ -78,12 +82,12 @@ func readAllJSONFilesWithSuffix[T any](fsys fs.FS, baseDir string, suffix string
 			return nil
 		}
 
-		linkFileName := filepath.Join(p, d.Name())
+		linkFileName := p
 		if !strings.HasSuffix(linkFileName, suffix) {
 			return nil
 		}
 
-		b, err := os.ReadFile(filepath.Join(baseDir, linkFileName))
+		b, err := fs.ReadFile(fsys, linkFileName)
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil
 		}
@@ -99,7 +103,7 @@ func readAllJSONFilesWithSuffix[T any](fsys fs.FS, baseDir string, suffix string
 			errs = append(errs, err)
 		}
 
-		key := strings.TrimPrefix(strings.TrimSuffix(linkFileName, suffix), baseDir)
+		key := strings.TrimPrefix(strings.TrimSuffix(linkFileName, suffix), baseDirPrefix)
 		m[key] = t
 
 		return nil
@@ -111,6 +115,8 @@ func readAllJSONFilesWithSuffix[T any](fsys fs.FS, baseDir string, suffix string
 	if err != nil {
 		errs = append(errs, err)
 	}
+
+	slog.Info("readAllJSONFilesWithSuffix", "m", m, "err", err)
 
 	return m, errors.Join(errs...)
 }

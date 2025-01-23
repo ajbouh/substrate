@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"> 
+        <script src="./ohm.js"></script>
+        <script src="./markdown-it.min.js"></script>
+        <link rel="stylesheet" href="./msg.css">
+        <link rel="stylesheet" href="./msgindex.css">
+        <link rel="stylesheet" href="./inspector.min.css">
+    </head>
+    <body>
+        <div id="renkon">
+            <script type="reactive">
+                const hostName = (() => {
+                    const maybeHost = new URL(window.location).searchParams.get("host")
+                    if (maybeHost) {
+                        return maybeHost;
+                    }
+                    return new URL('/', window.location.href).toString();
+                })();
+
+                const md = (() => {
+                    return window.markdownit();
+                })()
+
+                const {ReflectCommands} = import(`${hostName}/tool-call/js/commands.js`);
+                const {h, render, html} = import(Renkon.spaceURL("./preact.standalone.module.js"));
+                const {initGrammar, translate} = import("./parser.js");
+
+                const viewCommands = {
+                    go: (input) => {
+                        const url = input.params.url;
+                        console.log("go", url);
+                        if (!url) {return;}
+                        Events.send(goRequest, url)
+                        return "went to " + url
+                    },
+                    tab: () => {
+                        Events.send(tabRequest, {type: "newTab", url: "/~/"})
+                        return "new tab"
+                    },
+                    ping: () => {
+                        return "pong"
+                    },
+                };
+                
+                const topUrlInput = goRequest;
+
+                const commandRequest = Events.receiver();
+                const viewCommandRequest = Events.receiver();
+                const reflowRequest = Events.receiver();
+                const goRequest = Events.receiver();
+                const tabRequest = Events.receiver();
+                const suggestion = Events.receiver();
+
+                console.log(suggestion);
+
+                const insertSuggestion = ((suggestion, insertInspectorAndFocusInput) => {
+                    console.log("insertSuggestion", suggestion);
+                    insertInspectorAndFocusInput.value = suggestion.name + " ";
+                    const length = suggestion.name.length + 1;
+                    insertInspectorAndFocusInput.focus();
+                    insertInspectorAndFocusInput.setSelectionRange(length, length);
+                })(suggestion, insertInspectorAndFocusInput);
+
+                const grammar = initGrammar();
+
+                const topUrlKeyHandler = (evt) => {
+                    if (evt.key === "Enter") {
+                        evt.preventDefault();
+                        evt.stopPropagation();
+                        console.log("enter");
+                        return evt.target.value;
+                    }
+                };
+
+                const targetUrl = Behaviors.collect(hostName, topUrlInput, (_, topUrlInput) => {
+                    if (topUrlInput.startsWith("/") && hostName) {
+                        return `${hostName}${topUrlInput}`;
+                    }
+                    return topUrlInput
+                });
+
+                console.log("targetUrl", targetUrl);
+                
+                const reflectResponse = ((targetUrl) => {
+                        return new ReflectCommands(targetUrl).reflect();
+                })(targetUrl);
+                
+                const description = ((reflectResponse) => {
+                    const describeCmd = reflectResponse['describe']
+                    // TODO run describeCmd to get description
+                    const description = `# This is the mock description
+                    
+It has multiple lines and is written in markdown
+                    `
+                    console.log("description", {reflectResponse, description})
+                    return description
+                })(reflectResponse)
+
+                document.querySelector("#rootBar").innerHTML = md.render(description);
+
+                const commandKeyHandler = (evt, i) => {
+                    if (evt.key === "Enter") {
+                        evt.preventDefault();
+                        evt.stopPropagation();
+                        console.log("command enter", i);
+                        let translated;
+                        try {
+                            translated = translate(evt.target.value);
+                        } catch(e) {
+                            console.log({e})
+                            // console.log(e.reason, e.expected, e.pos);
+                        }
+                        if (!translated) {return;}
+                        if (translated.viewCommand) {
+                            Events.send(viewCommandRequest, {value: translated, input: evt.target.value, index: i});
+                        } else {
+                            Events.send(commandRequest, {value: translated, input: evt.target.value, index: i});
+                        }
+                    }
+                };
+
+                const invokeViewCommand = ((viewCommandRequest) => {
+                    const command = viewCommandRequest.value;
+                    const input = viewCommandRequest.input;
+                    const id = viewCommandRequest.index;
+
+                    const cmd = viewCommands[command.command];
+                    if (!cmd) {return;}
+                    return {id, input: input, value: cmd(command)}
+                })(Events.change(viewCommandRequest));
+
+                const invokeCommandResponse = ((commandRequest, reflectResponse) => {
+                    const command = commandRequest.value;
+                    const input = commandRequest.input;
+                    const id = commandRequest.index;
+
+                    const cmd = reflectResponse[command.command];
+                    if (!cmd) {return;}
+                    return {id, input: input, value: cmd.run(command.params)}
+                })(commandRequest, reflectResponse);
+
+                const invokeCommand = Events.resolvePart(invokeCommandResponse.value, invokeCommandResponse);
+
+                console.log("invokeCommand", invokeCommand);
+
+                const tabs = Behaviors.collect({current: 0, tabs: [{tabId: 0, url: "/", sections: [{}]}]}, Events.or(Events.change(invokeCommand), Events.change(invokeViewCommand), tabRequest), (now, request) => {
+                    console.log("tabs", request);
+                    if (typeof request === "object" && request.type === "tabRequest") {
+                        // the request is to switch tabs
+                        if (request.value === now.current) {
+                            return now;
+                        }
+                        return {current: request.value, tabs: now.tabs};
+                    }
+    
+                    if (typeof request === "object" && request.type === "newTab") {
+                        const newTabId = now.tabs[now.tabs.length - 1].tabId + 1;
+                        return {current: newTabId, tabs: [...now.tabs, {tabId: newTabId, url: now.tabs[now.current].url, sections: [{}]}]};
+                    }
+
+                    if (typeof request === "object" && typeof request.id === "number") {
+                        // the request is an invocation
+                        const tabId = now.current;
+                        const newTabs = [...now.tabs];
+                        const newTab = newTabs[tabId];
+                        const newSections = [...newTab.sections, {}];
+                        const newSection = {...request};
+                        newSections[request.id] = newSection;
+                        newTabs[tabId] = {tabId, url: newTab.url, sections: newSections};
+                        return {current: tabId,  tabs: newTabs};
+                    }
+                });
+
+                (() => {
+                    if (viewCommandRequest !== undefined) {
+                        return
+                    }
+                    const input = `@go url: "/"`
+                    const translated = translate(input)
+                    Events.send(viewCommandRequest, {value: translated, input, index: 0});
+                })()
+
+
+                const reflowRequester = () => Events.send(reflowRequest, "foo")
+
+                const sectionDOMs = ((tabs) => {
+                    const tab = tabs.tabs[tabs.current];
+                    const {sections} = tab;
+                    return sections.map((tab, i) => {
+                        return h("div", {id: `tab-${i}`, class: "commandPane"},
+                                 [h("div",
+                                    {id: `editor-holder-${i}`, class: "commandEditor"},
+                                    [h("span", {}, "> "),
+                                     h("div", {class: "inputHolder", display: "flex"}, [
+                                         h("div", {class: "inputWidth"}, [
+                                             h("textarea", {class: "inputInput", value: tab.input || "", onKeydown: (evt) => commandKeyHandler(evt, i)}),
+                                         ]),
+                                     ])
+                                    ]),
+                                  h("div", {
+                                      class: "commandResult",
+                                      id: `command-result-${i}`
+                                  }, "")
+                                 ])
+                    });
+                })(tabs);
+
+                const urlTabDOMs = ((tabs) => {
+                    const myTabs = tabs.tabs;
+                    return myTabs.map((tab, i) => {
+                        return h("div", {id: `urlTab-${i}`, title: tab.url, class: `urlTab ${i === tabs.current ? "selected" : ""}`, onclick: (evt) => Events.send(tabRequest, {type: "tabRequest", value: i})}, []);
+                    });
+                })(tabs);
+
+                render(urlTabDOMs, document.querySelector("#urlTabs"));
+
+                const insertInspectorAndFocusInput = ((tabs, sectionDOMs) => {
+                    const tab = tabs.tabs[tabs.current];
+                    const {sections, tabId} = tab;
+                    console.log("insertInspectorAndFocusInput");
+                    const result = render(sectionDOMs, document.querySelector("#commandContainer"));
+                    sections.forEach((tab, i) => {
+                        const dom = document.querySelector(`#command-result-${i}`);
+                        if (dom && tab.value) {
+                            const inspector = Renkon.app.newInspector(tab.value, dom);
+                        }
+                    });
+                    
+                    const input = document.querySelector("#commandContainer").querySelector(`#editor-holder-${sectionDOMs.length - 1} input`);
+                    if (input) {
+                        input.focus()
+                        return input;
+                    }
+                    return;
+                })(tabs, sectionDOMs);
+
+                const {dom: msgDOM} = import("./msg.js")
+                const jsonpointer = import("./jsonpointer.js")
+
+                const msgindex = reflectResponse
+
+                const msgindexDOM = (({msgindex}) => {
+                    const entries = Object.entries(msgindex)
+                    return h('div', {}, [
+                        h('select', {
+                            size: entries.length + 1,
+                            style: {
+                                height: '100%',
+                                width: '100%',
+                            },
+                            onchange: (ev) => {
+                                Events.send(msgindexrecv, ev.target.value)
+                            },
+                        }, entries.map(([name, msg]) => {
+                            return h('option', {value: name}, name)
+                        })),
+                    ])
+                })({msgindex})
+            
+                const msgindexrecv = Events.receiver()
+                console.log({msgindexrecv})
+
+                render(msgindexDOM, document.querySelector("#msgindex"))
+
+                const msg = msgindex[msgindexrecv]
+                const mymsgDOM = msgDOM({h, html, jsonpointer, md, msg})
+                render(mymsgDOM, document.querySelector("#msg"))
+            </script>
+            <div id="container" style="height: 100%">
+                <div id="urlTabs"></div>
+                <div id="rootBar"></div>
+                <div id="commandContainer"></div>
+                <div id="msgindexroot">
+                    <div id="msgindex"></div>
+                    <div id="msg"></div>
+                </div>
+            </div>
+            <style>
+                .observablehq--caret {
+                    margin-right: 4px;
+                    vertical-align: baseline;
+                }
+                #container {
+                    display: flex;
+                    flex-direction: column;
+                    
+                }
+                #urlTabs {
+                    display: flex;
+                    width: 100%;
+                    height: 24px;
+                    background-color: transparent;
+                }
+
+                .urlTab {
+                    width: 22px;
+                    height: 22px;
+                    background-color: transparent;
+                    margin-left: 4px;
+                    border: 1px solid black;
+                }
+
+                .urlTab.selected {
+                    background-color: #808080;
+                }
+                    
+                #rootBar {
+                    background-color: #f4f4f4;
+                    display: flex;
+                    flex-direction: column;
+                    border: 1px solid #a8a8a8;
+                    margin: 2px 2px 10px 2px;
+                    padding: 8px;
+                }
+
+                #rootLabel {
+                    margin-left: 18px;
+                    font-size: 22px;
+                    font-weight: 700;
+                    line-height: 26.63px;
+                }
+
+                #rootSubLabel {
+                    margin-left: 18px;
+                    font-size: 12px;
+                    line-height: 14.52px;
+                }
+
+                #commandContainer {
+                    flex-grow: 1;
+                }
+
+                .commandPane {
+                    min-height: 100px;
+                    background-color: #e4f3f6;
+                    margin: 4px;
+                }
+
+                .commandEditor textarea {
+                    width: 80vh;
+                    border: 0px;
+                    background: transparent;
+                    field-sizing: content;
+                }
+
+                .commandEditor {
+                    display: flex;
+                    width: 100%;
+                    border: 0px;
+                    background: transparent;
+                }
+
+                .commandMenu {
+                    margin-top: 10px;
+                    display: flex;
+                    flex-direction: column;
+                    background-color: #f4f4f4;
+                    min-width: 80px;
+                    width: fit-content;
+                }
+
+                .commandResult {
+                    background-color: #f8f8f8;
+                }
+
+                .commandItem {
+                    font-size: 14px;
+                }
+                
+                .commandRow {
+                    display: flex;
+                    border: 1px solid black;
+                }
+                
+                .output {
+                    margin-left: 100px;
+                    flex-grow: 1;
+                }
+
+                .inputHolder {
+                    flex-grow: 1;
+                }
+
+                .inputWidth {
+                    width: 0px;
+                    overflow: visible;
+                }
+            </style>
+        </div>
+        <script type="module">
+            import {view, newInspector} from "./renkon.js";
+            view({app: {newInspector}});
+        </script>
+    </body>
+</html>

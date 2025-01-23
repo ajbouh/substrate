@@ -2,6 +2,7 @@ package httpframework
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net"
@@ -21,6 +22,10 @@ type ConnState interface {
 	HTTPConnState(net.Conn, http.ConnState)
 }
 
+type TLSConfig interface {
+	FrameworkTLSConfig() (*tls.Config, error)
+}
+
 type Framework struct {
 	ListenAddr string
 	Listener   net.Listener
@@ -29,6 +34,7 @@ type Framework struct {
 	Middleware   []Middleware
 
 	ConnState []ConnState
+	TLSConfig TLSConfig
 
 	Log *slog.Logger
 
@@ -93,6 +99,14 @@ func (f *Framework) InitializeDaemon() error {
 				fn.HTTPConnState(c, cs)
 			}
 		},
+	}
+
+	if f.TLSConfig != nil {
+		cfg, err := f.TLSConfig.FrameworkTLSConfig()
+		if err != nil {
+			return err
+		}
+		f.s.TLSConfig = cfg
 	}
 
 	if f.Listener == nil {

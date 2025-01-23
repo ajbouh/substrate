@@ -1,0 +1,31 @@
+#msg {
+    max-width: 50rem;
+    margin-left: 1em;
+}
+.fieldDescription > .field {
+    padding: 1em;
+    border-radius: 0.2em;
+    border: 1px #ccc solid;
+}
+.field {
+    border-bottom: 1px #ccc solid;
+    border-collapse: collapse;
+    margin-top: 1ex;
+    padding-bottom: 1ex;
+}
+.fieldName {
+    font-weight: 700;
+    color: #111;
+    font-family: monospace;
+}
+.fieldType {
+    font-weight: 200;
+    color: #777;
+    margin-left: 1ex;
+    font-size: 0.9em;
+}
+.fieldDescription {
+    color: #555;
+    padding-top: 1ex;
+    padding-bottom: 1ex;
+}

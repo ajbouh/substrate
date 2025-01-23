@@ -283,5 +283,9 @@ func getPath(f any, k []string) (any, bool, error) {
 		return v, ok, nil
 	}
 
+	if !ok {
+		return nil, false, fmt.Errorf("no value for %#v in %#v", first, f)
+	}
+
 	return getPath(v, k[1:])
 }

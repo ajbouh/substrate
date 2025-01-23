@@ -21,12 +21,6 @@ COPY --from=gotty-js-build /gotty/js/node_modules /gotty/js/node_modules
 COPY --from=gotty-js-build /gotty/bindata/static/js /gotty/bindata/static/js
 RUN touch /gotty/bindata/static/js/* && CGO_ENABLED=0 make
 
-FROM docker.io/library/golang:1.22 AS caddy-go-build
-WORKDIR /caddy
-COPY images/caddy/. .
-RUN  --mount=type=cache,target=/go/pkg/mod \
-  go build
-
 FROM ghcr.io/ublue-os/fedora-coreos:stable-nvidia-20241124 AS base
 
 FROM base AS overlay-build
@@ -38,6 +32,7 @@ ARG SUBSTRATE_GROUP
 ARG SUBSTRATE_HOME
 ARG SUBSTRATE_SOURCE
 ARG SUBSTRATE_BUILD_FOCUS
+ARG SUBSTRATE_RESOLVE_IMAGE_IDS
 ARG SUBSTRATE_USE_BOOTC_STORAGE
 
 COPY images/substrateos/overlay /overlay
@@ -52,6 +47,7 @@ RUN --mount=from=txtar-go-build,src=/go/bin/txtar,dst=/tmp/tools/bin/txtar \
       "CUE_DEV_DIR=/tmp/defs" \
       "NAMESPACE=${NAMESPACE}" \
       "CUE_DEV_DEFS=${CUE_DEV_DEFS}" \
+      "SUBSTRATE_RESOLVE_IMAGE_IDS=${SUBSTRATE_RESOLVE_IMAGE_IDS}" \
       "SUBSTRATE_USE_BOOTC_STORAGE=${SUBSTRATE_USE_BOOTC_STORAGE}" \
       "SUBSTRATE_LIVE_EDIT=${SUBSTRATE_LIVE_EDIT}" \
       "SUBSTRATE_USER=${SUBSTRATE_USER}" \
@@ -59,10 +55,11 @@ RUN --mount=from=txtar-go-build,src=/go/bin/txtar,dst=/tmp/tools/bin/txtar \
       "SUBSTRATE_HOME=${SUBSTRATE_HOME}" \
       "SUBSTRATE_SOURCE=${SUBSTRATE_SOURCE}" \
       "SUBSTRATE_BUILD_FOCUS=${SUBSTRATE_BUILD_FOCUS}" \
-      /tmp/build-overlay.sh
+      /tmp/build-overlay.sh; \
+      find /overlay
 
 FROM scratch AS overlay
-COPY --from=overlay-build /overlay /
+COPY --from=overlay-build /overlay/. /
 
 FROM base AS dist
 
@@ -77,8 +74,7 @@ RUN mkdir -p /var/lib/alternatives && \
     ostree container commit
 
 COPY images/substrateos/build-custom.sh /tmp/build-custom.sh
-RUN --mount=from=caddy-go-build,src=/caddy/caddy,dst=/tmp/caddy/caddy \
-    --mount=from=gotty-go-build,src=/gotty/gotty,dst=/tmp/gotty/gotty \
+RUN --mount=from=gotty-go-build,src=/gotty/gotty,dst=/tmp/gotty/gotty \
     /tmp/build-custom.sh && \
     ostree container commit
 

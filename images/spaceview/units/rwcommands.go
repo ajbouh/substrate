@@ -60,7 +60,7 @@ var CommandsWriteCommand = handle.Command(
 )
 
 var CommandsRemoveCommand = handle.Command(
-	"commands:remove", "",
+	"commands:delete", "",
 	func(ctx context.Context,
 		spaceCommands *SpaceCommands,
 		args struct {

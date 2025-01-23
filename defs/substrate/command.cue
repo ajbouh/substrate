@@ -17,11 +17,8 @@ import (
 #Msg: {
     #name: string
 
-    ({
-        msg: #Msg
-    } | {
-        cap: string
-    })
+    msg ?: #Msg
+    cap ?: string
 
     msg_in ?: [dstpointer=string]: string
     msg_out ?: [dstpointer=string]: string

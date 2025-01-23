@@ -102,7 +102,7 @@ There are a lot of rough edges here, but hopefully this is much better base for 
 
     ```shell
     # THIS WILL REFORMAT THE COMPUTER WITHOUT CONFIRMATION
-    sudo coreos-installer install /dev/nvme0n1 
+    sudo substrateos-installer install /dev/nvme0n1 
     ```
 
 5. Then you can reboot (and remove the USB drive).
@@ -110,38 +110,36 @@ There are a lot of rough edges here, but hopefully this is much better base for 
     sudo reboot
     ```
 
-6. Back on your development machine you should add the NUC's IP address to your `/etc/hosts` file and `~/.ssh/config`. Be sure to use the machine's actual IP address, which is not always going to be `192.168.1.193`.
-    ```
-    # /etc/hosts
-    192.168.1.193 substrate.home.arpa
-    ```
-
-    ```
-    # ~/.ssh/config
-    Host substrate.home.arpa
-        User core
-        IdentityFile ~/.ssh/id_substrate
+6. Back on your development machine you can wait for the substrate device to announce itself on the network via mdns. You can use the `discover` subcommand of the `remote` script to do this.
+    ```shell
+    ./remote discover
     ```
 
-7. Then visit the root debug shell at: https://substrate:substrate@substrate.home.arpa/debug/shell.
+7. Then visit the root debug shell at: http://substrate:substrate@substrate-foo.local:8181/debug/shell.
 
-    Set a password for the core user (we are no longer using the substrate user), and set your authorized_key with something like:
+    Set a password for the root user (we are no longer using the core or substrate user), and set your authorized_key with something like:
 
     ```shell
-    passwd core
+    passwd
     # enter a new password
-    su core
+    su
     mkdir -p ~/.ssh/authorized_keys.d
     cat > ~/.ssh/authorized_keys.d/dev <<EOF
     ssh-ed25519 ...
     EOF
     ```
 
-8. Build the container images, resourcedirs, and systemd units on the remote machine:
+8. On your development machine you should add the device's hostname to your `~/.ssh/config`. Below we just specify a wildcard so it works for any device with the pattern substrate-*.local.
+    ```
+    # ~/.ssh/config
+    Host substrate-*.local
+        User root
+        IdentityFile ~/.ssh/id_substrate
+    ```
+
+9. Build the container images, resourcedirs, and systemd units on the remote machine:
 
     ```
-    # HACK this is a workaround because we aren't properly mounting the oob files
-    ./remote ssh sudo mkdir -p /run/media/oob/imagestore
     ./remote ./dev.sh systemd-reload
     ```
 
@@ -149,20 +147,19 @@ There are a lot of rough edges here, but hopefully this is much better base for 
 
     Under the hood, `./remote ...` will:
 
-    1) Sync your current checkout directly into the `substrate.home.arpa` device. This includes any staged or unstaged changes in tracked files, but *not* ignored or untracked files.
-    2) Run the rest of the command (in this case `./dev.sh systemd-reload`) on the NUC itself 
+    1) Sync your current checkout directly into the substrate device. This includes any staged or unstaged changes in tracked files, but *not* ignored or untracked files.
+    2) Run the rest of the command (in this case `./dev.sh systemd-reload`) on the device itself 
 
     Under the hood, `./dev.sh systemd-reload` will:
 
     1) Override any substrateos-specific systemd units to match your current checkout (but not all of them)
     2) Rebuild containers
     3) Run `systemd daemon-reload`
-    4) Restart the substrate service
+    4) Restart the substrate service if it's changed.
 
     </details>
 
-
-9. On your laptop, visit https://substrate.home.arpa/bridge/. Select your microphone, click "Unmute", and try speaking.
+9. On your laptop, visit https://substrate-foo.local/bridge/. Select your microphone, click "Unmute", and try speaking.
 
 10. After the initial reload, you can limit your build to a specific image. For example:
 

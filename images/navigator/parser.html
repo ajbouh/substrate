@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8"> 
+        <script src="./ohm.js"></script>
+    </head>
+    <body>
+        <div id="renkon">
+            <script type="reactive">
+                const {initGrammar, test} = import("./parser.js");
+
+                const g = initGrammar();
+
+                // console.log(test('abc:def p: {source: "x + y", with: 3}'));
+
+                const str1 = 'abc:def p: [`';
+                const str2 = '`]';
+                const str = `x
++
+y
+`;
+                console.log(test(str1 + str + str2));
+
+                //console.log(test('go url: "https://substrate-bc99.local/bridge"'));
+                
+            </script>
+        </div>
+        <script type="module">
+            import {view, newInspector} from "./renkon.js";
+            view({app: {newInspector}});
+        </script>
+    </body>
+</html>

@@ -4,11 +4,12 @@ import (
 	"context"
 
 	"github.com/ajbouh/substrate/images/substrate/activityspec"
+	"github.com/ajbouh/substrate/images/substrate/space"
 	"github.com/ajbouh/substrate/pkg/toolkit/links"
 )
 
 type RootSpacesLinkQuerier struct {
-	SpaceURL      func(space string) string
+	SpaceURLs     space.SpaceURLs
 	SpaceQueriers []activityspec.SpaceQuerier
 }
 
@@ -26,7 +27,7 @@ func (s *RootSpacesLinkQuerier) QueryLinks(ctx context.Context) (links.Links, er
 		for _, space := range spaces {
 			e["space/"+space.SpaceID] = links.Link{
 				Rel:  "space",
-				HREF: s.SpaceURL(space.SpaceID),
+				HREF: s.SpaceURLs.SpaceURLFunc(space.SpaceID),
 				Attributes: map[string]any{
 					"space:created_at": space.CreatedAt,
 				},

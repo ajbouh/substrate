@@ -110,6 +110,14 @@ func (p *P) includeView(ctx context.Context, s *specgen.SpecGenerator, viewName 
 	}
 
 	for _, m := range view.Mounts(targetPrefix) {
+		// HACK grab the first bind mount and call it the host directory
+		if m.Type == "bind" {
+			envKey := "SUBSTRATE_SPACE_" + viewName + "_HOST_DIR"
+			if !includeSpaceIDInTarget && s.Env[envKey] == "" {
+				s.Env[envKey] = m.Source
+			}
+		}
+
 		err := p.appendMount(ctx, s, m)
 		if err != nil {
 			return fmt.Errorf("error appending mount %#v: %w", err)

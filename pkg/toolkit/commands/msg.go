@@ -14,6 +14,13 @@ type Metadata struct {
 	Type        string `json:"type,omitempty"`
 }
 
+func Cap(cap string, data Fields) *Msg {
+	return &Msg{
+		Cap:  &cap,
+		Data: data,
+	}
+}
+
 // Msg represents a possible future message send.
 type Msg struct {
 	// Description provides human (and AI) level documentation about what the command invocation would do

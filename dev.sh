@@ -17,6 +17,17 @@ case "$CUE_NATIVE_SUFFIX" in
 esac
 CUE_NATIVE=$HERE/tools/cue/${CUE_PREFIX}${CUE_NATIVE_SUFFIX}
 
+GO_VERSION="1.23.4"
+GO_PREFIX=go-v${GO_VERSION}-
+GO_NATIVE_SUFFIX=$(uname -s | tr "[:upper:]" "[:lower:]")-$(uname -m)
+# HACK use amd64
+case "$GO_NATIVE_SUFFIX" in
+  linux-x86_64)
+    GO_NATIVE_SUFFIX=linux-amd64
+    ;;
+esac
+GO_NATIVE=$HERE/tools/go/${GO_PREFIX}${GO_NATIVE_SUFFIX}
+
 BUILDX_VERSION="0.19.1"
 BUILDX_PREFIX=buildx-v${BUILDX_VERSION}.
 BUILDX_NATIVE_SUFFIX=$(uname -s | tr "[:upper:]" "[:lower:]")_$(uname -m)
@@ -89,6 +100,33 @@ txtar() {
   $TXTAR_NATIVE "$@"
 }
 
+ensure_go() {
+  # lazily unpack and download a native version of cue
+  if [ ! -e $GO_NATIVE ]; then
+    GO_ARTIFACT=$HERE/tools/go/${GO_PREFIX}${GO_NATIVE_SUFFIX}.tar.gz
+    if [ ! -f $GO_ARTIFACT ]; then
+      mkdir -p $(dirname $GO_ARTIFACT)
+      curl -L https://go.dev/dl/go${GO_VERSION}.${GO_NATIVE_SUFFIX}.tar.gz > $GO_ARTIFACT
+    fi
+    if [ -f $GO_ARTIFACT ]; then
+      rm -rf $GO_NATIVE.tmp
+      mkdir $GO_NATIVE.tmp
+      tar -C $GO_NATIVE.tmp -xv -f $GO_ARTIFACT --strip-components=1
+      mv $GO_NATIVE.tmp $GO_NATIVE
+    fi
+  fi
+}
+
+go() {
+  ensure_go
+  $GO_NATIVE/bin/go "$@"
+}
+
+go_exec() {
+  ensure_go
+  exec $GO_NATIVE/bin/go "$@"
+}
+
 ensure_buildx() {
   # lazily unpack and download a native version of buildx
   if [ ! -f $BUILDX_NATIVE ]; then
@@ -140,6 +178,7 @@ build_images_while_blocking() {
   write_rendered_cue_dev_expr_as yaml $docker_compose_file \
     -t "buildx_bake_docker_compose_block_tags=$blocking" \
     -t "buildx_bake_docker_compose_focus=$images" \
+    -t "resolve_image_ids=false" \
     -e 'overlay.buildx_bake_docker_compose'
 
   sudo_buildx bake \
@@ -168,7 +207,8 @@ build_imagespecs() {
   # strategy.
 
   resourcedir_image_tags=$(print_cue_dev_expr_as_text_lines " " 'overlay.resourcedir_image_tags' \
-    -t "buildx_bake_docker_compose_focus=$images")
+    -t "buildx_bake_docker_compose_focus=$images" \
+    -t "resolve_image_ids=false")
 
   # accumulate ones that are present as "blocked"
   for image_tag in $resourcedir_image_tags; do
@@ -176,6 +216,7 @@ build_imagespecs() {
       # build needed resourcedirs one by one directly via podman
       # this avoids starving resourcedir fetches of bandwidth and avoids the wasted copies in the buildx bake approach
       sudo podman build $(print_cue_dev_expr_as text \
+        -t "resolve_image_ids=false" \
         -e "overlay.imagespec_by_image_tag[\"$image_tag\"].#podman_build_options" )
     fi
   done
@@ -214,8 +255,13 @@ systemd_logs() {
 write_image_id_files() {
   dst=$1
   buildx_bake_metadata_file="$2"
+  shift 2
+
   set +x
-  print_cue_dev_expr_as text -t "buildx_bake_metadata=$(cat $buildx_bake_metadata_file)" -e 'overlay.buildx_bake_image_ids_txtar.#out' | tee /dev/stderr | (cd $dst; txtar -x)
+  print_cue_dev_expr_as text \
+    -t "buildx_bake_metadata=$(cat $buildx_bake_metadata_file)" \
+    -t "resolve_image_ids=false" \
+    -e 'overlay.buildx_bake_image_ids_txtar.#out' | tee /dev/stderr | (cd $dst; txtar -x)
   set -x
 }
 
@@ -237,20 +283,32 @@ build_images() {
 systemd_reload() {
   # always include substrateos-overlay, since that's how we (re)generate systemd units
   images="$@"
-  if [ -n "$images" ]; then
-    images="substrateos-overlay $images"
-  fi
 
   # If we are on a machine that *does not* have bootc storage, then do not reference it in generated quadlets.
   if ! [ -e /usr/lib/bootc/storage ]; then
     SUBSTRATE_USE_BOOTC_STORAGE=false
   fi
 
-  check_cue_dev_expr_as_cue
-
   docker_compose_file=$(pick_docker_compose_yml substrate)
   build_images $docker_compose_file $images
-  write_image_id_files $PWD "$docker_compose_file.metadata.json"
+  write_image_id_files $PWD "$docker_compose_file.metadata.json" $images
+
+  # build overlay after we write image id files
+  sudo podman build \
+    --build-arg "NAMESPACE=$NAMESPACE" \
+    --build-arg "SUBSTRATE_LIVE_EDIT=$SUBSTRATE_LIVE_EDIT" \
+    --build-arg "CUE_DEV_DEFS=$CUE_DEV_DEFS" \
+    --build-arg "SUBSTRATE_USER=$SUBSTRATE_USER" \
+    --build-arg "SUBSTRATE_GROUP=$SUBSTRATE_GROUP" \
+    --build-arg "SUBSTRATE_HOME=$SUBSTRATE_HOME" \
+    --build-arg "SUBSTRATE_SOURCE=$SUBSTRATE_SOURCE" \
+    --build-arg "SUBSTRATE_BUILD_FOCUS=$images" \
+    --build-arg "SUBSTRATE_USE_BOOTC_STORAGE=$SUBSTRATE_USE_BOOTC_STORAGE" \
+    --build-arg "SUBSTRATE_RESOLVE_IMAGE_IDS=true" \
+    --target overlay \
+    -t $SUBSTRATEOS_OVERLAY_IMAGE \
+    -f images/substrateos/Containerfile \
+    .
 
   # show overrides before we replace anything (as a sort of poor man's backup)
   systemd-delta --no-pager
@@ -268,6 +326,8 @@ systemd_reload() {
     src=$1
     dst=$2
 
+    echo >&2 "staging ${SUBSTRATEOS_OVERLAY_IMAGE_DIR}$src"
+    (cd ${SUBSTRATEOS_OVERLAY_IMAGE_DIR}$src; find .)
     sudo mkdir -p ${RELOAD_OVERLAY_BASEDIR}${dst}
     sudo rsync -i -v -a ${SUBSTRATEOS_OVERLAY_IMAGE_DIR}$src ${RELOAD_OVERLAY_BASEDIR}${dst}
   }
@@ -312,7 +372,7 @@ systemd_reload() {
 }
 
 os_installer() {
-  OS_BUNDLED_IMAGES="events tool-call nvml sigar new-space spaceview mdns template-treehouse"
+  OS_BUNDLED_IMAGES="events tool-call nvml sigar new-space spaceview mdns template-treehouse substrate"
   docker_compose_file=$(pick_docker_compose_yml substrate)
   build_images $docker_compose_file $OS_BUNDLED_IMAGES
 
@@ -325,13 +385,14 @@ os_installer() {
     --build-arg "SUBSTRATE_HOME=$SUBSTRATE_HOME" \
     --build-arg "SUBSTRATE_SOURCE=$SUBSTRATE_SOURCE" \
     --build-arg "SUBSTRATE_BUILD_FOCUS=$OS_BUNDLED_IMAGES" \
+    --build-arg "SUBSTRATE_USE_BOOTC_STORAGE=true" \
+    --build-arg "SUBSTRATE_RESOLVE_IMAGE_IDS=false" \
     --target dist \
     -t $SUBSTRATEOS_IMAGE \
     -f images/substrateos/Containerfile \
     .
 
-  export OS_IMAGE_TAG=$SUBSTRATEOS_IMAGE
-  exec sudo images/substrateos/overlay/usr/bin/substrateos-installer "$@"
+  exec sudo env OS_IMAGE_TAG=$SUBSTRATEOS_IMAGE images/substrateos/overlay/usr/bin/substrateos-installer "$@"
 }
 
 set +x
@@ -344,9 +405,25 @@ case "$1" in
     shift
     cue "$@"
     ;;
+  go)
+    shift
+    go "$@"
+    ;;
   txtar)
     shift
     txtar "$@"
+    ;;
+  efibootmgr)
+    shift
+    efibootmgr "$@"
+    ;;
+  efibootmgr-bootnext)
+    shift
+    efibootmgr --bootnext "$@"
+    ;;
+  p9ufs)
+    shift
+    go_exec run -a ./images/p9ufs/main.go "$@"
     ;;
   expr-dump)
     shift
@@ -354,6 +431,11 @@ case "$1" in
     set_live_edit_vars
     set +x
     print_cue_dev_expr_as cue -e "$@"
+    ;;
+  ready)
+    shift
+    set_os_vars
+    write_ready_file
     ;;
   reload|systemd-reload)
     shift
@@ -373,11 +455,6 @@ case "$1" in
     set_live_edit_vars
     systemd_reload "$@"
     systemd_logs
-    ;;
-  oob-make|os-oob-make)
-    shift
-    set_os_vars
-    os_oob_make
     ;;
   os-shell)
     shift
