@@ -106,19 +106,6 @@
                         return new ReflectCommands(targetUrl).reflect();
                 })(targetUrl);
                 
-                const description = ((reflectResponse) => {
-                    const describeCmd = reflectResponse['describe']
-                    // TODO run describeCmd to get description
-                    const description = `# This is the mock description
-                    
-It has multiple lines and is written in markdown
-                    `
-                    console.log("description", {reflectResponse, description})
-                    return description
-                })(reflectResponse)
-
-                document.querySelector("#rootBar").innerHTML = md.render(description);
-
                 const commandKeyHandler = (evt, i) => {
                     if (evt.key === "Enter") {
                         evt.preventDefault();
@@ -289,7 +276,6 @@ It has multiple lines and is written in markdown
             </script>
             <div id="container" style="height: 100%">
                 <div id="urlTabs"></div>
-                <div id="rootBar"></div>
                 <div id="commandContainer"></div>
                 <div id="msgindexroot">
                     <div id="msgindex"></div>
