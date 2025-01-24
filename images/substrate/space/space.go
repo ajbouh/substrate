@@ -105,6 +105,13 @@ func (p *SpacesViaContainerFilesystems) QuerySpaces(ctx context.Context) ([]acti
 	results := make([]activityspec.SpaceEntry, 0, len(existing))
 	for _, container := range existing {
 		spaceID := cntrPrefix + container.ID
+		// prefer idiomatic space id over container id if we can
+		for _, name := range container.Names {
+			if strings.HasPrefix(name, spaceIDPrefix) {
+				spaceID = name
+				break
+			}
+		}
 		results = append(results, activityspec.SpaceEntry{
 			SpaceID:   spaceID,
 			CreatedAt: container.CreatedAt,
