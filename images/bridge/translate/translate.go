@@ -2,12 +2,17 @@ package translate
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 
 	"github.com/ajbouh/substrate/images/bridge/calls"
+	"github.com/ajbouh/substrate/images/bridge/reaction"
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
+	"github.com/ajbouh/substrate/pkg/toolkit/event"
 )
 
 var recordTranslation = tracks.EventRecorder[*TranslationRecord]("translation")
@@ -22,22 +27,66 @@ type TranslationRecord struct {
 type Command = calls.CommandCall[Request, Translation]
 
 type Agent struct {
-	Command        *Command
-	TargetLanguage string
+	Session         *tracks.Session
+	EventPathPrefix string
+	Command         *Command
+	TargetLanguage  string
 }
 
-func (a *Agent) HandleEvent2(ctx context.Context, annot tracks.Event) ([]tracks.PathEvent, error) {
-	if annot.Type != "transcription" {
-		return nil, nil
-	}
+type EventResult struct {
+	Next []event.PendingEvent `json:"next" doc:""`
+}
 
-	in := annot.Data.(*transcribe.Transcription)
+type TranscribeEvent tracks.EventT[*transcribe.Transcription]
+
+func (es *Agent) Commands(ctx context.Context) commands.Source {
+	return commands.List[commands.Source](
+		handle.Command("translate:events",
+			"Translate transcription events",
+			func(ctx context.Context, t *struct{}, args struct {
+				Events []event.Event `json:"events" doc:""`
+			}) (reaction.Result, error) {
+				r := reaction.Result{
+					Next: []event.PendingEvent{},
+				}
+				events, err := event.Unmarshal[TranscribeEvent](args.Events, true)
+				if err != nil {
+					slog.ErrorContext(ctx, "events:handle unable to Unmarshal", "err", err)
+					return r, err
+				}
+				slog.InfoContext(ctx, "translate:events", "num_events", len(events))
+				var results []tracks.PathEvent
+				for _, e := range events {
+					events, err := es.handle(ctx, e)
+					if err != nil {
+						return r, err
+					}
+					results = append(results, events...)
+				}
+				pes, err := reaction.ToPendingEvents(es.EventPathPrefix, results)
+				if err != nil {
+					return r, err
+				}
+				r.Next = pes
+				return r, nil
+			},
+		),
+	)
+}
+
+func (a *Agent) handle(ctx context.Context, annot TranscribeEvent) ([]tracks.PathEvent, error) {
+	in := annot.Data
 	// This doesn't account for fuzzy matching, so SourceLanguage
 	// comes back as "en", but the canonical for target seems to be "eng".
 	if in.SourceLanguage == a.TargetLanguage {
 		slog.InfoContext(ctx, "skipping translation, already in target language", "transcription", in, "target", a.TargetLanguage)
 		return nil, nil
 	}
+	track := a.Session.Track(annot.TrackID)
+	if track == nil {
+		return nil, fmt.Errorf("track not found: %s", annot.TrackID)
+	}
+	span := track.Span(annot.Start, annot.End)
 
 	r, err := a.Command.Call(ctx, Request{
 		SourceLanguage: in.SourceLanguage,
@@ -52,7 +101,7 @@ func (a *Agent) HandleEvent2(ctx context.Context, annot tracks.Event) ([]tracks.
 
 	return []tracks.PathEvent{
 		tracks.NewEvent(
-			annot.Span(), "/translation", "translation",
+			span, "/translation", "translation",
 			&TranslationRecord{
 				SourceEvent: annot.ID,
 				Translation: r,

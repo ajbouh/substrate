@@ -126,7 +126,8 @@ func main() {
 			Command: getEnv("BRIDGE_TRANSCRIBE_COMMAND", "transcribe"),
 		},
 		translate.Agent{
-			TargetLanguage: "en",
+			EventPathPrefix: pathPrefix,
+			TargetLanguage:  "en",
 		},
 		&translate.Command{
 			URL:     brigeCommandsURL,
@@ -240,6 +241,36 @@ func (es *EventCommands) Initialize() {
 				},
 			},
 		},
+
+		{
+			Path: "/rules/defs" + es.EventPathPrefix + "translate",
+			Conditions: []*event.Query{
+				{
+					EventsWherePrefix: map[string][]event.WherePrefix{
+						"path": {{Prefix: es.EventPathPrefix + "transcription"}},
+					},
+				},
+			},
+			Command: commands.Msg{
+				Meta: commands.Meta{
+					"#/data/parameters/events": {Type: "any"},
+					"#/data/returns/events":    {Type: "any"},
+				},
+				MsgIn: commands.Bindings{
+					"#/msg/data/parameters/events": "#/data/parameters/events",
+				},
+				MsgOut: commands.Bindings{
+					"#/data/returns/next": "#/msg/data/returns/next",
+				},
+				Msg: &commands.Msg{
+					Cap: ptr("reflect"),
+					Data: commands.Fields{
+						"url":  es.BridgeURL,
+						"name": "translate:events",
+					},
+				},
+			},
+		},
 	}
 	events := make([]event.PendingEvent, 0, len(rules))
 	for _, r := range rules {
@@ -264,8 +295,6 @@ func (es *EventCommands) Commands(ctx context.Context) commands.Source {
 					Events []event.Event `json:"events" doc:""`
 				}) (EventResult, error) {
 					r := EventResult{
-						// XXX is the events service processing this?
-						// not seeing new events show up
 						Next: []event.PendingEvent{},
 					}
 					jsonEvents, err := event.Unmarshal[tracks.JSONEvent](args.Events, true)
