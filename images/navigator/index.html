@@ -35,6 +35,25 @@
                         Events.send(goRequest, url)
                         return "went to " + url
                     },
+                    open: (input) => {
+                        // see https://developer.mozilla.org/en-US/docs/Web/API/Window/open
+                        const {
+                            url,
+                            target = "_blank",
+                            popup,
+                            width,
+                            height,
+                            left,
+                            top,
+                            noopener,
+                            noreferrer,
+                        } = input.params;
+                        console.log("go", url);
+                        if (!url) {return;}
+                        const windowFeatures = Object.entries({width, height, left, top, noopener, noreferrer, popup}).filter(([k, v]) => v).map(([k, v]) => `${k}=${v}`).join(", ")
+                        window.open(url, target, windowFeatures)
+                        return `opened ${url} in target ${target} with features ${windowFeatures}`
+                    },
                     tab: () => {
                         Events.send(tabRequest, {type: "newTab", url: "/~/"})
                         return "new tab"
