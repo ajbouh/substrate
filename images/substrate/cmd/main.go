@@ -198,6 +198,12 @@ func main() {
 
 		&notify.Slot[units.DefSetCommands]{},
 		&service.LoaderDelegate[*units.DefSetCommands]{},
+		units.RootServiceDescribeCommand,
+		units.ServiceDescribeCommand,
+		units.ServiceLinksQueryCommand,
+		&units.LinkToServices{},
+		&units.ServiceCommands{},
+
 		notify.On(func(ctx context.Context,
 			e *defset.DefSet,
 			t *struct {
