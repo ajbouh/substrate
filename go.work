@@ -18,6 +18,5 @@ use (
 	./images/weather
 	./pkg/cueloader
 	./pkg/toolkit
-	./pkg/p9
 	./pkg/go-vscode
 )
