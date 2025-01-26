@@ -1,4 +1,7 @@
 function densify({jsonpointer, sparse}) {
+    if (!sparse) {
+        return new Map()
+    }
     const dense = new Map()
     Object.entries(sparse).forEach(
         ([ptr, {description, type}]) => {
@@ -45,9 +48,9 @@ function fieldsDOM({h, className, o, fieldPrefix=""}) {
 
 export function dom({h, html, md, jsonpointer, msg}) {
     const rootFields = densify({jsonpointer, sparse: msg.msg.meta})
-    const data = rootFields.get('data')
-    const parameters = data.fields.get('parameters')
-    const returns = data.fields.get('returns')
+    const data = rootFields?.get('data')
+    const parameters = data?.fields?.get('parameters')
+    const returns = data?.fields?.get('returns')
     
     console.log({msg, parameters, returns})
 
