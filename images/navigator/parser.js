@@ -1,10 +1,12 @@
 let navigatorGrammar = String.raw`
 Navigator {
-  Command = Head Params spaces
+  Msg = Head Params spaces
 
-  Head
-    = "@" msgName -- viewMsg
-    | msgName -- msg
+  Head = msgTarget? msgName
+
+  msgTarget = "@" (~space any)*
+
+  msgName = letter (alnum | "_" | "-" | ":" | "." | "+" | "/")*
 
   Params = Param*
 
@@ -19,8 +21,6 @@ Navigator {
     | templateString                    -- templateString
     | number                            -- number
     | boolean                           -- boolean
-
-  msgName = letter (alnum | "_" | "-" | ":" | ".")*
 
   ident = letter (alnum | "_")*
   key = ident | string
@@ -65,23 +65,24 @@ export function initGrammar() {
     s.addOperation(
         "toCommand",
         {
-            Command(h, p, _s) {
+            Msg(h, p, _s) {
                 // console.log("Command", h.sourceString, p.sourceString);
                 const command = h.toCommand();
                 const pValue = p.toCommand();
 
                 return {...command, params: pValue};
             },
-            Head_viewMsg(_a, m) {
-                // console.log("Head_viewCommand", i.sourceString);
-                return {viewCommand: true, command: m.sourceString};
+
+            Head(msgTarget, msgName) {
+                console.log("Head", {msgTarget, msgName})
+                const target = msgTarget != null ? msgTarget.sourceString : undefined
+                return {
+                    viewCommand: !!target,
+                    target: target ? target.substring(1) : target,
+                    command: msgName.sourceString,
+                };
             },
 
-            Head_msg(m) {
-                // console.log("Head_msgName", s.sourceString, a.sourceString);
-                return {command: this.sourceString};
-            },
-            
             Params(rest) {
                 const result = {};
                 for (let i = 0; i < rest.children.length; i++) {

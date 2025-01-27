@@ -183,7 +183,7 @@
                     if (viewCommandRequest !== undefined) {
                         return
                     }
-                    const input = `@go url: "/"`
+                    const input = `@ go url: "/"`
                     const translated = translate(input)
                     Events.send(viewCommandRequest, {value: translated, input, index: 0});
                 })()
