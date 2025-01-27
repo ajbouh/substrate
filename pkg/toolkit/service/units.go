@@ -110,26 +110,8 @@ func (s *Service) initialize() {
 			},
 		},
 		&commands.ReflectCapability{
-			BaseURL: s.InternalSubstrateBaseURL,
-			DefTransform: func(ctx context.Context, name string, commandDef *commands.Msg) (string, *commands.Msg) {
-				def := handle.FindMsgBasis(commandDef)
-				if def == nil || def.Cap == nil || *def.Cap != "http" {
-					return name, def
-				}
-				u, err := commands.GetPath[string](def.Data, "request", "url")
-				if err != nil {
-					return name, def
-				}
-				if !strings.HasPrefix(u, "//") {
-					return name, def
-				}
-				u = s.InternalSubstrateBaseURL + u
-				out := handle.FindMsgBasis(def.MustClone())
-				if err := commands.SetPath(out.Data, []string{"request", "url"}, u); err != nil {
-					return name, def
-				}
-				return name, out
-			},
+			BaseURL:      s.InternalSubstrateBaseURL,
+			DefTransform: handle.EnsureRunHTTPRequestURLIncludesPrefix(s.InternalSubstrateBaseURL),
 		},
 		&handle.HTTPResourceReflectHandler{
 			Debug:   true,
