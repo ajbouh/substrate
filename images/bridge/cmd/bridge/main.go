@@ -21,6 +21,7 @@ import (
 	"github.com/ajbouh/substrate/images/bridge/assistant/tools"
 	"github.com/ajbouh/substrate/images/bridge/calls"
 	"github.com/ajbouh/substrate/images/bridge/diarize"
+	"github.com/ajbouh/substrate/images/bridge/reaction"
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
 	"github.com/ajbouh/substrate/images/bridge/translate"
@@ -126,8 +127,11 @@ func main() {
 			Command: getEnv("BRIDGE_TRANSCRIBE_COMMAND", "transcribe"),
 		},
 		translate.Agent{
+			TargetLanguage: "en",
+		},
+		&reaction.Reactor{
+			CommandURL:      baseHref,
 			EventPathPrefix: pathPrefix,
-			TargetLanguage:  "en",
 		},
 		&translate.Command{
 			URL:     brigeCommandsURL,
@@ -188,30 +192,20 @@ type EventCommands struct {
 	Handlers        []interface {
 		HandleEvent2(context.Context, tracks.Event) ([]tracks.PathEvent, error)
 	}
-	WriteEvents *EventWriteCommand
+	WriteEvents       *EventWriteCommand
+	ReactionProviders []reaction.ReactionProvider
 }
 
 type EventResult struct {
 	Next []event.PendingEvent `json:"next" doc:""`
 }
 
-type CommandRuleInput struct {
-	Path     string `json:"path"`
-	Disabled bool   `json:"disabled,omitempty"`
-	Deleted  bool   `json:"deleted,omitempty"`
-
-	Conditions []*event.Query `json:"conditions"`
-	Command    commands.Msg   `json:"command"`
-
-	// Cursor *CommandRuleCursor `json:"-"`
-}
-
 func ptr[T any](t T) *T {
 	return &t
 }
 
-func (es *EventCommands) Initialize() {
-	rules := []CommandRuleInput{
+func (es *EventCommands) Reactions(ctx context.Context) []reaction.CommandRuleInput {
+	return []reaction.CommandRuleInput{
 		{
 			Path: "/rules/defs" + es.EventPathPrefix,
 			Conditions: []*event.Query{
@@ -241,36 +235,14 @@ func (es *EventCommands) Initialize() {
 				},
 			},
 		},
+	}
+}
 
-		{
-			Path: "/rules/defs" + es.EventPathPrefix + "translate",
-			Conditions: []*event.Query{
-				{
-					EventsWherePrefix: map[string][]event.WherePrefix{
-						"path": {{Prefix: es.EventPathPrefix + "transcription"}},
-					},
-				},
-			},
-			Command: commands.Msg{
-				Meta: commands.Meta{
-					"#/data/parameters/events": {Type: "any"},
-					"#/data/returns/events":    {Type: "any"},
-				},
-				MsgIn: commands.Bindings{
-					"#/msg/data/parameters/events": "#/data/parameters/events",
-				},
-				MsgOut: commands.Bindings{
-					"#/data/returns/next": "#/msg/data/returns/next",
-				},
-				Msg: &commands.Msg{
-					Cap: ptr("reflect"),
-					Data: commands.Fields{
-						"url":  es.BridgeURL,
-						"name": "translate:events",
-					},
-				},
-			},
-		},
+func (es *EventCommands) Initialize() {
+	var rules []reaction.CommandRuleInput
+	ctx := context.TODO()
+	for _, p := range es.ReactionProviders {
+		rules = append(rules, p.Reactions(ctx)...)
 	}
 	events := make([]event.PendingEvent, 0, len(rules))
 	for _, r := range rules {
@@ -281,7 +253,7 @@ func (es *EventCommands) Initialize() {
 			Fields:       b,
 		})
 	}
-	r, err := es.WriteEvents.Call(context.TODO(), WriteEventsInput{Events: events})
+	r, err := es.WriteEvents.Call(ctx, WriteEventsInput{Events: events})
 	fatal(err)
 	slog.Info("initialized rules", "result", r)
 }

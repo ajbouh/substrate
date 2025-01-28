@@ -11,7 +11,6 @@ import (
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
-	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 )
 
@@ -27,10 +26,10 @@ type TranslationRecord struct {
 type Command = calls.CommandCall[Request, Translation]
 
 type Agent struct {
-	Session         *tracks.Session
-	EventPathPrefix string
-	Command         *Command
-	TargetLanguage  string
+	Session        *tracks.Session
+	Command        *Command
+	TargetLanguage string
+	Reactor        *reaction.Reactor
 }
 
 type EventResult struct {
@@ -39,38 +38,31 @@ type EventResult struct {
 
 type TranscribeEvent tracks.EventT[*transcribe.Transcription]
 
+func ptr[T any](t T) *T {
+	return &t
+}
+
+func (es *Agent) Reactions(ctx context.Context) []reaction.CommandRuleInput {
+	return []reaction.CommandRuleInput{
+		es.Reactor.Rule("translate:events", "transcription"),
+	}
+}
+
 func (es *Agent) Commands(ctx context.Context) commands.Source {
-	return commands.List[commands.Source](
-		handle.Command("translate:events",
-			"Translate transcription events",
-			func(ctx context.Context, t *struct{}, args struct {
-				Events []event.Event `json:"events" doc:""`
-			}) (reaction.Result, error) {
-				r := reaction.Result{
-					Next: []event.PendingEvent{},
-				}
-				events, err := event.Unmarshal[TranscribeEvent](args.Events, true)
+	return reaction.Command(es.Reactor, "translate:events",
+		"Translate transcription events",
+		func(ctx context.Context, events []TranscribeEvent) ([]tracks.PathEvent, error) {
+			slog.InfoContext(ctx, "translate:events", "num_events", len(events))
+			var results []tracks.PathEvent
+			for _, e := range events {
+				events, err := es.handle(ctx, e)
 				if err != nil {
-					slog.ErrorContext(ctx, "events:handle unable to Unmarshal", "err", err)
-					return r, err
+					return nil, err
 				}
-				slog.InfoContext(ctx, "translate:events", "num_events", len(events))
-				var results []tracks.PathEvent
-				for _, e := range events {
-					events, err := es.handle(ctx, e)
-					if err != nil {
-						return r, err
-					}
-					results = append(results, events...)
-				}
-				pes, err := reaction.ToPendingEvents(es.EventPathPrefix, results)
-				if err != nil {
-					return r, err
-				}
-				r.Next = pes
-				return r, nil
-			},
-		),
+				results = append(results, events...)
+			}
+			return results, nil
+		},
 	)
 }
 

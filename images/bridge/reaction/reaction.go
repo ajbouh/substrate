@@ -1,12 +1,97 @@
 package reaction
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
 
 	"github.com/ajbouh/substrate/images/bridge/tracks"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 )
+
+type CommandRuleInput struct {
+	Path     string `json:"path"`
+	Disabled bool   `json:"disabled,omitempty"`
+	Deleted  bool   `json:"deleted,omitempty"`
+
+	Conditions []*event.Query `json:"conditions"`
+	Command    commands.Msg   `json:"command"`
+
+	// Cursor *CommandRuleCursor `json:"-"`
+}
+
+type Reactor struct {
+	EventPathPrefix string
+	CommandURL      string
+}
+
+func ptr[T any](t T) *T {
+	return &t
+}
+
+func (r *Reactor) Rule(name, inPath string) CommandRuleInput {
+	return CommandRuleInput{
+		Path: "/rules/defs" + r.EventPathPrefix + name,
+		Conditions: []*event.Query{
+			{
+				EventsWherePrefix: map[string][]event.WherePrefix{
+					"path": {{Prefix: r.EventPathPrefix + inPath}},
+				},
+			},
+		},
+		Command: commands.Msg{
+			Meta: commands.Meta{
+				"#/data/parameters/events": {Type: "any"},
+				"#/data/returns/events":    {Type: "any"},
+			},
+			MsgIn: commands.Bindings{
+				"#/msg/data/parameters/events": "#/data/parameters/events",
+			},
+			MsgOut: commands.Bindings{
+				"#/data/returns/next": "#/msg/data/returns/next",
+			},
+			Msg: &commands.Msg{
+				Cap: ptr("reflect"),
+				Data: commands.Fields{
+					"url":  r.CommandURL,
+					"name": name,
+				},
+			},
+		},
+	}
+}
+
+func Command[T any](reactor *Reactor, name, description string, f func(context.Context, []T) ([]tracks.PathEvent, error)) commands.Source {
+	return handle.Command(name, description, func(ctx context.Context, t *struct{}, args struct {
+		Events []event.Event `json:"events" doc:""`
+	}) (Result, error) {
+		r := Result{
+			Next: []event.PendingEvent{},
+		}
+		events, err := event.Unmarshal[T](args.Events, true)
+		if err != nil {
+			slog.ErrorContext(ctx, "unable to Unmarshal", "command", name, "err", err)
+			return r, err
+		}
+		results, err := f(ctx, events)
+		if err != nil {
+			return r, err
+		}
+		pes, err := ToPendingEvents(reactor.EventPathPrefix, results)
+		if err != nil {
+			return r, err
+		}
+		r.Next = pes
+		return r, nil
+	})
+}
+
+type ReactionProvider interface {
+	Reactions(context.Context) []CommandRuleInput
+}
 
 type Result struct {
 	Next []event.PendingEvent `json:"next" doc:""`
