@@ -6,32 +6,94 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 )
 
-func VisitFieldDefsFromStructFields(meta commands.Meta, group string, fields []reflect.StructField, bindingFn func(group, name string, field reflect.StructField)) {
+func fieldNameIfAny(p reflect.StructField) (string, bool) {
+	if jsonTag, ok := p.Tag.Lookup("json"); ok {
+		if jsonTag == "-" {
+			return "", false
+		}
+		field, _, _ := strings.Cut(jsonTag, ",")
+		return field, true
+	}
+
+	return p.Name, true
+}
+
+func isRequired(tag reflect.StructTag) bool {
+	if jsonTag, ok := tag.Lookup("json"); ok {
+		_, rest, _ := strings.Cut(jsonTag, ",")
+		if strings.Contains(rest, "omitempty") {
+			return false
+		}
+	}
+
+	return true
+}
+
+func PopulateMeta(
+	meta commands.Meta,
+	prefix commands.DataPointer,
+	t reflect.Type,
+	md commands.Metadata,
+	visited []reflect.Type,
+) {
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+
+	meta[prefix] = md
+
+	// HACK we should instead address the infinite cycle issue by having a separate data structure for types
+	if slices.Contains(visited, t) {
+		return
+	}
+
+	visited = slices.Clone(visited)
+	visited = append(visited, t)
+
+	switch t.Kind() {
+	case reflect.Struct:
+		VisitFieldDefsFromStructFields(meta, prefix, reflect.VisibleFields(t), nil, visited)
+	case reflect.Map:
+		p := prefix.Append("*")
+		PopulateMeta(meta, p, t.Elem(), commands.Metadata{Type: t.Key().String()}, visited)
+	case reflect.Slice, reflect.Array:
+		p := prefix.Append("[]")
+		PopulateMeta(meta, p, t.Elem(), commands.Metadata{}, visited)
+	}
+}
+
+func VisitFieldDefsFromStructFields(
+	meta commands.Meta,
+	prefix commands.DataPointer,
+	fields []reflect.StructField,
+	bindingFn func(prefix commands.DataPointer, name string, field reflect.StructField),
+	visited []reflect.Type,
+) {
 	for _, p := range fields {
-		var field string
-		if jsonTag, ok := p.Tag.Lookup("json"); ok {
-			if jsonTag == "-" {
-				continue
-			}
-			field, _, _ = strings.Cut(jsonTag, ",")
-		} else {
-			field = p.Name
+		field, ok := fieldNameIfAny(p)
+		if !ok {
+			continue
 		}
 
-		fieldMeta := commands.Metadata{Type: p.Type.String()}
+		fieldMeta := commands.Metadata{
+			Type:     p.Type.String(),
+			Required: isRequired(p.Tag),
+		}
 		if descTag, ok := p.Tag.Lookup("doc"); ok {
 			fieldMeta.Description = descTag
 		}
-		meta[commands.NewDataPointer("data", group, field)] = fieldMeta
 		if bindingFn != nil {
-			bindingFn(group, field, p)
+			bindingFn(prefix, field, p)
 		}
 
+		// recurse for nested metadata
+		PopulateMeta(meta, prefix.Append(field), p.Type, fieldMeta, visited)
 	}
 }
 

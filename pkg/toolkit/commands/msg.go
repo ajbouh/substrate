@@ -12,6 +12,7 @@ type Bindings map[DataPointer]DataPointer // map[dst]src
 type Metadata struct {
 	Description string `json:"description,omitempty"`
 	Type        string `json:"type,omitempty"`
+	Required    bool   `json:"required,omitempty"`
 }
 
 func Cap(cap string, data Fields) *Msg {

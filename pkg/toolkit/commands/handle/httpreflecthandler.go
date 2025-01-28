@@ -45,21 +45,29 @@ func EnsureHTTPBasis(method, route string) commands.DefTransformFunc {
 
 		for pointer := range r.Meta {
 			if trimmed, ok := pointer.TrimPathPrefix(parametersPrefix); ok {
+				trimmedPath := trimmed.Path()
+				if len(trimmedPath) != 1 {
+					continue
+				}
 				if r.MsgIn == nil {
 					r.MsgIn = commands.Bindings{}
 				}
 				r.MsgIn.Add(
-					commands.NewDataPointer(append([]string{"msg", "data", "request", "body", "parameters"}, trimmed.Path()...)...),
+					commands.NewDataPointer(append([]string{"msg", "data", "request", "body", "parameters"}, trimmedPath...)...),
 					pointer,
 				)
 			}
 			if trimmed, ok := pointer.TrimPathPrefix(returnsPrefix); ok {
+				trimmedPath := trimmed.Path()
+				if len(trimmedPath) != 1 {
+					continue
+				}
 				if r.MsgOut == nil {
 					r.MsgOut = commands.Bindings{}
 				}
 				r.MsgOut.Add(
 					pointer,
-					commands.NewDataPointer(append([]string{"msg", "data", "response", "body"}, trimmed.Path()...)...),
+					commands.NewDataPointer(append([]string{"msg", "data", "response", "body"}, trimmedPath...)...),
 				)
 			}
 		}

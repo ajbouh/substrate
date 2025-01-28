@@ -33,6 +33,7 @@ func (m Meta) Clone() (Meta, error) {
 		md := Metadata{
 			Description: v.Description,
 			Type:        v.Type,
+			Required:    v.Required,
 		}
 		new[k] = md
 	}
