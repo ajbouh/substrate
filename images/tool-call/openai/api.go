@@ -53,7 +53,7 @@ func Complete(endpoint string, req *CompletionRequest) (string, error) {
 // TODO replace this with an accurate count of tokens, e.g.:
 // https://github.com/pkoukk/tiktoken-go#counting-tokens-for-chat-api-calls
 func TokenCount(msg string) int {
-	return len(msg)
+	return len(msg) / 4
 }
 
 func indentJSONString(b []byte) string {

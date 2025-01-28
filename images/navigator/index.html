@@ -112,17 +112,30 @@
                         evt.stopPropagation();
                         console.log("command enter", i);
                         let translated;
+                        let input = evt.target.value
                         try {
-                            translated = translate(evt.target.value);
+                            translated = translate(input);
                         } catch(e) {
                             console.log({e})
-                            // console.log(e.reason, e.expected, e.pos);
                         }
                         if (!translated) {return;}
+
+                        if (!translated.command && translated.description?.length) {
+                            const commands = Object.fromEntries(Object.entries(reflectResponse).map(([k, v]) => [k, v.msg]))
+                            console.log({commands})
+                            input = `tool-call/suggest input:${JSON.stringify(translated.description)} commands: ${JSON.stringify(commands)}`
+                            try {
+                                translated = translate(input);
+                            } catch(e) {
+                                console.log({e})
+                            }
+                            if (!translated) {return;}
+                        }
+
                         if (translated.viewCommand) {
-                            Events.send(viewCommandRequest, {value: translated, input: evt.target.value, index: i});
+                            Events.send(viewCommandRequest, {value: translated, input, index: i});
                         } else {
-                            Events.send(commandRequest, {value: translated, input: evt.target.value, index: i});
+                            Events.send(commandRequest, {value: translated, input, index: i});
                         }
                     }
                 };
