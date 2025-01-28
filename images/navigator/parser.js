@@ -18,11 +18,14 @@ Navigator {
     | string                            -- string
     | templateString                    -- templateString
     | number                            -- number
+    | boolean                           -- boolean
 
   msgName = letter (alnum | "_" | "-" | ":" | ".")*
 
   ident = letter (alnum | "_")*
   key = ident | string
+
+  boolean = "true" | "false"
 
   number
     = digit* "." digit+  -- fract
@@ -40,10 +43,12 @@ Navigator {
     = "\\" any           -- escaped
     | ~"\u{0060}" any          -- nonEscaped
 
-  empty =
-  space
-   += "//" (~nl any)* nl  -- cppComment
+  comment
+    = "//" (~nl any)* nl  -- cppComment
     | "/*" (~"*/" any)* "*/" -- cComment
+
+  empty =
+  space += comment
   nl = "\n"
 }
 `;
@@ -137,6 +142,10 @@ export function initGrammar() {
             Json_number(n) {
                 // console.log("Json_number", n.sourceString);
                 return n.toCommand();
+            },
+
+            boolean(b) {
+                return b.sourceString === 'true'
             },
 
             ident(_h, _r) {
