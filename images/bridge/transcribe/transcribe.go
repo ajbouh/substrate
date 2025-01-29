@@ -2,11 +2,15 @@ package transcribe
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/ajbouh/substrate/images/bridge/audio"
 	"github.com/ajbouh/substrate/images/bridge/calls"
+	"github.com/ajbouh/substrate/images/bridge/reaction"
 	"github.com/ajbouh/substrate/images/bridge/tracks"
+	"github.com/ajbouh/substrate/images/bridge/vad"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 )
 
 var RecordTranscription = tracks.EventRecorder[*Transcription]("transcription")
@@ -15,14 +19,41 @@ type Command = calls.CommandCall[Request, Transcription]
 
 type Agent struct {
 	Command *Command
+	Session *tracks.Session
+	Reactor *reaction.Reactor
 }
 
-func (a *Agent) HandleEvent2(ctx context.Context, annot tracks.Event) ([]tracks.PathEvent, error) {
-	if annot.Type != "activity" {
-		return nil, nil
+func (a *Agent) Reactions(ctx context.Context) []reaction.CommandRuleInput {
+	return []reaction.CommandRuleInput{
+		a.Reactor.Rule("transcribe:events", "voice-activity"),
 	}
+}
 
-	pcm, err := audio.StreamAll(annot.Span().Audio())
+func (a *Agent) Commands(ctx context.Context) commands.Source {
+	return reaction.Command(a.Reactor, "transcribe:events",
+		"Translate transcription events",
+		func(ctx context.Context, events []vad.ActivityEvent) ([]tracks.PathEvent, error) {
+			var results []tracks.PathEvent
+			for _, e := range events {
+				events, err := a.handle(ctx, e)
+				if err != nil {
+					return nil, err
+				}
+				results = append(results, events...)
+			}
+			return results, nil
+		},
+	)
+}
+
+func (a *Agent) handle(ctx context.Context, annot vad.ActivityEvent) ([]tracks.PathEvent, error) {
+	track := a.Session.Track(annot.TrackID)
+	if track == nil {
+		return nil, fmt.Errorf("track not found: %s", annot.TrackID)
+	}
+	span := track.Span(annot.Start, annot.End)
+
+	pcm, err := audio.StreamAll(span.Audio())
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +73,7 @@ func (a *Agent) HandleEvent2(ctx context.Context, annot tracks.Event) ([]tracks.
 	}
 
 	return []tracks.PathEvent{
-		tracks.NewEvent(annot.Span(), "/transcription", "transcription", transcription),
+		tracks.NewEvent(span, "/transcription", "transcription", transcription),
 	}, nil
 }
 

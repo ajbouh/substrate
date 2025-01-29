@@ -36,24 +36,20 @@ type EventResult struct {
 	Next []event.PendingEvent `json:"next" doc:""`
 }
 
-func ptr[T any](t T) *T {
-	return &t
-}
-
-func (es *Agent) Reactions(ctx context.Context) []reaction.CommandRuleInput {
+func (a *Agent) Reactions(ctx context.Context) []reaction.CommandRuleInput {
 	return []reaction.CommandRuleInput{
-		es.Reactor.Rule("translate:events", "transcription"),
+		a.Reactor.Rule("translate:events", "transcription"),
 	}
 }
 
-func (es *Agent) Commands(ctx context.Context) commands.Source {
-	return reaction.Command(es.Reactor, "translate:events",
+func (a *Agent) Commands(ctx context.Context) commands.Source {
+	return reaction.Command(a.Reactor, "translate:events",
 		"Translate transcription events",
 		func(ctx context.Context, events []transcribe.Event) ([]tracks.PathEvent, error) {
 			slog.InfoContext(ctx, "translate:events", "num_events", len(events))
 			var results []tracks.PathEvent
 			for _, e := range events {
-				events, err := es.handle(ctx, e)
+				events, err := a.handle(ctx, e)
 				if err != nil {
 					return nil, err
 				}
