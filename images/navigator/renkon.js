@@ -5548,7 +5548,7 @@ var xhtml = {
   apos: "'",
   lt: "<",
   gt: ">",
-  nbsp: " ",
+  nbsp: " ",
   iexcl: "¡",
   cent: "¢",
   pound: "£",
@@ -6705,6 +6705,7 @@ function findReferences(node, {
 } = {}) {
   const locals = /* @__PURE__ */ new Map();
   const references = [];
+  const sendTarget = [];
   function hasLocal(node2, name2) {
     const l2 = locals.get(node2);
     return l2 ? l2.has(name2) : false;
@@ -6780,6 +6781,19 @@ function findReferences(node, {
     CatchClause: declareCatchClause,
     ImportDeclaration(node2, _state, [root]) {
       node2.specifiers.forEach((specifier) => declareLocal(root, specifier.local));
+    },
+    CallExpression(node2) {
+      const callee = node2.callee;
+      if (callee.type === "MemberExpression" && callee.object.type === "Identifier") {
+        if (callee.object.name === "Events") {
+          if (callee.property.type === "Identifier" && callee.property.name === "send") {
+            const arg = node2.arguments[0];
+            if (arg.type === "Identifier") {
+              sendTarget.push(arg);
+            }
+          }
+        }
+      }
     }
   });
   function identifier(node2, _state, parents) {
@@ -6814,11 +6828,6 @@ function findReferences(node, {
                 forceVars.push(arg);
               }
             }
-          } else if (callee.property.type === "Identifier" && callee.property.name === "send") {
-            const arg = node2.arguments[0];
-            if (arg.type === "Identifier") {
-              forceVars.push(arg);
-            }
           }
         } else if (callee.object.name === "Behaviors") {
           if (callee.property.type === "Identifier" && callee.property.name === "collect") {
@@ -6831,7 +6840,7 @@ function findReferences(node, {
       }
     }
   });
-  return [references, forceVars];
+  return [references, forceVars, sendTarget];
 }
 function checkNested(node, baseId) {
   return rewriteNestedCalls(node, baseId);
@@ -6906,7 +6915,7 @@ function parseJavaScript(input, initialId, flattened2 = false) {
   for (const decl of decls) {
     id++;
     const b2 = parseProgram(decl);
-    const [references, forceVars] = findReferences(b2);
+    const [references, forceVars, sendTargets] = findReferences(b2);
     checkAssignments(b2, references, input);
     const declarations = findDeclarations(b2, input);
     const rewriteSpecs = flattened2 ? [] : checkNested(b2, id);
@@ -6918,6 +6927,7 @@ function parseJavaScript(input, initialId, flattened2 = false) {
         declarations,
         references,
         forceVars,
+        sendTargets,
         imports: [],
         expression: false,
         input: decl
@@ -7068,7 +7078,9 @@ function transpileJavaScript(node) {
   var _a2;
   const outputs = Array.from(new Set((_a2 = node.declarations) == null ? void 0 : _a2.map((r) => r.name)));
   const only = outputs.length === 0 ? "" : outputs[0];
-  const inputs = Array.from(new Set(node.references.map((r) => r.name))).filter((n2) => !defaultGlobals.has(n2) && !renkonGlobals.has(n2));
+  const inputs = Array.from(new Set(node.references.map((r) => r.name))).filter((n2) => {
+    return !defaultGlobals.has(n2) && !renkonGlobals.has(n2) && !(node.sendTargets.findIndex((s) => s.name === n2) >= 0);
+  });
   const forceVars = Array.from(new Set(node.forceVars.map((r) => r.name))).filter((n2) => !defaultGlobals.has(n2) && !renkonGlobals.has(n2));
   const output = new Sourcemap(node.input).trim();
   rewriteRenkonCalls(output, node.body);
@@ -7748,7 +7760,7 @@ var b = { AbstractMethodHasImplementation: function(t2) {
   return "Single type parameter " + e + " should have a trailing comma. Example usage: <" + e + ",>.";
 }, StaticBlockCannotHaveModifier: "Static class blocks cannot have any modifier.", TypeAnnotationAfterAssign: "Type annotations must come before default assignments, e.g. instead of `age = 25: number` use `age: number = 25`.", TypeImportCannotSpecifyDefaultAndNamed: "A type-only import can specify a default import or named bindings, but not both.", TypeModifierIsUsedInTypeExports: "The 'type' modifier cannot be used on a named export when 'export type' is used on its export statement.", TypeModifierIsUsedInTypeImports: "The 'type' modifier cannot be used on a named import when 'import type' is used on its import statement.", UnexpectedParameterModifier: "A parameter property is only allowed in a constructor implementation.", UnexpectedReadonly: "'readonly' type modifier is only permitted on array and tuple literal types.", GenericsEndWithComma: "Trailing comma is not allowed at the end of generics.", UnexpectedTypeAnnotation: "Did not expect a type annotation here.", UnexpectedTypeCastInParameter: "Unexpected type cast in parameter position.", UnsupportedImportTypeArgument: "Argument in a type import must be a string literal.", UnsupportedParameterPropertyKind: "A parameter property may not be declared using a binding pattern.", UnsupportedSignatureParameterKind: function(t2) {
   return "Name in a signature must be an Identifier, ObjectPattern or ArrayPattern, instead got " + t2.type + ".";
-}, LetInLexicalBinding: "'let' is not allowed to be used as a name in 'let' or 'const' declarations." }, g = { quot: '"', amp: "&", apos: "'", lt: "<", gt: ">", nbsp: " ", iexcl: "¡", cent: "¢", pound: "£", curren: "¤", yen: "¥", brvbar: "¦", sect: "§", uml: "¨", copy: "©", ordf: "ª", laquo: "«", not: "¬", shy: "­", reg: "®", macr: "¯", deg: "°", plusmn: "±", sup2: "²", sup3: "³", acute: "´", micro: "µ", para: "¶", middot: "·", cedil: "¸", sup1: "¹", ordm: "º", raquo: "»", frac14: "¼", frac12: "½", frac34: "¾", iquest: "¿", Agrave: "À", Aacute: "Á", Acirc: "Â", Atilde: "Ã", Auml: "Ä", Aring: "Å", AElig: "Æ", Ccedil: "Ç", Egrave: "È", Eacute: "É", Ecirc: "Ê", Euml: "Ë", Igrave: "Ì", Iacute: "Í", Icirc: "Î", Iuml: "Ï", ETH: "Ð", Ntilde: "Ñ", Ograve: "Ò", Oacute: "Ó", Ocirc: "Ô", Otilde: "Õ", Ouml: "Ö", times: "×", Oslash: "Ø", Ugrave: "Ù", Uacute: "Ú", Ucirc: "Û", Uuml: "Ü", Yacute: "Ý", THORN: "Þ", szlig: "ß", agrave: "à", aacute: "á", acirc: "â", atilde: "ã", auml: "ä", aring: "å", aelig: "æ", ccedil: "ç", egrave: "è", eacute: "é", ecirc: "ê", euml: "ë", igrave: "ì", iacute: "í", icirc: "î", iuml: "ï", eth: "ð", ntilde: "ñ", ograve: "ò", oacute: "ó", ocirc: "ô", otilde: "õ", ouml: "ö", divide: "÷", oslash: "ø", ugrave: "ù", uacute: "ú", ucirc: "û", uuml: "ü", yacute: "ý", thorn: "þ", yuml: "ÿ", OElig: "Œ", oelig: "œ", Scaron: "Š", scaron: "š", Yuml: "Ÿ", fnof: "ƒ", circ: "ˆ", tilde: "˜", Alpha: "Α", Beta: "Β", Gamma: "Γ", Delta: "Δ", Epsilon: "Ε", Zeta: "Ζ", Eta: "Η", Theta: "Θ", Iota: "Ι", Kappa: "Κ", Lambda: "Λ", Mu: "Μ", Nu: "Ν", Xi: "Ξ", Omicron: "Ο", Pi: "Π", Rho: "Ρ", Sigma: "Σ", Tau: "Τ", Upsilon: "Υ", Phi: "Φ", Chi: "Χ", Psi: "Ψ", Omega: "Ω", alpha: "α", beta: "β", gamma: "γ", delta: "δ", epsilon: "ε", zeta: "ζ", eta: "η", theta: "θ", iota: "ι", kappa: "κ", lambda: "λ", mu: "μ", nu: "ν", xi: "ξ", omicron: "ο", pi: "π", rho: "ρ", sigmaf: "ς", sigma: "σ", tau: "τ", upsilon: "υ", phi: "φ", chi: "χ", psi: "ψ", omega: "ω", thetasym: "ϑ", upsih: "ϒ", piv: "ϖ", ensp: " ", emsp: " ", thinsp: " ", zwnj: "‌", zwj: "‍", lrm: "‎", rlm: "‏", ndash: "–", mdash: "—", lsquo: "‘", rsquo: "’", sbquo: "‚", ldquo: "“", rdquo: "”", bdquo: "„", dagger: "†", Dagger: "‡", bull: "•", hellip: "…", permil: "‰", prime: "′", Prime: "″", lsaquo: "‹", rsaquo: "›", oline: "‾", frasl: "⁄", euro: "€", image: "ℑ", weierp: "℘", real: "ℜ", trade: "™", alefsym: "ℵ", larr: "←", uarr: "↑", rarr: "→", darr: "↓", harr: "↔", crarr: "↵", lArr: "⇐", uArr: "⇑", rArr: "⇒", dArr: "⇓", hArr: "⇔", forall: "∀", part: "∂", exist: "∃", empty: "∅", nabla: "∇", isin: "∈", notin: "∉", ni: "∋", prod: "∏", sum: "∑", minus: "−", lowast: "∗", radic: "√", prop: "∝", infin: "∞", ang: "∠", and: "∧", or: "∨", cap: "∩", cup: "∪", int: "∫", there4: "∴", sim: "∼", cong: "≅", asymp: "≈", ne: "≠", equiv: "≡", le: "≤", ge: "≥", sub: "⊂", sup: "⊃", nsub: "⊄", sube: "⊆", supe: "⊇", oplus: "⊕", otimes: "⊗", perp: "⊥", sdot: "⋅", lceil: "⌈", rceil: "⌉", lfloor: "⌊", rfloor: "⌋", lang: "〈", rang: "〉", loz: "◊", spades: "♠", clubs: "♣", hearts: "♥", diams: "♦" }, A = /^[\da-fA-F]+$/, S = /^\d+$/;
+}, LetInLexicalBinding: "'let' is not allowed to be used as a name in 'let' or 'const' declarations." }, g = { quot: '"', amp: "&", apos: "'", lt: "<", gt: ">", nbsp: " ", iexcl: "¡", cent: "¢", pound: "£", curren: "¤", yen: "¥", brvbar: "¦", sect: "§", uml: "¨", copy: "©", ordf: "ª", laquo: "«", not: "¬", shy: "­", reg: "®", macr: "¯", deg: "°", plusmn: "±", sup2: "²", sup3: "³", acute: "´", micro: "µ", para: "¶", middot: "·", cedil: "¸", sup1: "¹", ordm: "º", raquo: "»", frac14: "¼", frac12: "½", frac34: "¾", iquest: "¿", Agrave: "À", Aacute: "Á", Acirc: "Â", Atilde: "Ã", Auml: "Ä", Aring: "Å", AElig: "Æ", Ccedil: "Ç", Egrave: "È", Eacute: "É", Ecirc: "Ê", Euml: "Ë", Igrave: "Ì", Iacute: "Í", Icirc: "Î", Iuml: "Ï", ETH: "Ð", Ntilde: "Ñ", Ograve: "Ò", Oacute: "Ó", Ocirc: "Ô", Otilde: "Õ", Ouml: "Ö", times: "×", Oslash: "Ø", Ugrave: "Ù", Uacute: "Ú", Ucirc: "Û", Uuml: "Ü", Yacute: "Ý", THORN: "Þ", szlig: "ß", agrave: "à", aacute: "á", acirc: "â", atilde: "ã", auml: "ä", aring: "å", aelig: "æ", ccedil: "ç", egrave: "è", eacute: "é", ecirc: "ê", euml: "ë", igrave: "ì", iacute: "í", icirc: "î", iuml: "ï", eth: "ð", ntilde: "ñ", ograve: "ò", oacute: "ó", ocirc: "ô", otilde: "õ", ouml: "ö", divide: "÷", oslash: "ø", ugrave: "ù", uacute: "ú", ucirc: "û", uuml: "ü", yacute: "ý", thorn: "þ", yuml: "ÿ", OElig: "Œ", oelig: "œ", Scaron: "Š", scaron: "š", Yuml: "Ÿ", fnof: "ƒ", circ: "ˆ", tilde: "˜", Alpha: "Α", Beta: "Β", Gamma: "Γ", Delta: "Δ", Epsilon: "Ε", Zeta: "Ζ", Eta: "Η", Theta: "Θ", Iota: "Ι", Kappa: "Κ", Lambda: "Λ", Mu: "Μ", Nu: "Ν", Xi: "Ξ", Omicron: "Ο", Pi: "Π", Rho: "Ρ", Sigma: "Σ", Tau: "Τ", Upsilon: "Υ", Phi: "Φ", Chi: "Χ", Psi: "Ψ", Omega: "Ω", alpha: "α", beta: "β", gamma: "γ", delta: "δ", epsilon: "ε", zeta: "ζ", eta: "η", theta: "θ", iota: "ι", kappa: "κ", lambda: "λ", mu: "μ", nu: "ν", xi: "ξ", omicron: "ο", pi: "π", rho: "ρ", sigmaf: "ς", sigma: "σ", tau: "τ", upsilon: "υ", phi: "φ", chi: "χ", psi: "ψ", omega: "ω", thetasym: "ϑ", upsih: "ϒ", piv: "ϖ", ensp: " ", emsp: " ", thinsp: " ", zwnj: "‌", zwj: "‍", lrm: "‎", rlm: "‏", ndash: "–", mdash: "—", lsquo: "‘", rsquo: "’", sbquo: "‚", ldquo: "“", rdquo: "”", bdquo: "„", dagger: "†", Dagger: "‡", bull: "•", hellip: "…", permil: "‰", prime: "′", Prime: "″", lsaquo: "‹", rsaquo: "›", oline: "‾", frasl: "⁄", euro: "€", image: "ℑ", weierp: "℘", real: "ℜ", trade: "™", alefsym: "ℵ", larr: "←", uarr: "↑", rarr: "→", darr: "↓", harr: "↔", crarr: "↵", lArr: "⇐", uArr: "⇑", rArr: "⇒", dArr: "⇓", hArr: "⇔", forall: "∀", part: "∂", exist: "∃", empty: "∅", nabla: "∇", isin: "∈", notin: "∉", ni: "∋", prod: "∏", sum: "∑", minus: "−", lowast: "∗", radic: "√", prop: "∝", infin: "∞", ang: "∠", and: "∧", or: "∨", cap: "∩", cup: "∪", int: "∫", there4: "∴", sim: "∼", cong: "≅", asymp: "≈", ne: "≠", equiv: "≡", le: "≤", ge: "≥", sub: "⊂", sup: "⊃", nsub: "⊄", sube: "⊆", supe: "⊇", oplus: "⊕", otimes: "⊗", perp: "⊥", sdot: "⋅", lceil: "⌈", rceil: "⌉", lfloor: "⌊", rfloor: "⌋", lang: "〈", rang: "〉", loz: "◊", spades: "♠", clubs: "♣", hearts: "♥", diams: "♦" }, A = /^[\da-fA-F]+$/, S = /^\d+$/;
 function C$1(t2) {
   return t2 ? "JSXIdentifier" === t2.type ? t2.name : "JSXNamespacedName" === t2.type ? t2.namespace.name + ":" + t2.name.name : "JSXMemberExpression" === t2.type ? C$1(t2.object) + "." + C$1(t2.property) : void 0 : t2;
 }
@@ -10169,7 +10181,7 @@ class ProgramState {
       return partialURL;
     }
     if (partialURL.startsWith("/")) {
-      const url = new UR(window.location);
+      const url = new URL(window.location.toString());
       const maybeHost = url.searchParams.get("host") || url.host;
       return `${url.protocol}//${maybeHost}}${partialURL}`;
     }
@@ -13642,7 +13654,7 @@ function findMinIndex(value, array) {
 }
 function countColumn(string2, tabSize, to = string2.length) {
   let n2 = 0;
-  for (let i2 = 0; i2 < to; ) {
+  for (let i2 = 0; i2 < to && i2 < string2.length; ) {
     if (string2.charCodeAt(i2) == 9) {
       n2 += tabSize - n2 % tabSize;
       i2++;
@@ -14294,7 +14306,7 @@ class ContentView {
               child.reuseDOM(next);
           }
           child.sync(view2, track);
-          child.flags &= ~7;
+          child.flags &= -8;
         }
         next = prev ? prev.nextSibling : parent.firstChild;
         if (track && !track.written && track.node == parent && next != child.dom)
@@ -14316,7 +14328,7 @@ class ContentView {
       for (let child of this.children)
         if (child.flags & 7) {
           child.sync(view2, track);
-          child.flags &= ~7;
+          child.flags &= -8;
         }
     }
   }
@@ -16467,13 +16479,13 @@ class DocView extends ContentView {
       this.dom.style.flexBasis = this.minWidth ? this.minWidth + "px" : "";
       let track = browser.chrome || browser.ios ? { node: observer.selectionRange.focusNode, written: false } : void 0;
       this.sync(this.view, track);
-      this.flags &= ~7;
+      this.flags &= -8;
       if (track && (track.written || observer.selectionRange.focusNode != track.node))
         this.forceSelection = true;
       this.dom.style.height = "";
     });
     this.markedForComposition.forEach(
-      (cView) => cView.flags &= ~8
+      (cView) => cView.flags &= -9
       /* ViewFlag.Composition */
     );
     let gaps = [];
@@ -17490,16 +17502,16 @@ function applyDOMChange(view2, domChange) {
     return false;
   if (!change && domChange.typeOver && !sel.empty && newSel && newSel.main.empty) {
     change = { from: sel.from, to: sel.to, insert: view2.state.doc.slice(sel.from, sel.to) };
+  } else if ((browser.mac || browser.android) && change && change.from == change.to && change.from == sel.head - 1 && /^\. ?$/.test(change.insert.toString()) && view2.contentDOM.getAttribute("autocorrect") == "off") {
+    if (newSel && change.insert.length == 2)
+      newSel = EditorSelection.single(newSel.main.anchor - 1, newSel.main.head - 1);
+    change = { from: change.from, to: change.to, insert: Text$1.of([change.insert.toString().replace(".", " ")]) };
   } else if (change && change.from >= sel.from && change.to <= sel.to && (change.from != sel.from || change.to != sel.to) && sel.to - sel.from - (change.to - change.from) <= 4) {
     change = {
       from: sel.from,
       to: sel.to,
       insert: view2.state.doc.slice(sel.from, change.from).append(change.insert).append(view2.state.doc.slice(change.to, sel.to))
     };
-  } else if ((browser.mac || browser.android) && change && change.from == change.to && change.from == sel.head - 1 && /^\. ?$/.test(change.insert.toString()) && view2.contentDOM.getAttribute("autocorrect") == "off") {
-    if (newSel && change.insert.length == 2)
-      newSel = EditorSelection.single(newSel.main.anchor - 1, newSel.main.head - 1);
-    change = { from: sel.from, to: sel.to, insert: Text$1.of([" "]) };
   } else if (browser.chrome && change && change.from == change.to && change.from == sel.head && change.insert.toString() == "\n " && view2.lineWrapping) {
     if (newSel)
       newSel = EditorSelection.single(newSel.main.anchor - 1, newSel.main.head - 1);
@@ -18559,7 +18571,7 @@ class HeightMap {
     return (this.flags & 2) > 0;
   }
   set outdated(value) {
-    this.flags = (value ? 2 : 0) | this.flags & ~2;
+    this.flags = (value ? 2 : 0) | this.flags & -3;
   }
   setHeight(height) {
     if (this.height != height) {
@@ -19135,6 +19147,10 @@ function visiblePixelRange(dom, paddingTop) {
     bottom: Math.max(top2, bottom) - (rect.top + paddingTop)
   };
 }
+function inWindow(elt) {
+  let rect = elt.getBoundingClientRect(), win = elt.ownerDocument.defaultView || window;
+  return rect.left < win.innerWidth && rect.right > 0 && rect.top < win.innerHeight && rect.bottom > 0;
+}
 function fullPixelRange(dom, paddingTop) {
   let rect = dom.getBoundingClientRect();
   return {
@@ -19335,7 +19351,7 @@ class ViewState {
       if (inView)
         measureContent = true;
     }
-    if (!this.inView && !this.scrollTarget)
+    if (!this.inView && !this.scrollTarget && !inWindow(view2.dom))
       return 0;
     let contentWidth = domRect.width;
     if (this.contentDOMWidth != contentWidth || this.editorHeight != view2.scrollDOM.clientHeight) {
@@ -20452,7 +20468,7 @@ class EditContextManager {
       selectionEnd: this.toContextPos(view2.state.selection.main.head)
     });
     this.handlers.textupdate = (e) => {
-      let { anchor } = view2.state.selection.main;
+      let main = view2.state.selection.main, { anchor, head } = main;
       let from = this.toEditorPos(e.updateRangeStart), to = this.toEditorPos(e.updateRangeEnd);
       if (view2.inputState.composing >= 0 && !this.composing)
         this.composing = { contextBase: e.updateRangeStart, editorBase: from, drifted: false };
@@ -20461,8 +20477,14 @@ class EditContextManager {
         change.from = anchor;
       else if (change.to == this.to && anchor > this.to)
         change.to = anchor;
-      if (change.from == change.to && !change.insert.length)
+      if (change.from == change.to && !change.insert.length) {
+        let newSel = EditorSelection.single(this.toEditorPos(e.selectionStart), this.toEditorPos(e.selectionEnd));
+        if (!newSel.main.eq(main))
+          view2.dispatch({ selection: newSel, userEvent: "select" });
         return;
+      }
+      if ((browser.mac || browser.android) && change.from == head - 1 && /^\. ?$/.test(e.text) && view2.contentDOM.getAttribute("autocorrect") == "off")
+        change = { from, to, insert: Text$1.of([e.text.replace(".", " ")]) };
       this.pendingContextChange = change;
       if (!view2.state.readOnly) {
         let newLen = this.to - this.from + (change.to - change.from + change.insert.length);
