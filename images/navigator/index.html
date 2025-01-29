@@ -70,14 +70,40 @@
                 const {h, render, html} = import(Renkon.spaceURL("./preact.standalone.module.js"));
                 const {initGrammar, translate} = import("./parser.js");
 
-                const tabsWithNewSection = (now, newSection) => { // newSection: {id, input, value}
+                const tabsWithSectionUpdate = (now, tabId, newSection) => { // newSection: {id, input, value}
                     // the request is an invocation
-                    const tabId = now.current;
                     const newTabs = [...now.tabs];
                     const newTab = newTabs[tabId];
-                    const newSections = [...newTab.sections, {}];
-                    newSections[newSection.id] = newSection;
-                    newTabs[tabId] = {tabId, url: newTab.url, urlForID: newTab.urlForID, sections: newSections};
+                    if (newSection.id === undefined) {
+                        newSection.id = newTab.sections.length
+                    }
+                    let replaced = false
+                    const newSections = newTab.sections.map((section) => {
+                        if (section.id === newSection.id) {
+                            replaced = true
+                            return {...section, ...newSection}
+                         }
+                         return section
+                    })
+                    if (!replaced) {
+                        newSections.push(newSection)
+                    }
+                    // ensure we have an empty input at the bottom
+                    if (newSections[newSections.length - 1].input) {
+                        newSections.push({id: newSections.length})
+                    }
+                    console.log({
+                        replaced,
+                        'newSection.id': newSection.id,
+                        'newSections.length': newSections.length,
+                        'newTab.sections.length': newTab.sections.length,
+                        'newSections': newSections,
+                    })
+                    newTabs[tabId] = {
+                        tabId,
+                        ...newTab,
+                        sections: newSections,
+                    };
                     return {
                         current: tabId,
                         tabs: newTabs,
@@ -89,7 +115,7 @@
                         const newTabId = now.tabs[now.tabs.length - 1].tabId + 1;
                         return {
                             current: newTabId,
-                            tabs: [...now.tabs, {tabId: newTabId, urlForID: undefined, url: undefined, reflect: undefined, sections: [{}]}],
+                            tabs: [...now.tabs, {tabId: newTabId, urlForID: undefined, url: undefined, reflect: undefined, sections: []}],
                         };
                     },
                     switchTab: ({tab}) => (now) => {
@@ -152,8 +178,8 @@
                         exportBlob(fileName, blob)
                         return now;
                     },
-                    newSection: (newSection) => (now) => {
-                        return tabsWithNewSection(now, newSection)
+                    newSection: ({id, input, value}) => (now) => {
+                        return tabsWithSectionUpdate(now, now.current, {id, input, value})
                     },
                     setReflect: ({tab, reflect, reflectForURLForID}) => (now) => {
                         const tabs = [...now.tabs]
@@ -162,13 +188,15 @@
                             console.log({reflectForURLForID, reflect, tab})
                             tabs[tab] = {...tabs[tab], reflect}
 
-                            if (reflect['describe']) {
-                                const describe = reflect['describe'].run()
-                                describe.then(({description}) => {
-                                    Events.send(viewMsgInbox, [
-                                        {type: "setSectionValue", tab, id: reflectForURLForID, value: description},
-                                    ])
-                                })
+                            if (reflectForURLForID !== undefined) {
+                                if (reflect['describe']) {
+                                    const describe = reflect['describe'].run()
+                                    describe.then(({description}) => {
+                                        Events.send(viewMsgInbox, [
+                                            {type: "setSectionValue", tab, id: reflectForURLForID, value: description},
+                                        ])
+                                    })
+                                }
                             }
 
                             return {
@@ -180,26 +208,12 @@
                         return now
                     },
                     setSectionValue: ({tab, id, value}) => (now) => {
-                        const tabs = [...now.tabs]
-                        let t = tabs[tab]
-                        if (t) {
-                            let sections = t.sections
-                            sections = [...sections]
-                            tabs[tab] = {...tabs[tab], sections}
-                            let section = sections[id]
-                            if (section) {
-                                section = {...section, value}
-                                sections[id] = section
-                                return {
-                                    current: now.current,
-                                    tabs,
-                                }
-                            }
-                        }
-
-                        return now
+                        return tabsWithSectionUpdate(now, tab, {id, value})
                     },
                     doMsgInput: ({input, id}) => (now) => {
+                        if (id === undefined) {
+                            id = now.tabs[now.current].sections.length
+                        }
                         console.log("doMsgInput", {input, id})
                         const reflectResponse = now.tabs[now.current].reflect
                         let translated;
@@ -234,18 +248,23 @@
                         }
                     },
                     doMsg: ({input, id, command: {command, params}}) => (now) => {
+                        console.log("doMsg", {input, id, command, params})
+
                         // const invokeCommand = Events.resolvePart(invokeCommandResponse.value, invokeCommandResponse);
                         const reflectResponse = now.tabs[now.current].reflect
+                        console.log("doMsg", {input, id, command, params, reflectResponse})
+
                         if (!reflectResponse) {return now;}
 
                         const cmd = reflectResponse[command];
+                        console.log("doMsg", {input, id, command, params, reflectResponse, cmd})
                         if (!cmd) {return now;}
 
                         cmd.run(params).then((value) => {
                             Events.send(viewMsgInbox, [{type: "setSectionValue", tab: now.current, id, value}])
                         })
 
-                        return tabsWithNewSection(now, {id, input, value: ''})
+                        return tabsWithSectionUpdate(now, now.current, {id, input, value: ''})
                     },
                 };
                 
@@ -259,15 +278,12 @@
                 })(viewCommands, viewMsgInbox);
 
                 const tabs = Behaviors.collect(
-                    {current: 0, tabs: [{tabId: 0, url: undefined, reflect: undefined, urlForID: undefined, sections: [{}]}]},
+                    {current: 0, tabs: [{tabId: 0, url: undefined, reflect: undefined, urlForID: undefined, sections: []}]},
                     Events.change(viewMsgReducers),
                     (now, reducers) => {
                         return reducers.reduce((acc, reducer) => reducer(acc), now)
                     })
 
-
-                const commandRequest = Events.receiver();
-                const viewCommandRequest = Events.receiver();
 
                 const grammar = initGrammar();
 
