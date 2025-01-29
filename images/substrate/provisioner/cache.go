@@ -28,7 +28,13 @@ type Cache struct {
 func (r *Cache) Initialize() {
 	r.mux = &httpframework.PathSingletonMux[*CachingSingleServiceProvisioner]{
 		RequestKey: func(r *http.Request) (string, context.Context, error) {
-			return r.PathValue("viewspec"), context.Background(), nil
+			ctx := context.Background()
+			if r.Header.Get("Substrate-No-Cold-Start") != "" {
+				ctx = httpframework.WithBespokeCacheMissHandler(ctx, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(311)
+				}))
+			}
+			return r.PathValue("viewspec"), ctx, nil
 		},
 		KeyHandler: func(ctx context.Context, k string) (*CachingSingleServiceProvisioner, error) {
 			views, err := activityspec.ParseServiceSpawnRequest(k, false, "/"+urlPathEscape(k))
