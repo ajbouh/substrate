@@ -36,8 +36,6 @@ type EventResult struct {
 	Next []event.PendingEvent `json:"next" doc:""`
 }
 
-type TranscribeEvent tracks.EventT[*transcribe.Transcription]
-
 func ptr[T any](t T) *T {
 	return &t
 }
@@ -51,7 +49,7 @@ func (es *Agent) Reactions(ctx context.Context) []reaction.CommandRuleInput {
 func (es *Agent) Commands(ctx context.Context) commands.Source {
 	return reaction.Command(es.Reactor, "translate:events",
 		"Translate transcription events",
-		func(ctx context.Context, events []TranscribeEvent) ([]tracks.PathEvent, error) {
+		func(ctx context.Context, events []transcribe.Event) ([]tracks.PathEvent, error) {
 			slog.InfoContext(ctx, "translate:events", "num_events", len(events))
 			var results []tracks.PathEvent
 			for _, e := range events {
@@ -66,7 +64,7 @@ func (es *Agent) Commands(ctx context.Context) commands.Source {
 	)
 }
 
-func (a *Agent) handle(ctx context.Context, annot TranscribeEvent) ([]tracks.PathEvent, error) {
+func (a *Agent) handle(ctx context.Context, annot transcribe.Event) ([]tracks.PathEvent, error) {
 	in := annot.Data
 	// This doesn't account for fuzzy matching, so SourceLanguage
 	// comes back as "en", but the canonical for target seems to be "eng".

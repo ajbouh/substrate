@@ -66,6 +66,8 @@ type Transcription struct {
 	Segments []Segment `json:"segments"`
 }
 
+type Event tracks.EventT[*Transcription]
+
 func (t Transcription) Text() string {
 	var texts []string
 	for _, seg := range t.Segments {

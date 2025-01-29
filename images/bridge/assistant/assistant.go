@@ -15,6 +15,7 @@ import (
 
 	"github.com/ajbouh/substrate/images/bridge/assistant/openai"
 	"github.com/ajbouh/substrate/images/bridge/assistant/prompts"
+	"github.com/ajbouh/substrate/images/bridge/reaction"
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
@@ -69,6 +70,7 @@ type Agent struct {
 	assistants map[string]eventClient
 
 	Session           *tracks.Session
+	Reactor           *reaction.Reactor
 	StoragePaths      *tracks.SessionStoragePaths
 	DefaultAssistants map[string]string
 	Runner            commands.DefRunner
@@ -76,6 +78,12 @@ type Agent struct {
 }
 
 type Void struct{}
+
+func (a *Agent) Reactions(ctx context.Context) []reaction.CommandRuleInput {
+	return []reaction.CommandRuleInput{
+		a.Reactor.Rule("assistant:handle-transcription", "transcription"),
+	}
+}
 
 func (a *Agent) Commands(ctx context.Context) commands.Source {
 	sess := a.Session
@@ -111,6 +119,25 @@ func (a *Agent) Commands(ctx context.Context) commands.Source {
 				RemoveAssistant(sess.SpanNow(), name)
 				return Void{}, nil
 			}),
+		reaction.Command(a.Reactor, "handle-transcription",
+			"Respond to transcriptions",
+			func(ctx context.Context, events []transcribe.Event) ([]tracks.PathEvent, error) {
+				var results []tracks.PathEvent
+				for _, e := range events {
+					track := a.Session.Track(e.TrackID)
+					if track == nil {
+						return nil, fmt.Errorf("track not found: %s", e.TrackID)
+					}
+					span := track.Span(e.Start, e.End)
+					events, err := handleTranscription(ctx, a.getAssistants(), e, span)
+					if err != nil {
+						return nil, err
+					}
+					results = append(results, events...)
+				}
+				return results, nil
+			},
+		),
 	))
 }
 
@@ -125,6 +152,7 @@ func (a *Agent) Initialize() {
 		}
 	}
 
+	// FIXME get these from the events service instead
 	var promptEvents []tracks.Event
 	for _, t := range sess.Tracks() {
 		promptEvents = append(promptEvents, t.Events("assistant-set-prompt")...)
@@ -151,10 +179,9 @@ type eventClient struct {
 
 func (a *Agent) HandleEvent2(ctx context.Context, annot tracks.Event) ([]tracks.PathEvent, error) {
 	switch annot.Type {
+	// XXX does this even work now? Where should we be recording these?
 	case "assistant-set-prompt":
 		return a.handleSetPrompt(ctx, annot)
-	case "transcription":
-		return handleTranscription(ctx, a.getAssistants(), annot)
 	}
 	return nil, nil
 }
@@ -223,28 +250,27 @@ func (a *Agent) getAssistants() []Client {
 	return out
 }
 
-func handleTranscription(ctx context.Context, clients []Client, annot tracks.Event) ([]tracks.PathEvent, error) {
-	in := annot.Data.(*transcribe.Transcription)
-
+func handleTranscription(ctx context.Context, clients []Client, annot transcribe.Event, span tracks.Span) ([]tracks.PathEvent, error) {
+	in := annot.Data
 	if len(in.Segments) == 0 || len(in.Segments[0].Words) == 0 {
 		slog.InfoContext(ctx, "assistant: transcription had no segments or words")
 		return nil, nil
 	}
 	outCh := make(chan tracks.PathEvent)
-	record := func(span tracks.Span, data *AssistantTextEvent) {
-		outCh <- tracks.NewEvent(
-			span,
-			"/assistant/text",
-			"assistant-text",
-			data,
-		)
-	}
 	text := strings.TrimSpace(in.Text())
 	var wg sync.WaitGroup
 	wg.Add(len(clients))
 	for _, client := range clients {
 		go func() {
-			respond(client, annot, text, record)
+			r := respond(client, annot, text)
+			if r != nil {
+				outCh <- tracks.NewEvent(
+					span,
+					"/assistant/text",
+					"assistant-text",
+					r,
+				)
+			}
 			wg.Done()
 		}()
 	}
@@ -267,7 +293,7 @@ func stringPtr(s string) *string {
 	return &s
 }
 
-func respond(client Client, annot tracks.Event, input string, record func(tracks.Span, *AssistantTextEvent)) {
+func respond(client Client, annot transcribe.Event, input string) *AssistantTextEvent {
 	name := client.AssistantName()
 	// TODO get speaker name from transcription
 	speaker := "user"
@@ -279,7 +305,7 @@ func respond(client Client, annot tracks.Event, input string, record func(tracks
 	}
 	if errors.Is(err, ErrNoMatch) {
 		log.Printf("assistant: client %q did not match: %s", name, input)
-		return
+		return nil
 	}
 	if err != nil {
 		log.Printf("assistant: %s error: %v", name, err)
@@ -288,7 +314,7 @@ func respond(client Client, annot tracks.Event, input string, record func(tracks
 		log.Printf("assistant: %s response: %s", name, response)
 		out.Response = &response
 	}
-	record(annot.Span(), &out)
+	return &out
 }
 
 func DefaultPromptTemplateForName(name string) (string, error) {
