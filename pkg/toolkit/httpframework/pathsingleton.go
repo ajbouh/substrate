@@ -16,6 +16,21 @@ func (e *ResolveError) Error() string {
 	return fmt.Sprintf("ResolveError: %T: %#v", e.Handler, e.Handler)
 }
 
+var bespokeCacheMissHandler = contextKey("bespoke-cache-miss-handler")
+
+func WithBespokeCacheMissHandler(ctx context.Context, handler http.Handler) context.Context {
+	return context.WithValue(ctx, bespokeCacheMissHandler, handler)
+}
+
+func BespokeCacheMissHandler(ctx context.Context) http.Handler {
+	value := ctx.Value(bespokeCacheMissHandler)
+	if value == nil {
+		return nil
+	}
+	handler, _ := value.(http.Handler)
+	return handler
+}
+
 type PathSingletonMux[H http.Handler] struct {
 	entries *OnceMap[H]
 
@@ -59,6 +74,12 @@ func (r *PathSingletonMux[H]) TryStore(k string, h H) (H, bool) {
 
 func (r *PathSingletonMux[H]) Load(ctx context.Context, k string) (H, error) {
 	return r.entries.LoadOrCompute(k, func() (H, error) {
+		bespoke := BespokeCacheMissHandler(ctx)
+		if bespoke != nil {
+			return *new(H), &ResolveError{
+				Handler: bespoke,
+			}
+		}
 		return r.KeyHandler(ctx, k)
 	})
 }
