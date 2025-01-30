@@ -13,7 +13,6 @@ import (
 	"net/url"
 	"os"
 	"strconv"
-	"strings"
 	"text/template"
 	"time"
 
@@ -33,7 +32,6 @@ import (
 	"github.com/ajbouh/substrate/images/bridge/webrtc/trackstreamer"
 	"github.com/ajbouh/substrate/images/bridge/workingset"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
-	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpevents"
@@ -162,7 +160,6 @@ func main() {
 		workingset.CommandProvider{},
 		EventCommands{
 			EventPathPrefix: pathPrefix,
-			BridgeURL:       baseHref,
 		},
 		&EventWriteCommand{
 			URL:     mustGetenv("SUBSTRATE_EVENT_COMMANDS_URL"),
@@ -186,54 +183,17 @@ type WriteEventsReturns struct {
 type EventWriteCommand = calls.CommandCall[WriteEventsInput, WriteEventsReturns]
 
 type EventCommands struct {
-	Session         *tracks.Session
-	EventPathPrefix string
-	BridgeURL       string
-	Handlers        []interface {
-		HandleEvent2(context.Context, tracks.Event) ([]tracks.PathEvent, error)
-	}
+	EventPathPrefix   string
 	WriteEvents       *EventWriteCommand
 	ReactionProviders []reaction.ReactionProvider
-}
-
-type EventResult struct {
-	Next []event.PendingEvent `json:"next" doc:""`
-}
-
-func ptr[T any](t T) *T {
-	return &t
 }
 
 func (es *EventCommands) Reactions(ctx context.Context) []reaction.CommandRuleInput {
 	return []reaction.CommandRuleInput{
 		{
-			Path: "/rules/defs" + es.EventPathPrefix,
-			Conditions: []*event.Query{
-				{
-					EventsWherePrefix: map[string][]event.WherePrefix{
-						"path": {{Prefix: es.EventPathPrefix}},
-					},
-				},
-			},
-			Command: commands.Msg{
-				Meta: commands.Meta{
-					"#/data/parameters/events": {Type: "any"},
-					"#/data/returns/events":    {Type: "any"},
-				},
-				MsgIn: commands.Bindings{
-					"#/msg/data/parameters/events": "#/data/parameters/events",
-				},
-				MsgOut: commands.Bindings{
-					"#/data/returns/next": "#/msg/data/returns/next",
-				},
-				Msg: &commands.Msg{
-					Cap: ptr("reflect"),
-					Data: commands.Fields{
-						"url":  es.BridgeURL,
-						"name": "events:handle",
-					},
-				},
-			},
+			Path:     "/rules/defs" + es.EventPathPrefix,
+			Disabled: true,
+			Deleted:  true,
 		},
 	}
 }
@@ -256,81 +216,6 @@ func (es *EventCommands) Initialize() {
 	r, err := es.WriteEvents.Call(ctx, WriteEventsInput{Events: events})
 	fatal(err)
 	slog.Info("initialized rules", "result", r)
-}
-
-func (es *EventCommands) Commands(ctx context.Context) commands.Source {
-	sources := []commands.Source{
-		commands.List[commands.Source](
-			handle.Command("handle",
-				"Inserts events into the session",
-				func(ctx context.Context, t *struct{}, args struct {
-					Events []event.Event `json:"events" doc:""`
-				}) (EventResult, error) {
-					r := EventResult{
-						Next: []event.PendingEvent{},
-					}
-					jsonEvents, err := event.Unmarshal[tracks.JSONEvent](args.Events, true)
-					if err != nil {
-						slog.ErrorContext(ctx, "events:handle unable to Unmarshal", "err", err)
-						return r, err
-					}
-					slog.InfoContext(ctx, "events:handle", "num_events", len(jsonEvents))
-					for _, e := range jsonEvents {
-						event, isNew, err := tracks.InsertJSONEvent(es.Session, e)
-						if err != nil {
-							slog.InfoContext(ctx, "error inserting event", "err", err)
-							continue
-							// return r, err
-						}
-						slog.InfoContext(ctx, "events:handle", "event_id", event.ID, "type", event.Type, "isNew", isNew)
-						if isNew {
-							// we eventually want these to be async, but could wait until
-							// splitting it into separate services which would be processing
-							// events independently
-							for _, h := range es.Handlers {
-								results, err := h.HandleEvent2(ctx, *event)
-								if err != nil {
-									slog.InfoContext(ctx, "error processing event", "err", err)
-									continue
-								}
-								pes, err := es.toPendingEvents(results)
-								if err != nil {
-									slog.InfoContext(ctx, "error converting to pending events", "err", err)
-									continue
-								}
-								r.Next = append(r.Next, pes...)
-							}
-						}
-					}
-					return r, nil
-				}),
-		),
-	}
-
-	return commands.Prefixed("events:",
-		commands.Dynamic(nil, nil, func() []commands.Source { return sources }),
-	)
-}
-
-func pathJoin(a, b string) string {
-	a = strings.TrimRight(a, "/")
-	b = strings.TrimLeft(b, "/")
-	return a + "/" + b
-}
-
-// TODO add "links" for storing relationship of events:
-// in the event, add a `links` field, with `{[linkname]: {rel: "eventref", "eventref:event": othereventid, "eventref:start": X, "eventref:end": Y, "eventref:unit": "second", "eventref:axis": "audiotrack/1"}`
-func (es *EventCommands) toPendingEvents(events []tracks.PathEvent) ([]event.PendingEvent, error) {
-	var pes []event.PendingEvent
-	for _, e := range events {
-		e.Path = pathJoin(es.EventPathPrefix, e.Path)
-		pe, err := json.Marshal(e)
-		if err != nil {
-			return nil, err
-		}
-		pes = append(pes, event.PendingEvent{Fields: pe})
-	}
-	return pes, nil
 }
 
 type RequestBodyLogger struct {

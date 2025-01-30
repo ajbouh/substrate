@@ -1,13 +1,11 @@
 package assistant
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"log"
 	"log/slog"
-	"slices"
 	"strings"
 	"sync"
 	"text/template"
@@ -32,7 +30,7 @@ type AssistantPromptEvent struct {
 
 // TODO send events when the prompt changes, but need to update those
 // functions to have access to a queue
-// type AssistantPromptNotification tracks.EventT[*AssistantPromptEvent]
+type AssistantPromptNotification tracks.EventT[*AssistantPromptEvent]
 
 type AssistantTextEvent struct {
 	SourceEvent tracks.ID
@@ -82,6 +80,7 @@ type Void struct{}
 func (a *Agent) Reactions(ctx context.Context) []reaction.CommandRuleInput {
 	return []reaction.CommandRuleInput{
 		a.Reactor.Rule("assistant:handle-transcription", "transcription"),
+		a.Reactor.Rule("assistant:handle-prompt-event", "assistant/prompt/"),
 	}
 }
 
@@ -122,20 +121,24 @@ func (a *Agent) Commands(ctx context.Context) commands.Source {
 		reaction.Command(a.Reactor, "handle-transcription",
 			"Respond to transcriptions",
 			func(ctx context.Context, events []transcribe.Event) ([]tracks.PathEvent, error) {
+				assistants := a.getAssistants()
 				var results []tracks.PathEvent
 				for _, e := range events {
-					track := a.Session.Track(e.TrackID)
-					if track == nil {
-						return nil, fmt.Errorf("track not found: %s", e.TrackID)
-					}
-					span := track.Span(e.Start, e.End)
-					events, err := handleTranscription(ctx, a.getAssistants(), e, span)
+					events, err := handleTranscription(ctx, assistants, e)
 					if err != nil {
 						return nil, err
 					}
 					results = append(results, events...)
 				}
 				return results, nil
+			},
+		),
+		reaction.CommandSingle(a.Reactor, "handle-prompt-event",
+			"Respond to transcriptions",
+			func(ctx context.Context, annot AssistantPromptNotification) ([]tracks.PathEvent, error) {
+				in := annot.Data
+				err := a.setPrompt(ctx, &annot.EventMeta, in.Name, in.PromptTemplate)
+				return nil, err
 			},
 		),
 	))
@@ -146,25 +149,12 @@ func (a *Agent) Initialize() {
 	ctx := context.TODO()
 
 	for name, prompt := range a.DefaultAssistants {
-		_, err := a.setPrompt(ctx, nil, name, prompt)
-		if err != nil {
+		if err := a.setPrompt(ctx, nil, name, prompt); err != nil {
 			log.Fatalf("assistant: error creating default client %q: %s", name, err)
 		}
 	}
 
-	// FIXME get these from the events service instead
-	var promptEvents []tracks.Event
-	for _, t := range sess.Tracks() {
-		promptEvents = append(promptEvents, t.Events("assistant-set-prompt")...)
-	}
-	// sort in reverse order to create clients based on the latest prompt first
-	// then we'll skip initializing clients for older prompts
-	slices.SortFunc(promptEvents, func(a, b tracks.Event) int {
-		return -cmp.Compare(a.Start, b.Start)
-	})
-	for _, e := range promptEvents {
-		a.handleSetPrompt(ctx, e)
-	}
+	// FIXME query for latest prompt events by name
 
 	if a.StoragePaths != nil {
 		sync := newFSSync(sess, a.StoragePaths.Dir("assistant"), 500*time.Millisecond)
@@ -175,15 +165,6 @@ func (a *Agent) Initialize() {
 type eventClient struct {
 	Client Client
 	Event  *tracks.EventMeta
-}
-
-func (a *Agent) HandleEvent2(ctx context.Context, annot tracks.Event) ([]tracks.PathEvent, error) {
-	switch annot.Type {
-	// XXX does this even work now? Where should we be recording these?
-	case "assistant-set-prompt":
-		return a.handleSetPrompt(ctx, annot)
-	}
-	return nil, nil
 }
 
 func eventBefore(a, b *tracks.EventMeta) bool {
@@ -202,18 +183,13 @@ func eventBefore(a, b *tracks.EventMeta) bool {
 	return a.ID.Compare(b.ID) < 0
 }
 
-func (a *Agent) handleSetPrompt(ctx context.Context, annot tracks.Event) ([]tracks.PathEvent, error) {
-	in := annot.Data.(*AssistantPromptEvent)
-	return a.setPrompt(ctx, &annot.EventMeta, in.Name, in.PromptTemplate)
-}
-
-func (a *Agent) setPrompt(ctx context.Context, meta *tracks.EventMeta, name, promptTemplate string) ([]tracks.PathEvent, error) {
+func (a *Agent) setPrompt(ctx context.Context, meta *tracks.EventMeta, name, promptTemplate string) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	prev, hasPrev := a.assistants[name]
 	if hasPrev && eventBefore(meta, prev.Event) {
 		slog.InfoContext(ctx, "assistant: not updating, have existing newer client", "name", name, "existing", prev.Event, "new", meta)
-		return nil, nil
+		return nil
 	}
 	record := eventClient{
 		Event: meta,
@@ -223,7 +199,7 @@ func (a *Agent) setPrompt(ctx context.Context, meta *tracks.EventMeta, name, pro
 		record.Client, err = a.NewClient(a.Runner, name, promptTemplate)
 		if err != nil {
 			slog.InfoContext(ctx, "assistant: error creating client", "name", name, "event", meta, "error", err)
-			return nil, err
+			return err
 		}
 	}
 	if hasPrev {
@@ -235,7 +211,7 @@ func (a *Agent) setPrompt(ctx context.Context, meta *tracks.EventMeta, name, pro
 		a.assistants = make(map[string]eventClient)
 	}
 	a.assistants[name] = record
-	return nil, nil
+	return nil
 }
 
 func (a *Agent) getAssistants() []Client {
@@ -250,7 +226,7 @@ func (a *Agent) getAssistants() []Client {
 	return out
 }
 
-func handleTranscription(ctx context.Context, clients []Client, annot transcribe.Event, span tracks.Span) ([]tracks.PathEvent, error) {
+func handleTranscription(ctx context.Context, clients []Client, annot transcribe.Event) ([]tracks.PathEvent, error) {
 	in := annot.Data
 	if len(in.Segments) == 0 || len(in.Segments[0].Words) == 0 {
 		slog.InfoContext(ctx, "assistant: transcription had no segments or words")
@@ -264,12 +240,17 @@ func handleTranscription(ctx context.Context, clients []Client, annot transcribe
 		go func() {
 			r := respond(client, annot, text)
 			if r != nil {
-				outCh <- tracks.NewEvent(
-					span,
-					"/assistant/text",
-					"assistant-text",
-					r,
-				)
+				outCh <- tracks.PathEvent{
+					EventMeta: tracks.EventMeta{
+						ID:    tracks.NewID(),
+						Start: annot.Start,
+						End:   annot.End,
+						Type:  "assistant-text",
+					},
+					Path:    "/assistant/text",
+					TrackID: annot.TrackID,
+					Data:    r,
+				}
 			}
 			wg.Done()
 		}()

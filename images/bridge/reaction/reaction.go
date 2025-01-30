@@ -89,6 +89,23 @@ func Command[T any](reactor *Reactor, name, description string, f func(context.C
 	})
 }
 
+func CommandSingle[T any](reactor *Reactor, name, description string, f func(context.Context, T) ([]tracks.PathEvent, error)) commands.Source {
+	return Command(reactor, name, description,
+		func(ctx context.Context, events []T) ([]tracks.PathEvent, error) {
+			slog.InfoContext(ctx, name, "num_events", len(events))
+			var results []tracks.PathEvent
+			for _, e := range events {
+				events, err := f(ctx, e)
+				if err != nil {
+					return nil, err
+				}
+				results = append(results, events...)
+			}
+			return results, nil
+		},
+	)
+}
+
 type ReactionProvider interface {
 	Reactions(context.Context) []CommandRuleInput
 }
