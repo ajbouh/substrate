@@ -22,6 +22,10 @@ func ParseDataPointer(s string) (DataPointer, error) {
 	return DataPointer(s), nil
 }
 
+func (p DataPointer) Append(path ...string) DataPointer {
+	return DataPointer(string(p) + "/" + strings.Join(path, "/"))
+}
+
 func (p DataPointer) TrimPathPrefix(s DataPointer) (DataPointer, bool) {
 	if strings.HasPrefix(string(p), string(s)) {
 		trimmed := p[len(s):]

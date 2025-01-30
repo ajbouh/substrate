@@ -47,11 +47,16 @@ commands: "tool-call": {
     }
 
     command.#ViaHTTP
+    #msg_request_body_parameter_prefix: "parameters/"
+
     msg: data: request: {
       method: "POST"
-      url: "/"
+      url: "/tool-call/"
       headers: "Content-Type": ["application/json"]
-      body: {}
+      body: {
+        command: "suggest"
+        parameters: {}
+      }
     }
   }
 }
