@@ -188,16 +188,6 @@ type EventCommands struct {
 	ReactionProviders []reaction.ReactionProvider
 }
 
-func (es *EventCommands) Reactions(ctx context.Context) []reaction.CommandRuleInput {
-	return []reaction.CommandRuleInput{
-		{
-			Path:     "/rules/defs" + es.EventPathPrefix,
-			Disabled: true,
-			Deleted:  true,
-		},
-	}
-}
-
 func (es *EventCommands) Initialize() {
 	var rules []reaction.CommandRuleInput
 	ctx := context.TODO()
