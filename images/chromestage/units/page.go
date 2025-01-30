@@ -41,12 +41,15 @@ func (c *PageCommands) Run(ctx context.Context, name string, p commands.Fields) 
 
 	var result commands.Fields
 	err = c.CDP.Run(
-		chromedp.Evaluate(fmt.Sprintf(`window.substrate.r0.commands.run(%q,%s)`, name, string(b)),
+		chromedp.Evaluate(fmt.Sprintf(`window?.substrate?.r0?.commands?.run && window.substrate.r0.commands.run(%q,%s)`, name, string(b)),
 			&result,
 			func(ep *runtime.EvaluateParams) *runtime.EvaluateParams {
 				return ep.WithAwaitPromise(true)
 			},
 		),
 	)
+	if result == nil {
+		return nil, commands.ErrNoSuchCommand
+	}
 	return result, err
 }

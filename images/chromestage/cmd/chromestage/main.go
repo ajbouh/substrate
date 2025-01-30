@@ -53,6 +53,16 @@ func main() {
 			UpstreamURL: chromedpUrl,
 		},
 
+		&units.MultimediaLinks{},
+		&units.ChromeDPLinks{
+			Scheme: substrateOriginURL.Scheme,
+			Host:   substrateOriginURL.Host,
+		},
+		&units.VNCLinks{
+			Scheme: substrateOriginURL.Scheme,
+			Host:   substrateOriginURL.Host,
+		},
+
 		pageCommands,
 		commands.Prefixed("page:", pageCommands),
 

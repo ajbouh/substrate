@@ -17,17 +17,17 @@ func WindowCommands() commands.Source {
 			func(ctx context.Context, t *struct{}, args struct {
 				Width  int64 `json:"width"`
 				Height int64 `json:"height"`
-			}) (commands.Fields, error) {
+			}) (struct{}, error) {
 				if err := exec.Command("xrandr", "-s", fmt.Sprintf("%dx%d", args.Width, args.Height)).Run(); err != nil {
-					return nil, err
+					return struct{}{}, err
 				}
 				if err := exec.Command(
 					"xdotool", "getwindowfocus",
 					"windowsize", fmt.Sprintf("%d", args.Width), fmt.Sprintf("%d", args.Height),
 				).Run(); err != nil {
-					return nil, err
+					return struct{}{}, err
 				}
-				return nil, nil
+				return struct{}{}, nil
 			},
 		),
 	)

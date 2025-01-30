@@ -23,6 +23,10 @@ var _ commands.Source = (*TabCommands)(nil)
 
 type Void struct{}
 
+type EvaluateReturns struct {
+	Result map[string]any `json:"result"`
+}
+
 type NavigateReturns struct {
 	Navigated bool   `json:"navigated"`
 	Lazy      bool   `json:"lazy"`
@@ -82,10 +86,12 @@ func (a *TabCommands) Initialize() {
 			"Evaluate given javascript",
 			func(ctx context.Context, t *struct{}, args struct {
 				JS string `json:"js"`
-			}) (map[string]any, error) {
-				var result map[string]any
-				return result, a.CDP.Run(chromedp.Evaluate(args.JS,
-					&result,
+			}) (EvaluateReturns, error) {
+				er := EvaluateReturns{
+					Result: map[string]any{},
+				}
+				return er, a.CDP.Run(chromedp.Evaluate(args.JS,
+					&er.Result,
 					func(ep *runtime.EvaluateParams) *runtime.EvaluateParams {
 						return ep.WithAwaitPromise(true)
 					},

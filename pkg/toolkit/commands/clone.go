@@ -33,6 +33,7 @@ func (m Meta) Clone() (Meta, error) {
 		md := Metadata{
 			Description: v.Description,
 			Type:        v.Type,
+			Required:    v.Required,
 		}
 		new[k] = md
 	}
@@ -80,14 +81,15 @@ func (r *Msg) Clone() (*Msg, error) {
 }
 
 func (r Msg) CloneAndBind(data Fields) (*Msg, error) {
-	slog.Info("CloneAndBind", "data", data, "r.Data", r.Data)
+	var d *Msg
+	defer func() { slog.Info("CloneAndBind", "data", data, "r.Data", r.Data, "d", d) }()
 
 	d, err := r.Clone()
 	if err != nil {
 		return nil, err
 	}
 
-	err = Merge(d.Data, data)
+	d.Data, err = Merge(d.Data, data)
 	if err != nil {
 		return nil, err
 	}

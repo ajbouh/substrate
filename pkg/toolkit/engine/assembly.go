@@ -86,7 +86,18 @@ func (a *Assembly) Assemble(v interface{}) error {
 		return fmt.Errorf("Assemble: v is not a pointer")
 	}
 	target := rv.Elem()
-	if target.Kind() != reflect.Struct {
+	isStructOrTypeDefinition := func(target reflect.Value) bool {
+		if target.Kind() == reflect.Struct {
+			return true
+		}
+		t := target.Type()
+		if t.Kind() == reflect.Map && t != reflect.MapOf(t.Key(), t.Elem()) {
+			return true
+		}
+		return false
+	}
+
+	if !isStructOrTypeDefinition(target) {
 		return fmt.Errorf("Assemble: v is not pointing to a struct")
 	}
 
@@ -131,7 +142,10 @@ func (a *Assembly) Assemble(v interface{}) error {
 		return nil
 	}
 
-	// otherwise populate by exported fields
+	// otherwise populate by exported fields. only structs have these.
+	if target.Kind() != reflect.Struct {
+		return nil
+	}
 	for i := 0; i < target.NumField(); i++ {
 		// filter out unexported fields
 		if len(target.Type().Field(i).PkgPath) > 0 {

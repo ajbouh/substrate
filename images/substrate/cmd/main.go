@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 	"github.com/caddyserver/certmagic"
@@ -195,30 +194,20 @@ func main() {
 		},
 		&substratehttp.ProxyHandler{},
 		&units.Broker{},
+		&units.MsgIndex{},
 
-		&notify.Slot[units.DefSetCommands]{},
-		&service.LoaderDelegate[*units.DefSetCommands]{},
+		units.RootServiceDescribeCommand,
+		units.ServiceDescribeCommand,
+		units.ServiceLinksQueryCommand,
+		&units.LinkToServices{},
+		&units.ServiceCommands{},
+
 		notify.On(func(ctx context.Context,
 			e *defset.DefSet,
 			t *struct {
 				NotifyQueue    *notify.Queue
-				Slot           *notify.Slot[units.DefSetCommands]
 				ExportsChanged []notify.Notifier[exports.Changed]
-				DefRunner      commands.DefRunner
 			}) {
-			commands := units.DefSetCommands{
-				DefRunner: t.DefRunner,
-			}
-			err := e.DecodeLookupPath(cue.MakePath(cue.Str("commands")), &commands.DefsMap)
-			if err != nil {
-				log.Printf("err on update: %s", e.FmtErr(err))
-				t.Slot.StoreWithContext(ctx, nil)
-				return
-			}
-
-			slog.Info("commands from defset", "commands", commands)
-			t.Slot.StoreWithContext(ctx, &commands)
-			slog.Info("stored commands from defset")
 
 			// commands changed, so exports changed.
 			notify.Later(t.NotifyQueue, t.ExportsChanged, exports.Changed{})

@@ -23,167 +23,295 @@
                     return window.markdownit();
                 })()
 
+                const exportBlob = (filename, blob) => {
+                    const url = URL.createObjectURL(blob);
+
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.setAttribute('download', filename);
+                  
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  
+                    URL.revokeObjectURL(url);
+                }
+
+                const importText = () => {
+                    return new Promise((resolve, reject) => {
+                        const fileInput = document.createElement('input');
+                        fileInput.type = 'file';
+                        
+                        fileInput.addEventListener('change', (event) => {
+                            const file = event.target.files[0];
+                        
+                            // Check if a file was actually selected
+                            if (file) {
+                                const reader = new FileReader();
+                            
+                                // When the file is loaded as text, handle the content
+                                reader.onload = (e) => {
+                                    const fileContent = e.target.result;
+                                    // Do something with the file content as a string
+                                    resolve(fileContent)
+                                };
+                            
+                                // Read the file as text
+                                reader.readAsText(file);
+                            }
+                        });
+                        
+                        // Trigger the file dialog
+                        fileInput.click();
+                    })
+                }
+
                 const {ReflectCommands} = import(`${hostName}/tool-call/js/commands.js`);
                 const {h, render, html} = import(Renkon.spaceURL("./preact.standalone.module.js"));
                 const {initGrammar, translate} = import("./parser.js");
 
+                const tabsWithNewSection = (now, newSection) => { // newSection: {id, input, value}
+                    // the request is an invocation
+                    const tabId = now.current;
+                    const newTabs = [...now.tabs];
+                    const newTab = newTabs[tabId];
+                    const newSections = [...newTab.sections, {}];
+                    newSections[newSection.id] = newSection;
+                    newTabs[tabId] = {tabId, url: newTab.url, urlForID: newTab.urlForID, sections: newSections};
+                    return {
+                        current: tabId,
+                        tabs: newTabs,
+                    };
+                }
+
                 const viewCommands = {
-                    go: (input) => {
-                        const url = input.params.url;
+                    newTab: () => (now) => {
+                        const newTabId = now.tabs[now.tabs.length - 1].tabId + 1;
+                        return {
+                            current: newTabId,
+                            tabs: [...now.tabs, {tabId: newTabId, urlForID: undefined, url: undefined, reflect: undefined, sections: [{}]}],
+                        };
+                    },
+                    switchTab: ({tab}) => (now) => {
+                         // the request is to switch tabs
+                         if (tab === now.current) {
+                            return now;
+                         }
+                         return {current: tab, tabs: now.tabs};
+                    },
+                    go: ({id, url}) => (now) => {
                         console.log("go", url);
-                        if (!url) {return;}
-                        Events.send(goRequest, url)
-                        return "went to " + url
+                        const tabs = [...now.tabs]
+                        const tab = now.current
+                        let t = tabs[tab]
+                        if (t) {
+                            tabs[tab] = {...tabs[tab], url, urlForID: id}
+                            return {
+                                current: now.current,
+                                tabs,
+                            }
+                        }
+
+                        return now
                     },
-                    tab: () => {
-                        Events.send(tabRequest, {type: "newTab", url: "/~/"})
-                        return "new tab"
+                    open: ({
+                        url,
+                        target = "_blank",
+                        popup,
+                        width,
+                        height,
+                        left,
+                        top,
+                        noopener,
+                        noreferrer,
+                    }) => (now) => {
+                        console.log("go", url);
+                        if (!url) {return now;}
+                        const windowFeatures = Object.entries({width, height, left, top, noopener, noreferrer, popup}).filter(([k, v]) => v).map(([k, v]) => `${k}=${v}`).join(", ")
+                        // see https://developer.mozilla.org/en-US/docs/Web/API/Window/open
+                        window.open(url, target, windowFeatures)
+                        // `opened ${url} in target ${target} with features ${windowFeatures}`
+                        return now
                     },
-                    ping: () => {
-                        return "pong"
+                    setTabs: ({tabs}) => (now) => {
+                        return tabs
+                    },
+                    import: () => (now) => {
+                        const json = importText().then(json => {
+                            Events.send(viewMsgInbox, [
+                                {type: "setTabs", tabs: JSON.parse(json)},
+                            ])
+                        })
+                        return now;
+                    },
+                    export: () => (now) => {
+                        const fileName = 'navigator.json';
+                        const blob = new Blob([JSON.stringify(now)], {
+                            type: "application/json",
+                        });
+                        exportBlob(fileName, blob)
+                        return now;
+                    },
+                    newSection: (newSection) => (now) => {
+                        return tabsWithNewSection(now, newSection)
+                    },
+                    setReflect: ({tab, reflect, reflectForURLForID}) => (now) => {
+                        const tabs = [...now.tabs]
+                        let t = tabs[tab]
+                        if (t) {
+                            console.log({reflectForURLForID, reflect, tab})
+                            tabs[tab] = {...tabs[tab], reflect}
+
+                            if (reflect['describe']) {
+                                const describe = reflect['describe'].run()
+                                describe.then(({description}) => {
+                                    Events.send(viewMsgInbox, [
+                                        {type: "setSectionValue", tab, id: reflectForURLForID, value: description},
+                                    ])
+                                })
+                            }
+
+                            return {
+                                current: now.current,
+                                tabs,
+                            }
+                        }
+
+                        return now
+                    },
+                    setSectionValue: ({tab, id, value}) => (now) => {
+                        const tabs = [...now.tabs]
+                        let t = tabs[tab]
+                        if (t) {
+                            let sections = t.sections
+                            sections = [...sections]
+                            tabs[tab] = {...tabs[tab], sections}
+                            let section = sections[id]
+                            if (section) {
+                                section = {...section, value}
+                                sections[id] = section
+                                return {
+                                    current: now.current,
+                                    tabs,
+                                }
+                            }
+                        }
+
+                        return now
+                    },
+                    doMsgInput: ({input, id}) => (now) => {
+                        console.log("doMsgInput", {input, id})
+                        const reflectResponse = now.tabs[now.current].reflect
+                        let translated;
+                        try {
+                            translated = translate(input);
+                        } catch(e) {
+                            console.log({e})
+                        }
+                        if (!translated) {return;}
+
+                        if (!translated.command && translated.description?.length) {
+                            const commands = Object.fromEntries(Object.entries(reflectResponse).map(([k, v]) => [k, v.msg]))
+                            console.log({commands})
+                            input = `tool-call/suggest input:${JSON.stringify(translated.description)} commands: ${JSON.stringify(commands)}`
+                            try {
+                                translated = translate(input);
+                            } catch(e) {
+                                console.log({e})
+                            }
+                            if (!translated) {return;}
+                        }
+
+                        if (translated.viewCommand) {
+                            // XXX input and index will conflict with params!!!
+                            Events.send(viewMsgInbox, [
+                                {type: "newSection", input, id, value: input},
+                                {type: translated.command, input, id, ...translated.params},
+                            ]);
+                            // TODO need to show result somewhere!! (like whatever we do in doMsg)
+                        } else {
+                            Events.send(viewMsgInbox, [{type: "doMsg", input, id, command: translated}]);
+                        }
+                    },
+                    doMsg: ({input, id, command: {command, params}}) => (now) => {
+                        // const invokeCommand = Events.resolvePart(invokeCommandResponse.value, invokeCommandResponse);
+                        const reflectResponse = now.tabs[now.current].reflect
+                        if (!reflectResponse) {return now;}
+
+                        const cmd = reflectResponse[command];
+                        if (!cmd) {return now;}
+
+                        cmd.run(params).then((value) => {
+                            Events.send(viewMsgInbox, [{type: "setSectionValue", tab: now.current, id, value}])
+                        })
+
+                        return tabsWithNewSection(now, {id, input, value: ''})
                     },
                 };
                 
-                const topUrlInput = goRequest;
+                const viewMsgInbox = Events.receiver()
+
+                const viewMsgReducers = ((viewCommands, viewMsgInbox) => {
+                    return viewMsgInbox.map(msg => {
+                        console.log(msg)
+                        return viewCommands[msg.type](msg)
+                    })
+                })(viewCommands, viewMsgInbox);
+
+                const tabs = Behaviors.collect(
+                    {current: 0, tabs: [{tabId: 0, url: undefined, reflect: undefined, urlForID: undefined, sections: [{}]}]},
+                    Events.change(viewMsgReducers),
+                    (now, reducers) => {
+                        return reducers.reduce((acc, reducer) => reducer(acc), now)
+                    })
+
 
                 const commandRequest = Events.receiver();
                 const viewCommandRequest = Events.receiver();
-                const reflowRequest = Events.receiver();
-                const goRequest = Events.receiver();
-                const tabRequest = Events.receiver();
-                const suggestion = Events.receiver();
-
-                console.log(suggestion);
-
-                const insertSuggestion = ((suggestion, insertInspectorAndFocusInput) => {
-                    console.log("insertSuggestion", suggestion);
-                    insertInspectorAndFocusInput.value = suggestion.name + " ";
-                    const length = suggestion.name.length + 1;
-                    insertInspectorAndFocusInput.focus();
-                    insertInspectorAndFocusInput.setSelectionRange(length, length);
-                })(suggestion, insertInspectorAndFocusInput);
 
                 const grammar = initGrammar();
 
-                const topUrlKeyHandler = (evt) => {
-                    if (evt.key === "Enter") {
-                        evt.preventDefault();
-                        evt.stopPropagation();
-                        console.log("enter");
-                        return evt.target.value;
+                console.log({urlAndTabAndGoID});
+
+                const urlAndTabAndGoID = Behaviors.collect(
+                    {},
+                    tabs,
+                    (now, tabs) => {
+                        const u = tabs.tabs[tabs.current].url
+                        const i = tabs.tabs[tabs.current].urlForID
+                        const t = tabs.current
+                        if ((now.tab === t) && (now.url === u) && (now.urlForID === i)) {
+                            return now
+                        }
+
+                        return {tab: t, url: u, urlForID: i}
+                    });
+
+                (({url, tab, urlForID}={}) => {
+                    if (!url) {
+                        console.log("will not reflect", url);
+
+                        const input = `@ go url: "/"`
+                        Events.send(viewMsgInbox, [{type: "doMsgInput", input, id: 0, value: input}])
+                        return
                     }
-                };
 
-                const targetUrl = Behaviors.collect(hostName, topUrlInput, (_, topUrlInput) => {
-                    if (topUrlInput.startsWith("/") && hostName) {
-                        return `${hostName}${topUrlInput}`;
-                    }
-                    return topUrlInput
-                });
-
-                console.log("targetUrl", targetUrl);
+                    console.log("will reflect", {url, urlForID});
+                    (new ReflectCommands(url).reflect()).then(reflect => {
+                        console.log("did reflect", {reflect, urlForID})
+                        Events.send(viewMsgInbox, [{type: "setReflect", tab, reflect, reflectForURLForID: urlForID}]);
+                    })
+                })(urlAndTabAndGoID, viewCommands); // HACK viewCommands uses imported modules, use it as an input so the send above works
                 
-                const reflectResponse = ((targetUrl) => {
-                        return new ReflectCommands(targetUrl).reflect();
-                })(targetUrl);
-                
-                const description = ((reflectResponse) => {
-                    const describeCmd = reflectResponse['describe']
-                    // TODO run describeCmd to get description
-                    const description = `# This is the mock description
-                    
-It has multiple lines and is written in markdown
-                    `
-                    console.log("description", {reflectResponse, description})
-                    return description
-                })(reflectResponse)
-
-                document.querySelector("#rootBar").innerHTML = md.render(description);
-
                 const commandKeyHandler = (evt, i) => {
                     if (evt.key === "Enter") {
                         evt.preventDefault();
                         evt.stopPropagation();
                         console.log("command enter", i);
-                        let translated;
-                        try {
-                            translated = translate(evt.target.value);
-                        } catch(e) {
-                            console.log({e})
-                            // console.log(e.reason, e.expected, e.pos);
-                        }
-                        if (!translated) {return;}
-                        if (translated.viewCommand) {
-                            Events.send(viewCommandRequest, {value: translated, input: evt.target.value, index: i});
-                        } else {
-                            Events.send(commandRequest, {value: translated, input: evt.target.value, index: i});
-                        }
+                        const input = evt.target.value
+                        Events.send(viewMsgInbox, [{type: "doMsgInput", input, id: i, value: input}])
                     }
                 };
-
-                const invokeViewCommand = ((viewCommandRequest) => {
-                    const command = viewCommandRequest.value;
-                    const input = viewCommandRequest.input;
-                    const id = viewCommandRequest.index;
-
-                    const cmd = viewCommands[command.command];
-                    if (!cmd) {return;}
-                    return {id, input: input, value: cmd(command)}
-                })(Events.change(viewCommandRequest));
-
-                const invokeCommandResponse = ((commandRequest, reflectResponse) => {
-                    const command = commandRequest.value;
-                    const input = commandRequest.input;
-                    const id = commandRequest.index;
-
-                    const cmd = reflectResponse[command.command];
-                    if (!cmd) {return;}
-                    return {id, input: input, value: cmd.run(command.params)}
-                })(commandRequest, reflectResponse);
-
-                const invokeCommand = Events.resolvePart(invokeCommandResponse.value, invokeCommandResponse);
-
-                console.log("invokeCommand", invokeCommand);
-
-                const tabs = Behaviors.collect({current: 0, tabs: [{tabId: 0, url: "/", sections: [{}]}]}, Events.or(Events.change(invokeCommand), Events.change(invokeViewCommand), tabRequest), (now, request) => {
-                    console.log("tabs", request);
-                    if (typeof request === "object" && request.type === "tabRequest") {
-                        // the request is to switch tabs
-                        if (request.value === now.current) {
-                            return now;
-                        }
-                        return {current: request.value, tabs: now.tabs};
-                    }
-    
-                    if (typeof request === "object" && request.type === "newTab") {
-                        const newTabId = now.tabs[now.tabs.length - 1].tabId + 1;
-                        return {current: newTabId, tabs: [...now.tabs, {tabId: newTabId, url: now.tabs[now.current].url, sections: [{}]}]};
-                    }
-
-                    if (typeof request === "object" && typeof request.id === "number") {
-                        // the request is an invocation
-                        const tabId = now.current;
-                        const newTabs = [...now.tabs];
-                        const newTab = newTabs[tabId];
-                        const newSections = [...newTab.sections, {}];
-                        const newSection = {...request};
-                        newSections[request.id] = newSection;
-                        newTabs[tabId] = {tabId, url: newTab.url, sections: newSections};
-                        return {current: tabId,  tabs: newTabs};
-                    }
-                });
-
-                (() => {
-                    if (viewCommandRequest !== undefined) {
-                        return
-                    }
-                    const input = `@go url: "/"`
-                    const translated = translate(input)
-                    Events.send(viewCommandRequest, {value: translated, input, index: 0});
-                })()
-
-
-                const reflowRequester = () => Events.send(reflowRequest, "foo")
 
                 const sectionDOMs = ((tabs) => {
                     const tab = tabs.tabs[tabs.current];
@@ -195,7 +323,11 @@ It has multiple lines and is written in markdown
                                     [h("span", {}, "> "),
                                      h("div", {class: "inputHolder", display: "flex"}, [
                                          h("div", {class: "inputWidth"}, [
-                                             h("textarea", {class: "inputInput", value: tab.input || "", onKeydown: (evt) => commandKeyHandler(evt, i)}),
+                                             h("textarea", {
+                                                class: "inputInput",
+                                                value: tab.input || "",
+                                                onKeydown: (evt) => commandKeyHandler(evt, i),
+                                            }),
                                          ]),
                                      ])
                                     ]),
@@ -210,7 +342,12 @@ It has multiple lines and is written in markdown
                 const urlTabDOMs = ((tabs) => {
                     const myTabs = tabs.tabs;
                     return myTabs.map((tab, i) => {
-                        return h("div", {id: `urlTab-${i}`, title: tab.url, class: `urlTab ${i === tabs.current ? "selected" : ""}`, onclick: (evt) => Events.send(tabRequest, {type: "tabRequest", value: i})}, []);
+                        return h("div", {
+                            id: `urlTab-${i}`,
+                            title: tab.url,
+                            class: `urlTab ${i === tabs.current ? "selected" : ""}`,
+                            onclick: (evt) => Events.send(viewMsgInbox, [{type: "switchTab", id: i}])
+                        }, []);
                     });
                 })(tabs);
 
@@ -221,10 +358,10 @@ It has multiple lines and is written in markdown
                     const {sections, tabId} = tab;
                     console.log("insertInspectorAndFocusInput");
                     const result = render(sectionDOMs, document.querySelector("#commandContainer"));
-                    sections.forEach((tab, i) => {
+                    sections.forEach((section, i) => {
                         const dom = document.querySelector(`#command-result-${i}`);
-                        if (dom && tab.value) {
-                            const inspector = Renkon.app.newInspector(tab.value, dom);
+                        if (dom && section.value) {
+                            const inspector = Renkon.app.newInspector(section.value, dom);
                         }
                     });
                     
@@ -239,7 +376,10 @@ It has multiple lines and is written in markdown
                 const {dom: msgDOM} = import("./msg.js")
                 const jsonpointer = import("./jsonpointer.js")
 
-                const msgindex = reflectResponse
+                const msgindex = tabs.tabs[tabs.current].reflect
+                // console.log({msgindex});
+                // console.log({'tabs.tabs': tabs.tabs});
+                // console.log({'tabs.current': tabs.current});
 
                 const msgindexDOM = (({msgindex}) => {
                     const entries = Object.entries(msgindex)
@@ -270,7 +410,6 @@ It has multiple lines and is written in markdown
             </script>
             <div id="container" style="height: 100%">
                 <div id="urlTabs"></div>
-                <div id="rootBar"></div>
                 <div id="commandContainer"></div>
                 <div id="msgindexroot">
                     <div id="msgindex"></div>
@@ -339,7 +478,7 @@ It has multiple lines and is written in markdown
                 }
 
                 .commandEditor textarea {
-                    width: 80vh;
+                    width: 80%;
                     border: 0px;
                     background: transparent;
                     field-sizing: content;
@@ -384,7 +523,7 @@ It has multiple lines and is written in markdown
                 }
 
                 .inputWidth {
-                    width: 0px;
+                    width: 100%;
                     overflow: visible;
                 }
             </style>

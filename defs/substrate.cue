@@ -65,6 +65,10 @@ tests: "substrate": go: {
   ]
 }
 
+services: "substrate": {
+  description: "A platform for building intelligent systems"
+}
+
 daemons: "substrate": {
   environment: {
     "PORT": "443"

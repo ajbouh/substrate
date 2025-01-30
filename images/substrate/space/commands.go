@@ -26,7 +26,7 @@ type GetSpacesReturns struct {
 }
 
 var QueryCommand = handle.Command(
-	"space:query", "List all spaces",
+	"spaces:query", "List all spaces",
 	func(ctx context.Context,
 		t *struct {
 			SpaceQueriers []activityspec.SpaceQuerier
@@ -109,7 +109,7 @@ var GetCommand = handle.HTTPCommand(
 	})
 
 var NewCommand = handle.Command(
-	"space:new",
+	"spaces:new",
 	"Make a new space",
 	func(ctx context.Context,
 		t *struct {

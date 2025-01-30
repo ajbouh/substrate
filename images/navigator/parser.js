@@ -1,10 +1,14 @@
 let navigatorGrammar = String.raw`
 Navigator {
-  Command = Head Params spaces
+  Msg = description? (Head Params spaces)?
+  
+  description = "#" (~nl any)* nl?
 
-  Head
-    = "@" msgName -- viewMsg
-    | msgName -- msg
+  Head = msgTarget? msgName
+
+  msgTarget = "@" (~space any)*
+
+  msgName = letter (alnum | "_" | "-" | ":" | "." | "+" | "/")*
 
   Params = Param*
 
@@ -18,11 +22,12 @@ Navigator {
     | string                            -- string
     | templateString                    -- templateString
     | number                            -- number
-
-  msgName = letter (alnum | "_" | "-" | ":" | ".")*
+    | boolean                           -- boolean
 
   ident = letter (alnum | "_")*
   key = ident | string
+
+  boolean = "true" | "false"
 
   number
     = digit* "." digit+  -- fract
@@ -40,10 +45,12 @@ Navigator {
     = "\\" any           -- escaped
     | ~"\u{0060}" any          -- nonEscaped
 
-  empty =
-  space
-   += "//" (~nl any)* nl  -- cppComment
+  comment
+    = "//" (~nl any)* nl  -- cppComment
     | "/*" (~"*/" any)* "*/" -- cComment
+
+  empty =
+  space += comment
   nl = "\n"
 }
 `;
@@ -58,29 +65,31 @@ export function initGrammar() {
     s = g.createSemantics();
 
     s.addOperation(
-        "toCommand",
+        "toMsg",
         {
-            Command(h, p, _s) {
-                // console.log("Command", h.sourceString, p.sourceString);
-                const command = h.toCommand();
-                const pValue = p.toCommand();
+            Msg(d, h, p, _s) {
+                const description = d.numChildren ? d.children[0].sourceString.substring(1).trimLeft() : ''
+                const command = h.numChildren ? h.children[0].toMsg() : {};
+                const params = p.numChildren ? p.children[0].toMsg() : undefined;
 
-                return {...command, params: pValue};
-            },
-            Head_viewMsg(_a, m) {
-                // console.log("Head_viewCommand", i.sourceString);
-                return {viewCommand: true, command: m.sourceString};
+                return {...command, description, params};
             },
 
-            Head_msg(m) {
-                // console.log("Head_msgName", s.sourceString, a.sourceString);
-                return {command: this.sourceString};
+            Head(msgTarget, msgName) {
+                console.log({msgTarget})
+                const target = msgTarget.numChildren ? msgTarget.sourceString.substring(1) : undefined
+                console.log({target})
+                return {
+                    viewCommand: target !== undefined && target.length === 0,
+                    target: target,
+                    command: msgName.sourceString,
+                };
             },
-            
+
             Params(rest) {
                 const result = {};
                 for (let i = 0; i < rest.children.length; i++) {
-                    const pValue = rest.children[i].toCommand();
+                    const pValue = rest.children[i].toMsg();
                     result[pValue.key] = pValue.value;
                 }
                 return result;
@@ -88,17 +97,17 @@ export function initGrammar() {
 
             Param(key, _c, json) {
                 // console.log("Param", key.sourceString, json.sourceString);
-                return {key: key.toCommand(), value: json.toCommand()}
+                return {key: key.toMsg(), value: json.toMsg()}
             },
 
             Json_object1(_ob, param1, rest, rest2, _cc, _cb) {
                 // console.log("Json_object1", param1.sourceString, rest.sourceString, rest2.sourceString);
                 const result = {};
-                const param1Command = param1.toCommand();
+                const param1Command = param1.toMsg();
                 result[param1Command.key] = param1Command.value;
 
                 for (let i = 0; i < rest2.children.length; i++) {
-                    const param1Command = rest2.children[i].toCommand();
+                    const param1Command = rest2.children[i].toMsg();
                     result[param1Command.key] = param1Command.value;
                 }
 
@@ -113,11 +122,11 @@ export function initGrammar() {
             Json_array1(_ob, json1, _rest, rest2, _cc, _cb) {
                 // console.log("Json_array1", json1.sourceString, rest, sourceString);
                 const result = [];
-                const json1Command = json1.toCommand();
+                const json1Command = json1.toMsg();
                 result.push(json1Command);
 
                 for (let i = 0; i < rest2.children.length; i++) {
-                    const json1Command = rest2.children[i].children[0].toCommand();
+                    const json1Command = rest2.children[i].children[0].toMsg();
                     result.push(json1Command);
                 }
 
@@ -131,12 +140,16 @@ export function initGrammar() {
 
             Json_string(str) {
                 console.log("Json_string", str.sourceString);
-                return str.toCommand();
+                return str.toMsg();
             },
 
             Json_number(n) {
                 // console.log("Json_number", n.sourceString);
-                return n.toCommand();
+                return n.toMsg();
+            },
+
+            boolean(b) {
+                return b.sourceString === 'true'
             },
 
             ident(_h, _r) {
@@ -145,7 +158,7 @@ export function initGrammar() {
             },
 
             key(k) {
-                return k.toCommand();
+                return k.toMsg();
             },
 
             number_fract(i, _p, f) {
@@ -183,7 +196,8 @@ export function translate(str) {
     }
 
     let n = s(match);
-    const result = n.toCommand();
+    const result = n.toMsg();
+    console.log(result)
     return result;
 }
 

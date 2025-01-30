@@ -51,6 +51,36 @@ func main() {
 						Prompt:  prompt,
 						Choices: reqs,
 					}, nil
+				}).WithExample(
+				"simple_ide_cursor_movement", "Advance cursor by 3",
+				commands.Fields{
+					"parameters": commands.Fields{
+						"input": "move the cursor three lines down",
+						"commands": commands.DefIndex{
+							"cursor_next_line": &commands.Msg{
+								Description: "Move the cursor to n lines down the current line",
+								Meta: commands.Meta{
+									"#/data/parameters/nLines": {
+										Type:        "number",
+										Description: "The amount of movement.",
+									},
+									"#/data/returns/ok": {
+										Type: "boolean",
+									},
+								},
+							},
+							"type_in": {
+								Description: "Type in the argument at the current cursor position",
+								Meta: commands.Meta{
+									"#/data/parameters/input": {
+										Type:        "string",
+										Description: "The string to be entered.",
+									},
+									"#/data/returns/ok": {Type: "boolean"},
+								},
+							},
+						},
+					},
 				}),
 		),
 	)
@@ -80,7 +110,7 @@ func translateDefs(def commands.DefIndex) []tools.Definition {
 			}
 
 			p := subpath.Path()
-			if len(p) == 0 {
+			if len(p) != 1 {
 				continue
 			}
 			paramName := p[0]

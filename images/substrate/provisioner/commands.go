@@ -16,7 +16,7 @@ type NewReturns struct {
 }
 
 var NewCommand = handle.Command(
-	"new:instance",
+	"instances:new",
 	"Spawn a new instance of the given service and parameters. Return the location of the new service.",
 	func(ctx context.Context,
 		t *struct {
@@ -32,7 +32,7 @@ var NewCommand = handle.Command(
 
 		// Anticipate a possible redirect, so make a HEAD request and look at the final (possibly redirected) URL
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodHead, sreq.URLPrefix+"/", nil)
+		req, err := http.NewRequestWithContext(ctx, "REFLECT", sreq.URLPrefix+"/", nil)
 		if err != nil {
 			return nr, err
 		}

@@ -34,7 +34,8 @@ func (a *Interpreter) RunDef(ctx context.Context, d *Msg, data Fields) (Fields, 
 	if data == nil {
 		data = d.Data
 	} else if len(d.Data) > 0 {
-		err := Merge(data, d.Data)
+		var err error
+		data, err = Merge(data, d.Data)
 		if err != nil {
 			return nil, fmt.Errorf("error merging data: %w", err)
 		}

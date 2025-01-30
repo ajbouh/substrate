@@ -34,6 +34,27 @@ func (s *DefSet) DecodeLookupPath(p cue.Path, target any) error {
 	return s.RootValue.LookupPath(p).Decode(target)
 }
 
+type Transform func(v cue.Value) cue.Value
+
+func (s *DefSet) TransformAndDecode(target any, transforms ...Transform) (bool, error) {
+	s.CueMu.Lock()
+	defer s.CueMu.Unlock()
+
+	v := s.RootValue
+	if !v.Exists() {
+		return false, nil
+	}
+
+	for _, transform := range transforms {
+		v = transform(v)
+		if !v.Exists() {
+			return false, nil
+		}
+	}
+
+	return true, v.Decode(target)
+}
+
 func (s *DefSet) DecodeLookupPathIfExists(p cue.Path, target any) (bool, error) {
 	s.CueMu.Lock()
 	defer s.CueMu.Unlock()
