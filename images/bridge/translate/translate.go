@@ -2,7 +2,6 @@ package translate
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"strings"
 
@@ -26,7 +25,6 @@ type TranslationRecord struct {
 type Command = calls.CommandCall[Request, Translation]
 
 type Agent struct {
-	Session        *tracks.Session
 	Command        *Command
 	TargetLanguage string
 	Reactor        *reaction.Reactor
@@ -68,12 +66,6 @@ func (a *Agent) handle(ctx context.Context, annot transcribe.Event) ([]tracks.Pa
 		slog.InfoContext(ctx, "skipping translation, already in target language", "transcription", in, "target", a.TargetLanguage)
 		return nil, nil
 	}
-	track := a.Session.Track(annot.TrackID)
-	if track == nil {
-		return nil, fmt.Errorf("track not found: %s", annot.TrackID)
-	}
-	span := track.Span(annot.Start, annot.End)
-
 	r, err := a.Command.Call(ctx, Request{
 		SourceLanguage: in.SourceLanguage,
 		TargetLanguage: a.TargetLanguage,
@@ -86,13 +78,20 @@ func (a *Agent) handle(ctx context.Context, annot transcribe.Event) ([]tracks.Pa
 	slog.InfoContext(ctx, "translation completed", "translation", r)
 
 	return []tracks.PathEvent{
-		tracks.NewEvent(
-			span, "/translation", "translation",
-			&TranslationRecord{
+		{
+			EventMeta: tracks.EventMeta{
+				ID:    tracks.NewID(),
+				Start: annot.Start,
+				End:   annot.End,
+				Type:  "translation",
+			},
+			Path:    "/translation",
+			TrackID: annot.TrackID,
+			Data: &TranslationRecord{
 				SourceEvent: annot.ID,
 				Translation: r,
 			},
-		),
+		},
 	}, nil
 }
 
