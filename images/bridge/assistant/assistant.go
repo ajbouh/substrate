@@ -28,8 +28,6 @@ type AssistantPromptEvent struct {
 	PromptTemplate string
 }
 
-// TODO send events when the prompt changes, but need to update those
-// functions to have access to a queue
 type AssistantPromptNotification tracks.EventT[*AssistantPromptEvent]
 
 type AssistantTextEvent struct {
