@@ -114,20 +114,25 @@ func (s *Service) initialize() {
 			DefTransform: func(ctx context.Context, name string, commandDef *commands.Msg) (string, *commands.Msg) {
 				def := handle.FindMsgBasis(commandDef)
 				if def == nil || def.Cap == nil || *def.Cap != "http" {
-					return name, def
+					return name, commandDef
 				}
+
 				u, err := commands.GetPath[string](def.Data, "request", "url")
 				if err != nil {
-					return name, def
+					return name, commandDef
 				}
+
 				if !strings.HasPrefix(u, "//") {
-					return name, def
+					return name, commandDef
 				}
+
+				out := commandDef.MustClone()
+				def = handle.FindMsgBasis(out)
 				u = s.InternalSubstrateBaseURL + u
-				out := handle.FindMsgBasis(def.MustClone())
-				if err := commands.SetPath(out.Data, []string{"request", "url"}, u); err != nil {
-					return name, def
+				if err := commands.SetPath(def.Data, []string{"request", "url"}, u); err != nil {
+					return name, commandDef
 				}
+
 				return name, out
 			},
 		},
