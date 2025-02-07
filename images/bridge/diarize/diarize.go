@@ -2,11 +2,15 @@ package diarize
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
 
+	"github.com/ajbouh/substrate/images/bridge/reaction"
 	"github.com/ajbouh/substrate/images/bridge/tracks"
+	"github.com/ajbouh/substrate/images/bridge/vad"
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/gopxl/beep"
 	"github.com/technosophos/moniker"
 )
@@ -73,6 +77,8 @@ func (t TimeRange) Sub(d time.Duration) TimeRange {
 type Agent struct {
 	Client  Client
 	Sampler Sampler
+	Session *tracks.Session
+	Reactor *reaction.Reactor
 	mutex   sync.Map
 }
 
@@ -90,17 +96,43 @@ func (a *Agent) lock(id tracks.ID) *sync.Mutex {
 	return m
 }
 
-func (a *Agent) HandleEvent2(ctx context.Context, annot tracks.Event) ([]tracks.PathEvent, error) {
-	if annot.Type != "activity" {
-		return nil, nil
+func (a *Agent) Reactions(ctx context.Context) []reaction.CommandRuleInput {
+	return []reaction.CommandRuleInput{
+		a.Reactor.Rule("diarize:events", "voice-activity"),
 	}
+}
+
+func (a *Agent) Commands(ctx context.Context) commands.Source {
+	return reaction.Command(a.Reactor, "diarize:events",
+		"Detect speakers within an audio sample",
+		func(ctx context.Context, events []vad.ActivityEvent) ([]tracks.PathEvent, error) {
+			slog.InfoContext(ctx, "diarize:events", "num_events", len(events))
+			var results []tracks.PathEvent
+			for _, e := range events {
+				events, err := a.handle(ctx, e)
+				if err != nil {
+					return nil, err
+				}
+				results = append(results, events...)
+			}
+			return results, nil
+		},
+	)
+}
+
+func (a *Agent) handle(ctx context.Context, annot vad.ActivityEvent) ([]tracks.PathEvent, error) {
+	track := a.Session.Track(annot.TrackID)
+	if track == nil {
+		return nil, fmt.Errorf("track not found: %s", annot.TrackID)
+	}
+	span := track.Span(annot.Start, annot.End)
 
 	// Only process one sample per-track at a time to avoid race conditions for
 	// new speakers being processed concurrently without the previous context.
-	defer a.lock(annot.Track().ID).Unlock()
+	defer a.lock(annot.TrackID).Unlock()
 
-	sampleAudio, samples := a.Sampler.CollectSamples(annot.Track())
-	speakers, err := a.Client.Diarize(beep.Seq(sampleAudio, annot.Span().Audio()), annot.Track().AudioFormat())
+	sampleAudio, samples := a.Sampler.CollectSamples(track)
+	speakers, err := a.Client.Diarize(beep.Seq(sampleAudio, span.Audio()), track.AudioFormat())
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +145,7 @@ func (a *Agent) HandleEvent2(ctx context.Context, annot tracks.Event) ([]tracks.
 
 	var out []tracks.PathEvent
 
-	initSpan := annot.Span().Span(0, 0)
+	initSpan := span.Span(0, 0)
 	for _, id := range newIDs {
 		out = append(out, tracks.NewEvent(
 			initSpan,
@@ -126,8 +158,8 @@ func (a *Agent) HandleEvent2(ctx context.Context, annot tracks.Event) ([]tracks.
 		))
 	}
 	for _, ts := range mapped {
-		outSpan := spanRelative(annot.Span(), ts.Range.Start, ts.Range.End)
-		outSpan = clamp(annot.Span(), outSpan)
+		outSpan := spanRelative(span, ts.Range.Start, ts.Range.End)
+		outSpan = clamp(span, outSpan)
 		if outSpan.Length() <= 0 {
 			slog.InfoContext(ctx, "diarization: outside of range", "mapping", ts)
 		}
