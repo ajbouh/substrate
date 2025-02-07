@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 )
@@ -70,13 +71,12 @@ func (b *BootstrapStrategy) Do(ctx context.Context, input *BootstrapInput, gathe
 	var err error
 
 	more := false
-	count := len(gathered.Rules)
 
 	defer func() {
-		slog.Info("BootstrapStrategy.Do()", "count", count, "len(rules)", len(rules), "len(cursors)", len(cursors), "rules", rules, "cursors", cursors, "len(tickers)", len(tickers), "err", err)
+		slog.Info("BootstrapStrategy.Do()", "len(gathered.Rules)", len(gathered.Rules), "len(rules)", len(rules), "len(cursors)", len(cursors), "rules", rules, "cursors", cursors, "len(tickers)", len(tickers), "err", err)
 	}()
 
-	if count == 0 {
+	if len(gathered.Rules) == 0 {
 		return BootstrapOutput{}, more, nil
 	}
 
@@ -129,8 +129,8 @@ func (b *BootstrapStrategy) Do(ctx context.Context, input *BootstrapInput, gathe
 		tick *CommandRuleTick
 		err  error
 	}
-	results := make(chan runResult, count)
-	wg.Add(count)
+	results := make(chan runResult)
+	wg.Add(len(tickers))
 	for _, ticker := range tickers {
 		ticker := ticker
 		go func() {
@@ -157,29 +157,42 @@ func (b *BootstrapStrategy) Do(ctx context.Context, input *BootstrapInput, gathe
 		defer close(results)
 		wg.Wait()
 	}()
+	remaining := len(tickers)
 	var errs []error
-	for result := range results {
-		if result.tick.More {
-			more = true
-		}
-		if result.err != nil {
-			errs = append(errs, result.err)
-			continue
-		}
+	start := time.Now()
 
-		set, err := event.PendingFromEntries(result.tick.Output.Next)
-		if err != nil {
-			errs = append(errs, result.err)
-			continue
-		}
+	for {
+		select {
+		case <-time.After(10 * time.Second):
+			slog.InfoContext(ctx, "BootstrapStrategy.Do() waiting", "elapsed", time.Since(start).Round(time.Millisecond), "remaining", remaining)
+		case result, ok := <-results:
+			if !ok {
+				slog.InfoContext(ctx, "BootstrapStrategy.Do() results closed", "remaining", remaining)
+				return BootstrapOutput{}, more, errors.Join(errs...)
+			}
+			remaining--
+			slog.InfoContext(ctx, "BootstrapStrategy.Do() result", "remaining", remaining, "result", result)
 
-		err = b.Writer.WriteEvents(ctx, until, set, nil)
-		if err != nil {
-			errs = append(errs, result.err)
+			if result.tick.More {
+				more = true
+			}
+			if result.err != nil {
+				errs = append(errs, result.err)
+				continue
+			}
+
+			set, err := event.PendingFromEntries(result.tick.Output.Next)
+			if err != nil {
+				errs = append(errs, result.err)
+				continue
+			}
+
+			err = b.Writer.WriteEvents(ctx, until, set, nil)
+			if err != nil {
+				errs = append(errs, result.err)
+			}
 		}
 	}
-
-	return BootstrapOutput{}, more, errors.Join(errs...)
 }
 
 func marshal(o any) (json.RawMessage, error) {

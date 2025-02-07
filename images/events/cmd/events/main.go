@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path"
+	"time"
 
 	sqlite_vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
 
@@ -92,6 +93,8 @@ func main() {
 		},
 		&tick.BoostrapTicker{},
 		&tick.BootstrapLoop{},
-		&tick.CommandStrategy{},
+		&tick.CommandStrategy{
+			DefaultTimeout: 60 * time.Second,
+		},
 	)
 }
