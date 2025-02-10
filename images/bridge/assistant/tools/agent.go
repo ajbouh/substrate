@@ -10,6 +10,7 @@ import (
 
 	"github.com/ajbouh/substrate/images/bridge/assistant/openai"
 	"github.com/ajbouh/substrate/images/bridge/assistant/prompts"
+	"github.com/ajbouh/substrate/images/bridge/reaction"
 	"github.com/ajbouh/substrate/images/bridge/tracks"
 	"github.com/ajbouh/substrate/images/bridge/transcribe"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
@@ -50,8 +51,6 @@ type CallEvent struct {
 	// TODO error here or inside the response?
 }
 
-type CallNotification tracks.EventT[*CallEvent]
-
 // NewAgent sets up a series of handlers to orchestrate the tool call flow.
 //
 // OfferAgent:
@@ -79,13 +78,24 @@ type OfferAgent struct {
 	Completer interface {
 		Complete(map[string]any) (string, string, error)
 	}
+	Reactor *reaction.Reactor
 }
 
-func (a *OfferAgent) HandleEvent2(ctx context.Context, event tracks.Event) ([]tracks.PathEvent, error) {
-	if event.Type != "transcription" {
-		return nil, nil
+func (a *OfferAgent) Reactions(ctx context.Context) []reaction.CommandRuleInput {
+	return []reaction.CommandRuleInput{
+		a.Reactor.Rule("tools:offer", "transcription"),
 	}
-	in := event.Data.(*transcribe.Transcription)
+}
+
+func (a *OfferAgent) Commands(ctx context.Context) commands.Source {
+	return reaction.CommandSingle(a.Reactor, "tools:offer",
+		"Offer tool suggestions for transcriptions",
+		a.handle,
+	)
+}
+
+func (a *OfferAgent) handle(ctx context.Context, event transcribe.Event) ([]tracks.PathEvent, error) {
+	in := event.Data
 	text := in.Text()
 	if !strings.Contains(strings.ToLower(text), a.Name) {
 		return nil, nil
@@ -96,17 +106,22 @@ func (a *OfferAgent) HandleEvent2(ctx context.Context, event tracks.Event) ([]tr
 		return nil, err
 	}
 	return []tracks.PathEvent{
-		tracks.NewEvent(
-			event.Span(),
-			"/tools/offer",
-			"tool-offer",
-			&OfferEvent{
+		{
+			EventMeta: tracks.EventMeta{
+				ID:    tracks.NewID(),
+				Start: event.Start,
+				End:   event.End,
+				Type:  "tool-offer",
+			},
+			Path:    "/tools/offer",
+			TrackID: event.TrackID,
+			Data: &OfferEvent{
 				SourceEvent: event.ID,
 				Name:        a.Name,
 				Prompt:      prompt,
 				Calls:       calls,
 			},
-		),
+		},
 	}, nil
 }
 
@@ -138,41 +153,69 @@ func (a *OfferAgent) CompleteTool(input string) (string, []Call[any], error) {
 	return prompt, []Call[any]{out}, nil
 }
 
-type AutoTriggerAgent struct{}
+type AutoTriggerAgent struct {
+	Reactor *reaction.Reactor
+}
 
-func (a AutoTriggerAgent) HandleEvent2(ctx context.Context, event tracks.Event) ([]tracks.PathEvent, error) {
-	if event.Type != "tool-offer" {
-		return nil, nil
+func (a *AutoTriggerAgent) Reactions(ctx context.Context) []reaction.CommandRuleInput {
+	return []reaction.CommandRuleInput{
+		a.Reactor.Rule("tools:trigger", "tools/offer"),
 	}
-	offer := event.Data.(*OfferEvent)
+}
+
+func (a *AutoTriggerAgent) Commands(ctx context.Context) commands.Source {
+	return reaction.CommandSingle(a.Reactor, "tools:trigger",
+		"Trigger calling an offer",
+		a.handle,
+	)
+}
+
+func (a AutoTriggerAgent) handle(ctx context.Context, event OfferNotification) ([]tracks.PathEvent, error) {
+	offer := event.Data
 	if len(offer.Calls) == 0 {
 		return nil, nil
 	}
 	return []tracks.PathEvent{
-		tracks.NewEvent(
-			event.Span(),
-			"/tools/trigger",
-			"tool-trigger",
-			&TriggerEvent{
+		{
+			EventMeta: tracks.EventMeta{
+				ID:    tracks.NewID(),
+				Start: event.Start,
+				End:   event.End,
+				Type:  "tool-trigger",
+			},
+			Path:    "/tools/trigger",
+			TrackID: event.TrackID,
+			Data: &TriggerEvent{
 				SourceEvent: offer.SourceEvent,
 				OfferEvent:  event.ID,
 				Name:        offer.Name,
 				Call:        offer.Calls[0],
 			},
-		),
+		},
 	}, nil
 }
 
 type CallAgent struct {
-	Name   string
-	Runner Runner
+	Name    string
+	Runner  Runner
+	Reactor *reaction.Reactor
 }
 
-func (a *CallAgent) HandleEvent2(ctx context.Context, event tracks.Event) ([]tracks.PathEvent, error) {
-	if event.Type != "tool-trigger" {
-		return nil, nil
+func (a *CallAgent) Reactions(ctx context.Context) []reaction.CommandRuleInput {
+	return []reaction.CommandRuleInput{
+		a.Reactor.Rule("tools:call", "tools/trigger"),
 	}
-	trigger := event.Data.(*TriggerEvent)
+}
+
+func (a *CallAgent) Commands(ctx context.Context) commands.Source {
+	return reaction.CommandSingle(a.Reactor, "tools:call",
+		"Call a tool",
+		a.handle,
+	)
+}
+
+func (a *CallAgent) handle(ctx context.Context, event TriggerNotification) ([]tracks.PathEvent, error) {
+	trigger := event.Data
 	if trigger.Name != a.Name {
 		return nil, nil
 	}
@@ -181,11 +224,16 @@ func (a *CallAgent) HandleEvent2(ctx context.Context, event tracks.Event) ([]tra
 		return nil, err
 	}
 	return []tracks.PathEvent{
-		tracks.NewEvent(
-			event.Span(),
-			"/tools/call",
-			"tool-call",
-			&CallEvent{
+		{
+			EventMeta: tracks.EventMeta{
+				ID:    tracks.NewID(),
+				Start: event.Start,
+				End:   event.End,
+				Type:  "tool-call",
+			},
+			Path:    "/tools/call",
+			TrackID: event.TrackID,
+			Data: &CallEvent{
 				Name:         a.Name,
 				SourceEvent:  trigger.SourceEvent,
 				TriggerEvent: event.ID,
@@ -194,7 +242,7 @@ func (a *CallAgent) HandleEvent2(ctx context.Context, event tracks.Event) ([]tra
 					Content: result,
 				},
 			},
-		),
+		},
 	}, nil
 }
 
