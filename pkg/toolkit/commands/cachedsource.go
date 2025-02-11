@@ -3,8 +3,8 @@ package commands
 import "context"
 
 type CachedSource struct {
-	Defs      DefIndex
-	DefRunner DefRunner
+	Defs DefIndex
+	Env  Env
 }
 
 var _ Runner = (*CachedSource)(nil)
@@ -24,7 +24,7 @@ func (h *CachedSource) Run(ctx context.Context, name string, params Fields) (Fie
 		return nil, ErrNoSuchCommand
 	}
 
-	f, err := h.DefRunner.RunDef(ctx, def, Fields{"parameters": params})
+	f, err := MergeAndApply(h.Env.New(ctx, nil), def, Fields{"parameters": params})
 	if err != nil {
 		return nil, err
 	}

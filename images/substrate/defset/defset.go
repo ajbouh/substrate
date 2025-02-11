@@ -101,7 +101,7 @@ func (s *DefSet) FmtErr(err error) string {
 		cue.Hidden(true),
 		cue.Optional(true),
 		cue.Attributes(true),
-		cue.Docs(true),
+		// cue.Docs(true),
 	)
 
 	// Pretty print the AST, returns ([]byte, error)

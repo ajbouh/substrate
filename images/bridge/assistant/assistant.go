@@ -69,8 +69,8 @@ type Agent struct {
 	Reactor           *reaction.Reactor
 	StoragePaths      *tracks.SessionStoragePaths
 	DefaultAssistants map[string]string
-	Runner            commands.DefRunner
-	NewClient         func(_ commands.DefRunner, name, promptTemplate string) (Client, error)
+	Runner            commands.Env
+	NewClient         func(_ commands.Env, name, promptTemplate string) (Client, error)
 }
 
 type Void struct{}
@@ -305,10 +305,10 @@ func DefaultPromptTemplateForName(name string) (string, error) {
 type OpenAIClient struct {
 	Name     string
 	Template *template.Template
-	Runner   commands.DefRunner
+	Env      commands.Env
 }
 
-func OpenAIClientGenerator(runner commands.DefRunner, name, promptTemplate string) (Client, error) {
+func OpenAIClientGenerator(env commands.Env, name, promptTemplate string) (Client, error) {
 	tmpl, err := prompts.ParseTemplate(promptTemplate)
 	if err != nil {
 		return nil, err
@@ -316,7 +316,7 @@ func OpenAIClientGenerator(runner commands.DefRunner, name, promptTemplate strin
 	return OpenAIClient{
 		Name:     name,
 		Template: tmpl,
-		Runner:   runner,
+		Env:      env,
 	}, nil
 }
 
@@ -339,6 +339,6 @@ func (a OpenAIClient) Complete(speaker, input string) (string, string, error) {
 	if err != nil {
 		return prompt, "", err
 	}
-	resp, err := openai.CompleteWithFrontmatter(a.Runner, prompt)
+	resp, err := openai.CompleteWithFrontmatter(a.Env, prompt)
 	return prompt, resp, err
 }

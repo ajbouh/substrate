@@ -2079,11 +2079,11 @@ types$1.backQuote.updateContext = function() {
 };
 types$1.star.updateContext = function(prevType) {
   if (prevType === types$1._function) {
-    var index = this.context.length - 1;
-    if (this.context[index] === types$2.f_expr) {
-      this.context[index] = types$2.f_expr_gen;
+    var index2 = this.context.length - 1;
+    if (this.context[index2] === types$2.f_expr) {
+      this.context[index2] = types$2.f_expr_gen;
     } else {
-      this.context[index] = types$2.f_gen;
+      this.context[index2] = types$2.f_gen;
     }
   }
   this.exprAllowed = true;
@@ -5458,10 +5458,10 @@ pp.readWord = function() {
   }
   return this.finishToken(type, word);
 };
-var version = "8.14.0";
+var version$2 = "8.14.0";
 Parser$1.acorn = {
   Parser: Parser$1,
-  version,
+  version: version$2,
   defaultOptions,
   Position,
   SourceLocation,
@@ -5512,7 +5512,7 @@ const t$1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty(
   tokContexts: types$2,
   tokTypes: types$1,
   tokenizer,
-  version
+  version: version$2
 }, Symbol.toStringTag, { value: "Module" }));
 function getDefaultExportFromCjs(x2) {
   return x2 && x2.__esModule && Object.prototype.hasOwnProperty.call(x2, "default") ? x2["default"] : x2;
@@ -6817,12 +6817,13 @@ function findReferences(node, {
     Identifier: identifier
   });
   const forceVars = [];
+  let hasGather = void 0;
   simple(node, {
     CallExpression(node2) {
       const callee = node2.callee;
       if (callee.type === "MemberExpression" && callee.object.type === "Identifier") {
         if (callee.object.name === "Events") {
-          if (callee.property.type === "Identifier" && callee.property.name === "or") {
+          if (callee.property.type === "Identifier" && (callee.property.name === "or" || callee.property.name === "_or_index")) {
             for (const arg of node2.arguments) {
               if (arg.type === "Identifier") {
                 forceVars.push(arg);
@@ -6835,12 +6836,14 @@ function findReferences(node, {
             if (arg.type === "Identifier") {
               forceVars.push(arg);
             }
+          } else if (callee.property.type === "Identifier" && callee.property.name === "gather") {
+            hasGather = node2.arguments[0].value;
           }
         }
       }
     }
   });
-  return [references, forceVars, sendTarget];
+  return [references, forceVars, sendTarget, hasGather];
 }
 function checkNested(node, baseId) {
   return rewriteNestedCalls(node, baseId);
@@ -6851,6 +6854,11 @@ function rewriteNestedCalls(body, baseId) {
     CallExpression(node, ancestors) {
       const inFunction = hasFunctionDeclaration(node, ancestors);
       const isEvent = isNonTopEvent(node, ancestors);
+      const isSelectCall = isSelect(node);
+      if (isSelectCall) {
+        const rewrite = rewriteSelect(node);
+        rewriteSpecs.unshift(rewrite);
+      }
       if (isEvent && !inFunction) {
         rewriteSpecs.push({ start: node.start, end: node.end, name: `_${baseId}_${rewriteSpecs.length}`, type: "range" });
       }
@@ -6878,6 +6886,19 @@ function rewriteNestedCalls(body, baseId) {
   });
   return rewriteSpecs;
 }
+function rewriteSelect(node, _ancestors) {
+  const triggers = [];
+  const funcs = [];
+  for (let i2 = 1; i2 < node.arguments.length; i2 += 2) {
+    triggers.push({ start: node.arguments[i2].start, end: node.arguments[i2].end });
+  }
+  for (let i2 = 2; i2 < node.arguments.length; i2 += 2) {
+    funcs.push({ start: node.arguments[i2].start, end: node.arguments[i2].end });
+  }
+  const init = { start: node.arguments[0].start, end: node.arguments[0].end };
+  const classType = node.callee.object.name === "Events" ? "Events" : "Behaviors";
+  return { type: "select", classType, init, triggers, funcs };
+}
 function isNonTopEvent(node, ancestors) {
   if (node.type !== "CallExpression") {
     return false;
@@ -6885,6 +6906,14 @@ function isNonTopEvent(node, ancestors) {
   const call = node = node;
   const callee = call.callee;
   return callee.type === "MemberExpression" && callee.object.type === "Identifier" && (callee.object.name === "Events" || callee.object.name === "Behaviors") && callee.property.type === "Identifier" && ancestors.length > 2 && ancestors[ancestors.length - 2].type !== "VariableDeclarator";
+}
+function isSelect(node, _ancestors) {
+  if (node.type !== "CallExpression") {
+    return false;
+  }
+  const call = node = node;
+  const callee = call.callee;
+  return callee.type === "MemberExpression" && callee.object.type === "Identifier" && (callee.object.name === "Events" || callee.object.name === "Behaviors") && callee.property.type === "Identifier" && callee.property.name === "select";
 }
 function hasFunctionDeclaration(_node, ancestors) {
   return !!ancestors.find((a2) => a2.type === "ArrowFunctionExpression");
@@ -6915,7 +6944,7 @@ function parseJavaScript(input, initialId, flattened2 = false) {
   for (const decl of decls) {
     id++;
     const b2 = parseProgram(decl);
-    const [references, forceVars, sendTargets] = findReferences(b2);
+    const [references, forceVars, sendTargets, hasGather] = findReferences(b2);
     checkAssignments(b2, references, input);
     const declarations = findDeclarations(b2, input);
     const rewriteSpecs = flattened2 ? [] : checkNested(b2, id);
@@ -6929,13 +6958,15 @@ function parseJavaScript(input, initialId, flattened2 = false) {
         forceVars,
         sendTargets,
         imports: [],
-        expression: false,
+        extraType: hasGather ? { "gather": hasGather } : {},
+        // expression: false,
         input: decl
       });
     } else {
       let newInput = decl;
       let newPart = "";
       let overridden = false;
+      let again = false;
       for (let i2 = 0; i2 < rewriteSpecs.length; i2++) {
         const spec = rewriteSpecs[i2];
         if (spec.type === "range") {
@@ -6952,9 +6983,21 @@ function parseJavaScript(input, initialId, flattened2 = false) {
         } else if (spec.type === "override") {
           overridden = true;
           newPart += spec.definition + "\n";
+        } else if (spec.type === "select") {
+          overridden = false;
+          const sub = spec.triggers.map((spec2) => newInput.slice(spec2.start, spec2.end));
+          const trigger = `Events._or_index(${sub.join(", ")})`;
+          const funcs = spec.funcs.map((spec2) => newInput.slice(spec2.start, spec2.end));
+          const init = newInput.slice(spec.init.start, spec.init.end);
+          const newNewInput = `const ${declarations[0].name} = ${spec.classType}._select(${init}, ${trigger}, [${funcs}]);`;
+          newInput = newNewInput;
+          again = true;
+          id++;
+          break;
         }
       }
-      allReferences.push(...parseJavaScript(`${newPart}${overridden ? "" : "\n" + newInput}`, initialId, true));
+      const parsed = parseJavaScript(`${newPart}${overridden ? "" : "\n" + newInput}`, again ? id - 1 : initialId, !again);
+      allReferences.push(...parsed);
     }
   }
   return allReferences;
@@ -6972,31 +7015,31 @@ class Sourcemap {
     this.input = input;
     this._edits = [];
   }
-  _bisectLeft(index) {
+  _bisectLeft(index2) {
     let lo = 0;
     let hi = this._edits.length;
     while (lo < hi) {
       const mid = lo + hi >>> 1;
-      if (this._edits[mid].start < index) lo = mid + 1;
+      if (this._edits[mid].start < index2) lo = mid + 1;
       else hi = mid;
     }
     return lo;
   }
-  _bisectRight(index) {
+  _bisectRight(index2) {
     let lo = 0;
     let hi = this._edits.length;
     while (lo < hi) {
       const mid = lo + hi >>> 1;
-      if (this._edits[mid].start > index) hi = mid;
+      if (this._edits[mid].start > index2) hi = mid;
       else lo = mid + 1;
     }
     return lo;
   }
-  insertLeft(index, value) {
-    return this.replaceLeft(index, index, value);
+  insertLeft(index2, value) {
+    return this.replaceLeft(index2, index2, value);
   }
-  insertRight(index, value) {
-    return this.replaceRight(index, index, value);
+  insertRight(index2, value) {
+    return this.replaceRight(index2, index2, value);
   }
   delete(start, end) {
     return this.replaceRight(start, end, "");
@@ -7008,12 +7051,12 @@ class Sourcemap {
     return this._edits.splice(this._bisectRight(start), 0, { start, end, value }), this;
   }
   translate(position) {
-    let index = 0;
+    let index2 = 0;
     let ci = { line: 1, column: 0 };
     let co = { line: 1, column: 0 };
     for (const { start, end, value } of this._edits) {
-      if (start > index) {
-        const l22 = positionLength(this.input, index, start);
+      if (start > index2) {
+        const l22 = positionLength(this.input, index2, start);
         const ci22 = positionAdd(ci, l22);
         const co22 = positionAdd(co, l22);
         if (positionCompare(co22, position) > 0) break;
@@ -7027,7 +7070,7 @@ class Sourcemap {
       if (positionCompare(co2, position) > 0) return ci;
       ci = ci2;
       co = co2;
-      index = end;
+      index2 = end;
     }
     const l2 = positionSubtract(position, co);
     return positionAdd(ci, l2);
@@ -7040,13 +7083,13 @@ class Sourcemap {
   }
   toString() {
     let output = "";
-    let index = 0;
+    let index2 = 0;
     for (const { start, end, value } of this._edits) {
-      if (start > index) output += this.input.slice(index, start);
+      if (start > index2) output += this.input.slice(index2, start);
       output += value;
-      index = end;
+      index2 = end;
     }
-    output += this.input.slice(index);
+    output += this.input.slice(index2);
     return output;
   }
 }
@@ -7139,20 +7182,20 @@ function rewriteRenkonCalls(output, body) {
           if (callee.property.type === "Identifier") {
             if (callee.property.name === "delay") {
               quote(node.arguments[0], output);
-            } else if (callee.property.name === "or") {
+            } else if (callee.property.name === "or" || callee.property.name === "_or_index") {
               for (const arg of node.arguments) {
                 quote(arg, output);
               }
             } else if (callee.property.name === "send") {
               quote(node.arguments[0], output);
-            } else if (callee.property.name === "collect") {
+            } else if (callee.property.name === "collect" || callee.property.name === "_select") {
               quote(node.arguments[1], output);
             }
           }
         } else if (callee.object.name === "Behaviors") {
           output.insertRight(callee.object.end, ".create(Renkon)");
           if (callee.property.type === "Identifier") {
-            if (callee.property.name === "collect") {
+            if (callee.property.name === "collect" || callee.property.name === "_select") {
               quote(node.arguments[1], output);
             }
           }
@@ -7161,18 +7204,24 @@ function rewriteRenkonCalls(output, body) {
     }
   });
 }
+const version$1 = "0.3.5";
+const packageJson = {
+  version: version$1
+};
 const typeKey = Symbol("typeKey");
 const isBehaviorKey = Symbol("isBehavior");
 const eventType = "EventType";
 const delayType = "DelayType";
 const timerType = "TimerType";
 const collectType = "CollectType";
+const selectType = "SelectType";
 const promiseType = "PromiseType";
 const behaviorType = "BehaviorType";
 const orType = "OrType";
 const sendType = "SendType";
 const receiverType = "ReceiverType";
 const changeType = "ChangeType";
+const gatherType = "GatherType";
 const generatorNextType = "GeneratorNextType";
 const resolvePartType = "ResolvePart";
 _b = typeKey, _a$1 = isBehaviorKey;
@@ -7322,16 +7371,22 @@ class PromiseEvent extends Stream {
   }
 }
 class OrEvent extends Stream {
-  constructor(varNames) {
+  constructor(varNames, useIndex) {
     super(orType, false);
     __publicField(this, "varNames");
+    __publicField(this, "useIndex");
     this.varNames = varNames;
+    this.useIndex = useIndex;
   }
   evaluate(state, node, inputArray, _lastInputArray) {
     for (let i2 = 0; i2 < node.inputs.length; i2++) {
       const myInput = inputArray[i2];
       if (myInput !== void 0) {
-        state.setResolved(node.id, { value: myInput, time: state.time });
+        if (this.useIndex) {
+          state.setResolved(node.id, { value: { index: i2, value: myInput }, time: state.time });
+        } else {
+          state.setResolved(node.id, { value: myInput, time: state.time });
+        }
         return;
       }
     }
@@ -7523,39 +7578,173 @@ class CollectStream extends Stream {
     return;
   }
 }
+class SelectStream extends Stream {
+  constructor(init, varName, updaters, isBehavior) {
+    super(selectType, isBehavior);
+    __publicField(this, "init");
+    __publicField(this, "varName");
+    __publicField(this, "updaters");
+    this.init = init;
+    this.varName = varName;
+    this.updaters = updaters;
+  }
+  created(state, id) {
+    if (this.init && typeof this.init === "object" && this.init.then) {
+      this.init.then((value) => {
+        state.streams.set(id, this);
+        this.init = value;
+        state.setResolved(id, { value, time: state.time });
+        state.scratch.set(id, { current: this.init });
+      });
+      return this;
+    }
+    if (!state.scratch.get(id)) {
+      state.streams.set(id, this);
+      state.setResolved(id, { value: this.init, time: state.time });
+      state.scratch.set(id, { current: this.init });
+    }
+    return this;
+  }
+  evaluate(state, node, inputArray, _lastInputArray) {
+    const scratch = state.scratch.get(node.id);
+    if (scratch === void 0) {
+      return;
+    }
+    const inputIndex = node.inputs.indexOf(this.varName);
+    const orRecord = inputArray[inputIndex];
+    if (orRecord !== void 0) {
+      const newValue = this.updaters[orRecord.index](scratch.current, orRecord.value);
+      if (newValue !== void 0) {
+        if (newValue !== null && newValue.then) {
+          newValue.then((value) => {
+            state.setResolved(node.id, { value, time: state.time });
+            state.scratch.set(node.id, { current: value });
+          });
+        } else {
+          state.setResolved(node.id, { value: newValue, time: state.time });
+          state.scratch.set(node.id, { current: newValue });
+        }
+      }
+    }
+  }
+  conclude(state, varName) {
+    var _a2;
+    super.conclude(state, varName);
+    if (this[isBehaviorKey]) {
+      return;
+    }
+    if (((_a2 = state.resolved.get(varName)) == null ? void 0 : _a2.value) !== void 0) {
+      state.resolved.delete(varName);
+      return varName;
+    }
+    return;
+  }
+}
+class GatherStream extends Stream {
+  constructor(regexp, isBehavior) {
+    super(gatherType, isBehavior);
+    __publicField(this, "regexp");
+    this.regexp = new RegExp(regexp);
+  }
+  created(_state, _id) {
+    return this;
+  }
+  evaluate(state, node, inputArray, lastInputArray) {
+    if (state.equals(inputArray, lastInputArray)) {
+      return;
+    }
+    const inputs = node.inputs;
+    const validInputNames = [];
+    const validInputs = [];
+    let hasPromise = false;
+    for (let i2 = 0; i2 < inputs.length; i2++) {
+      const v2 = inputArray[i2];
+      if (v2 !== void 0) {
+        validInputNames.push(inputs[i2]);
+        validInputs.push(v2);
+        if (v2 !== null && v2.then) {
+          hasPromise = true;
+        }
+      }
+    }
+    if (hasPromise) {
+      Promise.all(validInputs).then((values) => {
+        const result = {};
+        for (let i2 = 0; i2 < validInputNames.length; i2++) {
+          result[validInputNames[i2]] = values[i2];
+        }
+        state.setResolved(node.id, { value: result, time: state.time });
+      });
+    } else {
+      const result = {};
+      for (let i2 = 0; i2 < validInputNames.length; i2++) {
+        result[validInputNames[i2]] = validInputs[i2];
+      }
+      state.setResolved(node.id, { value: result, time: state.time });
+    }
+  }
+  conclude(state, varName) {
+    var _a2;
+    super.conclude(state, varName);
+    if (this[isBehaviorKey]) {
+      return;
+    }
+    if (((_a2 = state.resolved.get(varName)) == null ? void 0 : _a2.value) !== void 0) {
+      state.resolved.delete(varName);
+      return varName;
+    }
+    return;
+  }
+}
 class ResolvePart extends Stream {
-  constructor(promise, object, isBehavior) {
+  constructor(object, isBehavior) {
     super(resolvePartType, isBehavior);
     __publicField(this, "promise");
+    __publicField(this, "indices");
     __publicField(this, "resolved");
     __publicField(this, "object");
-    this.promise = promise;
     this.object = object;
-    this.resolved = !(typeof this.promise === "object" && this.promise.then);
+    if (Array.isArray(this.object)) {
+      const array = this.object;
+      const indices = [...Array(array.length).keys()].filter((i2) => {
+        const elem = this.object[i2];
+        return typeof elem === "object" && elem !== null && elem.then;
+      });
+      const promises = indices.map((i2) => array[i2]);
+      this.promise = Promise.all(promises);
+      this.indices = indices;
+    } else {
+      const keys2 = Object.keys(this.object).filter((k2) => {
+        const elem = this.object[k2];
+        return typeof elem === "object" && elem !== null && elem.then;
+      });
+      const promises = keys2.map((k2) => this.object[k2]);
+      this.promise = Promise.all(promises);
+      this.indices = keys2;
+    }
+    this.resolved = false;
   }
   created(state, id) {
     if (!this.resolved) {
-      this.promise.then((value) => {
+      this.promise.then((values) => {
         var _a2;
         const wasResolved = (_a2 = state.resolved.get(id)) == null ? void 0 : _a2.value;
         if (!wasResolved) {
           this.resolved = true;
           if (Array.isArray(this.object)) {
-            const promiseIndex = this.object.indexOf(this.promise);
             const result = [...this.object];
-            if (promiseIndex < 0) {
-              return result;
+            const indices = this.indices;
+            for (let i2 of indices) {
+              result[indices[i2]] = values[i2];
             }
-            result[promiseIndex] = value;
             state.setResolved(id, { value: result, time: state.time });
             return result;
           } else {
             const result = { ...this.object };
-            const key = Object.keys(this.object).find((key2) => this.object[key2] === this.promise);
-            if (!key) {
-              return result;
+            const indices = this.indices;
+            for (let i2 = 0; i2 < indices.length; i2++) {
+              result[indices[i2]] = values[i2];
             }
-            result[key] = value;
             state.setResolved(id, { value: result, time: state.time });
             return result;
           }
@@ -9586,6 +9775,7 @@ class TSCompiler {
 function translateTS(text2, path2) {
   return new TSCompiler().compile(text2, path2);
 }
+const version = packageJson.version;
 function isGenerator(value) {
   const prototypicalGeneratorFunction = async function* () {
   }();
@@ -9652,7 +9842,7 @@ class Events {
     return new Events(state);
   }
   listener(dom, eventName, handler, options) {
-    return eventBody({ type: eventType, forObserve: false, dom, eventName, eventHandler: handler, state: this.programState, queued: !!(options == null ? void 0 : options.queued) });
+    return eventBody({ forObserve: false, dom, eventName, eventHandler: handler, state: this.programState, queued: !!(options == null ? void 0 : options.queued) });
   }
   delay(varName, delay) {
     return new DelayedEvent(delay, varName, false);
@@ -9667,14 +9857,19 @@ class Events {
     return new GeneratorNextEvent(generator);
   }
   or(...varNames) {
-    return new OrEvent(varNames);
+    return new OrEvent(varNames, false);
+  }
+  _or_index(...varNames) {
+    return new OrEvent(varNames, true);
   }
   collect(init, varName, updater) {
     return new CollectStream(init, varName, updater, false);
   }
-  /*map<S, T>(varName:VarName, updater: (arg:S) => T) {
-      return new CollectStream(undefined, varName, (_a, b) => updater(b), false);
-  },*/
+  select(_init, ..._pairs) {
+  }
+  _select(init, varName, updaters) {
+    return new SelectStream(init, varName, updaters, false);
+  }
   send(receiver, value) {
     this.programState.registerEvent(receiver, value);
     return new SendEvent();
@@ -9683,7 +9878,7 @@ class Events {
     return new ReceiverEvent(void 0);
   }
   observe(callback, options) {
-    return eventBody({ type: eventType, forObserve: true, callback, state: this.programState, queued: options == null ? void 0 : options.queued });
+    return eventBody({ forObserve: true, callback, state: this.programState, queued: options == null ? void 0 : options.queued });
   }
   message(event, data2, directWindow) {
     const isInIframe = window.top !== window;
@@ -9696,8 +9891,8 @@ class Events {
       directWindow.postMessage(obj, "*");
     }
   }
-  resolvePart(promise, object) {
-    return new ResolvePart(promise, object, false);
+  resolvePart(object) {
+    return new ResolvePart(object, false);
   }
 }
 class Behaviors {
@@ -9720,8 +9915,16 @@ class Behaviors {
   delay(varName, delay) {
     return new DelayedEvent(delay, varName, true);
   }
-  resolvePart(promise, object) {
-    return new ResolvePart(promise, object, true);
+  resolvePart(object) {
+    return new ResolvePart(object, true);
+  }
+  select(_init, ..._pairs) {
+  }
+  _select(init, varName, updaters) {
+    return new SelectStream(init, varName, updaters, true);
+  }
+  gather(regexp) {
+    return new GatherStream(regexp, true);
   }
   /*
   startsWith(init:any, varName:VarName) {
@@ -9740,8 +9943,8 @@ function topologicalSort(nodes) {
   }
   function removeEdges(src, dst) {
     let edges = [];
-    let index = dst.inputs.indexOf(src.outputs);
-    if (index >= 0) {
+    let index2 = dst.inputs.indexOf(src.outputs);
+    if (index2 >= 0) {
       edges.push(src.outputs);
     }
     dst.inputs = dst.inputs.filter((input) => !edges.includes(input));
@@ -9796,6 +9999,10 @@ class ProgramState {
     __publicField(this, "updated");
     __publicField(this, "app");
     __publicField(this, "noTicking");
+    __publicField(this, "programStates");
+    __publicField(this, "lastReturned");
+    __publicField(this, "futureScripts");
+    __publicField(this, "breakpoints");
     this.scripts = [];
     this.order = [];
     this.nodes = /* @__PURE__ */ new Map();
@@ -9809,6 +10016,8 @@ class ProgramState {
     this.updated = false;
     this.app = app;
     this.noTicking = noTicking !== void 0 ? noTicking : false;
+    this.programStates = /* @__PURE__ */ new Map();
+    this.breakpoints = /* @__PURE__ */ new Set();
   }
   evaluator() {
     if (this.noTicking) {
@@ -9857,7 +10066,7 @@ class ProgramState {
         this.inputArray.delete(varName);
       }
     }
-    const jsNodes = [];
+    const jsNodes = /* @__PURE__ */ new Map();
     let id = 0;
     for (const script of scripts) {
       if (!script) {
@@ -9865,12 +10074,26 @@ class ProgramState {
       }
       const nodes = parseJavaScript(script, id, false);
       for (const n2 of nodes) {
-        jsNodes.push(n2);
+        if (jsNodes.get(n2.id)) {
+          console.log(`node "${n2.id}" is defined multiple times`);
+        }
+        jsNodes.set(n2.id, n2);
         id++;
       }
     }
-    const translated = jsNodes.map((jsNode) => ({ id: jsNode.id, code: transpileJavaScript(jsNode) }));
+    const translated = [...jsNodes].map(([_id, jsNode]) => ({ id: jsNode.id, code: transpileJavaScript(jsNode) }));
     const evaluated = translated.map((tr) => this.evalCode(tr));
+    for (let [id2, node] of jsNodes) {
+      if (!node.extraType["gather"]) {
+        continue;
+      }
+      const r = node.extraType["gather"];
+      const ev = evaluated.find((evaled) => evaled.id === id2);
+      if (ev) {
+        const ins = evaluated.filter((evaled) => new RegExp(r).test(evaled.id)).map((e) => e.id);
+        ev.inputs = ins;
+      }
+    }
     const sorted = topologicalSort(evaluated);
     const newNodes = /* @__PURE__ */ new Map();
     for (const newNode of evaluated) {
@@ -9921,13 +10144,25 @@ class ProgramState {
       }
     }
   }
+  updateProgram(scripts) {
+    this.futureScripts = scripts;
+  }
   evaluate(now) {
     this.time = now - this.startTime;
     this.updated = false;
+    let trace;
+    if (this.breakpoints.size > 0) {
+      trace = [];
+    }
     for (let id of this.order) {
       const node = this.nodes.get(id);
       if (!this.ready(node)) {
         continue;
+      }
+      if (trace) {
+        if (this.breakpoints.has(id)) {
+          debugger;
+        }
       }
       const change = this.changeList.get(id);
       const inputArray = node.inputs.map((inputName) => {
@@ -9950,7 +10185,7 @@ class ProgramState {
         }
         this.inputArray.set(id, inputArray);
         const maybeValue = outputs;
-        if (maybeValue !== void 0 && (maybeValue.then || maybeValue[typeKey])) {
+        if (maybeValue !== void 0 && maybeValue !== null && (maybeValue.then || maybeValue[typeKey])) {
           const ev = maybeValue.then ? new PromiseEvent(maybeValue) : maybeValue;
           const newStream = ev.created(this, id);
           this.streams.set(id, newStream);
@@ -9974,6 +10209,12 @@ class ProgramState {
       if (outputs === void 0) {
         continue;
       }
+      if (trace) {
+        trace.push({ id, inputArray, inputs: node.inputs, value: outputs });
+        if (this.breakpoints.has(id)) {
+          console.log(trace);
+        }
+      }
       const evStream = outputs;
       evStream.evaluate(this, node, inputArray, lastInputArray);
     }
@@ -9983,6 +10224,11 @@ class ProgramState {
         continue;
       }
       stream.conclude(this, id);
+    }
+    if (this.futureScripts) {
+      const scripts = this.futureScripts;
+      delete this.futureScripts;
+      this.setupProgram(scripts);
     }
     return this.updated;
   }
@@ -10110,6 +10356,42 @@ class ProgramState {
       });
     });
   }
+  component(func) {
+    return (input, key) => {
+      let programState = this.programStates.get(key);
+      if (!programState) {
+        programState = new ProgramState(this.time);
+        programState.lastReturned = void 0;
+        this.programStates.set(key, programState);
+      }
+      const { params, returnArray, output } = getFunctionBody(func.toString(), false);
+      const receivers = params.map((r) => `const ${r} = undefined;`).join("\n");
+      programState.setupProgram([receivers, output]);
+      const trigger = (input2) => {
+        for (let key2 in input2) {
+          programState.setResolvedForSubgraph(
+            key2,
+            { value: input2[key2], time: this.time }
+          );
+        }
+        programState.evaluate(this.time);
+        const result = {};
+        const resultTest = [];
+        if (returnArray) {
+          for (const n2 of returnArray) {
+            const v2 = programState.resolved.get(n2);
+            resultTest.push(v2 ? v2.value : void 0);
+            if (v2 && v2.value !== void 0) {
+              result[n2] = v2.value;
+            }
+          }
+          return result;
+        }
+        return {};
+      };
+      return trigger(input);
+    };
+  }
   renkonify(func, optSystem) {
     const programState = new ProgramState(0, optSystem);
     const { params, returnArray, output } = getFunctionBody(func.toString(), false);
@@ -10148,15 +10430,6 @@ class ProgramState {
     }
     return generator;
   }
-  renkonify2(func, optSystem) {
-    const programState = new ProgramState(0, optSystem);
-    const { params, returnArray, output } = getFunctionBody(func.toString(), false);
-    const receivers = params.map((r) => `const ${r} = undefined;`).join("\n");
-    programState.setupProgram([receivers, output]);
-    programState.exports = returnArray || void 0;
-    programState.imports = params;
-    return programState;
-  }
   evaluateSubProgram(programState, params) {
     for (let key in params) {
       programState.registerEvent(key, params[key]);
@@ -10187,11 +10460,19 @@ class ProgramState {
     }
     return partialURL;
   }
-  /*
-    inspector(flag:boolean, dom?: HTMLElement) {
-      showInspector(this, flag === undefined ? true: flag, dom);
-      }
-  */
+  addBreakpoint(...ids) {
+    ids.forEach((id) => {
+      this.breakpoints.add(id);
+    });
+  }
+  removeBreakpoint(...ids) {
+    ids.forEach((id) => {
+      this.breakpoints.delete(id);
+    });
+  }
+  resetBreakpoint() {
+    this.breakpoints = /* @__PURE__ */ new Set();
+  }
 }
 function transpileJSX(code2) {
   const node = parseJSX(code2);
@@ -11126,8 +11407,8 @@ class ChangeSet extends ChangeDesc {
       if (ins >= 0) {
         sections[i2] = ins;
         sections[i2 + 1] = len;
-        let index = i2 >> 1;
-        while (inserted.length < index)
+        let index2 = i2 >> 1;
+        while (inserted.length < index2)
           inserted.push(Text$1.empty);
         inserted.push(len ? doc2.slice(pos, pos + len) : Text$1.empty);
       }
@@ -11334,11 +11615,11 @@ function addSection(sections, len, ins, forceJoin = false) {
 function addInsert(values, sections, value) {
   if (value.length == 0)
     return;
-  let index = sections.length - 2 >> 1;
-  if (index < values.length) {
+  let index2 = sections.length - 2 >> 1;
+  if (index2 < values.length) {
     values[values.length - 1] = values[values.length - 1].append(value);
   } else {
-    while (values.length < index)
+    while (values.length < index2)
       values.push(Text$1.empty);
     values.push(value);
   }
@@ -11484,12 +11765,12 @@ class SectionIter {
     return this.ins < 0 ? this.len : this.ins;
   }
   get text() {
-    let { inserted } = this.set, index = this.i - 2 >> 1;
-    return index >= inserted.length ? Text$1.empty : inserted[index];
+    let { inserted } = this.set, index2 = this.i - 2 >> 1;
+    return index2 >= inserted.length ? Text$1.empty : inserted[index2];
   }
   textBit(len) {
-    let { inserted } = this.set, index = this.i - 2 >> 1;
-    return index >= inserted.length && !len ? Text$1.empty : inserted[index].slice(this.off, len == null ? void 0 : this.off + len);
+    let { inserted } = this.set, index2 = this.i - 2 >> 1;
+    return index2 >= inserted.length && !len ? Text$1.empty : inserted[index2].slice(this.off, len == null ? void 0 : this.off + len);
   }
   forward(len) {
     if (len == this.len)
@@ -11971,6 +12252,11 @@ class StateField {
         return 1;
       },
       reconfigure: (state, oldState) => {
+        let init = state.facet(initField), oldInit = oldState.facet(initField), reInit;
+        if ((reInit = init.find((i2) => i2.field == this)) && reInit != oldInit.find((i2) => i2.field == this)) {
+          state.values[idx] = reInit.create(state);
+          return 1;
+        }
         if (oldState.config.address[this.id] != null) {
           state.values[idx] = oldState.field(this);
           return 0;
@@ -13022,8 +13308,8 @@ class RangeSet {
   /**
   @internal
   */
-  chunkEnd(index) {
-    return this.chunkPos[index] + this.chunk[index].length;
+  chunkEnd(index2) {
+    return this.chunkPos[index2] + this.chunk[index2].length;
   }
   /**
   Update the range set, optionally adding new ranges or filtering
@@ -13396,8 +13682,8 @@ class LayerCursor {
       }
     }
   }
-  setRangeIndex(index) {
-    if (index == this.layer.chunk[this.chunkIndex].value.length) {
+  setRangeIndex(index2) {
+    if (index2 == this.layer.chunk[this.chunkIndex].value.length) {
       this.chunkIndex++;
       if (this.skip) {
         while (this.chunkIndex < this.layer.chunk.length && this.skip.has(this.layer.chunk[this.chunkIndex]))
@@ -13405,7 +13691,7 @@ class LayerCursor {
       }
       this.rangeIndex = 0;
     } else {
-      this.rangeIndex = index;
+      this.rangeIndex = index2;
     }
   }
   nextChunk() {
@@ -13467,9 +13753,9 @@ class HeapCursor {
     }
   }
 }
-function heapBubble(heap, index) {
-  for (let cur2 = heap[index]; ; ) {
-    let childIndex = (index << 1) + 1;
+function heapBubble(heap, index2) {
+  for (let cur2 = heap[index2]; ; ) {
+    let childIndex = (index2 << 1) + 1;
     if (childIndex >= heap.length)
       break;
     let child = heap[childIndex];
@@ -13480,8 +13766,8 @@ function heapBubble(heap, index) {
     if (cur2.compare(child) < 0)
       break;
     heap[childIndex] = cur2;
-    heap[index] = child;
-    index = childIndex;
+    heap[index2] = child;
+    index2 = childIndex;
   }
 }
 class SpanCursor {
@@ -13514,10 +13800,10 @@ class SpanCursor {
       this.removeActive(this.minActive);
     this.cursor.forward(pos, side);
   }
-  removeActive(index) {
-    remove(this.active, index);
-    remove(this.activeTo, index);
-    remove(this.activeRank, index);
+  removeActive(index2) {
+    remove(this.active, index2);
+    remove(this.activeTo, index2);
+    remove(this.activeRank, index2);
     this.minActive = findMinIndex(this.active, this.activeTo);
   }
   addActive(trackOpen) {
@@ -13633,15 +13919,15 @@ function sameValues(a2, b2) {
       return false;
   return true;
 }
-function remove(array, index) {
-  for (let i2 = index, e = array.length - 1; i2 < e; i2++)
+function remove(array, index2) {
+  for (let i2 = index2, e = array.length - 1; i2 < e; i2++)
     array[i2] = array[i2 + 1];
   array.pop();
 }
-function insert(array, index, value) {
-  for (let i2 = array.length - 1; i2 >= index; i2--)
+function insert(array, index2, value) {
+  for (let i2 = array.length - 1; i2 >= index2; i2--)
     array[i2 + 1] = array[i2];
-  array[index] = value;
+  array[index2] = value;
 }
 function findMinIndex(value, array) {
   let found = -1, foundPos = 1e9;
@@ -13771,18 +14057,18 @@ class StyleSet {
     let sheet = this.sheet;
     let pos = 0, j = 0;
     for (let i2 = 0; i2 < modules.length; i2++) {
-      let mod = modules[i2], index = this.modules.indexOf(mod);
-      if (index < j && index > -1) {
-        this.modules.splice(index, 1);
+      let mod = modules[i2], index2 = this.modules.indexOf(mod);
+      if (index2 < j && index2 > -1) {
+        this.modules.splice(index2, 1);
         j--;
-        index = -1;
+        index2 = -1;
       }
-      if (index == -1) {
+      if (index2 == -1) {
         this.modules.splice(j++, 0, mod);
         if (sheet) for (let k2 = 0; k2 < mod.rules.length; k2++)
           sheet.insertRule(mod.rules[k2], pos++);
       } else {
-        while (j < index) pos += this.modules[j++].rules.length;
+        while (j < index2) pos += this.modules[j++].rules.length;
         pos += mod.rules.length;
         j++;
       }
@@ -13938,10 +14224,10 @@ function isEquivalentPosition(node, off, targetNode, targetOff) {
   return targetNode ? scanFor(node, off, targetNode, targetOff, -1) || scanFor(node, off, targetNode, targetOff, 1) : false;
 }
 function domIndex(node) {
-  for (var index = 0; ; index++) {
+  for (var index2 = 0; ; index2++) {
     node = node.previousSibling;
     if (!node)
-      return index;
+      return index2;
   }
 }
 function isBlockElement(node) {
@@ -14028,13 +14314,13 @@ function scrollRectIntoView(dom, rect, side, x2, y2, xMargin, yMargin, ltr) {
       let moveX = 0, moveY = 0;
       if (y2 == "nearest") {
         if (rect.top < bounding.top) {
-          moveY = -(bounding.top - rect.top + yMargin);
+          moveY = rect.top - (bounding.top + yMargin);
           if (side > 0 && rect.bottom > bounding.bottom + moveY)
-            moveY = rect.bottom - bounding.bottom + moveY + yMargin;
+            moveY = rect.bottom - bounding.bottom + yMargin;
         } else if (rect.bottom > bounding.bottom) {
           moveY = rect.bottom - bounding.bottom + yMargin;
           if (side < 0 && rect.top - moveY < bounding.top)
-            moveY = -(bounding.top + moveY - rect.top + yMargin);
+            moveY = rect.top - (bounding.top + yMargin);
         }
       } else {
         let rectHeight = rect.bottom - rect.top, boundingHeight = bounding.bottom - bounding.top;
@@ -14043,13 +14329,13 @@ function scrollRectIntoView(dom, rect, side, x2, y2, xMargin, yMargin, ltr) {
       }
       if (x2 == "nearest") {
         if (rect.left < bounding.left) {
-          moveX = -(bounding.left - rect.left + xMargin);
+          moveX = rect.left - (bounding.left + xMargin);
           if (side > 0 && rect.right > bounding.right + moveX)
-            moveX = rect.right - bounding.right + moveX + xMargin;
+            moveX = rect.right - bounding.right + xMargin;
         } else if (rect.right > bounding.right) {
           moveX = rect.right - bounding.right + xMargin;
           if (side < 0 && rect.left < bounding.left + moveX)
-            moveX = -(bounding.left + moveX - rect.left + xMargin);
+            moveX = rect.left - (bounding.left + xMargin);
         }
       } else {
         let targetLeft = x2 == "center" ? rect.left + (rect.right - rect.left) / 2 - (bounding.right - bounding.left) / 2 : x2 == "start" == ltr ? rect.left - xMargin : rect.right - (bounding.right - bounding.left) + xMargin;
@@ -14084,6 +14370,13 @@ function scrollRectIntoView(dom, rect, side, x2, y2, xMargin, yMargin, ltr) {
       }
       if (top2)
         break;
+      if (rect.top < bounding.top || rect.bottom > bounding.bottom || rect.left < bounding.left || rect.right > bounding.right)
+        rect = {
+          left: Math.max(rect.left, bounding.left),
+          right: Math.min(rect.right, bounding.right),
+          top: Math.max(rect.top, bounding.top),
+          bottom: Math.min(rect.bottom, bounding.bottom)
+        };
       cur2 = cur2.assignedSlot || cur2.parentNode;
     } else if (cur2.nodeType == 11) {
       cur2 = cur2.host;
@@ -15646,8 +15939,8 @@ class ContentBuilder {
     if (this.openStart < 0)
       this.openStart = openStart;
   }
-  point(from, to, deco, active, openStart, index) {
-    if (this.disallowBlockEffectsFor[index] && deco instanceof PointDecoration) {
+  point(from, to, deco, active, openStart, index2) {
+    if (this.disallowBlockEffectsFor[index2] && deco instanceof PointDecoration) {
       if (deco.block)
         throw new RangeError("Block decorations may not be specified via plugins");
       if (to > this.doc.lineAt(this.pos).to)
@@ -15781,14 +16074,14 @@ class BidiSpan {
   /**
   @internal
   */
-  static find(order, index, level, assoc) {
+  static find(order, index2, level, assoc) {
     let maybe = -1;
     for (let i2 = 0; i2 < order.length; i2++) {
       let span = order[i2];
-      if (span.from <= index && span.to >= index) {
+      if (span.from <= index2 && span.to >= index2) {
         if (span.level == level)
           return i2;
-        if (maybe < 0 || (assoc != 0 ? assoc < 0 ? span.from < index : span.to > index : order[maybe].level > span.level))
+        if (maybe < 0 || (assoc != 0 ? assoc < 0 ? span.from < index2 : span.to > index2 : order[maybe].level > span.level))
           maybe = i2;
       }
     }
@@ -17688,7 +17981,10 @@ class InputState {
       return;
     if (event.type == "keydown" && this.keydown(event))
       return;
-    this.runHandlers(event.type, event);
+    if (this.view.updateState != 0)
+      Promise.resolve().then(() => this.runHandlers(event.type, event));
+    else
+      this.runHandlers(event.type, event);
   }
   runHandlers(type, event) {
     let handlers2 = this.handlers[type];
@@ -20580,8 +20876,8 @@ class EditContextManager {
     return !abort;
   }
   update(update2) {
-    let reverted = this.pendingContextChange;
-    if (this.composing && (this.composing.drifted || update2.transactions.some((tr) => !tr.isUserEvent("input.type") && tr.changes.touchesRange(this.from, this.to)))) {
+    let reverted = this.pendingContextChange, startSel = update2.startState.selection.main;
+    if (this.composing && (this.composing.drifted || !update2.changes.touchesRange(startSel.from, startSel.to) && update2.transactions.some((tr) => !tr.isUserEvent("input.type") && tr.changes.touchesRange(this.from, this.to)))) {
       this.composing.drifted = true;
       this.composing.editorBase = update2.changes.mapPos(this.composing.editorBase);
     } else if (!this.applyEdits(update2) || !this.rangeIsValid(update2.state)) {
@@ -22658,8 +22954,8 @@ class TooltipViewManager {
   }
 }
 function windowSpace(view2) {
-  let { win } = view2;
-  return { top: 0, left: 0, bottom: win.innerHeight, right: win.innerWidth };
+  let docElt = view2.dom.ownerDocument.documentElement;
+  return { top: 0, left: 0, bottom: docElt.clientHeight, right: docElt.clientWidth };
 }
 const tooltipConfig = /* @__PURE__ */ Facet.define({
   combine: (values) => {
@@ -23135,8 +23431,8 @@ class HoverPlugin {
   }
   get tooltip() {
     let plugin = this.view.plugin(tooltipPlugin);
-    let index = plugin ? plugin.manager.tooltips.findIndex((t2) => t2.create == HoverTooltipHost.create) : -1;
-    return index > -1 ? plugin.manager.tooltipViews[index] : null;
+    let index2 = plugin ? plugin.manager.tooltips.findIndex((t2) => t2.create == HoverTooltipHost.create) : -1;
+    return index2 > -1 ? plugin.manager.tooltipViews[index2] : null;
   }
   mousemove(event) {
     var _a2, _b2;
@@ -23270,8 +23566,8 @@ const panelConfig = /* @__PURE__ */ Facet.define({
 });
 function getPanel(view2, panel) {
   let plugin = view2.plugin(panelPlugin);
-  let index = plugin ? plugin.specs.indexOf(panel) : -1;
-  return index > -1 ? plugin.panels[index] : null;
+  let index2 = plugin ? plugin.specs.indexOf(panel) : -1;
+  return index2 > -1 ? plugin.panels[index2] : null;
 }
 const panelPlugin = /* @__PURE__ */ ViewPlugin.fromClass(class {
   constructor(view2) {
@@ -24186,9 +24482,9 @@ class Tree {
 }
 Tree.empty = new Tree(NodeType.none, [], [], 0);
 class FlatBufferCursor {
-  constructor(buffer, index) {
+  constructor(buffer, index2) {
     this.buffer = buffer;
-    this.index = index;
+    this.index = index2;
   }
   get id() {
     return this.buffer[this.index - 4];
@@ -24232,27 +24528,27 @@ class TreeBuffer {
   */
   toString() {
     let result = [];
-    for (let index = 0; index < this.buffer.length; ) {
-      result.push(this.childString(index));
-      index = this.buffer[index + 3];
+    for (let index2 = 0; index2 < this.buffer.length; ) {
+      result.push(this.childString(index2));
+      index2 = this.buffer[index2 + 3];
     }
     return result.join(",");
   }
   /**
   @internal
   */
-  childString(index) {
-    let id = this.buffer[index], endIndex = this.buffer[index + 3];
+  childString(index2) {
+    let id = this.buffer[index2], endIndex = this.buffer[index2 + 3];
     let type = this.set.types[id], result = type.name;
     if (/\W/.test(result) && !type.isError)
       result = JSON.stringify(result);
-    index += 4;
-    if (endIndex == index)
+    index2 += 4;
+    if (endIndex == index2)
       return result;
     let children = [];
-    while (index < endIndex) {
-      children.push(this.childString(index));
-      index = this.buffer[index + 3];
+    while (index2 < endIndex) {
+      children.push(this.childString(index2));
+      index2 = this.buffer[index2 + 3];
     }
     return result + "(" + children.join(",") + ")";
   }
@@ -24366,11 +24662,11 @@ class BaseNode {
   }
 }
 class TreeNode extends BaseNode {
-  constructor(_tree, from, index, _parent) {
+  constructor(_tree, from, index2, _parent) {
     super();
     this._tree = _tree;
     this.from = from;
-    this.index = index;
+    this.index = index2;
     this._parent = _parent;
   }
   get type() {
@@ -24391,9 +24687,9 @@ class TreeNode extends BaseNode {
         if (next instanceof TreeBuffer) {
           if (mode & IterMode.ExcludeBuffers)
             continue;
-          let index = next.findChild(0, next.buffer.length, dir, pos - start, side);
-          if (index > -1)
-            return new BufferNode(new BufferContext(parent, next, i2, start), null, index);
+          let index2 = next.findChild(0, next.buffer.length, dir, pos - start, side);
+          if (index2 > -1)
+            return new BufferNode(new BufferContext(parent, next, i2, start), null, index2);
         } else if (mode & IterMode.IncludeAnonymous || (!next.type.isAnonymous || hasChild(next))) {
           let mounted;
           if (!(mode & IterMode.IgnoreMounts) && (mounted = MountedTree.get(next)) && !mounted.overlay)
@@ -24532,10 +24828,10 @@ function matchNodeContext(node, context, i2 = context.length - 1) {
   return true;
 }
 class BufferContext {
-  constructor(parent, buffer, index, start) {
+  constructor(parent, buffer, index2, start) {
     this.parent = parent;
     this.buffer = buffer;
-    this.index = index;
+    this.index = index2;
     this.start = start;
   }
 }
@@ -24549,17 +24845,17 @@ class BufferNode extends BaseNode {
   get to() {
     return this.context.start + this.context.buffer.buffer[this.index + 2];
   }
-  constructor(context, _parent, index) {
+  constructor(context, _parent, index2) {
     super();
     this.context = context;
     this._parent = _parent;
-    this.index = index;
-    this.type = context.buffer.set.types[context.buffer.buffer[index]];
+    this.index = index2;
+    this.type = context.buffer.set.types[context.buffer.buffer[index2]];
   }
   child(dir, pos, side) {
     let { buffer } = this.context;
-    let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.context.start, side);
-    return index < 0 ? null : new BufferNode(this.context, this, index);
+    let index2 = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.context.start, side);
+    return index2 < 0 ? null : new BufferNode(this.context, this, index2);
   }
   get firstChild() {
     return this.child(
@@ -24597,8 +24893,8 @@ class BufferNode extends BaseNode {
     if (mode & IterMode.ExcludeBuffers)
       return null;
     let { buffer } = this.context;
-    let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], side > 0 ? 1 : -1, pos - this.context.start, side);
-    return index < 0 ? null : new BufferNode(this.context, this, index);
+    let index2 = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], side > 0 ? 1 : -1, pos - this.context.start, side);
+    return index2 < 0 ? null : new BufferNode(this.context, this, index2);
   }
   get parent() {
     return this._parent || this.context.parent.nextSignificantParent();
@@ -24735,12 +25031,12 @@ class TreeCursor {
     this.to = node.to;
     return true;
   }
-  yieldBuf(index, type) {
-    this.index = index;
+  yieldBuf(index2, type) {
+    this.index = index2;
     let { start, buffer } = this.buffer;
-    this.type = type || buffer.set.types[buffer.buffer[index]];
-    this.from = start + buffer.buffer[index + 1];
-    this.to = start + buffer.buffer[index + 2];
+    this.type = type || buffer.set.types[buffer.buffer[index2]];
+    this.from = start + buffer.buffer[index2 + 1];
+    this.to = start + buffer.buffer[index2 + 2];
     return true;
   }
   /**
@@ -24769,11 +25065,11 @@ class TreeCursor {
     if (!this.buffer)
       return this.yield(this._tree.nextChild(dir < 0 ? this._tree._tree.children.length - 1 : 0, dir, pos, side, this.mode));
     let { buffer } = this.buffer;
-    let index = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.buffer.start, side);
-    if (index < 0)
+    let index2 = buffer.findChild(this.index + 4, buffer.buffer[this.index + 3], dir, pos - this.buffer.start, side);
+    if (index2 < 0)
       return false;
     this.stack.push(this.index);
-    return this.yieldBuf(index);
+    return this.yieldBuf(index2);
   }
   /**
   Move the cursor to this node's first child. When this returns
@@ -24882,7 +25178,7 @@ class TreeCursor {
     return this.sibling(-1);
   }
   atLastNode(dir) {
-    let index, parent, { buffer } = this;
+    let index2, parent, { buffer } = this;
     if (buffer) {
       if (dir > 0) {
         if (this.index < buffer.buffer.buffer.length)
@@ -24892,13 +25188,13 @@ class TreeCursor {
           if (buffer.buffer.buffer[i2 + 3] < this.index)
             return false;
       }
-      ({ index, parent } = buffer);
+      ({ index: index2, parent } = buffer);
     } else {
-      ({ index, _parent: parent } = this._tree);
+      ({ index: index2, _parent: parent } = this._tree);
     }
-    for (; parent; { index, _parent: parent } = parent) {
-      if (index > -1)
-        for (let i2 = index + dir, e = dir < 0 ? -1 : parent._tree.children.length; i2 != e; i2 += dir) {
+    for (; parent; { index: index2, _parent: parent } = parent) {
+      if (index2 > -1)
+        for (let i2 = index2 + dir, e = dir < 0 ? -1 : parent._tree.children.length; i2 != e; i2 += dir) {
           let child = parent._tree.children[i2];
           if (this.mode & IterMode.IncludeAnonymous || child instanceof TreeBuffer || !child.type.isAnonymous || hasChild(child))
             return false;
@@ -24962,16 +25258,16 @@ class TreeCursor {
       return this._tree;
     let cache = this.bufferNode, result = null, depth = 0;
     if (cache && cache.context == this.buffer) {
-      scan: for (let index = this.index, d2 = this.stack.length; d2 >= 0; ) {
+      scan: for (let index2 = this.index, d2 = this.stack.length; d2 >= 0; ) {
         for (let c2 = cache; c2; c2 = c2._parent)
-          if (c2.index == index) {
-            if (index == this.index)
+          if (c2.index == index2) {
+            if (index2 == this.index)
               return c2;
             result = c2;
             depth = d2 + 1;
             break scan;
           }
-        index = this.stack[--d2];
+        index2 = this.stack[--d2];
       }
     }
     for (let i2 = depth; i2 < this.stack.length; i2++)
@@ -25072,9 +25368,9 @@ function buildTree(data2) {
     let startPos = start - parentStart;
     if (end - start <= maxBufferLength && (buffer2 = findBufferSize(cursor.pos - minPos, inRepeat))) {
       let data3 = new Uint16Array(buffer2.size - buffer2.skip);
-      let endPos = cursor.pos - buffer2.size, index = data3.length;
+      let endPos = cursor.pos - buffer2.size, index2 = data3.length;
       while (cursor.pos > endPos)
-        index = copyToBuffer(buffer2.start, data3, index);
+        index2 = copyToBuffer(buffer2.start, data3, index2);
       node = new TreeBuffer(data3, end - buffer2.start, nodeSet);
       startPos = buffer2.start - parentStart;
     } else {
@@ -25216,26 +25512,26 @@ function buildTree(data2) {
     }
     return result.size > 4 ? result : void 0;
   }
-  function copyToBuffer(bufferStart, buffer2, index) {
+  function copyToBuffer(bufferStart, buffer2, index2) {
     let { id, start, end, size } = cursor;
     cursor.next();
     if (size >= 0 && id < minRepeatType) {
-      let startIndex = index;
+      let startIndex = index2;
       if (size > 4) {
         let endPos = cursor.pos - (size - 4);
         while (cursor.pos > endPos)
-          index = copyToBuffer(bufferStart, buffer2, index);
+          index2 = copyToBuffer(bufferStart, buffer2, index2);
       }
-      buffer2[--index] = startIndex;
-      buffer2[--index] = end - bufferStart;
-      buffer2[--index] = start - bufferStart;
-      buffer2[--index] = id;
+      buffer2[--index2] = startIndex;
+      buffer2[--index2] = end - bufferStart;
+      buffer2[--index2] = start - bufferStart;
+      buffer2[--index2] = id;
     } else if (size == -3) {
       contextHash = id;
     } else if (size == -4) {
       lookAhead = id;
     }
-    return index;
+    return index2;
   }
   let children = [], positions = [];
   while (cursor.pos > 0)
@@ -26849,7 +27145,7 @@ function bracketedAligned(context) {
 }
 function delimitedStrategy(context, align, units, closing2, closedAt) {
   let after = context.textAfter, space = after.match(/^\s*/)[0].length;
-  let closed = closedAt == context.pos + space;
+  let closed = closing2 && after.slice(space, space + closing2.length) == closing2 || closedAt == context.pos + space;
   let aligned = bracketedAligned(context);
   if (aligned)
     return closed ? context.column(aligned.from) : context.column(aligned.to);
@@ -27448,9 +27744,9 @@ function matchingNodes(node, dir, brackets) {
   if (byProp)
     return byProp;
   if (node.name.length == 1) {
-    let index = brackets.indexOf(node.name);
-    if (index > -1 && index % 2 == (dir < 0 ? 1 : 0))
-      return [brackets[index + dir]];
+    let index2 = brackets.indexOf(node.name);
+    if (index2 > -1 && index2 % 2 == (dir < 0 ? 1 : 0))
+      return [brackets[index2 + dir]];
   }
   return null;
 }
@@ -27591,8 +27887,7 @@ function createTokenType(extra, tagStr) {
 }
 ({
   rtl: /* @__PURE__ */ Decoration.mark({ class: "cm-iso", inclusive: true, attributes: { dir: "rtl" }, bidiIsolate: Direction.RTL }),
-  ltr: /* @__PURE__ */ Decoration.mark({ class: "cm-iso", inclusive: true, attributes: { dir: "ltr" }, bidiIsolate: Direction.LTR }),
-  auto: /* @__PURE__ */ Decoration.mark({ class: "cm-iso", inclusive: true, attributes: { dir: "auto" }, bidiIsolate: null })
+  ltr: /* @__PURE__ */ Decoration.mark({ class: "cm-iso", inclusive: true, attributes: { dir: "ltr" }, bidiIsolate: Direction.LTR })
 });
 const toggleComment = (target) => {
   let { state } = target, line = state.doc.lineAt(state.selection.main.from), config2 = getConfig(target.state, line.from);
@@ -28746,9 +29041,9 @@ class SearchCursor {
   match(code2, pos, end) {
     let match = null;
     for (let i2 = 0; i2 < this.matches.length; i2 += 2) {
-      let index = this.matches[i2], keep = false;
-      if (this.query.charCodeAt(index) == code2) {
-        if (index == this.query.length - 1) {
+      let index2 = this.matches[i2], keep = false;
+      if (this.query.charCodeAt(index2) == code2) {
+        if (index2 == this.query.length - 1) {
           match = { from: this.matches[i2 + 1], to: end };
         } else {
           this.matches[i2]++;
@@ -28954,7 +29249,15 @@ function createLineDialog(view2) {
       event.preventDefault();
       go();
     }
-  }, crelt("label", view2.state.phrase("Go to line"), ": ", input), " ", crelt("button", { class: "cm-button", type: "submit" }, view2.state.phrase("go")));
+  }, crelt("label", view2.state.phrase("Go to line"), ": ", input), " ", crelt("button", { class: "cm-button", type: "submit" }, view2.state.phrase("go")), crelt("button", {
+    name: "close",
+    onclick: () => {
+      view2.dispatch({ effects: dialogEffect.of(false) });
+      view2.focus();
+    },
+    "aria-label": view2.state.phrase("close"),
+    type: "button"
+  }, ["×"]));
   function go() {
     let match = /^([+-])?(\d+)?(:\d+)?(%)?$/.exec(input.value);
     if (!match)
@@ -29010,7 +29313,18 @@ const gotoLine = (view2) => {
 const baseTheme$1$1 = /* @__PURE__ */ EditorView.baseTheme({
   ".cm-panel.cm-gotoLine": {
     padding: "2px 6px 4px",
-    "& label": { fontSize: "80%" }
+    position: "relative",
+    "& label": { fontSize: "80%" },
+    "& [name=close]": {
+      position: "absolute",
+      top: "0",
+      bottom: "0",
+      right: "4px",
+      backgroundColor: "inherit",
+      border: "none",
+      font: "inherit",
+      padding: "0"
+    }
   }
 });
 const defaultHighlightOptions = {
@@ -29277,11 +29591,11 @@ function regexpCursor(spec, state, from, to) {
     test: spec.wholeWord ? regexpWordTest(state.charCategorizer(state.selection.main.head)) : void 0
   }, from, to);
 }
-function charBefore(str, index) {
-  return str.slice(findClusterBreak(str, index, false), index);
+function charBefore(str, index2) {
+  return str.slice(findClusterBreak(str, index2, false), index2);
 }
-function charAfter(str, index) {
-  return str.slice(index, findClusterBreak(str, index));
+function charAfter(str, index2) {
+  return str.slice(index2, findClusterBreak(str, index2));
 }
 function regexpWordTest(categorizer) {
   return (_from, _to, match) => !match[0].length || (categorizer(charBefore(match.input, match.index)) != CharCategory.Word || categorizer(charAfter(match.input, match.index)) != CharCategory.Word) && (categorizer(charAfter(match.input, match.index + match[0].length)) != CharCategory.Word || categorizer(charBefore(match.input, match.index + match[0].length)) != CharCategory.Word);
@@ -29313,7 +29627,18 @@ class RegExpQuery extends QueryType {
     return this.prevMatchInRange(state, 0, curFrom) || this.prevMatchInRange(state, curTo, state.doc.length);
   }
   getReplacement(result) {
-    return this.spec.unquote(this.spec.replace).replace(/\$([$&\d+])/g, (m2, i2) => i2 == "$" ? "$" : i2 == "&" ? result.match[0] : i2 != "0" && +i2 < result.match.length ? result.match[i2] : m2);
+    return this.spec.unquote(this.spec.replace).replace(/\$([$&]|\d+)/g, (m2, i2) => {
+      if (i2 == "&")
+        return result.match[0];
+      if (i2 == "$")
+        return "$";
+      for (let l2 = i2.length; l2 > 0; l2--) {
+        let n2 = +i2.slice(0, l2);
+        if (n2 > 0 && n2 < result.match.length)
+          return result.match[n2] + i2.slice(l2);
+      }
+      return m2;
+    });
   }
   matchAll(state, limit) {
     let cursor = regexpCursor(this.spec, state, 0, state.doc.length), ranges = [];
@@ -30298,8 +30623,8 @@ class CompletionTooltip {
     let selRect = sel.getBoundingClientRect();
     let space = this.space;
     if (!space) {
-      let win = this.dom.ownerDocument.defaultView || window;
-      space = { left: 0, top: 0, right: win.innerWidth, bottom: win.innerHeight };
+      let docElt = this.dom.ownerDocument.documentElement;
+      space = { left: 0, top: 0, right: docElt.clientWidth, bottom: docElt.clientHeight };
     }
     if (selRect.top > Math.min(space.bottom, listRect.bottom) - 10 || selRect.bottom < Math.max(space.top, listRect.top) + 10)
       return null;
@@ -30322,6 +30647,10 @@ class CompletionTooltip {
     ul.setAttribute("role", "listbox");
     ul.setAttribute("aria-expanded", "true");
     ul.setAttribute("aria-label", this.view.state.phrase("Completions"));
+    ul.addEventListener("mousedown", (e) => {
+      if (e.target == ul)
+        e.preventDefault();
+    });
     let curSection = null;
     for (let i2 = range.from; i2 < range.to; i2++) {
       let { completion, match } = options[i2], { section } = completion;
@@ -31082,7 +31411,7 @@ const bracketState = /* @__PURE__ */ StateField.define({
 function closeBrackets() {
   return [inputHandler, bracketState];
 }
-const definedClosing = "()[]{}<>";
+const definedClosing = "()[]{}<>«»»«［］｛｝";
 function closing(ch) {
   for (let i2 = 0; i2 < definedClosing.length; i2 += 2)
     if (definedClosing.charCodeAt(i2) == ch)
@@ -31881,6 +32210,22 @@ const basicSetup = /* @__PURE__ */ (() => [
     ...lintKeymap
   ])
 ])();
+const minimalSetup = /* @__PURE__ */ (() => [
+  highlightSpecialChars(),
+  history(),
+  drawSelection(),
+  syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+  keymap.of([
+    ...defaultKeymap,
+    ...historyKeymap
+  ])
+])();
+const index = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+  __proto__: null,
+  EditorView,
+  basicSetup,
+  minimalSetup
+}, Symbol.toStringTag, { value: "Module" }));
 const baseURL = "http://localhost:8000/";
 function loadFile(fileName) {
   const fetchName = fileName.startsWith("http") ? fileName : baseURL + fileName;
@@ -31924,7 +32269,7 @@ function makeHTMLFromContent(text2) {
 </html>`;
   return header + text2 + footer;
 }
-let myResizeHandler;
+let myResizeHandler = null;
 const css = `html, body, #renkon {
     height: 100%;
 }
@@ -31991,6 +32336,7 @@ function view(opt) {
   const app = opt == null ? void 0 : opt.app;
   const noTicking = opt == null ? void 0 : opt.noTicking;
   const url = new URL(window.location.toString());
+  const hideEditor = (opt == null ? void 0 : opt.hideEditor) || url.searchParams.get("hideEditor");
   let maybeDoc = url.searchParams.get("doc");
   let semi;
   if (maybeDoc) {
@@ -31999,7 +32345,6 @@ function view(opt) {
       maybeDoc = maybeDoc.slice(0, semi);
     }
   }
-  let hideEditor = url.searchParams.get("hideEditor");
   const renkon = document.body.querySelector("#renkon");
   const programState = new ProgramState(Date.now(), app, noTicking);
   window.programState = programState;
@@ -32079,10 +32424,10 @@ async function update(renkon, editorView, programState) {
   let jsxs = jsxElements.map((s) => ({ element: s, code: s.textContent })).filter((s) => s.code);
   const programs = [...text2];
   if (jsxs.length > 0) {
-    const translated = jsxs.map((jsx2, index) => {
+    const translated = jsxs.map((jsx2, index2) => {
       const str = transpileJSX(jsx2.code);
       const div = document.createElement("div");
-      div.id = `jsx-${index}`;
+      div.id = `jsx-${index2}`;
       if (jsx2.element.style.cssText !== "") {
         div.setAttribute("style", jsx2.element.style.cssText);
       }
@@ -32555,7 +32900,7 @@ function formatMapField(key, value) {
 }
 function format(date, fallback) {
   if (!(date instanceof Date)) date = /* @__PURE__ */ new Date(+date);
-  if (isNaN(date)) return typeof fallback === "function" ? fallback(date) : fallback;
+  if (isNaN(date)) return false ? fallback(date) : fallback;
   const hours = date.getUTCHours();
   const minutes = date.getUTCMinutes();
   const seconds = date.getUTCSeconds();
@@ -32836,11 +33181,14 @@ function newInspector(data2, dom) {
   inspector.fulfilled(data2);
   return inspector;
 }
+console.log("Renkon version:" + version);
 export {
+  index as CodeMirror,
   ProgramState,
   newInspector,
   parseJSX,
   translateTS,
   transpileJSX,
+  version,
   view
 };

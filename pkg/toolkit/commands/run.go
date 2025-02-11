@@ -10,13 +10,9 @@ type Runner interface {
 	Run(ctx context.Context, name string, p Fields) (Fields, error)
 }
 
-type DefRunner interface {
-	RunDef(ctx context.Context, r *Msg, params Fields) (Fields, error)
-}
-
 type TransformingDefRunner struct {
 	Client       HTTPClient
-	DefRunner    DefRunner
+	Env          Env
 	DefTransform DefTransformFunc
 }
 
@@ -35,8 +31,8 @@ func (p *TransformingDefRunner) ReflectURL(ctx context.Context, url string) (Sou
 	slog.Info("ReflectURL", "url", url, "di", di)
 
 	return &CachedSource{
-		Defs:      di,
-		DefRunner: p.DefRunner,
+		Defs: di,
+		Env:  p.Env,
 	}, di, nil
 }
 

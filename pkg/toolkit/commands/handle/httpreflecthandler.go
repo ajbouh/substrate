@@ -11,21 +11,23 @@ import (
 )
 
 func EnsureHTTPBasis(method, route string) commands.DefTransformFunc {
-	return func(ctx context.Context, commandName string, commandDef *commands.Msg) (string, *commands.Msg) {
+	return func(ctx context.Context, commandName string, commandDef commands.Fields) (string, commands.Fields) {
 		// for each command, populate any missing run fields. this provides enough information for
 		// someone to "run" the associated command through this handler.
-		r := FindMsgBasis(commandDef)
-		if r == nil || r.Cap != nil {
+		cap, path := FindMsgBasisPath(commandDef)
+		if cap != "" {
 			return commandName, commandDef
 		}
 
 		new := commandDef.MustClone()
-		r = FindMsgBasis(new)
 
-		refHTTP := "http"
-		r.Msg = &commands.Msg{
-			Cap: &refHTTP,
-			Data: commands.Fields{
+		pathWithSuffix := func(suffix ...string) []string {
+			return append(append([]string(nil), path...), suffix...)
+		}
+		commands.SetPath(new, pathWithSuffix("cap"), "msg")
+		commands.SetPath(new, pathWithSuffix("msg"), commands.Fields{
+			"cap": "http",
+			"http": commands.Fields{
 				"request": commands.Fields{
 					"headers": map[string][]string{
 						"Content-Type": {"application/json"},
@@ -38,22 +40,26 @@ func EnsureHTTPBasis(method, route string) commands.DefTransformFunc {
 					},
 				},
 			},
-		}
+		})
 
 		parametersPrefix := commands.NewDataPointer("data", "parameters")
 		returnsPrefix := commands.NewDataPointer("data", "returns")
 
-		for pointer := range r.Meta {
+		meta, err := commands.GetPath[commands.Meta](new, pathWithSuffix("meta")...)
+		if err != nil {
+			return commandName, commandDef
+		}
+		for pointer := range meta {
 			if trimmed, ok := pointer.TrimPathPrefix(parametersPrefix); ok {
 				trimmedPath := trimmed.Path()
 				if len(trimmedPath) != 1 {
 					continue
 				}
-				if r.MsgIn == nil {
-					r.MsgIn = commands.Bindings{}
-				}
-				r.MsgIn.Add(
-					commands.NewDataPointer(append([]string{"msg", "data", "request", "body", "parameters"}, trimmedPath...)...),
+				commands.SetPath(new,
+					[]string{
+						"msg_in",
+						commands.NewDataPointer(append(pathWithSuffix("msg", "http", "request", "body", "parameters"), trimmedPath...)...).String(),
+					},
 					pointer,
 				)
 			}
@@ -62,12 +68,8 @@ func EnsureHTTPBasis(method, route string) commands.DefTransformFunc {
 				if len(trimmedPath) != 1 {
 					continue
 				}
-				if r.MsgOut == nil {
-					r.MsgOut = commands.Bindings{}
-				}
-				r.MsgOut.Add(
-					pointer,
-					commands.NewDataPointer(append([]string{"msg", "data", "response", "body"}, trimmedPath...)...),
+				commands.SetPath(new, []string{"msg_out", pointer.String()},
+					commands.NewDataPointer(append(pathWithSuffix("msg", "http", "response", "body"), trimmedPath...)...),
 				)
 			}
 		}

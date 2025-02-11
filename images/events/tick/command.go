@@ -25,8 +25,8 @@ type CommandRuleInput struct {
 	Deleted       bool   `json:"deleted,omitempty"`
 	TimeoutMillis int64  `json:"timeout_ms,omitempty"`
 
-	Conditions []*event.Query `json:"conditions"`
-	Command    commands.Msg   `json:"command"`
+	Conditions []*event.Query  `json:"conditions"`
+	Command    commands.Fields `json:"command"`
 
 	Cursor *CommandRuleCursor `json:"-"`
 }
@@ -45,7 +45,7 @@ type CommandStrategy struct {
 	DefaultTimeout time.Duration
 
 	HTTPClient commands.HTTPClient
-	DefRunner  commands.DefRunner
+	Env        commands.Env
 }
 
 var _ Strategy[CommandRuleInput, CommandRuleEvents, *CommandRuleOutput] = (*CommandStrategy)(nil)
@@ -100,8 +100,9 @@ func (s *CommandStrategy) Do(ctx context.Context, input CommandRuleInput, gather
 		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
-	returns, err = s.DefRunner.RunDef(ctx, &input.Command, data)
-	slog.InfoContext(ctx, "CommandStrategy.Do() RunDef", "command", input.Command, "data", data, "returns", returns, "err", err)
+
+	returns, err = commands.MergeAndApply(s.Env.New(ctx, nil), input.Command, data)
+	slog.Info("CommandStrategy.Do() RunDef", "command", input.Command, "data", data, "returns", returns, "err", err)
 	if err != nil {
 		return nil, false, err
 	}

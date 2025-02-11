@@ -35,7 +35,11 @@ func main() {
 				}) (SuggestReturns, error) {
 					input := args.Input
 					cmds := args.Commands
-					defs := translateDefs(cmds)
+					defs, err := translateDefs(cmds)
+					if err != nil {
+						return SuggestReturns{}, err
+					}
+
 					prompt, calls, err := tools.Suggest(input, defs)
 					if err != nil {
 						return SuggestReturns{}, err
@@ -52,31 +56,32 @@ func main() {
 						Choices: reqs,
 					}, nil
 				}).WithExample(
-				"simple_ide_cursor_movement", "Advance cursor by 3",
+				"simple_ide_cursor_movement",
 				commands.Fields{
+					"description": "Advance cursor by 3",
 					"parameters": commands.Fields{
 						"input": "move the cursor three lines down",
 						"commands": commands.DefIndex{
-							"cursor_next_line": &commands.Msg{
-								Description: "Move the cursor to n lines down the current line",
-								Meta: commands.Meta{
-									"#/data/parameters/nLines": {
-										Type:        "number",
-										Description: "The amount of movement.",
+							"cursor_next_line": commands.Fields{
+								"description": "Move the cursor to n lines down the current line",
+								"meta": commands.Fields{
+									"#/data/parameters/nLines": commands.Fields{
+										"type":        "number",
+										"description": "The amount of movement.",
 									},
-									"#/data/returns/ok": {
-										Type: "boolean",
+									"#/data/returns/ok": commands.Fields{
+										"type": "boolean",
 									},
 								},
 							},
 							"type_in": {
-								Description: "Type in the argument at the current cursor position",
-								Meta: commands.Meta{
-									"#/data/parameters/input": {
-										Type:        "string",
-										Description: "The string to be entered.",
+								"description": "Type in the argument at the current cursor position",
+								"meta": commands.Fields{
+									"#/data/parameters/input": commands.Fields{
+										"type":        "string",
+										"description": "The string to be entered.",
 									},
-									"#/data/returns/ok": {Type: "boolean"},
+									"#/data/returns/ok": commands.Fields{"type": "boolean"},
 								},
 							},
 						},
@@ -86,15 +91,19 @@ func main() {
 	)
 }
 
-func translateDefs(def commands.DefIndex) []tools.Definition {
+func translateDefs(def commands.DefIndex) ([]tools.Definition, error) {
 	var td []tools.Definition
 
 	for name, d := range def {
+		desc, err := commands.GetPath[string](d, "description")
+		if err != nil {
+			return nil, err
+		}
 		d2 := tools.Definition{
 			Type: "function",
 			Function: tools.Func{
 				Name:        name,
-				Description: d.Description,
+				Description: desc,
 				Parameters: tools.Params{
 					Type:       "object",
 					Properties: map[string]tools.Prop{},
@@ -103,7 +112,12 @@ func translateDefs(def commands.DefIndex) []tools.Definition {
 		}
 
 		parametersPrefix := commands.NewDataPointer("data", "parameters")
-		for pointer, metadata := range d.Meta {
+		meta, err := commands.GetPath[commands.Meta](d, "meta")
+		if err != nil {
+			return nil, err
+		}
+
+		for pointer, metadata := range meta {
 			subpath, ok := pointer.TrimPathPrefix(parametersPrefix)
 			if !ok {
 				continue
@@ -122,5 +136,6 @@ func translateDefs(def commands.DefIndex) []tools.Definition {
 		}
 		td = append(td, d2)
 	}
-	return td
+
+	return td, nil
 }

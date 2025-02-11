@@ -10,13 +10,13 @@ import (
 )
 
 type CommandCall[In, Out any] struct {
-	DefRunner commands.DefRunner
-	URL       string
-	Command   string
+	Env     commands.Env
+	URL     string
+	Command string
 }
 
 func (cr *CommandCall[In, Out]) Call(ctx context.Context, params In) (*Out, error) {
-	return CallDef[Out, In](ctx, cr.DefRunner, cr.URL, cr.Command, params)
+	return CallDef[Out, In](ctx, cr.Env, cr.URL, cr.Command, params)
 }
 
 func convertViaJSON[Out, In any](input In) (Out, error) {
@@ -32,14 +32,7 @@ func convertViaJSON[Out, In any](input In) (Out, error) {
 	return out, err
 }
 
-func Cap(cap string, data commands.Fields) *commands.Msg {
-	return &commands.Msg{
-		Cap:  &cap,
-		Data: data,
-	}
-}
-
-func CallDef[Out, In any](ctx context.Context, runner commands.DefRunner, url, command string, params In) (*Out, error) {
+func CallDef[Out, In any](ctx context.Context, env commands.Env, url, command string, params In) (*Out, error) {
 	paramFields, err := convertViaJSON[commands.Fields](params)
 	if err != nil {
 		return nil, err
@@ -47,14 +40,12 @@ func CallDef[Out, In any](ctx context.Context, runner commands.DefRunner, url, c
 
 	slog.InfoContext(ctx, "CallDef", "url", url, "command", command, "params", paramFields)
 
-	resultFields, err := runner.RunDef(ctx, Cap(
-		"reflect", commands.Fields{
-			"url":        url,
-			"name":       command,
-			"parameters": paramFields,
-		}),
-		nil,
-	)
+	resultFields, err := env.Apply(nil, commands.Fields{
+		"cap":        "reflect",
+		"url":        url,
+		"name":       command,
+		"parameters": paramFields,
+	})
 	if err != nil {
 		return nil, err
 	}

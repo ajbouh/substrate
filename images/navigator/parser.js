@@ -4,11 +4,17 @@ Navigator {
   
   description = "#" (~nl any)* nl?
 
-  Head = msgTarget? msgName
+  Head = msgTarget msgName
 
-  msgTarget = "@" (~space any)*
+  msgTarget
+    = interpolation   -- interpolation
+    | templateString  -- templateString
+    | (~space any)*   -- literal
 
-  msgName = letter (alnum | "_" | "-" | ":" | "." | "+" | "/")*
+  msgName
+    = letter (alnum | "_" | "-" | ":" | "." | "+" | "/")*  -- literal
+    | templateString                                       -- templateString
+    | interpolation                                        -- interpolation
 
   Params = Param*
 
@@ -23,6 +29,7 @@ Navigator {
     | templateString                    -- templateString
     | number                            -- number
     | boolean                           -- boolean
+    | interpolation                     -- interpolation
 
   ident = letter (alnum | "_")*
   key = ident | string
@@ -39,11 +46,22 @@ Navigator {
     = "\\" any           -- escaped
     | ~"\"" any          -- nonEscaped
 
+  fieldSelector
+    = "." ident        -- dot
+    | "[" ident "]"    -- bracketIdent
+    | "[" number "]"   -- bracketNumber
+    | "[" string "]"   -- bracketString
+
+  fieldReference = ident fieldSelector*
+
+  interpolation = "$" "{" fieldReference "}"
+
   templateString = "\u{0060}" templateStringCharacter* "\u{0060}"
 
   templateStringCharacter
     = "\\" any           -- escaped
-    | ~"\u{0060}" any          -- nonEscaped
+    | interpolation      -- interpolation
+    | ~"\u{0060}" any    -- nonEscaped
 
   comment
     = "//" (~nl any)* nl  -- cppComment
@@ -68,114 +86,192 @@ export function initGrammar() {
         "toMsg",
         {
             Msg(d, h, p, _s) {
-                const description = d.numChildren ? d.children[0].sourceString.substring(1).trimLeft() : ''
-                const command = h.numChildren ? h.children[0].toMsg() : {};
-                const params = p.numChildren ? p.children[0].toMsg() : undefined;
+                return env => {
+                    const description = d.numChildren ? d.children[0].sourceString.substring(1).trimLeft() : ''
+                    const command = h.numChildren ? h.children[0].toMsg()(env) : {};
+                    const params = p.numChildren ? p.children[0].toMsg()(env) : undefined;
 
-                return {...command, description, params};
+                    return {...command, description, params};
+                }
             },
 
+            msgTarget_literal(a) {
+                return env => this.sourceString
+            },
+            msgTarget_interpolation(i) {
+                return i.toMsg()
+            },
+            msgTarget_templateString(s) {
+                return s.toMsg()
+            },
+            msgName_literal(s, l) {
+                return env => this.sourceString
+            },
+            msgName_templateString(s) {
+                return s.toMsg()
+            },
+            msgName_interpolation(i) {
+                return i.toMsg()
+            },
+            Json_interpolation(i) {
+                return i.toMsg()
+            },
+            templateStringCharacter_escaped(s, a) {
+                return env => this.sourceString
+            },
+            templateStringCharacter_nonEscaped(a) {
+                return env => this.sourceString
+            },
+            templateStringCharacter_interpolation(i) {
+                return i.toMsg()
+            },
+            interpolation(d, lb, fr, lr) {
+                return fr.toMsg()
+            },
+            fieldReference(head, sel) {
+                // TODO
+                const initial = head.toMsg()
+                const children = sel.toMsg()
+                return env => children(env).reduce((acc, child) => acc[child], env.lookup(initial(env)))
+            },
+
+            // "." ident        -- dot
+            fieldSelector_dot(d, i) {
+                return env => i.sourceString
+            },
+            //| "[" ident "]"    -- bracketIdent
+            fieldSelector_bracketIdent(l, i, r) {
+                return env => i.sourceString
+            },
+            // | "[" number "]"   -- bracketNumber
+            fieldSelector_bracketNumber(l, n, r) {
+                return env => +i.sourceString
+            },
+            // | "[" string "]"   -- bracketString
+            fieldSelector_bracketString(l, s, r) {
+                return s.toMsg()
+            },
+        
+
             Head(msgTarget, msgName) {
-                console.log({msgTarget})
-                const target = msgTarget.numChildren ? msgTarget.sourceString.substring(1) : undefined
-                console.log({target})
-                return {
-                    viewCommand: target !== undefined && target.length === 0,
-                    target: target,
-                    command: msgName.sourceString,
-                };
+                const target = msgTarget.toMsg()
+                const name = msgName.toMsg()
+                return env => {
+                    const t = target(env)
+                    const n = name(env)
+                    console.log({target: t})
+                    return {
+                        viewCommand: t === "$",
+                        target: t,
+                        command: n,
+                    };
+                }
             },
 
             Params(rest) {
-                const result = {};
-                for (let i = 0; i < rest.children.length; i++) {
-                    const pValue = rest.children[i].toMsg();
-                    result[pValue.key] = pValue.value;
+                return env => {
+                    const result = {};
+                    for (let i = 0; i < rest.children.length; i++) {
+                        const pValue = rest.children[i].toMsg()(env);
+                        result[pValue.key] = pValue.value;
+                    }
+                    return result;
                 }
-                return result;
             },
 
             Param(key, _c, json) {
-                // console.log("Param", key.sourceString, json.sourceString);
-                return {key: key.toMsg(), value: json.toMsg()}
+                return env => {
+                    // console.log("Param", key.sourceString, json.sourceString);
+                    return {key: key.toMsg()(env), value: json.toMsg()(env)}
+                }
             },
 
             Json_object1(_ob, param1, rest, rest2, _cc, _cb) {
-                // console.log("Json_object1", param1.sourceString, rest.sourceString, rest2.sourceString);
-                const result = {};
-                const param1Command = param1.toMsg();
-                result[param1Command.key] = param1Command.value;
-
-                for (let i = 0; i < rest2.children.length; i++) {
-                    const param1Command = rest2.children[i].toMsg();
+                return env => {
+                    // console.log("Json_object1", param1.sourceString, rest.sourceString, rest2.sourceString);
+                    const result = {};
+                    const param1Command = param1.toMsg()(env);
                     result[param1Command.key] = param1Command.value;
-                }
 
-                return result;
+                    for (let i = 0; i < rest2.children.length; i++) {
+                        const param1Command = rest2.children[i].toMsg()(env);
+                        result[param1Command.key] = param1Command.value;
+                    }
+
+                    return result;
+                }
             },
                 
             Json_object0(_ob, _cb) {
                 //  console.log("Json_object0");
-                return {};
+                return env => ({});
             },
 
             Json_array1(_ob, json1, _rest, rest2, _cc, _cb) {
                 // console.log("Json_array1", json1.sourceString, rest, sourceString);
-                const result = [];
-                const json1Command = json1.toMsg();
-                result.push(json1Command);
-
-                for (let i = 0; i < rest2.children.length; i++) {
-                    const json1Command = rest2.children[i].children[0].toMsg();
+                return env => {
+                    const result = [];
+                    const json1Command = json1.toMsg()(env);
                     result.push(json1Command);
-                }
 
-                return result;
+                    for (let i = 0; i < rest2.children.length; i++) {
+                        const json1Command = rest2.children[i].children[0].toMsg()(env);
+                        result.push(json1Command);
+                    }
+
+                    return result;
+                }
             },
 
             Json_array0(_ob, _cb) {
                 // console.log("Json_array0");
-                return [];
+                return env => [];
             },
 
             Json_string(str) {
                 console.log("Json_string", str.sourceString);
-                return str.toMsg();
+                return env => str.toMsg()(env);
             },
 
             Json_number(n) {
                 // console.log("Json_number", n.sourceString);
-                return n.toMsg();
+                return env => n.toMsg()(env);
             },
 
             boolean(b) {
-                return b.sourceString === 'true'
+                return env => b.sourceString === 'true';
             },
 
             ident(_h, _r) {
                 // console.log("ident", this.sourceString);
-                return this.sourceString;
+                return env => this.sourceString;
             },
 
             key(k) {
-                return k.toMsg();
+                return env => k.toMsg()(env);
             },
 
             number_fract(i, _p, f) {
-                return parseFloat(`${i.sourceString}.${f.sourceString}`);
+                return env => parseFloat(`${i.sourceString}.${f.sourceString}`);
             },
 
             number_whole(f) {
-                return parseFloat(`${f.sourceString}`);
+                return env => parseFloat(`${f.sourceString}`);
             },
 
             string(_od, s, _cd) {
-                return s.sourceString;
+                return env => s.sourceString;
+            },
+
+            _iter(...children) {
+                const c = children.map(c => c.toMsg());
+                return env => c.map(f => f(env))
             },
 
             templateString(_od, s, _cd) {
-                return s.sourceString;
-            }
+                const children = s.toMsg()
+                return env => children(env).join("");
+            },
         }
     );
 

@@ -259,11 +259,16 @@ func (s *commandSourceRegistry) ListTools(ctx context.Context) ([]tools.Definiti
 	}
 	var td []tools.Definition
 	for name, d := range def {
+		desc, err := commands.GetPath[string](d, "description")
+		if err != nil {
+			return nil, err
+		}
+
 		d2 := tools.Definition{
 			Type: "function",
 			Function: tools.Func{
 				Name:        name,
-				Description: d.Description,
+				Description: desc,
 				Parameters: tools.Params{
 					Type:       "object",
 					Properties: map[string]tools.Prop{},
@@ -272,7 +277,11 @@ func (s *commandSourceRegistry) ListTools(ctx context.Context) ([]tools.Definiti
 		}
 
 		parametersPrefix := commands.NewDataPointer("data", "parameters")
-		for pointer, metadata := range d.Meta {
+		meta, err := commands.GetPath[commands.Meta](d, "meta")
+		if err != nil {
+			return nil, err
+		}
+		for pointer, metadata := range meta {
 			subpath, ok := pointer.TrimPathPrefix(parametersPrefix)
 			if !ok {
 				continue

@@ -247,7 +247,7 @@ func (a *CallAgent) handle(ctx context.Context, event TriggerNotification) ([]tr
 }
 
 type OpenAICompleter struct {
-	Runner   commands.DefRunner
+	Env      commands.Env
 	Template string
 }
 
@@ -256,6 +256,6 @@ func (oc *OpenAICompleter) Complete(templateArgs map[string]any) (string, string
 	if err != nil {
 		return prompt, "", err
 	}
-	resp, err := openai.CompleteWithFrontmatter(oc.Runner, prompt)
+	resp, err := openai.CompleteWithFrontmatter(oc.Env, prompt)
 	return prompt, resp, err
 }

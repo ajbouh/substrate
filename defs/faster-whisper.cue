@@ -93,7 +93,7 @@ commands: "faster-whisper": {
         "#/data/returns/segments": {type: "object"}
     }
     command.ViaHTTP
-    msg: data: request: {
+    msg: http: request: {
       method: "POST"
       url: "/faster-whisper/v1/transcribe"
       headers: "Content-Type": ["application/json"]

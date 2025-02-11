@@ -61,7 +61,7 @@ type CommandFunc[Target any, Params any, Returns any] struct {
 	Desc   string
 	Func   func(ctx context.Context, t *Target, p Params) (Returns, error)
 
-	Examples map[string]*commands.Msg
+	Examples map[string]commands.Fields
 
 	HTTPMethod              string
 	HTTPResourcePath        string
@@ -92,14 +92,11 @@ func (r *CommandFunc[Target, Params, Returns]) Initialize() {
 	slog.Info("CommandFunc[Target, Params, Returns].Initialize", "r", reflect.TypeOf(r).String(), "target", r.Target)
 }
 
-func (r *CommandFunc[Target, Params, Returns]) WithExample(name, description string, data commands.Fields) *CommandFunc[Target, Params, Returns] {
+func (r *CommandFunc[Target, Params, Returns]) WithExample(name string, data commands.Fields) *CommandFunc[Target, Params, Returns] {
 	if r.Examples == nil {
-		r.Examples = map[string]*commands.Msg{}
+		r.Examples = map[string]commands.Fields{}
 	}
-	r.Examples[name] = &commands.Msg{
-		Description: description,
-		Data:        data,
-	}
+	r.Examples[name] = data
 	return r
 }
 
@@ -203,20 +200,20 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (com
 			slog.Info("paramBinding", "pathValuer", pathValuer, "name", name, "prefix", prefix, "pathVar", pathVar, "pathVal", pathVal, "ok", ok, "err", err)
 
 			inBindings.Add(
-				commands.NewDataPointer("msg", "data", "request", "path", pathVar),
+				commands.NewDataPointer("msg", "http", "request", "path", pathVar),
 				prefix.Append(name),
 			)
 			return
 		} else if queryVar, ok := field.Tag.Lookup("query"); ok {
 			inBindings.Add(
-				commands.NewDataPointer("msg", "data", "request", "query", queryVar),
+				commands.NewDataPointer("msg", "http", "request", "query", queryVar),
 				prefix.Append(name),
 			)
 			return
 		}
 
 		inBindings.Add(
-			commands.NewDataPointer("msg", "data", "request", "body", name),
+			commands.NewDataPointer("msg", "http", "request", "body", name),
 			prefix.Append(name),
 		)
 	}
@@ -239,7 +236,7 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (com
 	returnsBinding := func(prefix commands.DataPointer, name string, field reflect.StructField) {
 		outBindings.Add(
 			prefix.Append(name),
-			commands.NewDataPointer("msg", "data", "response", "body", name),
+			commands.NewDataPointer("msg", "http", "response", "body", name),
 		)
 	}
 	switch returnsType.Kind() {
@@ -251,24 +248,20 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (com
 		return nil, fmt.Errorf("returns type %s is not a struct for command named %q with func %T", returnsType.String(), r.Name, r.Func)
 	}
 
-	def := &commands.Msg{
-		Description: r.Desc,
-		Meta:        meta,
+	def := commands.Fields{
+		"description": r.Desc,
+		"meta":        meta,
 	}
 
 	if params != nil {
-		if def.Data == nil {
-			def.Data = commands.Fields{}
+		err := commands.SetPath(def, []string{"data", "parameters"}, params)
+		if err != nil {
+			return nil, err
 		}
-		def.Data["parameters"] = params
 	}
 
 	if len(r.Examples) > 0 {
-		if def.Data == nil {
-			def.Data = commands.Fields{}
-		}
-
-		examples := map[string]*commands.Msg{}
+		examples := map[string]commands.Fields{}
 		var err error
 		for k, v := range r.Examples {
 			examples[k], err = v.Clone()
@@ -277,16 +270,16 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (com
 			}
 		}
 
-		def.Data["examples"] = examples
+		def["examples"] = examples
 	}
 
 	if r.HTTPResourcePath != "" {
-		capHTTP := "http"
-		def.MsgIn = inBindings
-		def.MsgOut = outBindings
-		def.Msg = &commands.Msg{
-			Cap: &capHTTP,
-			Data: commands.Fields{
+		def["cap"] = "msg"
+		def["msg_in"] = inBindings
+		def["msg_out"] = outBindings
+		def["msg"] = commands.Fields{
+			"cap": "http",
+			"http": commands.Fields{
 				"request": commands.Fields{
 					"headers": map[string][]string{
 						"Content-Type": {"application/json"},

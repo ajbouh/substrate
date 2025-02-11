@@ -22,6 +22,10 @@ func ParseDataPointer(s string) (DataPointer, error) {
 	return DataPointer(s), nil
 }
 
+func (p DataPointer) String() string {
+	return string(p)
+}
+
 func (p DataPointer) Append(path ...string) DataPointer {
 	return DataPointer(string(p) + "/" + strings.Join(path, "/"))
 }
@@ -73,13 +77,32 @@ func Get[T any](m any, p DataPointer) (t T, err error) {
 	return GetPath[T](m, path...)
 }
 
-func GetPath[T any](m any, path ...string) (t T, err error) {
+func MaybeGet[T any](m any, p DataPointer) (t T, ok bool, err error) {
+	path := p.Path()
+	return MaybeGetPath[T](m, path...)
+}
+
+func MaybeGetPath[T any](m any, path ...string) (t T, ok bool, err error) {
 	var o any
-	o, _, err = getPath(m, path)
+	o, ok, err = getPath(m, path)
 	if err != nil {
 		return
 	}
 	t, err = As[T](o)
+	return t, true, err
+}
+
+// TODO to make this faster we don't need to actually Get and/or coerce the value at the path...
+func LenGetPath(m any, path ...string) int {
+	t, ok, err := MaybeGetPath[[]any](m, path...)
+	if !ok || err != nil {
+		return 0
+	}
+	return len(t)
+}
+
+func GetPath[T any](m any, path ...string) (t T, err error) {
+	t, _, err = MaybeGetPath[T](m, path...)
 	return t, err
 }
 
@@ -215,7 +238,7 @@ func getKeyInMap(f any, k any) (typeMatch bool, v any, ok bool) {
 	return
 }
 
-func getKeyInSlice(f any, k any) (typeMatch bool, v any, err error) {
+func getKeyInSlice(f any, k any) (typeMatch bool, v any, ok bool, err error) {
 	// fast path string key in common map
 	var ki int
 	switch kn := k.(type) {
@@ -246,9 +269,15 @@ func getKeyInSlice(f any, k any) (typeMatch bool, v any, err error) {
 	typeMatch = true
 	switch t := f.(type) {
 	case []any:
-		v = t[ki]
+		ok = ki > 0 && ki < len(t)
+		if ok {
+			v = t[ki]
+		}
 	case []string:
-		v = t[ki]
+		ok = ki > 0 && ki < len(t)
+		if ok {
+			v = t[ki]
+		}
 	default:
 		typeMatch = false
 	}
@@ -256,8 +285,11 @@ func getKeyInSlice(f any, k any) (typeMatch bool, v any, err error) {
 	rf := reflect.ValueOf(f)
 	if rf.Kind() == reflect.Slice {
 		typeMatch = true
-		rv := rf.Index(ki)
-		v = rv.Interface()
+		ok = ki > 0 && ki < rf.Len()
+		if ok {
+			rv := rf.Index(ki)
+			v = rv.Interface()
+		}
 	}
 
 	return
@@ -273,14 +305,13 @@ func getPath(f any, k []string) (any, bool, error) {
 	var isSlice bool
 	var err error
 	if !isMap {
-		isSlice, v, err = getKeyInSlice(f, first)
+		isSlice, v, ok, err = getKeyInSlice(f, first)
 		if err != nil {
 			return v, false, err
 		}
 		if !isSlice {
 			return v, false, fmt.Errorf("don't know how to get %#v for %T", first, f)
 		}
-		ok = true
 	}
 
 	if len(k) == 1 {

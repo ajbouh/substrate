@@ -2,7 +2,6 @@ package commands
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -13,33 +12,34 @@ type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
-type HTTPCapability struct {
+type CapHTTP struct {
 	HTTPClient HTTPClient
 
 	Rewrite func(*http.Request) (*http.Request, error)
 }
 
-var _ Capability = (*HTTPCapability)(nil)
+var _ Cap = (*CapHTTP)(nil)
 
-func (a *HTTPCapability) CapabilityName() string {
-	return "http"
-}
-
-func (a *HTTPCapability) Apply(ctx context.Context, m Fields) (*Msg, Fields, error) {
-	method, err := GetPath[string](m, "request", "method")
+func (a *CapHTTP) Apply(env Env, m Fields) (Fields, error) {
+	method, err := GetPath[string](m, "http", "request", "method")
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	urlStr, err := GetPath[string](m, "request", "url")
+	urlStr, err := GetPath[string](m, "http", "request", "url")
 	if err != nil {
-		return nil, nil, err
+		return nil, err
+	}
+
+	urlStr, err = resolveURLWithEnv(env, urlStr)
+	if err != nil {
+		return nil, err
 	}
 
 	var pathVars map[string]string
-	pathVars, err = GetPath[map[string]string](m, "request", "path")
+	pathVars, err = GetPath[map[string]string](m, "http", "request", "path")
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	for pathVar, pathVal := range pathVars {
@@ -48,9 +48,9 @@ func (a *HTTPCapability) Apply(ctx context.Context, m Fields) (*Msg, Fields, err
 		urlStr = strings.ReplaceAll(urlStr, "{"+pathVar+"...}", pathVal)
 	}
 
-	urlQuery, err := GetPath[map[string][]string](m, "request", "query")
+	urlQuery, err := GetPath[map[string][]string](m, "http", "request", "query")
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if len(urlQuery) > 0 {
 		if strings.Contains(urlStr, "?") {
@@ -60,23 +60,23 @@ func (a *HTTPCapability) Apply(ctx context.Context, m Fields) (*Msg, Fields, err
 		}
 	}
 
-	body, err := GetPath[any](m, "request", "body")
+	body, err := GetPath[any](m, "http", "request", "body")
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	headers, err := GetPath[map[string][]string](m, "request", "headers")
+	headers, err := GetPath[map[string][]string](m, "http", "request", "headers")
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	buf, err := json.Marshal(body)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, urlStr, bytes.NewBuffer(buf))
+	req, err := http.NewRequestWithContext(env.Context(), method, urlStr, bytes.NewBuffer(buf))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if len(headers) == 0 {
@@ -90,7 +90,7 @@ func (a *HTTPCapability) Apply(ctx context.Context, m Fields) (*Msg, Fields, err
 	if a.Rewrite != nil {
 		req, err = a.Rewrite(req)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 	}
 
@@ -101,24 +101,27 @@ func (a *HTTPCapability) Apply(ctx context.Context, m Fields) (*Msg, Fields, err
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	err = demandHTTPResponseOk(req, resp)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	respBody, err := unmarshal[Fields](resp)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return nil, Fields{
-		"response": Fields{
-			"status":  resp.StatusCode,
-			"headers": resp.Header,
-			"body":    respBody,
+	return Fields{
+		"http": Fields{
+			"response": Fields{
+				"status":  resp.StatusCode,
+				"url":     resp.Request.URL,
+				"headers": resp.Header,
+				"body":    respBody,
+			},
 		},
 	}, nil
 }
