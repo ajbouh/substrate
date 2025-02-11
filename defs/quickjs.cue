@@ -37,7 +37,7 @@ commands: "quickjs": {
     command.ViaHTTP
     #msg_request_body_parameter_prefix: "parameters/"
 
-    msg: data: request: {
+    msg: http: request: {
       method: "POST"
       url: "/quickjs/"
       headers: "Content-Type": ["application/json"]

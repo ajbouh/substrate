@@ -63,33 +63,38 @@ func (h *HTTPResourceReflectHandler) ReflectorForPathFuncExcluding(excluding ...
 	}
 }
 
-func FindMsgBasis(c *commands.Msg) *commands.Msg {
+func FindMsgBasisPath(c commands.Fields) (string, []string) {
 	if c == nil {
-		return nil
+		return "", nil
 	}
 
+	var path []string
 	for {
-		if c.Msg == nil {
-			return c
+		msg, _ := commands.GetPath[commands.Fields](c, "msg")
+		if msg == nil {
+			cap, _ := commands.GetPath[string](c, "cap")
+			return cap, path
 		}
 
-		c = c.Msg
+		c = msg
+		path = append(path, "msg")
 	}
 }
 
 func EnsureRunHTTPRequestURLIncludesPrefix(prefix string) commands.DefTransformFunc {
-	return func(ctx context.Context, commandName string, commandDef *commands.Msg) (string, *commands.Msg) {
+	return func(ctx context.Context, commandName string, commandDef commands.Fields) (string, commands.Fields) {
 		if prefix == "" {
 			return commandName, commandDef
 		}
 
-		r := FindMsgBasis(commandDef)
-		if r == nil || r.Cap == nil || *r.Cap != "http" {
+		cap, path := FindMsgBasisPath(commandDef)
+		if cap != "http" {
 			return commandName, commandDef
 		}
+		path = append(path, "http", "request", "url")
 
 		// is this a full URL? if not make it so.
-		url, err := commands.GetPath[string](r.Data, "request", "url")
+		url, err := commands.GetPath[string](commandDef, path...)
 		if err != nil {
 			return commandName, commandDef
 		}
@@ -99,8 +104,7 @@ func EnsureRunHTTPRequestURLIncludesPrefix(prefix string) commands.DefTransformF
 		}
 
 		new := commandDef.MustClone()
-		r = FindMsgBasis(new)
-		err = commands.SetPath(r.Data, []string{"request", "url"}, prefix+url)
+		err = commands.SetPath(new, path, prefix+url)
 		if err != nil {
 			return commandName, commandDef
 		}
@@ -109,7 +113,7 @@ func EnsureRunHTTPRequestURLIncludesPrefix(prefix string) commands.DefTransformF
 	}
 }
 
-func (h *HTTPResourceReflectHandler) transformDef(ctx context.Context, name string, def *commands.Msg) (string, *commands.Msg) {
+func (h *HTTPResourceReflectHandler) transformDef(ctx context.Context, name string, def commands.Fields) (string, commands.Fields) {
 	// should only pick up commands that don't have a route set and are therefore top-level.
 	name, def = EnsureHTTPBasis(
 		h.HTTPRunHandler.CatchallRunnerMethod(),

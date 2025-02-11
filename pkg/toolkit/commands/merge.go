@@ -47,7 +47,7 @@ func merge0(dst, src map[string]any, keypath []string) (any, error) {
 	return dst, nil
 }
 
-func Merge(dst Fields, src Fields) (Fields, error) {
+func MergeFields(dst Fields, src Fields) (Fields, error) {
 	out, err := merge0(dst, src, nil)
 	if err != nil {
 		return nil, fmt.Errorf("merge failed; dst=%#v; src=%#v: %w", dst, src, err)

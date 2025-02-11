@@ -14,7 +14,7 @@ import (
 type MsgIndex struct {
 	DefSetLoader notify.Loader[*defset.DefSet]
 
-	DefRunner commands.DefRunner
+	Env commands.Env
 }
 
 func (m *MsgIndex) GetHTTPResourceReflectPath() string {
@@ -53,8 +53,8 @@ func (m *MsgIndex) Reflect(ctx context.Context) (commands.DefIndex, error) {
 				sources = append(sources, commands.Prefixed(
 					k+"/",
 					&commands.CachedSource{
-						Defs:      v,
-						DefRunner: m.DefRunner,
+						Defs: v,
+						Env:  m.Env,
 					},
 				))
 			}

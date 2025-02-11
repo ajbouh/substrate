@@ -65,8 +65,19 @@
                         fileInput.click();
                     })
                 }
+                
+                const {reflect, sender} = import(`/spaceview;space=system:laptop-source/esbuild/pkg/toolkit/msg`);
 
-                const {ReflectCommands} = import(`${hostName}/tool-call/js/commands.js`);
+                const sendmsg = (() => {
+                    const s = sender()
+                    return async (msg, data) => {
+                        // doing this unpack here assumes we're only sending cap 'msg' or equivalent msgs
+                        const {
+                            data: {returns},
+                        } = await s(msg, data)
+                        return returns
+                    }
+                })()
                 const {h, render, html} = import(Renkon.spaceURL("./preact.standalone.module.js"));
                 const {initGrammar, translate} = import("./parser.js");
                 const {msgtun} = import("./msgtun.js");
@@ -97,10 +108,12 @@
                 })(viewCommands, msgtun);
                 Events.send(viewMsgInbox, viewMsgTun)
 
-                const tabsWithSectionUpdate = (now, tabId, newSection) => { // newSection: {id, input, value}
+                const tabsWithSectionUpdate = (now, tabId, newSection) => { // newSection: {id, input, alias, value}
                     // the request is an invocation
                     const newTabs = [...now.tabs];
-                    const newTab = newTabs[tabId];
+                    const newTab = {
+                        ...newTabs[tabId],
+                    };
                     if (newSection.id === undefined) {
                         newSection.id = newTab.sections.length
                     }
@@ -108,11 +121,20 @@
                     const newSections = newTab.sections.map((section) => {
                         if (section.id === newSection.id) {
                             replaced = true
-                            return {...section, ...newSection}
+                            // alias should actually be user-defined
+                            section = {...section, ...newSection}
+                            if (!section.alias) {
+                                section.alias = `val_${section.id}`
+                            }
+                            return section
                          }
-                         return section
+                        return section
                     })
                     if (!replaced) {
+                        // alias should actually be user-defined
+                        if (!newSection.alias) {
+                            newSection.alias = `val_${newSection.id}`
+                        }
                         newSections.push(newSection)
                     }
                     // ensure we have an empty input at the bottom
@@ -132,7 +154,7 @@
                         sections: newSections,
                     };
                     return {
-                        current: tabId,
+                        current: now.current,
                         tabs: newTabs,
                     };
                 }
@@ -145,20 +167,37 @@
                             tabs: [...now.tabs, {tabId: newTabId, urlForID: undefined, url: undefined, reflect: undefined, sections: []}],
                         };
                     },
-                    switchTab: ({tab}) => (now) => {
+                    switchTab: ({id}) => (now) => {
                          // the request is to switch tabs
-                         if (tab === now.current) {
+                         if (id === now.current) {
                             return now;
                          }
-                         return {current: tab, tabs: now.tabs};
+                         return {current: id, tabs: now.tabs};
+                    },
+                    inspect: ({id, value}) => (now) => {
+                        return tabsWithSectionUpdate(now, now.current, {id, value})
+                    },
+                    reflect: ({id, url}) => (now) => {
+                        sender()({
+                            cap: 'reflect',
+                            url,
+                        }).then(({msgindex, links}) => {
+                            Events.send(viewMsgInbox, [{type: "setSectionValue", tab: now.current, id, value: {msgindex, links}}])
+                        })
+                        return now
+                    },
+                    send: ({id, msg}) => (now) => {
+                        sender()(msg).then((value) => {
+                            Events.send(viewMsgInbox, [{type: "setSectionValue", tab: now.current, id, value}])
+                        })
+                        return now
                     },
                     go: ({id, url}) => (now) => {
                         console.log("go", url);
                         const tabs = [...now.tabs]
-                        const tab = now.current
-                        let t = tabs[tab]
+                        let t = tabs[now.current]
                         if (t) {
-                            tabs[tab] = {...tabs[tab], url, urlForID: id}
+                            tabs[now.current] = {...tabs[now.current], url, urlForID: id}
                             return {
                                 current: now.current,
                                 tabs,
@@ -205,8 +244,8 @@
                         exportBlob(fileName, blob)
                         return now;
                     },
-                    newSection: ({id, input, value}) => (now) => {
-                        return tabsWithSectionUpdate(now, now.current, {id, input, value})
+                    newSection: ({id, input, value, alias}) => (now) => {
+                        return tabsWithSectionUpdate(now, now.current, {id, input, value, alias})
                     },
                     setReflect: ({tab, reflect, reflectForURLForID}) => (now) => {
                         const tabs = [...now.tabs]
@@ -217,11 +256,13 @@
 
                             if (reflectForURLForID !== undefined) {
                                 if (reflect['describe']) {
-                                    const describe = reflect['describe'].run()
-                                    describe.then(({description}) => {
-                                        Events.send(viewMsgInbox, [
-                                            {type: "setSectionValue", tab, id: reflectForURLForID, value: description},
-                                        ])
+                                    const describe = sendmsg(reflect['describe'])
+                                    describe.then(d => {
+                                        if (d && d.description) {
+                                            Events.send(viewMsgInbox, [
+                                                {type: "setSectionValue", tab, id: reflectForURLForID, value: d.description},
+                                            ])
+                                        }
                                     })
                                 }
                             }
@@ -242,10 +283,22 @@
                             id = now.tabs[now.current].sections.length
                         }
                         console.log("doMsgInput", {input, id})
+                        const env = {
+                            lookup: (k) => {
+                                console.log("lookup", k)
+                                if (k.startsWith("val_")) {
+                                    const valSection = now.tabs[now.current].sections.find(({alias}) => alias === k)
+                                    if (valSection) {
+                                        return valSection.value
+                                    }
+                                }
+                                throw new Error(`unknown reference "${k}"`)
+                            },
+                        }
                         const reflectResponse = now.tabs[now.current].reflect
                         let translated;
                         try {
-                            translated = translate(input);
+                            translated = translate(input)(env);
                         } catch(e) {
                             console.log({e})
                         }
@@ -254,14 +307,16 @@
                         if (!translated.command && translated.description?.length) {
                             const commands = Object.fromEntries(Object.entries(reflectResponse).map(([k, v]) => [k, v.msg]))
                             console.log({commands})
-                            input = `tool-call/suggest input:${JSON.stringify(translated.description)} commands: ${JSON.stringify(commands)}`
+                            input = `# ${translated.description}\n/substrate/v1/msgindex tool-call/suggest input:${JSON.stringify(translated.description)} commands: ${JSON.stringify(commands)}`
                             try {
-                                translated = translate(input);
+                                translated = translate(input)(env);
                             } catch(e) {
                                 console.log({e})
                             }
                             if (!translated) {return;}
                         }
+
+                        console.log({translated})
 
                         if (translated.viewCommand) {
                             // XXX input and index will conflict with params!!!
@@ -274,20 +329,26 @@
                             Events.send(viewMsgInbox, [{type: "doMsg", input, id, command: translated}]);
                         }
                     },
-                    doMsg: ({input, id, command: {command, params}}) => (now) => {
-                        console.log("doMsg", {input, id, command, params})
-
+                    doMsg: ({input, id, command: {target, command, params}}) => (now) => {
                         // const invokeCommand = Events.resolvePart(invokeCommandResponse.value, invokeCommandResponse);
-                        const reflectResponse = now.tabs[now.current].reflect
-                        console.log("doMsg", {input, id, command, params, reflectResponse})
+                        // const reflectResponse = now.tabs[now.current].reflect
+                        // console.log("doMsg", {input, id, command, params, tr})
+                        // if (!reflectResponse) {return now;}
 
-                        if (!reflectResponse) {return now;}
+                        // const cmd = reflectResponse[command];
+                        // console.log("doMsg", {input, id, command, params, reflectResponse, cmd})
+                        // if (!cmd) {return now;}
 
-                        const cmd = reflectResponse[command];
-                        console.log("doMsg", {input, id, command, params, reflectResponse, cmd})
-                        if (!cmd) {return now;}
+                        let baseurl = new URL(now.tabs[now.current].url, document.baseURI).toString()
+                        let url = target === '.' ? baseurl : new URL(target, baseurl).toString()
 
-                        cmd.run(params).then((value) => {
+                        console.log("doMsg", {input, id, target, command, params, url})
+
+                        sendmsg({
+                            cap: 'reflectedmsg',
+                            url,
+                            name: command,
+                        }, {parameters: params}).then((value) => {
                             Events.send(viewMsgInbox, [{type: "setSectionValue", tab: now.current, id, value}])
                         })
 
@@ -334,15 +395,15 @@
                     if (!url) {
                         console.log("will not reflect", url);
 
-                        const input = `@ go url: "/"`
+                        const input = `$ go url: "/"`
                         Events.send(viewMsgInbox, [{type: "doMsgInput", input, id: 0, value: input}])
                         return
                     }
 
                     console.log("will reflect", {url, urlForID});
-                    (new ReflectCommands(url).reflect()).then(reflect => {
-                        console.log("did reflect", {reflect, urlForID})
-                        Events.send(viewMsgInbox, [{type: "setReflect", tab, reflect, reflectForURLForID: urlForID}]);
+                    reflect(url).then(r => {
+                        console.log("did reflect", {reflect: r, urlForID})
+                        Events.send(viewMsgInbox, [{type: "setReflect", tab, reflect: r, reflectForURLForID: urlForID}]);
                     })
                 })(urlAndTabAndGoID, viewCommands); // HACK viewCommands uses imported modules, use it as an input so the send above works
                 
@@ -374,6 +435,7 @@
                                          ]),
                                      ])
                                     ]),
+                                  h("div", {}, (tab.value !== undefined) && (tab.alias !== undefined) ? `= ${tab.alias}` : undefined),
                                   h("div", {
                                       class: "commandResult",
                                       id: `command-result-${i}`
@@ -420,9 +482,9 @@
                 const jsonpointer = import("./jsonpointer.js")
 
                 const msgindex = tabs.tabs[tabs.current].reflect
-                // console.log({msgindex});
-                // console.log({'tabs.tabs': tabs.tabs});
-                // console.log({'tabs.current': tabs.current});
+                console.log({msgindex});
+                console.log({'tabs.tabs': tabs.tabs});
+                console.log({'tabs.current': tabs.current});
 
                 const msgindexDOM = (({msgindex}) => {
                     const entries = Object.entries(msgindex)

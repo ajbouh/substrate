@@ -23,8 +23,8 @@ type CommandRuleInput struct {
 	Disabled bool   `json:"disabled,omitempty"`
 	Deleted  bool   `json:"deleted,omitempty"`
 
-	Conditions []*event.Query `json:"conditions"`
-	Command    commands.Msg   `json:"command"`
+	Conditions []*event.Query  `json:"conditions"`
+	Command    commands.Fields `json:"command"`
 
 	Cursor *CommandRuleCursor `json:"-"`
 }
@@ -41,7 +41,7 @@ type CommandStrategy struct {
 	Querier db.Querier
 
 	HTTPClient commands.HTTPClient
-	DefRunner  commands.DefRunner
+	Env        commands.Env
 }
 
 var _ Strategy[CommandRuleInput, CommandRuleEvents, *CommandRuleOutput] = (*CommandStrategy)(nil)
@@ -87,7 +87,7 @@ func (s *CommandStrategy) Do(ctx context.Context, input CommandRuleInput, gather
 	var err error
 	var returns commands.Fields
 
-	returns, err = s.DefRunner.RunDef(ctx, &input.Command, data)
+	returns, err = commands.MergeAndApply(s.Env.New(ctx, nil), input.Command, data)
 	slog.Info("CommandStrategy.Do() RunDef", "command", input.Command, "data", data, "returns", returns, "err", err)
 	if err != nil {
 		return nil, false, err

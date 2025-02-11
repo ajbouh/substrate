@@ -31,7 +31,7 @@ func (p *SpaceCommands) Remove(ctx context.Context, names []string) error {
 }
 
 func (p *SpaceCommands) Query(ctx context.Context) (commands.DefIndex, error) {
-	return readAllJSONFilesWithSuffix[*commands.Msg](
+	return readAllJSONFilesWithSuffix[commands.Fields](
 		p.FS,
 		path.Join(".substrate", "commands"),
 		".json",
@@ -52,7 +52,7 @@ var CommandsWriteCommand = handle.Command(
 	func(ctx context.Context,
 		spaceCommands *SpaceCommands,
 		args struct {
-			Commands map[string]*commands.Msg `json:"commands"`
+			Commands map[string]commands.Fields `json:"commands"`
 		},
 	) (Void, error) {
 		return Void{}, spaceCommands.Write(ctx, args.Commands)

@@ -22,7 +22,7 @@ func stringsOf[T any](o ...T) []string {
 
 type CollisionError struct {
 	Name    string
-	Defs    []*Msg
+	Defs    []Fields
 	Sources []Reflector
 }
 
@@ -47,7 +47,7 @@ func (h *ReflectError) Unwrap() error {
 	return h.Err
 }
 
-func appendCollisionError(errs []error, name string, def *Msg, srcs ...Reflector) []error {
+func appendCollisionError(errs []error, name string, def Fields, srcs ...Reflector) []error {
 	for _, err := range errs {
 		switch e := err.(type) {
 		case *CollisionError:
@@ -61,7 +61,7 @@ func appendCollisionError(errs []error, name string, def *Msg, srcs ...Reflector
 
 	return append(errs, &CollisionError{
 		Name:    name,
-		Defs:    []*Msg{def},
+		Defs:    []Fields{def},
 		Sources: append([]Reflector(nil), srcs...),
 	})
 }

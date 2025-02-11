@@ -64,7 +64,7 @@ commands: "seamlessm4t": {
       "#/data/returns/segments": {type: "object"}
     }
     command.ViaHTTP
-    msg: data: request: {
+    msg: http: request: {
       method: "POST"
       url: "/seamlessm4t/v1/transcribe"
       headers: "Content-Type": ["application/json"]

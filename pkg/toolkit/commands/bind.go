@@ -48,7 +48,7 @@ func Bind(resolveReflector func(string) Reflector, commands map[string]BindEntry
 			return nil, fmt.Errorf("error resolving command %q using BindEntry %#v: %w", command, bindEntry, ErrNoSuchCommand)
 		}
 
-		d, err := def.CloneAndBind(bindEntry.Data)
+		d, err := def.CloneAndBind(Fields{"data": bindEntry.Data})
 		if err != nil {
 			return bound, err
 		}

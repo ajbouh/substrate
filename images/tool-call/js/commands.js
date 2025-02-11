@@ -59,7 +59,7 @@ export async function reflect(url) {
 }
 
 function parsePointer(p) {
-  if (p[0] !== "#" || p[1] !== "/") {
+  if (p[0] !== "#" || (p.length > 1 && p[1] !== "/")) {
     throw new Error(`invalid pointer, must start with "#/", got: ${p}`)
   }
   return p.substring(2).split('/').map(s => s.replaceAll("~1", "/").replaceAll("~0", "~"))
@@ -152,11 +152,11 @@ async function runWithCtx(ctx, msg, data) {
     }
 }
 
-async function run({caps={http: HTTPCapability}, msg, data, basehref}) {
+async function run({caps={http: CapHTTP}, msg, data, basehref}) {
   return await runWithCtx({basehref, caps}, msg, data)
 }
 
-async function HTTPCapability(ctx, {request}) {
+async function CapHTTP(ctx, {request}) {
   let {method, body, headers, query, path, url} = request
   let input = url
 

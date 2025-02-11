@@ -43,19 +43,23 @@ type ServiceDescribeReturns struct {
 }
 
 var RootServiceDescribeCommand = commands.DefIndex{
-	"describe": &commands.Msg{
-		Description: "Describe the resource",
-		Msg: commands.Cap("http", commands.Fields{
-			"request": commands.Fields{
-				"headers": map[string][]string{
-					"Content-Type": {"application/json"},
+	"describe": commands.Fields{
+		"description": "Describe the resource",
+		"cap":         "msg",
+		"msg": commands.Fields{
+			"cap": "http",
+			"http": commands.Fields{
+				"request": commands.Fields{
+					"headers": map[string][]string{
+						"Content-Type": {"application/json"},
+					},
+					"url":    "/substrate/v1/services/substrate/describe",
+					"method": http.MethodGet,
 				},
-				"url":    "/substrate/v1/services/substrate/describe",
-				"method": http.MethodGet,
 			},
-		}),
-		MsgOut: commands.Bindings{
-			commands.NewDataPointer("data", "returns", "description"): commands.NewDataPointer("msg", "data", "response", "body", "description"),
+		},
+		"msg_out": commands.Bindings{
+			commands.NewDataPointer("data", "returns", "description"): commands.NewDataPointer("msg", "http", "response", "body", "description"),
 		},
 	},
 }
@@ -108,7 +112,7 @@ var ServiceLinksQueryCommand = handle.HTTPCommand(
 
 type ServiceCommands struct {
 	DefSetLoader notify.Loader[*defset.DefSet]
-	DefRunner    commands.DefRunner
+	Env          commands.Env
 }
 
 var _ commands.Reflector = (*ServiceCommands)(nil)

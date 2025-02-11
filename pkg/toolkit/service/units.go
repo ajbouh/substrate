@@ -92,8 +92,8 @@ func (s *Service) initialize() {
 		&commands.Aggregate{},
 		&ExportCommands{},
 		&commands.TransformingDefRunner{},
-		&commands.Interpreter{},
-		&commands.HTTPCapability{
+		&commands.RootEnv{},
+		&commands.CapHTTP{
 			// Since there's a different address for internal requests than external, we have to do that swap. It feels kinda gross to
 			// need to do this at all...
 			Rewrite: func(r *http.Request) (*http.Request, error) {
@@ -109,15 +109,44 @@ func (s *Service) initialize() {
 				return r, nil
 			},
 		},
-		&commands.ReflectCapability{
-			BaseURL: s.InternalSubstrateBaseURL,
-			DefTransform: func(ctx context.Context, name string, commandDef *commands.Msg) (string, *commands.Msg) {
-				def := handle.FindMsgBasis(commandDef)
-				if def == nil || def.Cap == nil || *def.Cap != "http" {
+		&commands.NamedCap[*commands.CapHTTP]{
+			Name: "http",
+		},
+		&commands.CapMsg{},
+		&commands.NamedCap[*commands.CapMsg]{
+			Name: "msg",
+		},
+		&commands.CapSeq{},
+		&commands.NamedCap[*commands.CapSeq]{
+			Name: "seq",
+		},
+		&commands.CapReflect{},
+		&commands.NamedCap[*commands.CapReflect]{
+			Name: "reflect",
+		},
+		&commands.CapReflectedMsg{},
+		&commands.NamedCap[*commands.CapReflectedMsg]{
+			Name: "reflectedmsg",
+		},
+		&commands.NamedCap[commands.Cap]{
+			Name: "read-urlbase",
+			Cap: &commands.CapFunc{
+				Func: func(env commands.Env, d commands.Fields) (commands.Fields, error) {
+					return commands.Fields{
+						"urlbase": s.InternalSubstrateBaseURL,
+					}, nil
+				},
+			},
+		},
+		&commands.CapReflect{
+			DefTransform: func(ctx context.Context, name string, commandDef commands.Fields) (string, commands.Fields) {
+				cap, path := handle.FindMsgBasisPath(commandDef)
+				if cap != "http" {
 					return name, commandDef
 				}
 
-				u, err := commands.GetPath[string](def.Data, "request", "url")
+				path = append(path, "http", "request", "url")
+				u, err := commands.GetPath[string](commandDef, path...)
 				if err != nil {
 					return name, commandDef
 				}
@@ -127,9 +156,8 @@ func (s *Service) initialize() {
 				}
 
 				out := commandDef.MustClone()
-				def = handle.FindMsgBasis(out)
 				u = s.InternalSubstrateBaseURL + u
-				if err := commands.SetPath(def.Data, []string{"request", "url"}, u); err != nil {
+				if err := commands.SetPath(out, path, u); err != nil {
 					return name, commandDef
 				}
 

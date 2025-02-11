@@ -15,7 +15,7 @@ imagespecs: "llamafile": {
 #commands: "llamafile": [string]: {
     #base_url: string
     command.ViaHTTP
-    msg: data: request: {
+    msg: http: request: {
         method: "POST"
         headers: "Accept": ["application/json"]
         headers: "Content-Type": ["application/json"]
@@ -32,7 +32,7 @@ imagespecs: "llamafile": {
         "#/data/returns/parse_special": {type: "bool"}
         "#/data/returns/tokens": {type: "[]string"}
     }
-    msg: data: request: url: "\(#base_url)/tokenize"
+    msg: http: request: url: "\(#base_url)/tokenize"
 }
 
 #commands: "llamafile": "embedding": {
@@ -47,12 +47,12 @@ imagespecs: "llamafile": {
         "#/data/returns/tokens_used": {type: "number"}
         "#/data/returns/embedding": {type: "[]float"}
     }
-    msg: data: request: url: "\(#base_url)/embedding"
+    msg: http: request: url: "\(#base_url)/embedding"
 }
 
 #commands: "llamafile": "completion": {
     #base_url: string
-    msg: data: request: url: "\(#base_url)/v1/completions"
+    msg: http: request: url: "\(#base_url)/v1/completions"
 
     // Hardcode this to false since msgs don't support streaming yet.
     data: parameters: stream: false
@@ -168,5 +168,5 @@ imagespecs: "llamafile": {
     data: parameters: stream: false
     data: parameters: model: "model"
 
-    msg: data: request: url: "\(#base_url)/v1/chat/completions"
+    msg: http: request: url: "\(#base_url)/v1/chat/completions"
 }

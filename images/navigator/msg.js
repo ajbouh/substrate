@@ -22,7 +22,7 @@ function densify({jsonpointer, sparse}) {
         },
     )
 
-    return dense.get("").fields
+    return dense.get("")?.fields || new Map()
 }
 
 function fieldsDOM({h, className, o, fieldPrefix=""}) {
@@ -69,18 +69,18 @@ function examplesDOM({h, className, examples, msgName}) {
 }
 
 export function dom({h, html, md, jsonpointer, msg}) {
-    const rootFields = densify({jsonpointer, sparse: msg.msg.meta})
+    const rootFields = densify({jsonpointer, sparse: msg?.msg?.meta})
     const data = rootFields?.get('data')
     const parameters = data?.fields?.get('parameters')
     const returns = data?.fields?.get('returns')
     
     // TODO merge msg.msg.data with data above
-    const examples = msg.msg?.data?.examples
+    const examples = msg?.msg?.data?.examples
 
     console.log({msg, parameters, returns, examples})
 
-    const name = msg.name
-    const description = msg.msg.description
+    const name = msg?.name
+    const description = msg?.description
 
     return h('div', {}, [
         h('h2', {class: 'name'}, name),

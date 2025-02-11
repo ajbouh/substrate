@@ -14,7 +14,7 @@ import (
 // the linked href with name "{alias}" and rel="redirect". Here, {alias} is a placeholder for any valid
 // path fragment.
 type RouteAliasHandler struct {
-	DefRunner commands.DefRunner
+	Env commands.Env
 }
 
 var _ httpframework.MuxContributor = (*RouteAliasHandler)(nil)
@@ -31,8 +31,9 @@ func (h *RouteAliasHandler) ContributeHTTP(ctx context.Context, mux *http.ServeM
 			return
 		}
 
-		returns, err := h.DefRunner.RunDef(ctx,
-			commands.Cap("reflect", commands.Fields{
+		returns, err := h.Env.Apply(h.Env.New(ctx, nil),
+			commands.Fields{
+				"cap": "reflect",
 				// TODO somehow inherit space name from environment
 				"url":  "//spaceview;space=substrate-bootstrap-0/",
 				"name": "links:query",
@@ -40,7 +41,7 @@ func (h *RouteAliasHandler) ContributeHTTP(ctx context.Context, mux *http.ServeM
 					"rel":  "redirect",
 					"name": alias,
 				},
-			}), nil)
+			})
 		slog.Info("RouteAliasHandler links:query", "alias", alias, "returns", returns, "err", err)
 
 		l, err := commands.GetPath[links.Links](returns, "response", "body", "links")

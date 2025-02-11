@@ -1,0 +1,6 @@
+{
+  "EntryPoints": ["mod.ts"],
+  "Bundle": true,
+  "Format": 3,
+  "KeepNames": true
+}

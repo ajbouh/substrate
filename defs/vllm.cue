@@ -41,7 +41,7 @@ imagespecs: "vllm": {
     }
 
     command.ViaHTTP
-    msg: data: request: {
+    msg: http: request: {
         method: "POST"
         headers: "Accept": ["application/json"]
         headers: "Content-Type": ["application/json"]

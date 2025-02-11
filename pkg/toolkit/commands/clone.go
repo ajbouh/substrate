@@ -2,7 +2,7 @@ package commands
 
 import "log/slog"
 
-func (r Msg) MustClone() *Msg {
+func (r Fields) MustClone() Fields {
 	clone, err := r.Clone()
 	if err != nil {
 		panic(err)
@@ -41,55 +41,21 @@ func (m Meta) Clone() (Meta, error) {
 	return new, nil
 }
 
-func cloneStringPtr(s *string) *string {
-	if s == nil {
-		return nil
-	}
-	v := *s
-	return &v
+func (r Fields) Merge(f Fields) error {
+	_, err := MergeFields(r, f)
+	return err
 }
 
-func (r *Msg) Clone() (*Msg, error) {
-	if r == nil {
-		return nil, nil
-	}
-
-	new := &Msg{
-		Description: r.Description,
-		Cap:         cloneStringPtr(r.Cap),
-		MsgIn:       r.MsgIn.Clone(),
-		MsgOut:      r.MsgOut.Clone(),
-	}
-
-	var err error
-	new.Meta, err = r.Meta.Clone()
-	if err != nil {
-		return nil, err
-	}
-
-	new.Data, err = r.Data.Clone()
-	if err != nil {
-		return nil, err
-	}
-
-	new.Msg, err = r.Msg.Clone()
-	if err != nil {
-		return nil, err
-	}
-
-	return new, nil
-}
-
-func (r Msg) CloneAndBind(data Fields) (*Msg, error) {
-	var d *Msg
-	defer func() { slog.Info("CloneAndBind", "data", data, "r.Data", r.Data, "d", d) }()
+func (r Fields) CloneAndBind(data Fields) (Fields, error) {
+	var d Fields
+	defer func() { slog.Info("CloneAndBind", "data", data, "r", r, "d", d) }()
 
 	d, err := r.Clone()
 	if err != nil {
 		return nil, err
 	}
 
-	d.Data, err = Merge(d.Data, data)
+	err = d.Merge(data)
 	if err != nil {
 		return nil, err
 	}

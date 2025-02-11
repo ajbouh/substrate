@@ -50,8 +50,10 @@ ViaHTTP: (Msg & {
 
     meta: Meta
 
+    cap: "msg"
+
     msg: {
-        data: {
+        http: {
             request: HTTPRequest
             response: HTTPResponse
         }
@@ -66,7 +68,7 @@ ViaHTTP: (Msg & {
         for path, m in meta {
             if strings.HasPrefix(path, "#/data/parameters/") {
                 let subpath = strings.TrimPrefix(path, "#/data/parameters/")
-                "#/msg/data/request/body/\(#msg_request_body_parameter_prefix)\(subpath)": path
+                "#/msg/http/request/body/\(#msg_request_body_parameter_prefix)\(subpath)": path
             }
         }
     }
@@ -75,7 +77,7 @@ ViaHTTP: (Msg & {
         for path, m in meta {
             if strings.HasPrefix(path, "#/data/returns/") {
                 let subpath = strings.TrimPrefix(path, "#/data/returns/")
-                (path): "#/msg/data/response/body/\(subpath)"
+                (path): "#/msg/http/response/body/\(subpath)"
             }
         }
     }
