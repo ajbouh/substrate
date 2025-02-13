@@ -1,2 +1,0 @@
-#!/bin/bash
-exec cp -a --reflink=auto "$@"
