@@ -82,6 +82,7 @@ func main() {
 		units.EventPathLinksQueryCommand,
 
 		units.WriteEventsCommand,
+		units.TryReactionCommand,
 		units.QueryEventsCommand,
 		&units.EventStreamHandler{},
 		&units.FSHandler{},
