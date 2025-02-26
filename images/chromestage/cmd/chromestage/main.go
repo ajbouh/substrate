@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/ajbouh/substrate/images/chromestage/units"
+
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/notify"
@@ -34,9 +35,8 @@ func main() {
 	}
 
 	pageCommands := &units.PageCommands{}
-	tabCommands := &units.TabCommands{}
 
-	engine.Run(
+	u := []engine.Unit{
 		&service.Service{},
 		&units.RemoteCDP{
 			Endpoint: chromedpUrl.String(),
@@ -66,10 +66,7 @@ func main() {
 		pageCommands,
 		commands.Prefixed("page:", pageCommands),
 
-		tabCommands,
-		commands.Prefixed("tab:", tabCommands),
-
-		commands.Prefixed("window:", WindowCommands()),
+		WindowResize,
 
 		notify.On(
 			func(ctx context.Context,
@@ -85,5 +82,8 @@ func main() {
 				}
 				log.Printf("event: %#v", e)
 			}),
-	)
+	}
+
+	u = append(u, units.TabCommands...)
+	engine.Run(u...)
 }

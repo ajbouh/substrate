@@ -2,7 +2,9 @@ package units
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"net/url"
 	"sync"
 	"time"
 
@@ -56,6 +58,17 @@ func (a *RemoteCDP) Initialize() {
 	}
 	if a.cdpContext == nil {
 		ctx := context.Background()
+
+		upstream, err := url.Parse(a.Endpoint + "/json/version/")
+		if err != nil {
+			panic(fmt.Errorf("error parsing upstream url for /json/version: %w", err))
+		}
+
+		err = waitForReady(ctx, upstream.String(), tcpHTTPGetJSONFunc(upstream), time.Millisecond*100, 10*time.Second, 100)
+		if err != nil {
+			panic(fmt.Errorf("error waiting for %s to be ready: %w", upstream.String(), err))
+		}
+
 		ctx, _ = chromedp.NewRemoteAllocator(ctx, a.Endpoint)
 		a.cdpContext, a.finish = chromedp.NewContext(ctx)
 	}
