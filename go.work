@@ -17,7 +17,7 @@ use (
 	./images/tool-call
 	./images/weather
 	./pkg/cueloader
-	./pkg/toolkit
 	./pkg/duplex
 	./pkg/go-vscode
+	./pkg/toolkit
 )

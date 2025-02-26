@@ -10,9 +10,9 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/puzpuzpuz/xsync/v3 v3.4.0
-	golang.org/x/net v0.17.0
-	golang.org/x/sync v0.8.0
-	tractor.dev/toolkit-go v0.0.0-20240810203015-1b3d95b70efe
+	golang.org/x/net v0.34.0
+	golang.org/x/sync v0.10.0
+	tractor.dev/toolkit-go v0.0.0-20250103001615-9a6753936c19
 )
 
-require golang.org/x/text v0.13.0 // indirect
+require golang.org/x/text v0.21.0 // indirect
