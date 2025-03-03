@@ -43,22 +43,14 @@ func readBuildOptions(opt *api.BuildOptions, path string) (bool, error) {
 func (d *EsbuildRoute) detectBuildOptions(file string) (*api.BuildOptions, error) {
 	opt := &api.BuildOptions{}
 	file = strings.TrimSuffix(file, "/")
-	switch {
-	case exists(d.BaseDir + "/" + file + "/esbuild.json"):
+	if present, err := readBuildOptions(opt, d.BaseDir+"/"+file+"/esbuild.json"); present {
 		opt.AbsWorkingDir = d.BaseDir + "/" + file
 		opt.Outfile = path.Base(file)
-		present, err := readBuildOptions(opt, d.BaseDir+"/"+file+"/esbuild.json")
 		if present {
 			return opt, err
 		}
-	case exists(d.BaseDir + "/" + file + ".esbuild.json"):
-		opt.AbsWorkingDir = d.BaseDir + "/" + path.Dir(file)
-		opt.Outfile = path.Base(file)
-		present, err := readBuildOptions(opt, d.BaseDir+"/"+file+".esbuild.json")
-		if present {
-			return opt, err
-		}
-	case exists(d.BaseDir + "/" + file):
+	}
+	if exists(d.BaseDir + "/" + file) {
 		opt.AbsWorkingDir = d.BaseDir
 		opt.Outfile = file
 		if MinifyPattern.MatchString(file) {
@@ -72,7 +64,7 @@ func (d *EsbuildRoute) detectBuildOptions(file string) (*api.BuildOptions, error
 		}
 
 		opt.AbsWorkingDir = d.BaseDir
-		opt.Bundle = true
+		// opt.Bundle = true
 		opt.Format = api.FormatDefault
 		opt.Platform = api.PlatformBrowser
 		opt.LogLevel = api.LogLevelSilent
@@ -84,6 +76,13 @@ func (d *EsbuildRoute) detectBuildOptions(file string) (*api.BuildOptions, error
 			opt.Format = api.FormatESModule
 		}
 		return opt, nil
+	}
+	if present, err := readBuildOptions(opt, d.BaseDir+"/"+file+".esbuild.json"); present {
+		opt.AbsWorkingDir = d.BaseDir + "/" + path.Dir(file)
+		opt.Outfile = path.Base(file)
+		if present {
+			return opt, err
+		}
 	}
 
 	return nil, nil
