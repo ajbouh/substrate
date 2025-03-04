@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"time"
 
 	"github.com/ajbouh/substrate/images/events/db"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
@@ -19,9 +20,10 @@ type CommandRuleCursor struct {
 }
 
 type CommandRuleInput struct {
-	Path     string `json:"path"`
-	Disabled bool   `json:"disabled,omitempty"`
-	Deleted  bool   `json:"deleted,omitempty"`
+	Path          string `json:"path"`
+	Disabled      bool   `json:"disabled,omitempty"`
+	Deleted       bool   `json:"deleted,omitempty"`
+	TimeoutMillis int64  `json:"timeout_ms,omitempty"`
 
 	Conditions []*event.Query  `json:"conditions"`
 	Command    commands.Fields `json:"command"`
@@ -39,6 +41,8 @@ type CommandRuleOutput struct {
 
 type CommandStrategy struct {
 	Querier db.Querier
+
+	DefaultTimeout time.Duration
 
 	HTTPClient commands.HTTPClient
 	Env        commands.Env
@@ -87,14 +91,26 @@ func (s *CommandStrategy) Do(ctx context.Context, input CommandRuleInput, gather
 	var err error
 	var returns commands.Fields
 
+	timeout := s.DefaultTimeout
+	if input.TimeoutMillis > 0 {
+		timeout = time.Duration(input.TimeoutMillis) * time.Millisecond
+	}
+	if timeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
 	returns, err = commands.MergeAndApply(s.Env.New(ctx, nil), input.Command, data)
-	slog.Info("CommandStrategy.Do() RunDef", "command", input.Command, "data", data, "returns", returns, "err", err)
+	slog.InfoContext(ctx, "CommandStrategy.Do() RunDef", "command", input.Command, "data", data, "returns", returns, "err", err)
 	if err != nil {
 		return nil, false, err
 	}
 
 	// HACK re-encoding like this is pretty inefficient...
 	returnsEvents, err := commands.GetPath[any](returns, "returns", "next")
+	if err != nil {
+		return nil, false, err
+	}
 	b, err := json.Marshal(returnsEvents)
 	if err != nil {
 		return nil, false, err

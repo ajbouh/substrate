@@ -105,7 +105,7 @@ func queryAllEventsUntil(ctx context.Context, querier event.Querier, keyedQuerie
 			results[key] = append(results[key], events...)
 		}
 
-		slog.Info("queryAllEventsUntil", "key", key, "len(results[key])", len(results[key]))
+		slog.Info("queryAllEventsUntil", "key", key, "len(results[key])", len(results[key]), "len(errs)", len(errs), "errs", errs)
 	}
 
 	return results, more, errs
