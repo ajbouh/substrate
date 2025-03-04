@@ -11,7 +11,6 @@ require (
 require (
 	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	tractor.dev/toolkit-go v0.0.0-20250103001615-9a6753936c19 // indirect
 )

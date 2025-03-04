@@ -20,6 +20,7 @@ func (l *Loop[Input, Gathered, Output]) Serve(ctx context.Context) {
 		if err != nil {
 			slog.Error("error reading latest eventID")
 		}
+		slog.Info("Loop queried max id", "new", max, "prev", prevMax)
 
 		if prevMax.Compare(max) != 0 {
 			prevMax = max
@@ -40,6 +41,7 @@ func (l *Loop[Input, Gathered, Output]) Serve(ctx context.Context) {
 		}
 
 		if ctx.Err() != nil {
+			slog.Error("loop ctx error", "err", ctx.Err())
 			break
 		}
 

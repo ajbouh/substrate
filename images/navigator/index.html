@@ -66,7 +66,7 @@
                     })
                 }
                 
-                const {reflect, sender} = import(`/spaceview;space=system:laptop-source/esbuild/pkg/toolkit/msg`);
+                const {reflect, sender} = import(`/spaceview;space=image:source/esbuild/pkg/toolkit/msg`);
 
                 const sendmsg = (() => {
                     const s = sender()
@@ -80,7 +80,7 @@
                 })()
                 const {h, render, html} = import(Renkon.spaceURL("./preact.standalone.module.js"));
                 const {initGrammar, translate} = import("./parser.js");
-                const {msgtun} = import("./msgtun.js");
+                const {msgtun} = import("/msgtun/duplex.min.js");
 
                 const viewMsgTun = ((viewCommands, msgtun) => {
                     return Events.observe(async (notifier) => {

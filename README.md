@@ -1,5 +1,9 @@
 # Substrate
 
+Our goal is to create an intelligent system (both hardware and software) for building intelligent systems.
+
+## Concepts
+
 Substrate has a concept of an `entity`. You can think of an `entity` as a network accessible object that accepts incoming messages (which we call `commands`) and has references to other entities (which we call `links`). Entities are identified by their URLs.
 
 Any URL that provides a well-formed response to an HTTP REFLECT request can act as an entity. An entity will reply to REFLECT request with a JSON object containing a description and its commands.
