@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <base>
+    </head>
+    <body style="margin: 0"></body>
+    <script type="module">
+        // console.log("loaded", document.baseURI, "at", new Date())
+        import {CodeMirror, ProgramState, newInspector} from "./renkon-web.js";
+        window.CodeMirror = CodeMirror;
+        window.ProgramState = ProgramState;
+
+        const url = new URL(document.baseURI)
+        const values = url.searchParams.getAll("Behaviors.receiver")
+        const behaviorsReceivers = url.searchParams.getAll("Behaviors.receiver")
+        const eventsReceivers = url.searchParams.getAll("Events.receiver")
+        const eventsQueuedReceivers = url.searchParams.getAll("Events.queuedReceiver")
+        const outputs = url.searchParams.getAll("output")
+        const emit = url.searchParams.get("emitjson") || `{"type": "emit"}`
+
+        const persistentScripts = [
+            ...behaviorsReceivers.map(name => `const ${name} = Behaviors.receiver();`),
+            ...eventsReceivers.map(name => `const ${name} = Events.receiver();`),
+            ...eventsQueuedReceivers.map(name => `const ${name} = Events.receiver({queued: true});`),
+            `const focused = Events.listener(window, "focus", evt => Renkon.time);`,
+            `Renkon.app.makeEmitter(${JSON.stringify(outputs)})(Events.or(${outputs.join(", ")}));`,
+        ]
+
+        const transferSymbol = Symbol("transfer")
+        const queuedReceivers = new Set(eventsQueuedReceivers)
+        const includeTransferForReceiver = (transfer, name, value) => {
+            const include = v => {
+                if (typeof v === 'object' && transferSymbol in v) {
+                    transfer.push(...v[transferSymbol])
+                }
+            }
+            if (queuedReceivers.has(name)) {
+                for (const v of value) {
+                    include(v)
+                }
+            } else {
+                include(value)
+            }
+        }
+        const postMessageTo = window.parent || window.opener
+        const channel = new MessageChannel()
+        const createProgramState = () => {
+            const ps = new ProgramState(0, {
+                postMessageTo,
+                persistentScripts,
+                transferSymbol,
+                makeEmitter(names) {
+                    let previousMaxTime = 0
+                    return (any) => {
+                        const message = JSON.parse(emit)
+                        message.nodes = {}
+                        let maxTime = 0
+                        let transfer = []
+                        for (const name of names) {
+                            const node = ps.resolved.get(name)
+                            if (node) {
+                                maxTime = Math.max(maxTime, node.time)
+                                message.nodes[name] = node.value
+                                includeTransferForReceiver(transfer, name, node.value)
+                            }
+                        }
+                        // only postMessage if at least one value is new
+                        if (maxTime > previousMaxTime) {
+                            postMessageTo.postMessage(message, {transfer})
+                            previousMaxTime = maxTime
+                        }
+                    }
+                },
+                get state() {
+                    return ps
+                },
+                newInspector,
+            })
+            return ps
+        }
+        const stopProgramStateEvaluator = (ps) => {
+            if (ps?.evaluatorRunning) {
+                window.cancelAnimationFrame(ps.evaluatorRunning)
+                ps.evaluatorRunning = 0
+            }
+        }
+
+        let root = document.body
+        let ps
+        channel.port1.onmessage = ({data: {clear, reload, reset, baseURI, scripts, registerEvents}}) => {
+            if (reload && ps) {
+                console.log("reloading...")
+                document.location.href = document.location.href
+            }
+            if (reset || clear) {
+                let root = document.body
+                while (root.firstChild) {
+                    root.removeChild(root.firstChild)
+                }
+                document.head.querySelector('base').removeAttribute('href')
+            }
+            if (baseURI) {
+                document.head.querySelector('base').setAttribute('href', baseURI)
+            }
+            if (reset || !ps) {
+                if (ps) {
+                    console.log("reset...")
+                    stopProgramStateEvaluator(ps)
+                    ps.updateProgram([])
+                    ps.evaluate(+new Date())
+                }
+                ps = createProgramState()
+                ps.setupProgram(persistentScripts, baseURI)
+                ps.evaluate(0)
+                // for debugging
+                window.programState = ps
+            }
+
+            // console.log({scripts, registerEvents})
+
+            if (scripts) {
+                ps.updateProgram([...persistentScripts, ...scripts], baseURI);
+                // console.log(ps)
+            }
+
+            if (registerEvents) {
+                for (const k in registerEvents) {
+                    ps.registerEvent(k, registerEvents[k]);
+                }
+            }
+
+            if (!ps.evaluatorRunning) {
+                ps.evaluator();
+            }
+        }
+
+        const fetchText = url => fetch(url).then(response => response.text())
+
+        // optionally import via url param
+        const imports = url.searchParams.getAll("import")
+        let initialImports = Promise.resolve()
+        if (imports.length) {
+            console.log("imports", imports);
+            initialImports = Promise.all(imports.map(url => fetchText(url))).then(
+                scripts => {
+                    console.log("imports", "=>", {scripts});
+                    channel.port2.postMessage({scripts});
+                });
+        }
+
+        if (postMessageTo) {
+            const initKey = url.searchParams.get("initkey") || 'type'
+            const initVal = url.searchParams.get("initval") || 'init'
+            const initMessage = (s => s ? JSON.parse(s) : {[initKey]: initVal})(url.searchParams.get("initjson"))
+
+            // if we are doing an initial import then we need to wait until it's done before we transfer the port.
+            initialImports.then(() => postMessageTo.postMessage({...initMessage, port: channel.port2}, "*", [channel.port2]))
+        }
+    </script>
+</html>
