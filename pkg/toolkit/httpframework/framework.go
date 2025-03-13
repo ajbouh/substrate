@@ -59,6 +59,12 @@ func FmtListenAddr(host, port string) string {
 func (f *Framework) Serve(ctx context.Context) {
 	f.Log.Info("http at", "url", "http://"+f.Addr().String())
 
+	if f.s.BaseContext == nil {
+		f.s.BaseContext = func(l net.Listener) context.Context {
+			return ctx
+		}
+	}
+
 	if f.s.TLSConfig == nil {
 		if err := f.s.Serve(f.Listener); err != nil {
 			if err == http.ErrServerClosed {
