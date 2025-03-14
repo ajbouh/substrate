@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
+	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 	"github.com/ajbouh/substrate/pkg/toolkit/links"
 )
 
@@ -41,4 +42,18 @@ type EventIntervalReference struct {
 	RefEnd   any    // should these be strings? what if we're talking about entries in a zip file? or a git commit?
 	RefUnit  string // "byte", "frame", "second"
 	RefAxis  string // "bytes", "audiotrack/1"
+}
+
+type SelfLinks struct {
+}
+
+var _ links.Querier = (*SelfLinks)(nil)
+
+func (m *SelfLinks) QueryLinks(ctx context.Context) (links.Links, error) {
+	return links.Links{
+		"eventstore": links.Link{
+			Rel:  "eventstore",
+			HREF: httpframework.ContextPrefix(ctx),
+		},
+	}, nil
 }

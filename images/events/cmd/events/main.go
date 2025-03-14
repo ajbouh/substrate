@@ -71,6 +71,8 @@ func main() {
 				return httpframework.ContextPrefix(ctx) + "/events/" + eventID.String()
 			},
 		},
+		&units.SelfLinks{},
+
 
 		units.WriteTreeFieldsPathCommand,
 		units.GetTreeFieldsPathCommand,
