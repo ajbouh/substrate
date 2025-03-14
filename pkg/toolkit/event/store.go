@@ -96,9 +96,10 @@ type Streamer interface {
 }
 
 type Notification struct {
-	Until  ID      `json:"until"`
-	Events []Event `json:"events"`
-	Error  error   `json:"-"`
+	Until       ID      `json:"until"`
+	Events      []Event `json:"events"`
+	Error       error   `json:"-"`
+	Incremental bool    `json:"incremental"`
 }
 
 type Stream interface {

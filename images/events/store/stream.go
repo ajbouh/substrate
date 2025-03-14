@@ -53,6 +53,7 @@ func (s *Stream) tap(until event.ID) {
 
 func (s *Stream) process(ctx context.Context, querier event.Querier, q *event.Query) {
 	var after, until event.ID
+	initial := true
 
 	for {
 		select {
@@ -102,8 +103,9 @@ func (s *Stream) process(ctx context.Context, querier event.Querier, q *event.Qu
 
 		slog.Info("Stream.process() queried", "q", q, "fresh", fresh, "len(events)", len(events))
 		// don't send notification unless at least one event is newer than after
-		if fresh {
-			s.eventCh <- event.Notification{Until: until, Events: events}
+		if fresh || initial {
+			s.eventCh <- event.Notification{Until: until, Events: events, Incremental: (!initial) && s.useAdvancingAfter}
+			initial = false
 		}
 		after = until
 	}
