@@ -83,6 +83,7 @@ func main() {
 		units.GetTreeRawPathCommand,
 
 		units.GetEventCommand,
+		units.GetEventDataCommand,
 		units.IDLinksQueryCommand,
 		units.EventPathLinksQueryCommand,
 

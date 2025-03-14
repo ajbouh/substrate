@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
@@ -326,6 +327,48 @@ var GetEventCommand = handle.HTTPCommand(
 		var err error
 		query := event.QueryByID(args.ID)
 		returns.Event, err = event.QueryEvent(ctx, t.Querier, query)
+		return returns, err
+	})
+
+var GetEventDataCommand = handle.HTTPCommand(
+	"event:data:get", "Get event data",
+	"GET /events/{event}/data", "/events/{event}",
+
+	func(ctx context.Context,
+		t *struct {
+			Querier     event.Querier
+			DataQuerier event.DataQuerier
+		},
+		args struct {
+			ID event.ID `json:"event" path:"event"`
+
+			Writer http.ResponseWriter `json:"-"`
+		},
+	) (struct{}, error) {
+		query := event.QueryByID(args.ID)
+
+		returns := struct{}{}
+		event, err := event.QueryEvent(ctx, t.Querier, query)
+		if err != nil {
+			return returns, err
+		}
+
+		if event == nil {
+			return returns, &handle.HTTPStatusError{
+				Err:    nil,
+				Status: 404,
+			}
+		}
+
+		r, err := t.DataQuerier.QueryEventData(ctx, event.ID)
+		if os.IsNotExist(err) {
+			return returns, nil
+		}
+		if err != nil {
+			return returns, err
+		}
+
+		_, err = io.Copy(args.Writer, r)
 		return returns, err
 	})
 
