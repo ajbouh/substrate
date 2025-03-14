@@ -1,4 +1,4 @@
-go 1.22.5
+go 1.23.2
 
 toolchain go1.23.2
 
@@ -6,6 +6,7 @@ use (
 	./images/bb
 	./images/bridge
 	./images/chromestage
+	./images/events
 	./images/gstreamer-pipeline
 	./images/mdns
 	./images/nvml
