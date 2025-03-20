@@ -45,7 +45,7 @@ func (d *EsbuildRoute) detectBuildOptions(file string) (bool, time.Time, *api.Bu
 	opt := &api.BuildOptions{}
 	file = strings.TrimSuffix(file, "/")
 
-	if stat := exists(d.BaseDir + "/" + file); stat != nil {
+	if stat := exists(d.BaseDir + "/" + file); stat != nil && !stat.IsDir() {
 		if !CompilePattern.MatchString(file) {
 			return false, stat.ModTime(), nil, nil
 		}
