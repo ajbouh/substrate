@@ -17,8 +17,8 @@ type CommandRuleInput struct {
 	Disabled bool   `json:"disabled,omitempty"`
 	Deleted  bool   `json:"deleted,omitempty"`
 
-	Conditions []*event.Query `json:"conditions"`
-	Command    commands.Msg   `json:"command"`
+	Conditions []*event.Query  `json:"conditions"`
+	Command    commands.Fields `json:"command"`
 
 	// Cursor *CommandRuleCursor `json:"-"`
 }
@@ -42,20 +42,20 @@ func (r *Reactor) Rule(name, inPath string) CommandRuleInput {
 				},
 			},
 		},
-		Command: commands.Msg{
-			Meta: commands.Meta{
+		Command: commands.Fields{
+			"meta": commands.Meta{
 				"#/data/parameters/events": {Type: "any"},
 				"#/data/returns/events":    {Type: "any"},
 			},
-			MsgIn: commands.Bindings{
+			"msg_in": commands.Bindings{
 				"#/msg/data/parameters/events": "#/data/parameters/events",
 			},
-			MsgOut: commands.Bindings{
+			"msg_out": commands.Bindings{
 				"#/data/returns/next": "#/msg/data/returns/next",
 			},
-			Msg: &commands.Msg{
-				Cap: ptr("reflect"),
-				Data: commands.Fields{
+			"msg": &commands.Fields{
+				"cap": "reflect",
+				"data": commands.Fields{
 					"url":  r.CommandURL,
 					"name": name,
 				},
