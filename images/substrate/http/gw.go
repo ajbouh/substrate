@@ -42,6 +42,6 @@ func (h *ProxyHandler) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 		http.Error(rw, "not found", http.StatusNotFound)
 	}))
 
-	mux.Handle("GET /{$}", http.RedirectHandler("/spaceview;space=image:navigator/tree/", http.StatusTemporaryRedirect))
+	mux.Handle("GET /{$}", http.RedirectHandler("/spaceview;space=image:source/tree/pkg/navigator/", http.StatusTemporaryRedirect))
 	mux.Handle("/{viewspec}/{rest...}", h.ProvisionerCache)
 }
