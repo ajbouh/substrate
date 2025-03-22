@@ -57,7 +57,7 @@ func PendingFromEntries(entries []PendingEvent) (*PendingEventSet, error) {
 		var reader io.ReadCloser
 		if entry.Data != "" {
 			if entry.DataEncoding == "base64" {
-				b, err := base64.RawStdEncoding.DecodeString(entry.Data)
+				b, err := base64.StdEncoding.DecodeString(entry.Data)
 				if err != nil {
 					return nil, err
 				}
