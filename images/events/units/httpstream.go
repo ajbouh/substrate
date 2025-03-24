@@ -13,6 +13,7 @@ import (
 
 type EventStreamHandler struct {
 	Streamer event.Streamer
+	Querier  event.Querier
 }
 
 // TODO this would be better if it were just another command, but commands can't stream back multiple responses yet.
@@ -83,6 +84,19 @@ func (h *EventStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		r.Body.Close()
+	}
+
+	if r.Header.Get("Accept") != "text/event-stream" {
+		events, _, err := h.Querier.QueryEvents(r.Context(), q)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		header := w.Header()
+		header.Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(events)
+		return
 	}
 
 	header := w.Header()
