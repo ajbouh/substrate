@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -14,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 
@@ -22,7 +22,6 @@ import (
 	"github.com/ajbouh/substrate/images/webrtc-events/webrtc/js"
 	"github.com/ajbouh/substrate/images/webrtc-events/webrtc/local"
 	"github.com/ajbouh/substrate/images/webrtc-events/webrtc/sfu"
-	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
@@ -73,6 +72,13 @@ func main() {
 		&EventWriteCommand{
 			URL:     mustGetenv("SUBSTRATE_EVENT_COMMANDS_URL"),
 			Command: "events:write",
+		},
+		&QueryEventsCommand{
+			URL:     mustGetenv("SUBSTRATE_EVENT_COMMANDS_URL"),
+			Command: "events:query",
+		},
+		&Streamer{
+			EventsURL: mustGetenv("SUBSTRATE_EVENT_COMMANDS_URL"),
 		},
 		RequestBodyLogger{},
 	)
@@ -134,11 +140,18 @@ func pathJoin(a, b string) string {
 	return a + "/" + b
 }
 
-// XXX need a way to pass binary data too
-func ToPendingEvents(prefix string, events ...commands.Fields) ([]event.PendingEvent, error) {
+func MakePendingEvent[E any](event E) (r event.PendingEvent, err error) {
+	pe, err := json.Marshal(event)
+	if err != nil {
+		return
+	}
+	r.Fields = pe
+	return
+}
+
+func ToPendingEvents[E any](events ...E) ([]event.PendingEvent, error) {
 	var pes []event.PendingEvent
 	for _, e := range events {
-		e["path"] = pathJoin(prefix, e["path"].(string))
 		pe, err := json.Marshal(e)
 		if err != nil {
 			return nil, err
@@ -146,10 +159,6 @@ func ToPendingEvents(prefix string, events ...commands.Fields) ([]event.PendingE
 		pes = append(pes, event.PendingEvent{Fields: pe})
 	}
 	return pes, nil
-}
-
-func init() {
-	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 }
 
 func (pc *PeerComponent) Serve(ctx context.Context) {
@@ -164,18 +173,19 @@ func (pc *PeerComponent) Serve(ctx context.Context) {
 			return
 		}
 
+		eventFields := Track{
+			Path:     pathJoin(pc.EventPathPrefix, "/tracks"),
+			WebRTCID: track.ID(),
+			Kind:     track.Kind().String(),
+			Encoding: AudioEncoding{
+				MimeType:   track.Codec().MimeType,
+				SampleRate: track.Codec().ClockRate,
+				Channels:   track.Codec().Channels,
+			},
+		}
+
 		r, err := pc.WriteEvents.Call(ctx, WriteEventsInput{
-			Events: must(ToPendingEvents(pc.EventPathPrefix, commands.Fields{
-				"path":      "/tracks",
-				"webrtc_id": track.ID(),
-				"kind":      track.Kind(),
-				"encoding": commands.Fields{
-					"mime_type":   track.Codec().MimeType,
-					"sample_rate": track.Codec().ClockRate,
-					"channels":    track.Codec().Channels,
-				},
-				// TODO session offset, or do we record the current time?
-			})),
+			Events: must(ToPendingEvents(eventFields)),
 		})
 		if err != nil {
 			slog.ErrorContext(ctx, "error recording track event", "err", err)
@@ -183,6 +193,7 @@ func (pc *PeerComponent) Serve(ctx context.Context) {
 		}
 		slog.InfoContext(ctx, "recorded track event", "r", r)
 		trackID := r.IDs[0]
+		slog.InfoContext(ctx, "recording to trackID", "trackID", trackID)
 
 		// i did some research and i think we should just write the opus packets directly. the simplest thing to do would be write up to N packets in each record
 		// fields in each record being:
@@ -199,48 +210,50 @@ func (pc *PeerComponent) Serve(ctx context.Context) {
 		// maybe just need to adjust the offset for each segment so that they are
 		// incrementing?
 
+		audioPath := path.Join("/tracks", trackID.String(), "audio")
+
 		var timestamps []uint32
 		var offsets []int
 		var sizes []int
 		var buffer [4 << 10]byte
 		offset := 0
-		flush := func() {
+		// should this path have timestamp or something to be unique
+		// could override id to be "path"
+		flush := func() error {
 			slog.InfoContext(ctx, "flushing buffer", "written", offset)
-			pe := must(ToPendingEvents(pc.EventPathPrefix, commands.Fields{
-				"path": "/audio",
-				"ts":   timestamps,
-				"ix":   offsets,
-				"sz":   sizes,
-				"encoding": commands.Fields{
-					"mime_type":   track.Codec().MimeType,
-					"sample_rate": track.Codec().ClockRate,
-					"channels":    track.Codec().Channels,
-				},
-				// TODO use links for track
-				"track": trackID,
-			}))[0]
+			pe := must(MakePendingEvent(AudioChunk{
+				Path:       pathJoin(pc.EventPathPrefix, audioPath),
+				Timestamps: timestamps,
+				Offsets:    offsets,
+				Sizes:      sizes,
+				Encoding:   eventFields.Encoding,
+				Track:      trackID,
+			}))
 			pe.DataEncoding = "base64"
-			pe.Data = base64.RawStdEncoding.EncodeToString(buffer[:offset])
+			pe.Data = base64.StdEncoding.EncodeToString(buffer[:offset])
 			r, err := pc.WriteEvents.Call(ctx, WriteEventsInput{
 				Events: []event.PendingEvent{pe},
 			})
 			if err != nil {
-				slog.ErrorContext(ctx, "error recording audio event", "err", err)
-				return
+				return err
 			}
 			slog.InfoContext(ctx, "recorded track audio", "r", r)
 			offset = 0
 			timestamps = timestamps[:0]
 			offsets = offsets[:0]
 			sizes = sizes[:0]
+			return nil
 		}
+
+		// min = 0 max = 10
+		// (0, 10)
 
 		for {
 			pkt, _, err := track.ReadRTP()
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					slog.InfoContext(ctx, "got EOF")
-					flush()
+					fatal(flush())
 					return
 				}
 				if errors.Is(err, io.ErrShortBuffer) || err.Error() == "buffer too small" {
@@ -257,7 +270,7 @@ func (pc *PeerComponent) Serve(ctx context.Context) {
 			expectedSize := pkt.MarshalSize()
 			endOffset := offset + expectedSize
 			if endOffset > len(buffer) {
-				flush()
+				fatal(flush())
 				endOffset = offset + expectedSize
 			}
 			n, err := pkt.MarshalTo(buffer[offset:endOffset])
@@ -279,35 +292,115 @@ func (pc *PeerComponent) Serve(ctx context.Context) {
 	pc.peer.HandleSignals()
 }
 
+type AudioChunk struct {
+	Path       string        `json:"path"`
+	Timestamps []uint32      `json:"ts"`
+	Offsets    []int         `json:"ix"`
+	Sizes      []int         `json:"sz"`
+	Encoding   AudioEncoding `json:"encoding"`
+	Track      event.ID      `json:"track"`
+}
+
+type Track struct {
+	Path     string        `json:"path"`
+	WebRTCID string        `json:"webrtc_id"`
+	Kind     string        `json:"kind"`
+	Encoding AudioEncoding `json:"encoding"`
+}
+
+type AudioEncoding struct {
+	MimeType   string `json:"mime_type"`
+	SampleRate uint32 `json:"sample_rate"`
+	Channels   uint16 `json:"channels"`
+}
+
+type QueryEventsInput struct {
+	Path string `json:"path"`
+
+	After *event.ID `json:"after" query:"after"`
+	Until *event.ID `json:"until" query:"until"`
+
+	Limit *int `json:"limit" query:"limit"`
+	Bias  *int `json:"bias" query:"bias"` // -1, 0, 1
+}
+
+type QueryEventsReturns struct {
+	Events []event.Event `json:"events"`
+	More   bool          `json:"more"`
+}
+
+type QueryEventsCommand = calls.CommandCall[QueryEventsInput, QueryEventsReturns]
+
 type Streamer struct {
+	EventsURL       string
 	EventPathPrefix string
-	// WriteEvents     *EventWriteCommand
+	QueryEvents     *QueryEventsCommand
+}
+
+func ptr[T any](v T) *T {
+	return &v
 }
 
 func (s *Streamer) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
-	// XXX seems like no direct way to fetch data for an event ID but could limit
-	// it using "until"?
+	mux.HandleFunc("GET /stream/{trackID}", func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 
-	// /events/tree/data/path/to/audio?until=<ID>
+		trackID := r.PathValue("trackID")
+		audioPath := "bridge/audio-events/tracks/" + trackID + "/audio"
 
-	// fetch audio by track id
-	// optionally include time ranges to splice together into one result
-	mux.HandleFunc("GET /stream", func(w http.ResponseWriter, r *http.Request) {
-		// w.WriteHeader()
+		res, err := s.QueryEvents.Call(ctx, QueryEventsInput{
+			Path: audioPath,
+			// Limit: nil,
+			Bias: ptr(-1),
+			// After: nil,
+			// Until: nil,
+		})
+		if err != nil {
+			slog.ErrorContext(ctx, "error querying events", "err", err)
+			http.Error(w, fmt.Sprintf("error querying events: %s", err), http.StatusInternalServerError)
+			return
+		}
+		slog.InfoContext(ctx, "query events", "len(events)", len(res.Events), "path", audioPath, "more", res.More)
 
-		// get these from event data
-		var buffer []byte
-		offset := 0
-		size := 0
-		sampleRate := uint32(16000)
-		channels := uint16(2)
+		var b bytes.Buffer
 
-		ogg, err := oggwriter.NewWith(w, sampleRate, channels)
-		fatal(err)
-		var pkt rtp.Packet
-		pkt.Unmarshal(buffer[offset : offset+size])
-		err = ogg.WriteRTP(&pkt)
-		fatal(err)
+		var ogg *oggwriter.OggWriter
+		var encoding AudioEncoding
+		for _, event := range res.Events {
+			var chunk AudioChunk
+			err = json.Unmarshal(event.Payload, &chunk)
+			fatal(err)
+
+			if ogg == nil {
+				encoding = chunk.Encoding
+				ogg, err = oggwriter.NewWith(&b, chunk.Encoding.SampleRate, chunk.Encoding.Channels)
+				fatal(err)
+			} else if encoding != chunk.Encoding {
+				slog.ErrorContext(ctx, "encoding mismatch", "encoding", chunk.Encoding, "expected", encoding)
+				http.Error(w, fmt.Sprintf("encoding mismatch: %s", err), http.StatusInternalServerError)
+				return
+			}
+
+			dataPath := s.EventsURL + "/events/" + event.ID.String() + "/data"
+			resp, err := http.Get(dataPath)
+			fatal(err)
+			defer resp.Body.Close()
+
+			body, err := io.ReadAll(resp.Body)
+			fatal(err)
+
+			for i, offset := range chunk.Offsets {
+				size := chunk.Sizes[i]
+				var pkt rtp.Packet
+				err = pkt.Unmarshal(body[offset : offset+size])
+				fatal(err)
+				err = ogg.WriteRTP(&pkt)
+				fatal(err)
+			}
+		}
+
+		w.Header().Set("Content-Type", "audio/ogg")
+		b.WriteTo(w)
 	})
 }
 
