@@ -102,18 +102,14 @@ func TestCallCommand(t *testing.T) {
 	)
 
 	client := &struct {
-		Reflector commands.URLReflector
+		Env commands.Env
 	}{}
 	Assemble(&service.Service{}, client)
 
 	srv := httptest.NewServer(h)
 	defer srv.Close()
 
-	// XXX using CallURL here, though this should be ported to use cap-based
-	// client such as in bridge/calls
-	// CallURL seems like it's not used, and could probably be removed since
-	// AFAICT that pattern is being deprecated.
-	response, err := commands.CallURL[EchoReturn](context.Background(), client.Reflector, srv.URL, "echo", commands.Fields{
+	response, err := commands.CallURL[EchoReturn](context.Background(), client.Env, srv.URL, "echo", commands.Fields{
 		"input": "hello world",
 	})
 	if err != nil {
