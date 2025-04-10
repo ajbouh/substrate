@@ -3,6 +3,11 @@ package commands
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"reflect"
+
+	"github.com/ajbouh/substrate/pkg/toolkit/engine"
+	"github.com/ajbouh/substrate/pkg/toolkit/xengine"
 )
 
 type Env interface {
@@ -75,23 +80,23 @@ type Cap interface {
 	Apply(Env, Fields) (Fields, error)
 }
 
-type NamedCap[C Cap] struct {
-	Name string
-	Cap  C
-}
-
-type RootEnv struct {
-	Capabilities []NamedCap[Cap]
+type RootEnv[C any] struct {
+	Capabilities *C
 	DefTransform DefTransformFunc
 
 	env Env
 }
 
-func (i *RootEnv) Initialize() {
+func (i *RootEnv[C]) Initialize() {
+	slog.Info("RootEnv.Initialize", "caps", i.Capabilities)
 	caps := map[string]Cap{}
-	for _, applier := range i.Capabilities {
-		caps[applier.Name] = applier.Cap
-	}
+	xengine.FieldsImplementing(i.Capabilities, func(name string, tag reflect.StructTag, cap Cap) {
+		if capName, ok := tag.Lookup("cap"); ok {
+			name = capName
+		}
+		caps[name] = cap
+		slog.Info("registering cap", "name", name, "cap", cap)
+	})
 	i.env = (*env)(nil).New(context.Background(), caps)
 }
 
@@ -113,10 +118,28 @@ func MergeAndApply(env Env, d Fields, fields Fields) (Fields, error) {
 	return env.Apply(env, d)
 }
 
-func (a *RootEnv) Apply(env Env, d Fields) (Fields, error) {
+func (s *RootEnv[C]) Assembly() []engine.Unit {
+	target, units, ok := xengine.AssemblyForPossiblyAnonymousTarget[C]()
+	if ok {
+		s.Capabilities = target
+	}
+	return units
+}
+
+func (a *RootEnv[C]) Apply(env Env, d Fields) (Fields, error) {
 	if a.DefTransform != nil {
 		_, d = a.DefTransform(env.Context(), "", d)
 	}
 
 	return a.env.Apply(env, d)
+}
+
+var _ Env = (*RootEnv[any])(nil)
+
+func (i *RootEnv[C]) Context() context.Context {
+	return i.env.Context()
+}
+
+func (i *RootEnv[C]) New(ctx context.Context, caps map[string]Cap) Env {
+	return i.env.New(ctx, caps)
 }
