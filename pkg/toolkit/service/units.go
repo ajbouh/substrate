@@ -73,6 +73,8 @@ func (s *Service) initialize() {
 
 	originURL, _ := url.Parse(s.BaseURL)
 
+	type CapReadURLBase commands.CapFunc
+
 	s.units = NewUnits(
 		&httpframework.Framework{},
 		&httpframework.HairpinHTTPClient{
@@ -92,7 +94,14 @@ func (s *Service) initialize() {
 		&commands.Aggregate{},
 		&ExportCommands{},
 		&commands.TransformingDefRunner{},
-		&commands.RootEnv{},
+		&commands.RootEnv[struct {
+			HTTP         *commands.CapHTTP         `cap:"http"`
+			Msg          *commands.CapMsg          `cap:"msg"`
+			Seq          *commands.CapSeq          `cap:"seq"`
+			Reflect      *commands.CapReflect      `cap:"reflect"`
+			Reflectedmsg *commands.CapReflectedMsg `cap:"reflectedmsg"`
+			ReadURLBase  *CapReadURLBase           `cap:"read-urlbase"`
+		}]{},
 		&commands.CapHTTP{
 			// Since there's a different address for internal requests than external, we have to do that swap. It feels kinda gross to
 			// need to do this at all...
@@ -109,33 +118,15 @@ func (s *Service) initialize() {
 				return r, nil
 			},
 		},
-		&commands.NamedCap[*commands.CapHTTP]{
-			Name: "http",
-		},
 		&commands.CapMsg{},
-		&commands.NamedCap[*commands.CapMsg]{
-			Name: "msg",
-		},
 		&commands.CapSeq{},
-		&commands.NamedCap[*commands.CapSeq]{
-			Name: "seq",
-		},
 		&commands.CapReflect{},
-		&commands.NamedCap[*commands.CapReflect]{
-			Name: "reflect",
-		},
 		&commands.CapReflectedMsg{},
-		&commands.NamedCap[*commands.CapReflectedMsg]{
-			Name: "reflectedmsg",
-		},
-		&commands.NamedCap[commands.Cap]{
-			Name: "read-urlbase",
-			Cap: &commands.CapFunc{
-				Func: func(env commands.Env, d commands.Fields) (commands.Fields, error) {
-					return commands.Fields{
-						"urlbase": s.InternalSubstrateBaseURL,
-					}, nil
-				},
+		&CapReadURLBase{
+			Func: func(env commands.Env, d commands.Fields) (commands.Fields, error) {
+				return commands.Fields{
+					"urlbase": s.InternalSubstrateBaseURL,
+				}, nil
 			},
 		},
 		&commands.CapReflect{
