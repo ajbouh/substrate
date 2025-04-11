@@ -3,6 +3,7 @@ package commands
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strconv"
 	"sync"
 )
@@ -10,14 +11,14 @@ import (
 type CapSeq struct {
 }
 
-type MsgsBatchBreak struct {
+type CapSeqStepBreak struct {
 	And []DataPointer `json:"and"`
 	Out Bindings      `json:"out"`
 }
 
-type MsgsBatch struct {
-	Msgs  map[string]Fields `json:"msgs"`
-	Break []MsgsBatchBreak  `json:"break"`
+type CapSeqStep struct {
+	Par   map[string]Fields `json:"par"`
+	Break []CapSeqStepBreak `json:"break"`
 
 	Out Bindings `json:"out"`
 }
@@ -48,17 +49,21 @@ func mapReduce[K comparable, P any, R any](
 }
 
 func (a *CapSeq) Apply(env Env, d Fields) (Fields, error) {
+	slog.Info("CapSeq.Apply", "d", d)
 	var i int
 	var iStr string
+
+	slog.Info("CapSeq.Apply LenGetPath", "LenGetPath", LenGetPath(d, "seq"))
 	for i < LenGetPath(d, "seq") {
+		slog.Info("CapSeq.Apply LenGetPath", "i", i, "LenGetPath", LenGetPath(d, "seq"))
 		iStr = strconv.Itoa(i)
 
-		batchPre, err := GetPath[Bindings](d, "seq", iStr, "pre")
+		stepFields, err := GetPath[Fields](d, "seq", iStr)
 		if err != nil {
 			return nil, err
 		}
 
-		stepFields, err := GetPath[Fields](d, "seq", iStr)
+		batchPre, err := GetPath[Bindings](stepFields, "pre")
 		if err != nil {
 			return nil, err
 		}
@@ -68,46 +73,51 @@ func (a *CapSeq) Apply(env Env, d Fields) (Fields, error) {
 			return nil, err
 		}
 
-		err = SetPath(d, []string{"seq", iStr}, stepFields)
+		d, err = SetPath(d, []string{"seq", iStr}, stepFields)
 		if err != nil {
 			return nil, err
 		}
 
-		batch, err := As[MsgsBatch](stepFields)
+		step, err := As[CapSeqStep](stepFields)
 		if err != nil {
 			return nil, err
 		}
 
 		// TODO support timeout
-		batchCtx, cancel := context.WithCancel(env.Context())
+		stepCtx, cancel := context.WithCancel(env.Context())
 
-		var batchErrs []error
+		var stepErrs []error
 		var mu sync.Mutex
 		var didBreak bool
-		mapReduce(batch.Msgs,
+		mapReduce(step.Par,
 			func(k string, p Fields) (Fields, error) {
-				return env.New(batchCtx, nil).Apply(nil, p)
+				p, err := p.Clone()
+				if err != nil {
+					return p, err
+				}
+				return env.New(stepCtx, nil).Apply(nil, p)
 			},
-			func(k string, pre Fields, ret Fields, err error) {
+			func(k string, p Fields, ret Fields, err error) {
+				slog.Info("mapReduce", "k", k, "p", p, "ret", ret, "err", err)
 				mu.Lock()
 				defer mu.Unlock()
 
 				if err != nil {
-					batchErrs = append(batchErrs, err)
+					stepErrs = append(stepErrs, err)
 					return
 				}
 
-				err = SetPath(stepFields, []string{"par", k}, ret)
+				stepFields, err = SetPath(stepFields, []string{"par", k}, ret)
 				if err != nil {
-					batchErrs = append(batchErrs, err)
+					stepErrs = append(stepErrs, err)
 					return
 				}
 
-				for _, b := range batch.Break {
+				for _, b := range step.Break {
 					for _, probe := range b.And {
 						maybe, ok, err := MaybeGet[any](stepFields, probe)
 						if err != nil {
-							batchErrs = append(batchErrs, err)
+							stepErrs = append(stepErrs, err)
 							continue
 						}
 						if !ok || (maybe != nil && maybe != false) {
@@ -116,7 +126,7 @@ func (a *CapSeq) Apply(env Env, d Fields) (Fields, error) {
 
 						d, err = b.Out.PluckInto(d, stepFields)
 						if err != nil {
-							batchErrs = append(batchErrs, err)
+							stepErrs = append(stepErrs, err)
 							return
 						}
 
@@ -129,18 +139,13 @@ func (a *CapSeq) Apply(env Env, d Fields) (Fields, error) {
 		)
 
 		if !didBreak {
-			err = errors.Join(batchErrs...)
+			err = errors.Join(stepErrs...)
 			if err != nil {
 				return nil, err
 			}
 		}
 
-		stepFields, err = batch.Out.PluckInto(Fields{}, stepFields)
-		if err != nil {
-			return nil, err
-		}
-
-		err = SetPath(d, []string{"seq", iStr}, stepFields)
+		d, err = step.Out.PluckInto(d, stepFields)
 		if err != nil {
 			return nil, err
 		}

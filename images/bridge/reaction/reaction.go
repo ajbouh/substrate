@@ -28,18 +28,14 @@ type Reactor struct {
 	CommandURL      string
 }
 
-func ptr[T any](t T) *T {
-	return &t
-}
-
 func (r *Reactor) Rule(name, inPath string) CommandRuleInput {
 	return CommandRuleInput{
 		Path: "/rules/defs" + r.EventPathPrefix + name,
 		Conditions: []*event.Query{
 			{
-				EventsWherePrefix: map[string][]event.WherePrefix{
-					"path": {{Prefix: r.EventPathPrefix + inPath}},
-				},
+				BasisCriteria: event.NewCriteria().AndWhere("path",
+					&event.WherePrefix{Prefix: r.EventPathPrefix + inPath},
+				),
 			},
 		},
 		Command: commands.Fields{

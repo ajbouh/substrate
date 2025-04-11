@@ -104,7 +104,7 @@ func EnsureRunHTTPRequestURLIncludesPrefix(prefix string) commands.DefTransformF
 		}
 
 		new := commandDef.MustClone()
-		err = commands.SetPath(new, path, prefix+url)
+		new, err = commands.SetPath(new, path, prefix+url)
 		if err != nil {
 			return commandName, commandDef
 		}

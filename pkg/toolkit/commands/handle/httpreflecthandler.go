@@ -20,12 +20,16 @@ func EnsureHTTPBasis(method, route string) commands.DefTransformFunc {
 		}
 
 		new := commandDef.MustClone()
+		var err error
 
 		pathWithSuffix := func(suffix ...string) []string {
 			return append(append([]string(nil), path...), suffix...)
 		}
-		commands.SetPath(new, pathWithSuffix("cap"), "msg")
-		commands.SetPath(new, pathWithSuffix("msg"), commands.Fields{
+		new, err = commands.SetPath(new, pathWithSuffix("cap"), "msg")
+		if err != nil {
+			return commandName, commandDef
+		}
+		new, err = commands.SetPath(new, pathWithSuffix("msg"), commands.Fields{
 			"cap": "http",
 			"http": commands.Fields{
 				"request": commands.Fields{
@@ -41,6 +45,9 @@ func EnsureHTTPBasis(method, route string) commands.DefTransformFunc {
 				},
 			},
 		})
+		if err != nil {
+			return commandName, commandDef
+		}
 
 		parametersPrefix := commands.NewDataPointer("data", "parameters")
 		returnsPrefix := commands.NewDataPointer("data", "returns")
@@ -55,22 +62,29 @@ func EnsureHTTPBasis(method, route string) commands.DefTransformFunc {
 				if len(trimmedPath) != 1 {
 					continue
 				}
-				commands.SetPath(new,
+				new, err = commands.SetPath(new,
 					[]string{
 						"msg_in",
 						commands.NewDataPointer(append(pathWithSuffix("msg", "http", "request", "body", "parameters"), trimmedPath...)...).String(),
 					},
 					pointer,
 				)
+				if err != nil {
+					return commandName, commandDef
+				}
+
 			}
 			if trimmed, ok := pointer.TrimPathPrefix(returnsPrefix); ok {
 				trimmedPath := trimmed.Path()
 				if len(trimmedPath) != 1 {
 					continue
 				}
-				commands.SetPath(new, []string{"msg_out", pointer.String()},
+				new, err = commands.SetPath(new, []string{"msg_out", pointer.String()},
 					commands.NewDataPointer(append(pathWithSuffix("msg", "http", "response", "body"), trimmedPath...)...),
 				)
+				if err != nil {
+					return commandName, commandDef
+				}
 			}
 		}
 
