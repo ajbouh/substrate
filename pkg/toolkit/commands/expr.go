@@ -127,6 +127,11 @@ func (s *RootEnv[C]) Assembly() []engine.Unit {
 }
 
 func (a *RootEnv[C]) Apply(env Env, d Fields) (Fields, error) {
+	d, err := d.Clone()
+	if err != nil {
+		return nil, err
+	}
+
 	if a.DefTransform != nil {
 		_, d = a.DefTransform(env.Context(), "", d)
 	}

@@ -251,10 +251,12 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (com
 	def := commands.Fields{
 		"description": r.Desc,
 		"meta":        meta,
+		"data":        commands.Fields{"returns": commands.Fields{}},
 	}
 
 	if params != nil {
-		err := commands.SetPath(def, []string{"data", "parameters"}, params)
+		var err error
+		def, err = commands.SetPath(def, []string{"data", "parameters"}, params)
 		if err != nil {
 			return nil, err
 		}

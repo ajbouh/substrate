@@ -15,7 +15,7 @@ func NewDataPointer(path ...string) DataPointer {
 }
 
 func ParseDataPointer(s string) (DataPointer, error) {
-	if !strings.HasPrefix(s, "#/") {
+	if !strings.HasPrefix(s, "#/") && s != "#" {
 		return "", fmt.Errorf("reference must start with #/, got %q", s)
 	}
 
@@ -42,6 +42,9 @@ func (p DataPointer) TrimPathPrefix(s DataPointer) (DataPointer, bool) {
 }
 
 func (p DataPointer) Path() []string {
+	if p == "#" {
+		return []string{}
+	}
 	parts := strings.Split(strings.TrimPrefix(string(p), "#/"), "/")
 
 	for i, part := range parts {
@@ -85,7 +88,7 @@ func MaybeGet[T any](m any, p DataPointer) (t T, ok bool, err error) {
 func MaybeGetPath[T any](m any, path ...string) (t T, ok bool, err error) {
 	var o any
 	o, ok, err = getPath(m, path)
-	if err != nil {
+	if !ok || err != nil {
 		return
 	}
 	t, err = As[T](o)
@@ -94,26 +97,46 @@ func MaybeGetPath[T any](m any, path ...string) (t T, ok bool, err error) {
 
 // TODO to make this faster we don't need to actually Get and/or coerce the value at the path...
 func LenGetPath(m any, path ...string) int {
-	t, ok, err := MaybeGetPath[[]any](m, path...)
+	t, ok, err := MaybeGetPath[any](m, path...)
 	if !ok || err != nil {
 		return 0
 	}
-	return len(t)
+	switch o := t.(type) {
+	case map[string]string:
+		return len(o)
+	case map[string][]string:
+		return len(o)
+	case map[string]any:
+		return len(o)
+	case []any:
+		return len(o)
+	case []string:
+		return len(o)
+	case string:
+		return len(o)
+	}
+
+	v := reflect.ValueOf(t)
+	switch v.Kind() {
+	case reflect.String, reflect.Array, reflect.Slice, reflect.Map:
+		return v.Len()
+	}
+	return 0
 }
 
 func GetPath[T any](m any, path ...string) (t T, err error) {
-	t, _, err = MaybeGetPath[T](m, path...)
+	var ok bool
+	t, ok, err = MaybeGetPath[T](m, path...)
+	if !ok && err == nil {
+		err = fmt.Errorf("no value for %#v in %#v", path, m)
+	}
+
 	return t, err
 }
 
-func Set(m any, p DataPointer, v any) error {
+func Set[T any](t T, p DataPointer, v any) (T, error) {
 	path := p.Path()
-	return SetPath(m, path, v)
-}
-
-func SetPath(m any, path []string, v any) error {
-	_, err := setPath(m, path, v)
-	return err
+	return SetPath(t, path, v)
 }
 
 func ensureLength[T any](ts []T, length int) []T {
@@ -135,10 +158,10 @@ func as[T any](o any, err error) (T, error) {
 	return t, fmt.Errorf("cannot assign %T to %T", o, t)
 }
 
-func setPath[T any](t0 T, path []string, v any) (T, error) {
+func SetPath[T any](t0 T, path []string, v any) (T, error) {
 	var err error
 
-	if len(path) == 0 {
+	if len(path) == 0 || path[0] == "" {
 		return as[T](v, nil)
 	}
 
@@ -165,21 +188,21 @@ func setPath[T any](t0 T, path []string, v any) (T, error) {
 	fail := false
 	switch t := any(t0).(type) {
 	case Fields:
-		t[k], err = setPath[any](t[k], path[1:], v)
+		t[k], err = SetPath[any](t[k], path[1:], v)
 	case map[string]any:
-		t[k], err = setPath[any](t[k], path[1:], v)
+		t[k], err = SetPath[any](t[k], path[1:], v)
 	case map[string][]string:
-		t[k], err = setPath[[]string](t[k], path[1:], v)
+		t[k], err = SetPath[[]string](t[k], path[1:], v)
 	case []any:
 		if kiok {
 			t = ensureLength(t, ki+1)
-			t[ki], err = setPath[any](t[ki], path[1:], v)
+			t[ki], err = SetPath[any](t[ki], path[1:], v)
 		} else {
 			fail = true
 		}
 	case map[string]string: // leaf
 		if vstring, ok := v.(string); ok {
-			t[k], err = setPath[string](t[k], path[1:], vstring)
+			t[k], err = SetPath[string](t[k], path[1:], vstring)
 		} else {
 			fail = true
 		}
@@ -187,7 +210,7 @@ func setPath[T any](t0 T, path []string, v any) (T, error) {
 		if kiok && len(path) == 1 {
 			if vstring, ok := v.(string); ok {
 				t = ensureLength(t, ki+1)
-				t[ki], err = setPath[string](t[ki], path[1:], vstring)
+				t[ki], err = SetPath[string](t[ki], path[1:], vstring)
 			} else {
 				fail = true
 			}
@@ -239,6 +262,9 @@ func getKeyInMap(f any, k any) (typeMatch bool, v any, ok bool) {
 }
 
 func getKeyInSlice(f any, k any) (typeMatch bool, v any, ok bool, err error) {
+	if f == nil {
+		return
+	}
 	// fast path string key in common map
 	var ki int
 	switch kn := k.(type) {
@@ -269,12 +295,12 @@ func getKeyInSlice(f any, k any) (typeMatch bool, v any, ok bool, err error) {
 	typeMatch = true
 	switch t := f.(type) {
 	case []any:
-		ok = ki > 0 && ki < len(t)
+		ok = ki >= 0 && ki < len(t)
 		if ok {
 			v = t[ki]
 		}
 	case []string:
-		ok = ki > 0 && ki < len(t)
+		ok = ki >= 0 && ki < len(t)
 		if ok {
 			v = t[ki]
 		}
@@ -285,7 +311,7 @@ func getKeyInSlice(f any, k any) (typeMatch bool, v any, ok bool, err error) {
 	rf := reflect.ValueOf(f)
 	if rf.Kind() == reflect.Slice {
 		typeMatch = true
-		ok = ki > 0 && ki < rf.Len()
+		ok = ki >= 0 && ki < rf.Len()
 		if ok {
 			rv := rf.Index(ki)
 			v = rv.Interface()
@@ -296,7 +322,7 @@ func getKeyInSlice(f any, k any) (typeMatch bool, v any, ok bool, err error) {
 }
 
 func getPath(f any, k []string) (any, bool, error) {
-	if len(k) == 0 {
+	if len(k) == 0 || k[0] == "" {
 		return f, true, nil
 	}
 
@@ -310,16 +336,12 @@ func getPath(f any, k []string) (any, bool, error) {
 			return v, false, err
 		}
 		if !isSlice {
-			return v, false, fmt.Errorf("don't know how to get %#v for %T", first, f)
+			return v, false, nil
 		}
 	}
 
 	if len(k) == 1 {
 		return v, ok, nil
-	}
-
-	if !ok {
-		return nil, false, fmt.Errorf("no value for %#v in %#v", first, f)
 	}
 
 	return getPath(v, k[1:])

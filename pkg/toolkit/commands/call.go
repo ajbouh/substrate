@@ -2,46 +2,24 @@ package commands
 
 import (
 	"context"
-	"encoding/json"
+	"log/slog"
 	"reflect"
 )
 
-func convertViaJSON[Out, In any](input In) (Out, error) {
-	var out Out
-	if !HasJSONFields(reflect.TypeFor[In](), false) || !HasJSONFields(reflect.TypeFor[Out](), false) {
-		return out, nil
-	}
-	b, err := json.Marshal(input)
+func CallURL[Out, In any](ctx context.Context, env Env, url, command string, params In) (*Out, error) {
+	slog.InfoContext(ctx, "CallURL", "url", url, "command", command, "params", params)
+	result, err := env.Apply(nil, Fields{
+		"cap":  "reflectedmsg",
+		"url":  url,
+		"name": command,
+		"data": Fields{"parameters": params},
+	})
+	slog.InfoContext(ctx, "CallURL result", "result", result, "err", err)
 	if err != nil {
-		return out, err
+		return nil, err
 	}
-	err = json.Unmarshal(b, &out)
+	out, _, err := MaybeGetPath[*Out](result, "data", "returns")
 	return out, err
-}
-
-func CallURL[Out, In any](ctx context.Context, hrr URLReflector, url string, command string, params In) (*Out, error) {
-	runner, _, err := hrr.ReflectURL(ctx, url)
-	if err != nil {
-		return nil, err
-	}
-
-	return CallSource[Out, In](ctx, runner, command, params)
-}
-
-func CallSource[Out, In any](ctx context.Context, src Source, command string, params In) (*Out, error) {
-	paramFields, err := convertViaJSON[Fields](params)
-	if err != nil {
-		return nil, err
-	}
-	resultFields, err := src.Run(ctx, command, paramFields)
-	if err != nil {
-		return nil, err
-	}
-	out, err := convertViaJSON[Out](resultFields)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
 }
 
 func HasJSONFields(t reflect.Type, considerRequestFieldShadowing bool) bool {

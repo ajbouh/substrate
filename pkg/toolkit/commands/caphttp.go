@@ -12,6 +12,38 @@ type HTTPClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
 
+type CapReadURLBase struct {
+	URLBase string
+}
+
+func (a *CapReadURLBase) Apply(env Env, m Fields) (Fields, error) {
+	return Fields{
+		"urlbase": a.URLBase,
+	}, nil
+}
+
+type CapWithURLBase struct {
+}
+
+func (a *CapWithURLBase) Apply(env Env, m Fields) (Fields, error) {
+	urlbase, err := GetPath[string](m, "urlbase")
+	if err != nil {
+		return nil, err
+	}
+
+	m, err = m.Clone()
+	if err != nil {
+		return nil, err
+	}
+	m["cap"] = "msg"
+
+	return env.New(env.Context(), map[string]Cap{
+		"read-urlbase": &CapReadURLBase{
+			URLBase: urlbase,
+		},
+	}).Apply(nil, m)
+}
+
 type CapHTTP struct {
 	HTTPClient HTTPClient
 
@@ -37,7 +69,7 @@ func (a *CapHTTP) Apply(env Env, m Fields) (Fields, error) {
 	}
 
 	var pathVars map[string]string
-	pathVars, err = GetPath[map[string]string](m, "http", "request", "path")
+	pathVars, _, err = MaybeGetPath[map[string]string](m, "http", "request", "path")
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +80,7 @@ func (a *CapHTTP) Apply(env Env, m Fields) (Fields, error) {
 		urlStr = strings.ReplaceAll(urlStr, "{"+pathVar+"...}", pathVal)
 	}
 
-	urlQuery, err := GetPath[map[string][]string](m, "http", "request", "query")
+	urlQuery, _, err := MaybeGetPath[map[string][]string](m, "http", "request", "query")
 	if err != nil {
 		return nil, err
 	}
@@ -60,11 +92,11 @@ func (a *CapHTTP) Apply(env Env, m Fields) (Fields, error) {
 		}
 	}
 
-	body, err := GetPath[any](m, "http", "request", "body")
+	body, _, err := MaybeGetPath[any](m, "http", "request", "body")
 	if err != nil {
 		return nil, err
 	}
-	headers, err := GetPath[map[string][]string](m, "http", "request", "headers")
+	headers, _, err := MaybeGetPath[map[string][]string](m, "http", "request", "headers")
 	if err != nil {
 		return nil, err
 	}

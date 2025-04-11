@@ -21,21 +21,24 @@ func (b Bindings) Pluck(src Fields) (Fields, error) {
 func (b Bindings) PluckInto(dst, src Fields) (Fields, error) {
 	var errs []error
 	for dstPath, srcPath := range b {
-		v, err := Get[any](src, srcPath)
+		v, ok, err := MaybeGet[any](src, srcPath)
+
 		if err != nil {
 			errs = append(errs, fmt.Errorf("getting %s (for %s) from %#v: %w", srcPath, dstPath, src, err))
 			continue
 		}
-		if v == nil {
+
+		if !ok || v == nil {
 			continue
 		}
 
-		err = Set(dst, dstPath, v)
+		dst, err = Set(dst, dstPath, v)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("setting %s (from %s) to %#v: %w", dstPath, srcPath, dst, err))
 			continue
 		}
 	}
 
-	return dst, errors.Join(errs...)
+	err := errors.Join(errs...)
+	return dst, err
 }
