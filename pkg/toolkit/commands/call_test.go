@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
@@ -15,6 +16,7 @@ import (
 	"github.com/ajbouh/substrate/pkg/toolkit/engine/daemon"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
+	"gotest.tools/assert"
 )
 
 // Run assembles units and starts the program.
@@ -97,7 +99,8 @@ func TestCallCommand(t *testing.T) {
 					Input string `json:"input"`
 				}) (EchoReturn, error) {
 				slog.Info("echo", "args", args)
-				return EchoReturn{Output: args.Input}, nil
+				text := strings.ToUpper(args.Input)
+				return EchoReturn{Output: text}, nil
 			}),
 	)
 
@@ -116,4 +119,5 @@ func TestCallCommand(t *testing.T) {
 		t.Fatalf("error calling command: %v", err)
 	}
 	t.Logf("Response: %+v", response)
+	assert.Equal(t, response.Output, "HELLO WORLD")
 }

@@ -29,10 +29,12 @@ func CallURL[Out, In any](ctx context.Context, env Env, url, command string, par
 	slog.InfoContext(ctx, "CallURL", "url", url, "command", command, "params", paramFields)
 
 	resultFields, err := env.Apply(nil, Fields{
-		"cap":        "reflectedmsg",
-		"url":        url,
-		"name":       command,
-		"parameters": paramFields,
+		"cap":  "reflectedmsg",
+		"url":  url,
+		"name": command,
+		"data": Fields{
+			"parameters": paramFields,
+		},
 	})
 	if err != nil {
 		return nil, err
