@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"log/slog"
 )
 
 type CapMsg struct {
@@ -11,6 +12,11 @@ var _ Cap = (*CapMsg)(nil)
 
 func (a *CapMsg) Apply(env Env, d Fields) (Fields, error) {
 	var err error
+
+	d, err = d.Clone()
+	if err != nil {
+		return nil, fmt.Errorf("error cloning msg: %w", err)
+	}
 
 	msgIn, err := GetPath[Bindings](d, "pre")
 	if err != nil {
@@ -49,6 +55,12 @@ func (a *CapMsg) Apply(env Env, d Fields) (Fields, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error running nested msg: %w", err)
 	}
+	d, err = SetPath(d, []string{"msg"}, postData)
+	if err != nil {
+		return nil, fmt.Errorf("error setting nested msg: %w", err)
+	}
 
-	return msgOut.PluckInto(Fields{}, postData)
+	slog.Info("CapMsg.Apply()", "d", d)
+
+	return msgOut.PluckInto(Fields{}, d)
 }
