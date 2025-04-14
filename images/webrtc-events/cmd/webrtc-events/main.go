@@ -215,7 +215,7 @@ func (pc *PeerComponent) Serve(ctx context.Context) {
 		var timestamps []uint32
 		var offsets []int
 		var sizes []int
-		var buffer [4 << 10]byte
+		var buffer [1 << 10]byte
 		offset := 0
 		// should this path have timestamp or something to be unique
 		// could override id to be "path"
@@ -231,11 +231,16 @@ func (pc *PeerComponent) Serve(ctx context.Context) {
 			}))
 			pe.DataEncoding = "base64"
 			pe.Data = base64.StdEncoding.EncodeToString(buffer[:offset])
-			r, err := pc.WriteEvents.Call(ctx, WriteEventsInput{
+			in := WriteEventsInput{
 				Events: []event.PendingEvent{pe},
-			})
+			}
+			r, err := pc.WriteEvents.Call(ctx, in)
 			if err != nil {
-				return err
+				j, _ := json.MarshalIndent(in, "", "  ")
+				fmt.Fprintln(os.Stderr, string(j))
+				// slog.ErrorContext(ctx, "error writing audio chunk", "in", string(j))
+				return fmt.Errorf("flush error")
+				// return err
 			}
 			slog.InfoContext(ctx, "recorded track audio", "r", r)
 			offset = 0
