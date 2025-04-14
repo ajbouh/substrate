@@ -38,7 +38,7 @@ func main() {
 	basePath := os.Getenv("SUBSTRATE_URL_PREFIX")
 	// ensure the path starts and ends with a slash for setting <base href>
 	baseHref := must(url.JoinPath("/", basePath, "/"))
-	slog.Info("bridge starting", "baseHref", baseHref, "SUBSTRATE_URL_PREFIX", basePath)
+	slog.Info("webrtc-events starting", "baseHref", baseHref, "SUBSTRATE_URL_PREFIX", basePath)
 
 	// eventURLPrefix := mustGetenv("SUBSTRATE_EVENT_WRITER_URL")
 	pathPrefix := mustGetenv("BRIDGE_EVENT_PATH_PREFIX")
