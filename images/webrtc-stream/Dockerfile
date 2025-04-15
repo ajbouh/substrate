@@ -12,20 +12,20 @@ COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
 RUN --mount=type=cache,target=/go/pkg \
   go mod download
 
-WORKDIR /go/src/github.com/ajbouh/substrate/images/webrtc-events/
-COPY images/webrtc-events/go.mod images/webrtc-events/go.sum ./
+WORKDIR /go/src/github.com/ajbouh/substrate/images/webrtc-stream/
+COPY images/webrtc-stream/go.mod images/webrtc-stream/go.sum ./
 RUN --mount=type=cache,target=/go/pkg \
   go mod download
 
 WORKDIR /go/src/
 COPY pkg/toolkit/. github.com/ajbouh/substrate/pkg/toolkit/
-COPY images/webrtc-events/. github.com/ajbouh/substrate/images/webrtc-events/
+COPY images/webrtc-stream/. github.com/ajbouh/substrate/images/webrtc-stream/
 
-WORKDIR /go/src/github.com/ajbouh/substrate/images/webrtc-events/
+WORKDIR /go/src/github.com/ajbouh/substrate/images/webrtc-stream/
 RUN --mount=type=cache,target=/go/pkg/mod \
   go build \
-  -o /webrtc-events ./cmd/webrtc-events \
-  && ldd /webrtc-events \
+  -o /webrtc-stream ./cmd/webrtc-stream \
+  && ldd /webrtc-stream \
   && true
 
 FROM gcr.io/distroless/static-debian12 AS dist
@@ -37,6 +37,6 @@ COPY --from=builder /lib/x86_64-linux-gnu/libopus.so.0 /lib/x86_64-linux-gnu/
 COPY --from=builder /lib/x86_64-linux-gnu/libopusfile.so.0 /lib/x86_64-linux-gnu/
 COPY --from=builder /lib/x86_64-linux-gnu/libasound.so.2 /lib/x86_64-linux-gnu/
 COPY --from=builder /lib/x86_64-linux-gnu/libogg.so.0 /lib/x86_64-linux-gnu/
-COPY --from=builder /webrtc-events ./webrtc-events
+COPY --from=builder /webrtc-stream ./webrtc-stream
 
-CMD ["/app/webrtc-events"]
+CMD ["/app/webrtc-stream"]

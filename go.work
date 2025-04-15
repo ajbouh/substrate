@@ -17,7 +17,7 @@ use (
 	./images/sys
 	./images/tool-call
 	./images/weather
-	./images/webrtc-events
+	./images/webrtc-stream
 	./pkg/cueloader
 	./pkg/duplex
 	./pkg/go-vscode

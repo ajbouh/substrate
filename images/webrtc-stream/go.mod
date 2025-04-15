@@ -1,4 +1,4 @@
-module github.com/ajbouh/substrate/images/webrtc-events
+module github.com/ajbouh/substrate/images/webrtc-stream
 
 go 1.22.2
 

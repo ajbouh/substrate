@@ -17,11 +17,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ajbouh/substrate/images/webrtc-events/calls"
-	"github.com/ajbouh/substrate/images/webrtc-events/ui"
-	"github.com/ajbouh/substrate/images/webrtc-events/webrtc/js"
-	"github.com/ajbouh/substrate/images/webrtc-events/webrtc/local"
-	"github.com/ajbouh/substrate/images/webrtc-events/webrtc/sfu"
+	"github.com/ajbouh/substrate/images/webrtc-stream/calls"
+	"github.com/ajbouh/substrate/images/webrtc-stream/ui"
+	"github.com/ajbouh/substrate/images/webrtc-stream/webrtc/js"
+	"github.com/ajbouh/substrate/images/webrtc-stream/webrtc/local"
+	"github.com/ajbouh/substrate/images/webrtc-stream/webrtc/sfu"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
@@ -38,7 +38,7 @@ func main() {
 	basePath := os.Getenv("SUBSTRATE_URL_PREFIX")
 	// ensure the path starts and ends with a slash for setting <base href>
 	baseHref := must(url.JoinPath("/", basePath, "/"))
-	slog.Info("webrtc-events starting", "baseHref", baseHref, "SUBSTRATE_URL_PREFIX", basePath)
+	slog.Info("webrtc-stream starting", "baseHref", baseHref, "SUBSTRATE_URL_PREFIX", basePath)
 
 	// eventURLPrefix := mustGetenv("SUBSTRATE_EVENT_WRITER_URL")
 	pathPrefix := mustGetenv("EVENT_PATH_PREFIX")
