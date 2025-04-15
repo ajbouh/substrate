@@ -41,9 +41,15 @@ export const blocks = async () => ({
     },
     'bridge simple transcript': {
         fields: {query: {
-            "view_criteria": {"compare": {"type": [{"compare": "=", "value": "example"}]}},
+            "view_criteria": {"compare": {"type": [{"compare": "=", "value": "transcription"}]}},
         }},
         scripts: [await fetchText(new URL('./blocks/bridge-simple-transcript.renkon.js', import.meta.url).toString())],
+    },
+    'bridge simple': {
+        fields: {query: {
+            "view_criteria": {"compare": {"type": [{"compare": "=", "value": "transcription"}]}},
+        }},
+        scripts: [await fetchText(new URL('./blocks/bridge-simple.renkon.js', import.meta.url).toString())],
     },
     'renkon pad': {
         scripts: [await fetchText(new URL('./blocks/renkon-pad-editor.renkon.js', import.meta.url).toString())],
