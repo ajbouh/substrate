@@ -1,6 +1,6 @@
 go 1.23.2
 
-toolchain go1.23.2
+toolchain go1.23.5
 
 use (
 	./images/bb
@@ -17,6 +17,7 @@ use (
 	./images/sys
 	./images/tool-call
 	./images/weather
+	./images/webrtc-stream
 	./pkg/cueloader
 	./pkg/duplex
 	./pkg/go-vscode

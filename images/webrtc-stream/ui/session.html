@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mithril/2.2.3/mithril.min.js" integrity="sha512-veJyRkYTPP9HJBUEq3oqA1uBzxGA+OiiHkcgT4Nm8Ovg9dNKSxf4mxClYVCkujcxIz+reFruwp4OPsXY10U8UA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script src="./webrtc/localmedia.js"></script>
+</head>
+<body>
+  <div id="body" class="flex flex-row bg-gray-900 text-white antialiased"></div>
+  <script type="module">
+import {Session} from "./webrtc/session.js";
+
+let webSocketURL = (() => {
+  let u = new URL(`ws://${location.host}${location.pathname}`);
+  if (window.location.protocol == "https:") {
+    u.protocol = 'wss:'
+  }
+  let urlStr = u.toString();
+  if (urlStr.endsWith("/")) {
+    urlStr = urlStr.slice(0, -1);
+  }
+  return urlStr;
+})();
+
+let micSess = null;
+let screenSess = null;
+const initSession = () => {
+  let sess = new Session(`${webSocketURL}/sfu`);
+  sess.onclose = (evt) => console.log("Websocket has closed");
+  sess.onerror = (evt) => console.log("ERROR: " + evt.data);
+  sess.ontrack = ({ streams: [stream], track }) => {
+    // no-op!
+    return
+  };
+  return sess;
+};
+
+let localMedia = null;
+const initLocalMedia = () => {
+  if (!localMedia) {
+    localMedia = new LocalMedia({
+      videoSource: false,
+      ondevicechange: () => m.redraw(),
+      onstreamchange: (stream) => {
+        if (micSess == null) {
+          micSess = initSession();
+        }
+        micSess.setStream(stream);
+      },
+    });
+  }
+  return localMedia;
+}
+
+let screenMedia = null;
+
+const shareScreen = () => {
+  if (screenMedia) {
+    screenMedia.updateStream();
+    return
+  }
+  screenMedia = new LocalMedia({
+    videoSource: 'screen',
+    // videoEnabled: false,
+    onstreamchange: (stream) => {
+      if (screenSess == null) {
+        screenSess = initSession();
+      }
+      screenSess.setStream(stream);
+    },
+  });
+};
+
+const Topbar = {
+  view: ({attrs}) => {
+    const localMedia = attrs.localMedia;
+    return m("div", {"class":"flex flex-wrap px-6 py-4","id":"topbar"},
+      [
+        m("div", {"class":"flex space-x-2","id":"mic-controls"}, [
+
+          m("select", {name:"mic", id: "mic",
+            class: "py-2 px-3 pr-9 border border-gray-600 rounded-md text-md focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-gray-400",
+            onchange: (e) => localMedia.setAudioSource(e.target.value),
+            disabled: false
+          },
+            localMedia.audioDevices.map(device => {
+              return m("option", {value: device.deviceId}, device.label)
+            })
+          ),
+
+          m("button", {name:"mic-mute", id:"mic-mute",
+            class:"p-2 border border-gray-600 rounded-md text-md focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-gray-400",
+            disabled: false,
+            onclick: () => localMedia.toggleAudio()
+          },
+            localMedia.audioEnabled ? "Mute" : "Unmute"
+          ),
+
+          m("button", {
+            class:"p-2 border border-gray-600 rounded-md text-md focus:border-blue-500 focus:ring-blue-500 bg-gray-700 text-gray-400",
+            disabled: false,
+            onclick: () => attrs.shareScreen()
+          },
+            "Send System Audio"
+          )
+
+        ])
+      ]
+    )
+  }
+}
+
+m.mount(document.querySelector("#body"), {
+  view: () => [
+    m("div", {"class":"flex flex-col h-screen grow"},
+      m(Topbar, {localMedia: initLocalMedia(), shareScreen }),
+    ),
+  ],
+});
+  </script>
+</body>
+</html>
