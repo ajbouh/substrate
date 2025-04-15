@@ -41,7 +41,7 @@ func main() {
 	slog.Info("webrtc-events starting", "baseHref", baseHref, "SUBSTRATE_URL_PREFIX", basePath)
 
 	// eventURLPrefix := mustGetenv("SUBSTRATE_EVENT_WRITER_URL")
-	pathPrefix := mustGetenv("BRIDGE_EVENT_PATH_PREFIX")
+	pathPrefix := mustGetenv("EVENT_PATH_PREFIX")
 	// queryParams := url.Values{}
 	// queryParams.Set("path_prefix", pathPrefix)
 
@@ -351,6 +351,7 @@ func (s *Streamer) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 		ctx := r.Context()
 
 		trackID := r.PathValue("trackID")
+		// FIXME use path prefix, but need to strip the leading slash
 		audioPath := "bridge/audio-events/tracks/" + trackID + "/audio"
 
 		res, err := s.QueryEvents.Call(ctx, QueryEventsInput{
