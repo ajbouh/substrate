@@ -40,13 +40,8 @@ func main() {
 	baseHref := must(url.JoinPath("/", basePath, "/"))
 	slog.Info("webrtc-stream starting", "baseHref", baseHref, "SUBSTRATE_URL_PREFIX", basePath)
 
-	// eventURLPrefix := mustGetenv("SUBSTRATE_EVENT_WRITER_URL")
 	pathPrefix := mustGetenv("EVENT_PATH_PREFIX")
-	// queryParams := url.Values{}
-	// queryParams.Set("path_prefix", pathPrefix)
-
-	// TODO do need a "session" to register with?
-	// TODO write a "track" when we get a connection
+	pathPrefix = must(url.JoinPath("/", pathPrefix, "/"))
 
 	engine.Run(
 		&service.Service{},
@@ -351,8 +346,8 @@ func (s *Streamer) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 		ctx := r.Context()
 
 		trackID := r.PathValue("trackID")
-		// FIXME use path prefix, but need to strip the leading slash
-		audioPath := "bridge/audio-events/tracks/" + trackID + "/audio"
+		audioPath := pathJoin(s.EventPathPrefix, "/tracks/"+trackID+"/audio")
+		audioPath = strings.TrimLeft(audioPath, "/")
 
 		res, err := s.QueryEvents.Call(ctx, QueryEventsInput{
 			Path: audioPath,
