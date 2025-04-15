@@ -73,7 +73,8 @@ func main() {
 			Command: "events:query",
 		},
 		&Streamer{
-			EventsURL: mustGetenv("SUBSTRATE_EVENT_COMMANDS_URL"),
+			EventsURL:       mustGetenv("SUBSTRATE_EVENT_COMMANDS_URL"),
+			EventPathPrefix: pathPrefix,
 		},
 		RequestBodyLogger{},
 	)
@@ -210,7 +211,7 @@ func (pc *PeerComponent) Serve(ctx context.Context) {
 		var timestamps []uint32
 		var offsets []int
 		var sizes []int
-		var buffer [1 << 10]byte
+		var buffer [4 << 10]byte
 		offset := 0
 		// should this path have timestamp or something to be unique
 		// could override id to be "path"
