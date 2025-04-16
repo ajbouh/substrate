@@ -36,7 +36,7 @@ func eventFieldNameJSONB(name string) db.Expr {
 	return SQL(renderFieldName(name, true))
 }
 
-func prepareCriteria(ctx context.Context, s *db.SelectExpr, vmr VectorManifoldResolver, defaultOrderByIfBias string, q *event.Criteria) (*db.SelectExpr, error) {
+func prepareCriteria(ctx context.Context, s *db.SelectExpr, vmr VectorManifoldResolver, defaultOrderByIfBias string, q event.Criteria) (*db.SelectExpr, error) {
 	for field, wheres := range q.WhereCompare {
 		fieldName := eventFieldNameJSONB(field)
 		for _, where := range wheres {
@@ -101,7 +101,7 @@ func prepareCriteria(ctx context.Context, s *db.SelectExpr, vmr VectorManifoldRe
 	return s, nil
 }
 
-func prepareBasis(ctx context.Context, vmr VectorManifoldResolver, q *event.Criteria) (db.Expr, error) {
+func prepareBasis(ctx context.Context, vmr VectorManifoldResolver, q event.Criteria) (db.Expr, error) {
 	s := From(
 		SQL(eventsTable),
 	).Select(
