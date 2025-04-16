@@ -48,19 +48,19 @@ type Criteria struct {
 	Bias  *int `json:"bias,omitempty"`  // -1 if we want the earliest "Limit"-amount, 1 if we want the most recent "Limit"-amount, 0 if we want a comprehensive window of "Limit"-amount
 }
 
-func NewCriteria() *Criteria {
-	return &Criteria{
+func NewCriteria() Criteria {
+	return Criteria{
 		WherePrefix:  map[string][]WherePrefix{},
 		WhereCompare: map[string][]WhereCompare{},
 	}
 }
 
-func (c *Criteria) WithLimit(i int) *Criteria {
+func (c Criteria) WithLimit(i int) Criteria {
 	c.Limit = &i
 	return c
 }
 
-func (c *Criteria) AndWhere(field string, ws ...Where) *Criteria {
+func (c Criteria) AndWhere(field string, ws ...Where) Criteria {
 	for _, w := range ws {
 		switch o := w.(type) {
 		case *WhereCompare:
@@ -80,11 +80,7 @@ func (c *Criteria) AndWhere(field string, ws ...Where) *Criteria {
 	return c
 }
 
-func (c *Criteria) Clone() *Criteria {
-	if c == nil {
-		return nil
-	}
-
+func (c Criteria) Clone() Criteria {
 	whereCompare := map[string][]WhereCompare{}
 	for k, v := range c.WhereCompare {
 		whereCompare[k] = slices.Clone(v)
@@ -93,7 +89,7 @@ func (c *Criteria) Clone() *Criteria {
 	for k, v := range c.WherePrefix {
 		wherePrefix[k] = slices.Clone(v)
 	}
-	return &Criteria{
+	return Criteria{
 		WherePrefix:  wherePrefix,
 		WhereCompare: whereCompare,
 		Limit:        clonePtr(c.Limit),
@@ -104,10 +100,10 @@ func (c *Criteria) Clone() *Criteria {
 
 // criteria to query events from the store.
 type Query struct {
-	BasisCriteria *Criteria `json:"basis_criteria,omitempty"`
+	BasisCriteria Criteria `json:"basis_criteria,omitempty"`
 
 	View             View           `json:"view,omitempty"`
-	ViewCriteria     *Criteria      `json:"view_criteria,omitempty"`
+	ViewCriteria     Criteria       `json:"view_criteria,omitempty"`
 	ViewPlaceholders map[string]any `json:"view_parameter,omitempty"`
 
 	DetectMore bool `json:"detect_more,omitempty"`
