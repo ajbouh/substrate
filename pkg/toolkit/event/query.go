@@ -4,17 +4,12 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 )
 
 type Where interface {
 	Where()
 }
-
-type WherePrefix struct {
-	Prefix string `json:"prefix"`
-}
-
-func (*WherePrefix) Where() {}
 
 type WhereCompare struct {
 	Compare string `json:"compare"`
@@ -40,8 +35,7 @@ func (v View) StreamShouldAutoAdvanceAfter() bool {
 }
 
 type Criteria struct {
-	WherePrefix  map[string][]WherePrefix  `json:"prefix,omitempty"`
-	WhereCompare map[string][]WhereCompare `json:"compare,omitempty"`
+	WhereCompare map[string][]WhereCompare `json:"where,omitempty"`
 	Near         *VectorInput[float32]     `json:"near,omitempty"`
 
 	Limit *int `json:"limit,omitempty"` // max number of underlying events, if set
@@ -50,7 +44,6 @@ type Criteria struct {
 
 func NewCriteria() Criteria {
 	return Criteria{
-		WherePrefix:  map[string][]WherePrefix{},
 		WhereCompare: map[string][]WhereCompare{},
 	}
 }
@@ -68,11 +61,6 @@ func (c Criteria) AndWhere(field string, ws ...Where) Criteria {
 				c.WhereCompare = map[string][]WhereCompare{}
 			}
 			c.WhereCompare[field] = append(c.WhereCompare[field], *o)
-		case *WherePrefix:
-			if c.WherePrefix == nil {
-				c.WherePrefix = map[string][]WherePrefix{}
-			}
-			c.WherePrefix[field] = append(c.WherePrefix[field], *o)
 		default:
 			panic(fmt.Sprintf("unknown where expression %T: %#v", w, w))
 		}
@@ -85,12 +73,7 @@ func (c Criteria) Clone() Criteria {
 	for k, v := range c.WhereCompare {
 		whereCompare[k] = slices.Clone(v)
 	}
-	wherePrefix := map[string][]WherePrefix{}
-	for k, v := range c.WherePrefix {
-		wherePrefix[k] = slices.Clone(v)
-	}
 	return Criteria{
-		WherePrefix:  wherePrefix,
 		WhereCompare: whereCompare,
 		Limit:        clonePtr(c.Limit),
 		Bias:         clonePtr(c.Bias),
@@ -206,14 +189,27 @@ func QueryLatestByPath(path string) *Query {
 		AndBasisWhere("path", &WhereCompare{Compare: "=", Value: path})
 }
 
+func escapeLikePattern(s string) string {
+	return strings.ReplaceAll(
+		strings.ReplaceAll(
+			strings.ReplaceAll(s,
+				`\`, `\\`),
+			`%`, `\%`),
+		`_`, `\_`)
+}
+
+func WherePrefix(prefix string) *WhereCompare {
+	return &WhereCompare{Compare: "like", Value: escapeLikePattern(prefix) + "%"}
+}
+
 func QueryLatestByPathPrefix(pathPrefix string) *Query {
 	return NewQuery(ViewGroupByPathMaxID).
-		AndBasisWhere("path", &WherePrefix{Prefix: pathPrefix})
+		AndBasisWhere("path", WherePrefix(pathPrefix))
 }
 
 func QueryLatestPathDirEntriesByPathPrefix(pathPrefix string) *Query {
 	return NewQuery(ViewPathDirEntriesMaxID).
-		AndBasisWhere("path", &WherePrefix{Prefix: pathPrefix}).
+		AndBasisWhere("path", WherePrefix(pathPrefix)).
 		WithViewPlaceholder("path", pathPrefix)
 }
 

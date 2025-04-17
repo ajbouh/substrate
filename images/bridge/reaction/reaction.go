@@ -34,7 +34,7 @@ func (r *Reactor) Rule(name, inPath string) CommandRuleInput {
 		Conditions: []*event.Query{
 			{
 				BasisCriteria: event.NewCriteria().AndWhere("path",
-					&event.WherePrefix{Prefix: r.EventPathPrefix + inPath},
+					event.WherePrefix(r.EventPathPrefix+inPath),
 				),
 			},
 		},

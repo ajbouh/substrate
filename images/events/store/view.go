@@ -43,12 +43,6 @@ func prepareCriteria(ctx context.Context, s *db.SelectExpr, vmr VectorManifoldRe
 			s.AndWhere(SQL(fieldName, where.Compare, V(where.Value)))
 		}
 	}
-	for field, wheres := range q.WherePrefix {
-		fieldName := eventFieldNameJSONB(field)
-		for _, where := range wheres {
-			s.AndWhere(SQL(fieldName, "LIKE", V(where.Prefix+"%")))
-		}
-	}
 
 	if q.Near != nil {
 		vm, err := vmr.ResolveVectorManifold(ctx, q.Near.ManifoldID)

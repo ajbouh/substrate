@@ -44,7 +44,7 @@ func eventQueryFromURLQuery(uq url.Values) (*event.Query, error) {
 	}
 
 	if uq.Has("path_prefix") {
-		q.AndBasisWhere("path", &event.WherePrefix{Prefix: uq.Get("path_prefix")})
+		q.AndBasisWhere("path", event.WherePrefix(uq.Get("path_prefix")))
 	}
 
 	if uq.Has("type") {

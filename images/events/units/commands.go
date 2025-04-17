@@ -559,7 +559,7 @@ var QueryEventsCommand = handle.Command(
 		sq.ViewCriteria.Bias = args.Bias
 
 		if args.PathPrefix != nil {
-			sq.AndBasisWhere("path", &event.WherePrefix{Prefix: "/" + *args.PathPrefix})
+			sq.AndBasisWhere("path", event.WherePrefix("/"+*args.PathPrefix))
 		}
 
 		if args.Path != nil {
@@ -567,7 +567,7 @@ var QueryEventsCommand = handle.Command(
 		}
 
 		if args.TypePrefix != nil {
-			sq.AndViewWhere("type", &event.WherePrefix{Prefix: *args.TypePrefix})
+			sq.AndViewWhere("type", event.WherePrefix(*args.TypePrefix))
 		}
 
 		if args.Type != nil {
