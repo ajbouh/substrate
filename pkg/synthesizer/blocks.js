@@ -98,6 +98,14 @@ export const blocks = async () => ({
         }},
         scripts: [await fetchText(new URL('./blocks/bridge-simple-transcript.renkon.js', import.meta.url).toString())],
     },
+    'transcript': {
+        fields: {query: {
+            basis_criteria: {
+                prefix: { path: [{ prefix: "/bridge/demo/" }] }
+            },
+        }},
+        scripts: [await fetchText(new URL("./blocks/transcript.renkon.js", import.meta.url).toString())],
+    },
     'msgindex viewer': {
         scripts: [await fetchText(new URL('./blocks/msgindex-viewer.renkon.js', import.meta.url).toString())],
     },
