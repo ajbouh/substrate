@@ -2,7 +2,7 @@
 
 Events.send(ready, true);
 
-const records = Behaviors.collect([], recordsUpdated, (now, {incremental, records}) => incremental ? [...now, ...records] : records);
+const records = Behaviors.collect([], recordsUpdated, (now, {records: {incremental, records}}) => incremental ? [...now, ...records] : records);
 
 const renkonPadLoadRecord = records[0];
 

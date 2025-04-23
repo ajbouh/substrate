@@ -1,50 +1,34 @@
-// const windowMessages = Events.observe(notify => {
-//     const listener = (evt) => notify(evt)
-//     window.addEventListener("message", listener)
-//     return () => window.removeEventListener("message", listener)
-// }, {queued: true});
-
-// const panelEvents = Events.some(
-//     windowMessages,
-//     panelBlockScriptsUpdates,
-//     panelBlockRecordsUpdates,
-//     panelBlockConfigUpdates,
-// )
-
-// component({
-//     key,
-//     style: `...`,
-//     notifiers: {
-//         panelWrite: (key, v) => Events.send(panelWrite, {...v, key}),
-//         recordsWrite: (key, records) => Events.send(recordsWrite, records),
-//     },
-//     h,
-//     events: panelEvents,
-// }, key);
-
-
-export function component(
+export function component({
     key,
     style,
+    scripts,
     events,
     notifiers,
-) {
+    defineExtraEvents,
+    eventsReceivers,
+    eventsReceiversQueued,
+}) {
     const encodeURIComponents = (components) => Object.entries(components).flatMap(([k, v]) => (Array.isArray(v) ? v : [v]).map(v => `${k}=${encodeURIComponent(v)}`)).join("&")
-    const iframeURL = `block.html?${encodeURIComponents({
+    const iframeURLParameters = {
         initjson: JSON.stringify({type: 'block-init', key}),
         emitjson: JSON.stringify({type: 'block-emit', key}),
-        "Events.receiver": ["ready", "recordsUpdated", "recordsWrite", "panelWrite", "msgindexUpdated"],
-        "Events.queuedReceiver": ["close", "recordsQuery"],
-        "output": ["ready", "focused", "close", "recordsQuery", "panelWrite", "recordsWrite"],
-    })}`;
+        "Events.receiver": ["ready", ...eventsReceivers],
+        "Events.queuedReceiver": [...eventsReceiversQueued],
+        "output": [
+            "ready",
+            ...Object.keys(notifiers),
+        ]
+    }
+    // console.log(key, {iframeURLParameters});
+    const iframeURL = `block.html?${encodeURIComponents(iframeURLParameters)}`;
 
+    // console.log(key, {events});
     const [
         windowMessages,
-        scriptsUpdated,
-        recordsUpdated,
-        msgindexUpdated,
+        keys,
     ] = events
-    // console.log(key, {events});
+
+    const extraEvents = events.slice(2)
 
     const windowMessagesEvent = Events.change(windowMessages);
 
@@ -83,7 +67,7 @@ export function component(
                 
                 for (const k in nodes) {
                     if (k === 'ready') {
-                        ready = true
+                        ready = ready === undefined ? 1 : (ready + 1)
                     }
                     const v = nodes[k]
                     if (v) {
@@ -100,36 +84,45 @@ export function component(
         },
     );
 
-    const recordsChanged = Events.collect(
+    const scripts0 = Behaviors.collect(
         undefined,
-        Events.change(recordsUpdated), (now, recordsUpdated) => recordsUpdated?.[key]);
+        scripts, (now, scriptsUpdated) => scriptsUpdated?.[key] ?? now);
 
-    const scriptsChanged = Events.collect(
-        undefined,
-        Events.change(scriptsUpdated), (now, scriptsUpdated) => scriptsUpdated?.[key]);
-
+    const extraEventsChanged = Events.collect(
+        [],
+        Events.change(extraEvents), (now, extraEvents) => {
+            let deltas = 0
+            const next = extraEvents
+                .map((v, i) => defineExtraEvents[i]?.keyed ? v?.[key] : v)
+                .map((v, i) => now[i] === v ? undefined : (deltas++, v));
+            return deltas > 0 ? next : now
+        },
+    );
+    // console.log(key, {extraEventsChanged})
+        
     const message = Events.collect(
         {
             port: undefined,
             scripts: undefined,
             sentInitial: false,
             ready: false,
-            recordsUpdated: undefined,
-            msgindexUpdated: undefined,
+            extraEvents: {},
             pendingMessage: undefined,
         },
-        Events.some(Events.change(port), ready, scriptsChanged, recordsChanged, Events.change(msgindexUpdated)),
-            (now, [portChanged, nowReady, scriptsChanged, recordsUpdated, msgindexUpdated]) => {
-
+        Events.some(Events.change(port), ready, Events.change(scripts0), extraEventsChanged),
+            (now, [portChanged, nowReady, scriptsChanged, extraEventsChanged]) => {
+                // console.log(key, {now, portChanged, nowReady, scriptsChanged, extraEventsChanged})
                 const next = {
                     ...now,
                     pendingMessage: undefined,
                 }
-                if (portChanged) {
-                    next.port = portChanged
-                }
                 if (nowReady) {
                     next.ready = true
+                }
+                if (portChanged) {
+                    next.port = portChanged
+                    next.ready = false
+                    next.sentInitial = false
                 }
                 if (scriptsChanged) {
                     const {scripts, baseURI} = scriptsChanged
@@ -138,37 +131,41 @@ export function component(
                     next.ready = false
                     next.sentInitial = false
                 }
-                if (recordsUpdated) {
-                    next.recordsUpdated = recordsUpdated
-                }
-                if (msgindexUpdated) {
-                    next.msgindexUpdated = msgindexUpdated
+                if (extraEventsChanged) {
+                    extraEventsChanged.forEach((v, i) => {
+                        if (v !== undefined) {
+                            next.extraEvents[defineExtraEvents[i].name] = v
+                        }
+                    })
                 }
                 // if we're not ready then we can send scripts, baseURI
                 if (!next.ready) {
                     if (!next.sentInitial && next.port && next.scripts) {
-                        const initialMessage = {scripts: next.scripts, baseURI: next.baseURI, reset: true}
+                        const initialMessage = {scripts: next.scripts, baseURI: next.baseURI, reload: true}
                         // console.log(key, "sending setup initialMessage", initialMessage)
                         next.port.postMessage(initialMessage)
                         next.sentInitial = true
+                    } else {
+                        // console.log(key, "NOT sending setup initialMessage", {next})
                     }
                 }
 
                 // either keep building up our pending message or make a new one
                 const message = now.pendingMessage || {registerEvents: {}}
-                let injectRecords = portChanged || scriptsChanged || recordsUpdated;
-                let injectMsgindex = portChanged || scriptsChanged || msgindexUpdated;
-
-                if (injectRecords && next.recordsUpdated) {
-                    message.registerEvents.recordsUpdated = next.recordsUpdated
+                let injectedEventKeys
+                if (portChanged || scriptsChanged) {
+                    injectedEventKeys = Object.keys(next.extraEvents)
+                } else {
+                    injectedEventKeys = extraEventsChanged.flatMap((v, i) => v !== undefined ? [defineExtraEvents[i].name] : [])
                 }
+                // console.log(key, {injectedEventKeys})
 
-                if (injectMsgindex && next.msgindexUpdated) {
-                    message.registerEvents.msgindexUpdated = next.msgindexUpdated
+                for (const key of injectedEventKeys) {
+                    message.registerEvents[key] = next.extraEvents[key]
                 }
 
                 // send our message if we can.
-                if (next.port && next.ready) {
+                if (next.port && next.ready && Object.keys(message.registerEvents).length > 0) {
                     // console.log(key, "sending message", message)
                     next.port.postMessage(message)
                 } else {
@@ -186,7 +183,9 @@ export function component(
         src: iframeURL,
     };
 
-    return [
+    // console.log(key, {iframeProps})
+
+    return {
         iframeProps,
-    ]
+    }
 }

@@ -569,6 +569,7 @@ limitations under the License.
                 evt.stopPropagation();
             }
         }
+        evt.preventDefault();
         return evt;
     });
 

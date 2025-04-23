@@ -291,9 +291,9 @@ func main() {
 		httpevents.NewJSONSubscription(
 			"POST",
 			mustGetenv("SUBSTRATE_EVENT_STREAM_URL"),
-			event.QueryLatestByPathPrefix("/substrate/services/exports"),
+			&event.QuerySet{"events": *event.QueryLatestByPathPrefix("/substrate/services/exports")},
 			notify.On(func(ctx context.Context, e event.Notification, t *struct{}) {
-				exports, err := event.Unmarshal[provisioner.Fields](e.Events, true)
+				exports, err := event.Unmarshal[provisioner.Fields](e.Updates["events"].Events, true)
 				if err != nil {
 					slog.Info("error decoding event as provisioner.Fields", "err", err)
 					return

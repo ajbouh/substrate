@@ -1,7 +1,7 @@
 // media-viewer
 
 const modules = Behaviors.resolvePart({
-    preact: import("../preact.standalone.module.js"),
+    preact: import("./preact.standalone.module.js"),
 });
 const {h, html, render} = modules.preact
 
@@ -30,7 +30,7 @@ const viewerForRecord = record => {
     }
 }
 
-const records = Behaviors.collect([], recordsUpdated, (now, {incremental, records}) => incremental ? [...now, ...records] : records);
+const records = Behaviors.collect([], recordsUpdated, (now, {records: {incremental, records}}) => incremental ? [...now, ...records] : records);
 
 render(
     h('div', {

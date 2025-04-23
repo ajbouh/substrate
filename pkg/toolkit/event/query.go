@@ -92,6 +92,8 @@ type Query struct {
 	DetectMore bool `json:"detect_more,omitempty"`
 }
 
+type QuerySet map[string]Query
+
 func (q *Query) Until(id ID) *Query {
 	q.BasisCriteria.AndWhere("id", &WhereCompare{Compare: "<=", Value: id.String()})
 	return q

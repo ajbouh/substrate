@@ -2,19 +2,33 @@
 <html>
     <head>
         <meta charset="utf-8">
+        <style>
+            /* don't let scrolls become swipe navigation */
+            :root {
+                overscroll-behavior: contain;
+            }
+        </style>
     </head>
-    <body>
-        <div id="renkon">
-            <script type="reactive">
-                const {synthesizer} = import("./synthesizer.js");
-                Renkon.merge(synthesizer);
-            </script>
-        </div>
+    <body style="margin: 0; width: 100vw; height: 100vh; overscroll-behavior: contain;">
         <script type="module">
             import {view, CodeMirror, ProgramState, newInspector} from "./renkon-web.js";
+            import {surfaceBlockBootstrap} from "./blocks.js";
+
             window.CodeMirror = CodeMirror;
             window.ProgramState = ProgramState;
-            view({app: {newInspector, transferSymbol: Symbol("transfer")}, hideEditor: true});
+            const ps = new ProgramState(0, {
+                newInspector,
+                transferSymbol: Symbol("transfer"),
+            });
+            window.programState = ps;
+
+            surfaceBlockBootstrap().then((block) => {
+                // This is like Renkon.merge, but works with text
+                ps.setupProgram([...ps.scripts, ...block.scripts]);
+                if (!ps.evaluatorRunning) {
+                    ps.evaluator();
+                }
+            });
         </script>
     </body>
 </html>

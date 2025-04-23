@@ -4,8 +4,34 @@ const bootstrapModules = Behaviors.resolvePart({
     padExtenions: import("./blocks/renkon-pad/pad-extensions.js"),
 });
 
-// it would be better if we could load these simultaneously, but renkon-pad doesn't export "getFunctionBody", so we can't
-// use setupProgram directly and Renkon.merge only accepts one function. A consequence of this is the editor initially thinks
-// there is no data to load and shows the "default program".
-Renkon.merge(bootstrapModules.pad.pad);
-Renkon.merge(bootstrapModules.padExtenions.extensions);
+const bootstrapInit = Events.once(bootstrapModules);
+
+(() => {
+    Events.send(ready, true);
+})(bootstrapInit);
+
+const synthRecords = Behaviors.collect(undefined, recordsUpdated, (now, {records: {incremental, records}}) => incremental ? [...now, ...records] : records);
+const synthRecord = synthRecords[0] ?? false
+
+const synthRecordDataChanged = Events.select(
+    undefined,
+    synthRecord, (now, record) => {
+        if (record?.data_url) {
+            return fetch(record.data_url).then(r => r.text())
+        }
+        return "{}"
+    },
+);
+const synthRecordData = Behaviors.keep(synthRecordDataChanged);
+const synthRecordDataInit = Behaviors.collect(undefined, synthRecordDataChanged, (now, _) => now === undefined);
+
+// Only load renkon-pad once, after we have our first data.
+((init) => {
+    if (!init) {
+        return
+    }
+    Renkon.merge(
+        bootstrapModules.pad.pad,
+        bootstrapModules.padExtenions.extensions,
+    );
+})(synthRecordDataInit);

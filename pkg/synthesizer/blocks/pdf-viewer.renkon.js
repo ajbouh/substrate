@@ -4,9 +4,12 @@ const modules = Behaviors.resolvePart({
     pdfjsLib: import("./blocks/pdfjs/pdf.min.mjs").then(pdf => (pdf.GlobalWorkerOptions.workerSrc = "./pdf.worker.min.mjs", pdf)),
 });
 
-Events.send(ready, true);
+const init = Events.once(modules);
+((init) => {
+    Events.send(ready, true);
+})(init);
 
-const records = Behaviors.collect([], recordsUpdated, (now, {incremental, records}) => incremental ? [...now, ...records] : records);
+const records = Behaviors.collect([], recordsUpdated, (now, {records: {incremental, records}}) => incremental ? [...now, ...records] : records);
 
 const recordDataURL = Behaviors.select(
     undefined,
@@ -17,8 +20,6 @@ const recordDataURL = Behaviors.select(
         return undefined
     },
 );
-
-const init = "init"
 
 // Create a canvas element dynamically
 const canvas = (() => {
@@ -33,15 +34,17 @@ const canvas = (() => {
     document.body.style.height = '100vh';
     document.body.style.placeItems = 'center';
     return canvas
-})(Events.once(init));
+})();
 
 
 // Get the 2D rendering context
 const ctx = canvas.getContext('2d');
 
 const pdf = modules.pdfjsLib.getDocument(recordDataURL).promise;
+const numPages = pdf.numPages;
+
 const pageNumber = 1;
-const scale = 1.5;
+const scale = 1;
 
 const page = pdf.getPage(pageNumber);
 const viewport = page.getViewport({ scale: scale });

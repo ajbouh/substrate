@@ -1,12 +1,12 @@
 // record-browser
 // group these together so we can delay init until they are all loaded and available.
 const modules = Behaviors.resolvePart({
-    preact: import("../preact.standalone.module.js"),
-    blocks: import("../blocks.js"),
-    blockComponent: import("../block.renkon.component.js"),
+    preact: import("./preact.standalone.module.js"),
+    blocks: import("./blocks.js"),
+    blockComponent: import("./block.renkon.component.js"),
 });
 const {
-    blockNameForRecord,
+    plumbingForRecord,
     plumbing,
     blocks,
 } = modules.blocks
@@ -27,7 +27,9 @@ const {h, html, render} = modules.preact
 
 const blockComponent = Renkon.component(modules.blockComponent.component)
 
-const records = Behaviors.collect([], recordsUpdated, (now, {incremental, records}) => incremental ? [...now, ...records] : records);
+// todo accept all incoming records, show them all grouped by other information
+
+const records = Behaviors.collect(undefined, recordsUpdated, (now, {records: {incremental, records}}) => incremental ? [...now, ...records] : records);
 
 const recordBlockKey = record => record.id // TODO make this 
 const blockRecords = Object.groupBy(records, recordBlockKey)
@@ -35,7 +37,7 @@ const blockRecords = Object.groupBy(records, recordBlockKey)
 // console.log({recordsUpdated});
 const blockKeys = Behaviors.select(
     {set: new Set()},
-    recordsUpdated, (now, {incremental, records}) => {
+    recordsUpdated, (now, {records: {incremental, records}}) => {
         // console.log("{incremental, records}", {incremental, records})
         let set = now.set
         let size = set.size
@@ -54,44 +56,33 @@ const blockKeys = Behaviors.select(
 
 const blockRecordsEvent = Events.select(
     undefined,
-    recordsUpdated, (now, {incremental, records}) => {
+    recordsUpdated, (now, {records: {incremental, records}}) => {
         const o = Object.groupBy(records, recordBlockKey)
-        const entries = Array.from(Object.entries(o), ([k, v]) => [k, {incremental, records: v}]);
+        const entries = Array.from(Object.entries(o), ([k, v]) => [k, {records: {incremental, records: v}}]);
         return Object.fromEntries(entries)
     });
-// console.log({blockRecordsEvent})
+console.log({blockRecordsEvent})
 
 const mapObject = (o, f) => Object.fromEntries(Object.entries(o).map(f))
 
 const blockTypeUpdates = Events.select(
     undefined,
     blockRecordsEvent, (now, updates) => {
-        return mapObject(updates, ([key, {records: [record]}]) => [key, blockNameForRecord(plumbing, record, 'view') || 'record inspector'])
+        return mapObject(updates, ([key, {records: {records: [record]}}]) => [key, plumbingForRecord(plumbing, record, 'view')?.block || 'record inspector'])
     });
 // console.log({blockTypeUpdates})
 
-const blockScriptsUpdates = Events.select(
+const blockScriptsUpdates = Behaviors.select(
     undefined,
     blockTypeUpdates, (now, updates) => {
         return mapObject(updates, ([key, type]) => ([key, blockDefs[type]]))
     });
 // console.log({blockScriptsUpdates});
 
-// const blockScripts = Object.fromEntries(blockTypes.entries().map(([k, v]) => [k, blockDefs[v]]))
-
-const windowMessages = Events.observe(notify => {
-    const listener = (evt) => notify(evt)
-    window.addEventListener("message", listener)
-    return () => window.removeEventListener("message", listener)
-}, {queued: true});
+const windowMessages = Events.listener(window, "message", evt => evt, {queued: true});
 // console.log({windowMessages});
 
-const blockEvents = Events.some(windowMessages, blockScriptsUpdates, blockRecordsEvent, msgindexUpdated);
-// console.log({blockEvents});
-// console.log({init});
-// console.log({windowMessages});
-// console.log({blockRecordsUpdates});
-// console.log({blockRecords});
+const blockEvents = Events.some(windowMessages, Events.change(blockKeys), blockRecordsEvent);
 
 const blockComponents = Array.from(blockKeys.set, key => ({
     key,
@@ -103,11 +94,16 @@ const blockComponents = Array.from(blockKeys.set, key => ({
             width: 100%;
             height: calc(100% - 1.5em);
         `,
+        scripts: blockScriptsUpdates,
+        defineExtraEvents: [
+            {name: "recordsUpdated", keyed: true},
+        ],
+        eventsReceivers: ["recordsUpdated", "panelWrite"],
+        eventsReceiversQueued: ["close", "recordsQuery"],
         notifiers: {},
         events: blockEvents,
     }, key).iframeProps
 }))
-console.log({blockComponents})
 
 render(
     h('div', {

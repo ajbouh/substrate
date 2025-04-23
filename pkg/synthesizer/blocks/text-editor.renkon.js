@@ -9,7 +9,9 @@ const init = Events.once(modules);
     Events.send(ready, true);
 })(init);
 
-const synthRecords = Behaviors.collect([], recordsUpdated, (now, {incremental, records}) => incremental ? [...now, ...records] : records);
+console.log("text-editor", {recordsUpdated})
+const synthRecords = Behaviors.collect([], recordsUpdated, (now, {records: {incremental, records}}) => incremental ? [...now, ...records] : records);
+console.log({synthRecords});
 const synthRecord = synthRecords[0] ?? false
 const synthRecordData = Events.select(
     undefined,

@@ -14,7 +14,7 @@ const init = Events.once(modules);
 const records = Behaviors.collect(
   [],
   recordsUpdated,
-  (now, { incremental, records }) =>
+  (now, {records: {incremental, records}}) =>
     incremental ? [...now, ...records] : records
 );
 
@@ -50,11 +50,11 @@ const pageLoad = Behaviors.keep(Events.once(new Date()));
 const session = Behaviors.collect(
   undefined,
   recordsUpdated,
-  (now, { incremental, records }) => {
+  (now, {records: {incremental, records}}) => {
     return records.reduce(
       (acc, e) => {
         if (e.fields.deleted) return acc;
-        if (!e.fields.path.endsWith("/session")) return acc;
+        if (!e?.fields?.path?.endsWith("/session")) return acc;
         return e;
       },
       incremental ? now : undefined
@@ -69,10 +69,10 @@ console.log({ sessionStart });
 const transcript = Behaviors.collect(
   [],
   recordsUpdated,
-  (now, { incremental, records }) => {
+  (now, {records: {incremental, records}}) => {
     const t = records.flatMap((evt) => {
       if (evt.fields.deleted) return [];
-      if (!evt.fields.path.endsWith("/transcription/segmented")) return [];
+      if (!evt.fields?.path?.endsWith("/transcription/segmented")) return [];
       return [evt];
     });
     return incremental ? [...now, ...t] : t;
@@ -81,7 +81,7 @@ const transcript = Behaviors.collect(
 console.log({ transcript });
 
 const keyedBy = (keyFn, updateFn) => {
-  return (now, { incremental, records }) => {
+  return (now, {records: {incremental, records}}) => {
     const updates = records.reduce((map, item) => {
       // TODO remove entries for deleted items
       if (item.fields.deleted) return map;
@@ -137,7 +137,7 @@ const findByLink = (e, linkName, predicate) => {
 };
 
 function hasPath(e, path) {
-  return e.fields.path.endsWith(path);
+  return e.fields?.path?.endsWith(path);
 }
 
 const findSegmentedSource = (e) =>

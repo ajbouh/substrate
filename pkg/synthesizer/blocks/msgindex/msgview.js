@@ -86,6 +86,60 @@ export function dom({h, html, md, jsonpointer}) {
         const description = msg?.description
 
         return h('div', {style}, [
+            h('style', {}, `
+                .fieldDescription > .field {
+                    padding: 1em;
+                    border-radius: 0.2em;
+                    border: 1px #ccc solid;
+                }
+                .field {
+                    border-bottom: 1px #ccc solid;
+                    border-collapse: collapse;
+                    margin-top: 1ex;
+                    padding-bottom: 1ex;
+                }
+                .fieldName {
+                    font-weight: 700;
+                    color: #111;
+                    font-family: monospace;
+                }
+                .fieldType {
+                    font-weight: 200;
+                    color: #777;
+                    margin-left: 1ex;
+                    font-size: 0.9em;
+                }
+                .fieldDescription {
+                    color: #555;
+                    padding-top: 1ex;
+                    padding-bottom: 1ex;
+                }
+                .fieldRequired {
+                    font-weight: 700;
+                    color: #f95;
+                    margin-left: 1ex;
+                    font-size: 0.9em;
+                }
+                .example {
+                    background: #fcfcfc;
+                    border-radius: 0.25em;
+                    border: 1px solid #ccc;
+                }
+                .example .name {
+                    background: #ddd;
+                    color: #444;
+                    font-weight: 700;
+                    padding-left: 1em;
+                    padding-top: 0.25em;
+                    padding-bottom: 0.25em;
+                }
+                .example code {
+                    padding: 1em;
+                    display: block;
+                    color: #333;
+                }
+                
+            `),
             h('h2', {class: 'name'}, msgname),
             description ? h('div', {class: 'description'}, html([md.render(description)])) : '',
             examples ? h('div', {}, [

@@ -92,15 +92,21 @@ type Writer interface {
 }
 
 type Streamer interface {
-	StreamEvents(ctx context.Context, q *Query) (Stream, error)
+	StreamEvents(ctx context.Context, q QuerySet) (Stream, error)
+}
+
+type Update struct {
+	Events      []Event `json:"events"`
+	Incremental bool    `json:"incremental"`
 }
 
 type Notification struct {
-	Until       ID      `json:"until"`
-	MaxID       ID      `json:"max"`
-	Events      []Event `json:"events"`
-	Error       error   `json:"-"`
-	Incremental bool    `json:"incremental"`
+	Until ID `json:"until"`
+	MaxID ID `json:"max"`
+
+	Updates map[string]Update `json:"updates"`
+
+	Error error `json:"-"`
 }
 
 type Stream interface {

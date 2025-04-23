@@ -98,6 +98,15 @@
                 console.log("reloading...")
                 document.location.href = document.location.href
             }
+
+            if (reset && ps) {
+                console.log("reset...")
+                stopProgramStateEvaluator(ps)
+                ps.updateProgram([])
+                ps.evaluate(+new Date())
+                ps = undefined
+            }
+
             if (reset || clear) {
                 let root = document.body
                 while (root.firstChild) {
@@ -106,16 +115,12 @@
                 document.body.setAttribute('style', 'margin: 0; height: 100vh;')
                 document.head.querySelector('base').removeAttribute('href')
             }
+
             if (baseURI) {
                 document.head.querySelector('base').setAttribute('href', baseURI)
             }
-            if (reset || !ps) {
-                if (ps) {
-                    console.log("reset...")
-                    stopProgramStateEvaluator(ps)
-                    ps.updateProgram([])
-                    ps.evaluate(+new Date())
-                }
+
+            if (!ps) {
                 ps = createProgramState()
                 ps.setupProgram(persistentScripts, baseURI)
                 ps.evaluate(0)

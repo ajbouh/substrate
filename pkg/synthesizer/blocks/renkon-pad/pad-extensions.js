@@ -1,22 +1,5 @@
 // we can't put this directly in renkon-pad-editor because it will create confusing warnings about missing definitions until pad.js is loaded.
 export function extensions() {
-    // rely on init in pad.js
-    ((init) => {
-        Events.send(ready, true);
-    })(init);
-
-    const synthRecords = Behaviors.collect([], recordsUpdated, (now, {incremental, records}) => incremental ? [...now, ...records] : records);
-    const synthRecord = synthRecords[0] ?? false
-    const synthRecordData = Events.select(
-        undefined,
-        Events.change(synthRecord), (now, record) => {
-            if (record?.data_url) {
-                return fetch(record.data_url).then(r => r.text())
-            }
-            return "{}"
-        },
-    );
-    
     const synthWriteRequest = Events.receiver();
     const padButtonWrite = h('button', {class: "menuButton", onclick: () => Events.send(synthWriteRequest, Date.now())}, 'write');
     
@@ -47,7 +30,7 @@ export function extensions() {
         } catch (e) {
             console.error(e)
         }
-    })(synthRecordData);
+    })(synthRecordData, Events.or(Events.once(init), Events.change(synthRecordData)));
 
     const synthSaveRequest = (() => synthSaveData(synthSnapshotter()))(synthWriteRequest);
 
