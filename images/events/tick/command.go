@@ -79,12 +79,14 @@ func (s *CommandStrategy) Do(ctx context.Context, input CommandRuleInput, gather
 	}
 
 	data := commands.Fields{
-		"parameters": commands.Fields{
-			"rule": commands.Fields{
-				"path":       input.Path,
-				"conditions": input.Conditions,
+		"data": commands.Fields{
+			"parameters": commands.Fields{
+				"rule": commands.Fields{
+					"path":       input.Path,
+					"conditions": input.Conditions,
+				},
+				"events": gathered.Conditions,
 			},
-			"events": gathered.Conditions,
 		},
 	}
 

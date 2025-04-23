@@ -104,7 +104,7 @@ func MergeAndApply(env Env, d Fields, fields Fields) (Fields, error) {
 	// process incoming parameters according to their associated paths.
 	if len(fields) > 0 {
 		var err error
-		d, err := d.Clone()
+		d, err = d.Clone()
 		if err != nil {
 			return nil, err
 		}
