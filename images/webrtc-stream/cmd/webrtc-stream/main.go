@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -22,14 +23,18 @@ import (
 	"github.com/ajbouh/substrate/images/webrtc-stream/webrtc/js"
 	"github.com/ajbouh/substrate/images/webrtc-stream/webrtc/local"
 	"github.com/ajbouh/substrate/images/webrtc-stream/webrtc/sfu"
+	"github.com/ajbouh/substrate/images/webrtc-stream/webrtc/trackstreamer"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 	"github.com/ajbouh/substrate/pkg/toolkit/service"
+	"github.com/gopxl/beep"
+	"github.com/gopxl/beep/wav"
 	"github.com/gorilla/websocket"
+	"github.com/orcaman/writerseeker"
+	"github.com/pion/interceptor"
 	"github.com/pion/rtp"
 	"github.com/pion/webrtc/v3"
-	"github.com/pion/webrtc/v3/pkg/media/oggwriter"
 )
 
 func main() {
@@ -159,6 +164,7 @@ func ToPendingEvents[E any](events ...E) ([]event.PendingEvent, error) {
 
 func (pc *PeerComponent) Serve(ctx context.Context) {
 	var err error
+	slog.InfoContext(ctx, "connecting to local peer", "url", pc.SFUURL)
 	pc.peer, err = local.NewPeer(pc.SFUURL)
 	fatal(err)
 
@@ -342,6 +348,11 @@ func ptr[T any](v T) *T {
 	return &v
 }
 
+type Segment struct {
+	Start uint32 `json:"start"`
+	End   uint32 `json:"end"`
+}
+
 func (s *Streamer) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 	mux.HandleFunc("GET /stream/{trackID}", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -349,6 +360,23 @@ func (s *Streamer) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 		trackID := r.PathValue("trackID")
 		audioPath := pathJoin(s.EventPathPrefix, "/tracks/"+trackID+"/audio")
 		audioPath = strings.TrimLeft(audioPath, "/")
+		var segments []Segment
+		if segmentQ := r.URL.Query().Get("segments"); segmentQ != "" {
+			if err := json.Unmarshal([]byte(segmentQ), &segments); err != nil {
+				http.Error(w, fmt.Sprintf("error unmarshalling segments: %s", err), http.StatusBadRequest)
+				return
+			}
+		}
+		if len(segments) > 1 {
+			http.Error(w, fmt.Sprintf("max 1 segment supported currently"), http.StatusBadRequest)
+			return
+		}
+		minTS := uint32(0)
+		maxTS := uint32(math.MaxUint32)
+		if len(segments) == 1 {
+			minTS = segments[0].Start
+			maxTS = segments[0].End
+		}
 
 		res, err := s.QueryEvents.Call(ctx, QueryEventsInput{
 			Path: audioPath,
@@ -364,23 +392,23 @@ func (s *Streamer) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 		}
 		slog.InfoContext(ctx, "query events", "len(events)", len(res.Events), "path", audioPath, "more", res.More)
 
-		var b bytes.Buffer
-
-		var ogg *oggwriter.OggWriter
-		var encoding AudioEncoding
+		var packets packetReader
+		var encoding *AudioEncoding
 		for _, event := range res.Events {
 			var chunk AudioChunk
 			err = json.Unmarshal(event.Payload, &chunk)
 			fatal(err)
 
-			if ogg == nil {
-				encoding = chunk.Encoding
-				ogg, err = oggwriter.NewWith(&b, chunk.Encoding.SampleRate, chunk.Encoding.Channels)
+			if encoding == nil {
+				encoding = ptr(chunk.Encoding)
 				fatal(err)
-			} else if encoding != chunk.Encoding {
+			} else if *encoding != chunk.Encoding {
 				slog.ErrorContext(ctx, "encoding mismatch", "encoding", chunk.Encoding, "expected", encoding)
-				http.Error(w, fmt.Sprintf("encoding mismatch: %s", err), http.StatusInternalServerError)
+				http.Error(w, fmt.Sprintf("encoding mismatch: %#v %#v", chunk.Encoding, encoding), http.StatusInternalServerError)
 				return
+			}
+			if chunk.Timestamps[0] > maxTS || chunk.Timestamps[len(chunk.Timestamps)-1] < minTS {
+				continue
 			}
 
 			dataPath := s.EventsURL + "/events/" + event.ID.String() + "/data"
@@ -391,20 +419,52 @@ func (s *Streamer) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 			body, err := io.ReadAll(resp.Body)
 			fatal(err)
 
-			for i, offset := range chunk.Offsets {
+			for i, ts := range chunk.Timestamps {
+				if ts < minTS {
+					continue
+				}
+				if ts > maxTS {
+					break
+				}
+				offset := chunk.Offsets[i]
 				size := chunk.Sizes[i]
 				var pkt rtp.Packet
 				err = pkt.Unmarshal(body[offset : offset+size])
 				fatal(err)
-				err = ogg.WriteRTP(&pkt)
+				packets = append(packets, pkt)
 				fatal(err)
 			}
 		}
+		format := beep.Format{
+			SampleRate:  beep.SampleRate(encoding.SampleRate),
+			NumChannels: int(encoding.Channels),
+			Precision:   2,
+		}
 
-		w.Header().Set("Content-Type", "audio/ogg")
-		b.WriteTo(w)
+		stream, err := trackstreamer.New(&packets, format)
+		fatal(err)
+
+		var b writerseeker.WriterSeeker
+		fatal(wav.Encode(&b, stream, format))
+
+		w.Header().Set("Content-Type", "audio/wav")
+		_, err = io.Copy(w, b.Reader())
+		fatal(err)
 	})
 }
+
+type packetReader []rtp.Packet
+
+func (pr *packetReader) ReadRTP() (*rtp.Packet, interceptor.Attributes, error) {
+	if len(*pr) == 0 {
+		return nil, nil, io.EOF
+	}
+	packet := (*pr)[0]
+	*pr = (*pr)[1:]
+	return &packet, nil, nil
+}
+
+var _ trackstreamer.RTPReader = (*packetReader)(nil)
 
 func fatal(err error, msg ...string) {
 	args := []any{err}
