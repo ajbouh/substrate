@@ -354,94 +354,18 @@ type Segment struct {
 }
 
 func (s *Streamer) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
-	mux.HandleFunc("GET /stream/{trackID}", func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
+	// TODO can extend this to send the Ogg stream more directly if that's
+	// needed in the future
+	mux.HandleFunc("GET /audio/wav/{trackID}", func(w http.ResponseWriter, r *http.Request) {
+		packets, encoding, err := s.handle(w, r)
 
-		trackID := r.PathValue("trackID")
-		audioPath := pathJoin(s.EventPathPrefix, "/tracks/"+trackID+"/audio")
-		audioPath = strings.TrimLeft(audioPath, "/")
-		var segments []Segment
-		if segmentQ := r.URL.Query().Get("segments"); segmentQ != "" {
-			if err := json.Unmarshal([]byte(segmentQ), &segments); err != nil {
-				http.Error(w, fmt.Sprintf("error unmarshalling segments: %s", err), http.StatusBadRequest)
-				return
-			}
-		}
-		if len(segments) > 1 {
-			http.Error(w, fmt.Sprintf("max 1 segment supported currently"), http.StatusBadRequest)
-			return
-		}
-		minTS := uint32(0)
-		maxTS := uint32(math.MaxUint32)
-		if len(segments) == 1 {
-			minTS = segments[0].Start
-			maxTS = segments[0].End
-		}
-
-		res, err := s.QueryEvents.Call(ctx, QueryEventsInput{
-			Path: audioPath,
-			// Limit: nil,
-			Bias: ptr(-1),
-			// After: nil,
-			// Until: nil,
-		})
-		if err != nil {
-			slog.ErrorContext(ctx, "error querying events", "err", err)
-			http.Error(w, fmt.Sprintf("error querying events: %s", err), http.StatusInternalServerError)
-			return
-		}
-		slog.InfoContext(ctx, "query events", "len(events)", len(res.Events), "path", audioPath, "more", res.More)
-
-		var packets packetReader
-		var encoding *AudioEncoding
-		for _, event := range res.Events {
-			var chunk AudioChunk
-			err = json.Unmarshal(event.Payload, &chunk)
-			fatal(err)
-
-			if encoding == nil {
-				encoding = ptr(chunk.Encoding)
-				fatal(err)
-			} else if *encoding != chunk.Encoding {
-				slog.ErrorContext(ctx, "encoding mismatch", "encoding", chunk.Encoding, "expected", encoding)
-				http.Error(w, fmt.Sprintf("encoding mismatch: %#v %#v", chunk.Encoding, encoding), http.StatusInternalServerError)
-				return
-			}
-			if chunk.Timestamps[0] > maxTS || chunk.Timestamps[len(chunk.Timestamps)-1] < minTS {
-				continue
-			}
-
-			dataPath := s.EventsURL + "/events/" + event.ID.String() + "/data"
-			resp, err := http.Get(dataPath)
-			fatal(err)
-			defer resp.Body.Close()
-
-			body, err := io.ReadAll(resp.Body)
-			fatal(err)
-
-			for i, ts := range chunk.Timestamps {
-				if ts < minTS {
-					continue
-				}
-				if ts > maxTS {
-					break
-				}
-				offset := chunk.Offsets[i]
-				size := chunk.Sizes[i]
-				var pkt rtp.Packet
-				err = pkt.Unmarshal(body[offset : offset+size])
-				fatal(err)
-				packets = append(packets, pkt)
-				fatal(err)
-			}
-		}
 		format := beep.Format{
 			SampleRate:  beep.SampleRate(encoding.SampleRate),
 			NumChannels: int(encoding.Channels),
 			Precision:   2,
 		}
 
-		stream, err := trackstreamer.New(&packets, format)
+		stream, err := trackstreamer.New(packets, format)
 		fatal(err)
 
 		var b writerseeker.WriterSeeker
@@ -451,6 +375,90 @@ func (s *Streamer) ContributeHTTP(ctx context.Context, mux *http.ServeMux) {
 		_, err = io.Copy(w, b.Reader())
 		fatal(err)
 	})
+}
+
+func (s *Streamer) handle(w http.ResponseWriter, r *http.Request) (*packetReader, *AudioEncoding, error) {
+	ctx := r.Context()
+
+	trackID := r.PathValue("trackID")
+	audioPath := pathJoin(s.EventPathPrefix, "/tracks/"+trackID+"/audio")
+	audioPath = strings.TrimLeft(audioPath, "/")
+	var segments []Segment
+	if segmentQ := r.URL.Query().Get("segments"); segmentQ != "" {
+		if err := json.Unmarshal([]byte(segmentQ), &segments); err != nil {
+			http.Error(w, fmt.Sprintf("error unmarshalling segments: %s", err), http.StatusBadRequest)
+			panic(http.ErrAbortHandler)
+		}
+	}
+	if len(segments) > 1 {
+		http.Error(w, fmt.Sprintf("max 1 segment supported currently"), http.StatusBadRequest)
+		panic(http.ErrAbortHandler)
+	}
+	minTS := uint32(0)
+	maxTS := uint32(math.MaxUint32)
+	if len(segments) == 1 {
+		minTS = segments[0].Start
+		maxTS = segments[0].End
+	}
+
+	res, err := s.QueryEvents.Call(ctx, QueryEventsInput{
+		Path: audioPath,
+		// Limit: nil,
+		Bias: ptr(-1),
+		// After: nil,
+		// Until: nil,
+	})
+	if err != nil {
+		slog.ErrorContext(ctx, "error querying events", "err", err)
+		http.Error(w, fmt.Sprintf("error querying events: %s", err), http.StatusInternalServerError)
+		panic(http.ErrAbortHandler)
+	}
+	slog.InfoContext(ctx, "query events", "len(events)", len(res.Events), "path", audioPath, "more", res.More)
+
+	var packets packetReader
+	var encoding *AudioEncoding
+	for _, event := range res.Events {
+		var chunk AudioChunk
+		err = json.Unmarshal(event.Payload, &chunk)
+		fatal(err)
+
+		if encoding == nil {
+			encoding = ptr(chunk.Encoding)
+			fatal(err)
+		} else if *encoding != chunk.Encoding {
+			slog.ErrorContext(ctx, "encoding mismatch", "encoding", chunk.Encoding, "expected", encoding)
+			http.Error(w, fmt.Sprintf("encoding mismatch: %#v %#v", chunk.Encoding, encoding), http.StatusInternalServerError)
+			panic(http.ErrAbortHandler)
+		}
+		if chunk.Timestamps[0] > maxTS || chunk.Timestamps[len(chunk.Timestamps)-1] < minTS {
+			continue
+		}
+
+		dataPath := s.EventsURL + "/events/" + event.ID.String() + "/data"
+		resp, err := http.Get(dataPath)
+		fatal(err)
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		fatal(err)
+
+		for i, ts := range chunk.Timestamps {
+			if ts < minTS {
+				continue
+			}
+			if ts > maxTS {
+				break
+			}
+			offset := chunk.Offsets[i]
+			size := chunk.Sizes[i]
+			var pkt rtp.Packet
+			err = pkt.Unmarshal(body[offset : offset+size])
+			fatal(err)
+			packets = append(packets, pkt)
+			fatal(err)
+		}
+	}
+	return &packets, encoding, nil
 }
 
 type packetReader []rtp.Packet
