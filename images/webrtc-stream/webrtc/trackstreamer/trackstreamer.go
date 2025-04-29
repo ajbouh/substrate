@@ -126,22 +126,3 @@ func NewSampledReader(rtp RTPReader, sampler *samplebuilder.SampleBuilder) Sampl
 		rtp:     rtp,
 	}
 }
-
-func Tee(r RTPReader, w RTPWriter) RTPReader {
-	return &teeReader{r, w}
-}
-
-type teeReader struct {
-	r RTPReader
-	w RTPWriter
-}
-
-func (t *teeReader) ReadRTP() (pkt *rtp.Packet, attr interceptor.Attributes, err error) {
-	pkt, attr, err = t.r.ReadRTP()
-	if pkt != nil {
-		if err := t.w.WriteRTP(pkt.Clone()); err != nil {
-			return pkt, attr, err
-		}
-	}
-	return
-}
