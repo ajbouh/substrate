@@ -8,11 +8,12 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 
+	eventfs "github.com/ajbouh/substrate/images/events/fs"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
+	"github.com/ajbouh/substrate/pkg/toolkit/httpframework"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/links"
 )
@@ -360,16 +361,14 @@ var GetEventDataCommand = handle.HTTPCommand(
 			}
 		}
 
-		r, err := t.DataQuerier.QueryEventData(ctx, event.ID)
-		if os.IsNotExist(err) {
-			return returns, nil
+		r := httpframework.ContextOriginalRequest(ctx)
+		fsys := &eventfs.EventDataReadFS{
+			Querier:     t.Querier,
+			DataQuerier: t.DataQuerier,
 		}
-		if err != nil {
-			return returns, err
-		}
+		http.ServeFileFS(args.Writer, r, fsys, args.ID.String())
 
-		_, err = io.Copy(args.Writer, r)
-		return returns, err
+		return returns, nil
 	})
 
 type LinksQueryReturns struct {
