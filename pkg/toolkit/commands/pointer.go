@@ -11,7 +11,15 @@ import (
 type DataPointer string // interpreted as JSON pointer
 
 func NewDataPointer(path ...string) DataPointer {
-	return DataPointer("#/" + strings.Join(path, "/"))
+	parts := make([]string, len(path)+1)
+	parts[0] = "#"
+	for i, part := range path {
+		part = strings.ReplaceAll(part, "~", "~0")
+		part = strings.ReplaceAll(part, "/", "~1")
+		parts[i+1] = part
+	}
+
+	return DataPointer(strings.Join(parts, "/"))
 }
 
 func ParseDataPointer(s string) (DataPointer, error) {
