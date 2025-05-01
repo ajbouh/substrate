@@ -52,7 +52,10 @@ Navigator {
     | "[" number "]"   -- bracketNumber
     | "[" string "]"   -- bracketString
 
-  fieldReference = ident fieldSelector*
+  fieldReferenceIdent = ident
+  fieldReference
+    = fieldReferenceIdent
+      fieldSelector*
 
   interpolation = "$" "{" fieldReference "}"
 
@@ -77,6 +80,71 @@ export function makeParser({ohm}) {
     const g = ohm.grammar(msgGrammar);
     const s = g.createSemantics();
     s.addOperation(
+        "toRefs",
+        {
+            Msg: (d, h, p, _s) => [
+                ...(h.numChildren ? h.children[0].toRefs() : []),
+                ...(p.numChildren ? p.children[0].toRefs() : []),
+            ],
+            msgTarget_literal: (a) => [],
+            msgTarget_interpolation: (i) => i.toRefs(),
+            msgTarget_templateString: (s) => s.toRefs(),
+            msgName_literal: (s, l) => [],
+            msgName_templateString: (s) => s.toRefs(),
+            msgName_interpolation: (i) => i.toRefs(),
+            Json_interpolation: (i) => i.toRefs(),
+            templateStringCharacter_escaped: (s, a) => [],
+            templateStringCharacter_nonEscaped: (a) => [],
+            templateStringCharacter_interpolation: (i) => i.toRefs(),
+            interpolation: (d, lb, fr, lr) => fr.toRefs(),
+            fieldReference(head, sel) {
+                return [
+                    [this.sourceString, [...head.toRefs(), ...sel.toRefs()]],
+                ]
+            },
+            fieldReferenceIdent(i) { return [i.sourceString] },
+            // "." ident        -- dot
+            fieldSelector_dot: (d, i) => [i.sourceString],
+            //| "[" ident "]"    -- bracketIdent
+            fieldSelector_bracketIdent: (l, i, r) => [i.sourceString],
+            // | "[" number "]"   -- bracketNumber
+            fieldSelector_bracketNumber: (l, n, r) => [+n.sourceString],
+            // | "[" string "]"   -- bracketString
+            fieldSelector_bracketString: (l, s, r) => [s.toMsg()()],
+        
+            Head: (msgTarget, msgName) => [
+                ...msgTarget.toRefs(),
+                ...msgName.toRefs()
+            ],
+
+            Params: (rest) => rest.children.flatMap(child => child.toRefs()),
+            Param: (key, _c, json) => [
+                ...key.toRefs(),
+                ...json.toRefs(),
+            ],
+            Json_object1: (_ob, param1, rest, rest2, _cc, _cb) => [
+                ...param1.toRefs(),
+                ...rest2.children.flatMap(c => c.children[0].toRefs()),
+            ],
+            Json_object0: (_ob, _cb) => [],
+            Json_array1: (_ob, json1, _rest, rest2, _cc, _cb) => [
+                ...json1.toRefs(),
+                ...rest2.children.flatMap(c => c.children[0].toRefs()),
+            ],
+            Json_array0: (_ob, _cb) => [],
+            Json_string: (str) => str.toRefs(),
+            Json_number: (n) => n.toRefs(),
+            boolean: (b) => [],
+            ident: (_h, _r) => [],
+            key: (k) => k.toRefs(),
+            number_fract: (i, _p, f) => [],
+            number_whole: (f) => [],
+            string: (_od, s, _cd) => [],
+            _iter: (...children) => children.flatMap(c => c.toRefs()),
+            templateString: (_od, s, _cd) => s.toRefs(),
+        }
+    )
+    s.addOperation(
         "toMsg",
         {
             Msg(d, h, p, _s) {
@@ -89,63 +157,18 @@ export function makeParser({ohm}) {
                 }
             },
 
-            msgTarget_literal(a) {
-                return env => this.sourceString
-            },
-            msgTarget_interpolation(i) {
-                return i.toMsg()
-            },
-            msgTarget_templateString(s) {
-                return s.toMsg()
-            },
-            msgName_literal(s, l) {
-                return env => this.sourceString
-            },
-            msgName_templateString(s) {
-                return s.toMsg()
-            },
-            msgName_interpolation(i) {
-                return i.toMsg()
-            },
-            Json_interpolation(i) {
-                return i.toMsg()
-            },
-            templateStringCharacter_escaped(s, a) {
-                return env => this.sourceString
-            },
-            templateStringCharacter_nonEscaped(a) {
-                return env => this.sourceString
-            },
-            templateStringCharacter_interpolation(i) {
-                return i.toMsg()
-            },
-            interpolation(d, lb, fr, lr) {
-                return fr.toMsg()
-            },
-            fieldReference(head, sel) {
-                // TODO
-                const initial = head.toMsg()
-                const children = sel.toMsg()
-                return env => children(env).reduce((acc, child) => acc[child], env.lookup(initial(env)))
-            },
-
-            // "." ident        -- dot
-            fieldSelector_dot(d, i) {
-                return env => i.sourceString
-            },
-            //| "[" ident "]"    -- bracketIdent
-            fieldSelector_bracketIdent(l, i, r) {
-                return env => i.sourceString
-            },
-            // | "[" number "]"   -- bracketNumber
-            fieldSelector_bracketNumber(l, n, r) {
-                return env => +i.sourceString
-            },
-            // | "[" string "]"   -- bracketString
-            fieldSelector_bracketString(l, s, r) {
-                return s.toMsg()
-            },
-        
+            msgTarget_literal(a) { return env => this.sourceString },
+            msgTarget_interpolation(i) { return i.toMsg() },
+            msgTarget_templateString(s) { return s.toMsg() },
+            msgName_literal(s, l) { return env => this.sourceString },
+            msgName_templateString(s) { return s.toMsg() },
+            msgName_interpolation(i) { return i.toMsg() },
+            Json_interpolation(i) { return i.toMsg() },
+            templateStringCharacter_escaped(s, a) { return env => this.sourceString },
+            templateStringCharacter_nonEscaped(a) { return env => this.sourceString },
+            templateStringCharacter_interpolation(i) { return i.toMsg() },
+            interpolation(d, lb, fr, lr) { return fr.toMsg() },
+            fieldReference(head, sel) { return env => env.lookup(this.sourceString) },
 
             Head(msgTarget, msgName) {
                 const target = msgTarget.toMsg()
@@ -196,10 +219,7 @@ export function makeParser({ohm}) {
                 }
             },
                 
-            Json_object0(_ob, _cb) {
-                //  console.log("Json_object0");
-                return env => ({});
-            },
+            Json_object0(_ob, _cb) { return env => ({}) },
 
             Json_array1(_ob, json1, _rest, rest2, _cc, _cb) {
                 // console.log("Json_array1", json1.sourceString, rest, sourceString);
@@ -217,45 +237,15 @@ export function makeParser({ohm}) {
                 }
             },
 
-            Json_array0(_ob, _cb) {
-                // console.log("Json_array0");
-                return env => [];
-            },
-
-            Json_string(str) {
-                // console.log("Json_string", str.sourceString);
-                return env => str.toMsg()(env);
-            },
-
-            Json_number(n) {
-                // console.log("Json_number", n.sourceString);
-                return env => n.toMsg()(env);
-            },
-
-            boolean(b) {
-                return env => b.sourceString === 'true';
-            },
-
-            ident(_h, _r) {
-                // console.log("ident", this.sourceString);
-                return env => this.sourceString;
-            },
-
-            key(k) {
-                return env => k.toMsg()(env);
-            },
-
-            number_fract(i, _p, f) {
-                return env => parseFloat(`${i.sourceString}.${f.sourceString}`);
-            },
-
-            number_whole(f) {
-                return env => parseFloat(`${f.sourceString}`);
-            },
-
-            string(_od, s, _cd) {
-                return env => s.sourceString;
-            },
+            Json_array0(_ob, _cb) { return env => []; },
+            Json_string(str) { return env => str.toMsg()(env); },
+            Json_number(n) { return env => n.toMsg()(env); },
+            boolean(b) { return env => b.sourceString === 'true'; },
+            ident(_h, _r) { return env => this.sourceString; },
+            key(k) { return env => k.toMsg()(env); },
+            number_fract(i, _p, f) { return env => parseFloat(`${i.sourceString}.${f.sourceString}`); },
+            number_whole(f) { return env => parseFloat(`${f.sourceString}`); },
+            string(_od, s, _cd) { return env => s.sourceString; },
 
             _iter(...children) {
                 const c = children.map(c => c.toMsg());
@@ -282,13 +272,15 @@ export function makeParser({ohm}) {
                 error.src = str;
                 throw error;
             }
-        
-            return s(match).toMsg();
+            return s(match)
         },
+        makeEval(makeEnv) {
+            return async str => {
+                const sm = this.parse(str)
+                const msg = sm.toMsg()
+                const refs = sm.toRefs()
+                return msg(await makeEnv(refs))
+            }
+        }
     }
-}
-
-export function parse(str) {
-    const {parse} = makeParser({ohm})
-    return parse(str)
 }
