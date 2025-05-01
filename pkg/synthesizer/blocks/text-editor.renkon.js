@@ -23,13 +23,14 @@ const synthRecordData = Events.select(
     },
 );
 
-const synthSaveData = (data) => {
-    const latest = {fields: {...synthRecord?.fields}, data}
+const synthSaveData = (data, moreFields) => {
+    const latest = {fields: {...synthRecord?.fields, ...moreFields}, data}
     Events.send(recordsWrite, [latest])
     return {data, latest}
 };
 
 const {
+    EditorSelection,
     EditorView,
     Compartment,
     keymap,
@@ -58,7 +59,7 @@ const editor = new EditorView({
 const saveCommand = {
     key: "Mod-s",
     run: (editor) => {
-        synthSaveData(editor.state.doc.toString())
+        synthSaveData(editor.state.doc.toString(), {selection: editor.state.selection.toJSON()})
         return true;
     }
 };
@@ -67,12 +68,21 @@ editor.dispatch({
     effects: keymapCompartment.reconfigure(keymap.of([saveCommand]))
 });
 
-((recordData, editor) => {
+((record, recordData, editor) => {
     const from = 0
     const to = editor.state.doc.length
     const insert = recordData
-    editor.dispatch(editor.state.update({changes: {from, to, insert}}))
-})(synthRecordData, editor);
+    let selection
+    try {
+        selection = record.fields?.selection ? EditorSelection.fromJSON(record.fields?.selection) : undefined
+    } catch (e) {
+        console.error(e, {record})
+    }
+    editor.dispatch(editor.state.update({
+        changes: {from, to, insert},
+        selection,
+    }))
+})(synthRecord, synthRecordData, editor);
 
 ((editor, focused) => {
     editor.focus()
