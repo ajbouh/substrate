@@ -225,6 +225,17 @@ const panelWrite = (key, {target, panel: {blockForRecord, recordQuery, ...panelR
     }
 }
 
+const panelEmit = (key, emits) => {
+    // HACK using the same path for all emits means they will overwrite each other. So only inject it if we have a single thing to emit.
+    let path = emits.length <= 1 ? panelMap.get(key)?.fields?.path : undefined
+    if (path) {
+        path = path + '.emit'
+    }
+    emits = emits.map(emit => ({...emit, fields: {...emit.fields, panel: key, path}}))
+    console.log({emits})
+    Events.send(recordsWrite, emits)
+}
+
 const panelKeys = (() => {
     const surfacePanels = surface.fields?.panels
     const set = new Set(Array.isArray(surfacePanels) ? surfacePanels : undefined)
@@ -263,6 +274,7 @@ const panelVDOMs = Array.from(panelKeys, (key) => {
         scripts: panelBlockScripts,
         notifiers: {
             panelWrite: (key, requests) => (requests.forEach(request => panelWrite(key, request))),
+            panelEmit: (key, requests) => (requests.forEach(request => panelEmit(key, request))),
             recordsWrite: (key, recordses) => Events.send(recordsWrite, recordses.flatMap(records => records)),
             recordsQuery: (key, queries) => queries.forEach(({ns, ...q}) => Events.send(recordsQuery, {...q, ns: [key, ...ns], [Renkon.app.transferSymbol]: q.port ? [q.port] : []})),
             close: (key, closes) => closes.forEach(c => Events.send(close, {ns: [key, ...c.ns]})),
@@ -272,7 +284,7 @@ const panelVDOMs = Array.from(panelKeys, (key) => {
             {name: "querysetUpdated", keyed: true},
         ],
         eventsReceivers: ["querysetUpdated"],
-        eventsReceiversQueued: ["close", "recordsQuery", "recordsWrite", "panelWrite"],
+        eventsReceiversQueued: ["close", "recordsQuery", "recordsWrite", "panelWrite", "panelEmit"],
     }, key);
 
     return {
