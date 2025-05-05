@@ -37,8 +37,10 @@ Navigator {
   boolean = "true" | "false"
 
   number
-    = digit* "." digit+  -- fract
-    | digit+             -- whole
+    = digit* "." digit+      -- fract
+    | digit+                 -- whole
+    | "-" digit* "." digit+  -- signed_fract
+    | "-" digit+             -- signed_whole
 
   string = "\"" doubleStringCharacter* "\""
 
@@ -257,6 +259,14 @@ export function initGrammar() {
 
             number_whole(f) {
                 return env => parseFloat(`${f.sourceString}`);
+            },
+
+            number_signed_fract(s, i, _p, f) {
+                return env => parseFloat(`${s.sourceString}${i.sourceString}.${f.sourceString}`);
+            },
+
+            number_signed_whole(s, f) {
+                return env => parseFloat(`${s.sourceString}${f.sourceString}`);
             },
 
             string(_od, s, _cd) {
