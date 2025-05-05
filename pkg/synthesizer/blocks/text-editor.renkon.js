@@ -9,9 +9,7 @@ const init = Events.once(modules);
     Events.send(ready, true);
 })(init);
 
-console.log("text-editor", {recordsUpdated})
 const synthRecords = Behaviors.collect([], recordsUpdated, (now, {records: {incremental, records}}) => incremental ? [...now, ...records] : records);
-console.log({synthRecords});
 const synthRecord = synthRecords[0] ?? false
 const synthRecordData = Events.select(
     undefined,
@@ -22,12 +20,6 @@ const synthRecordData = Events.select(
         return ""
     },
 );
-
-const synthSaveData = (data, moreFields) => {
-    const latest = {fields: {...synthRecord?.fields, ...moreFields}, data}
-    Events.send(recordsWrite, [latest])
-    return {data, latest}
-};
 
 const {
     EditorSelection,
@@ -56,31 +48,10 @@ const editor = new EditorView({
     ],
 });
 
-const saveCommand = {
-    key: "Mod-s",
-    run: (editor) => {
-        synthSaveData(editor.state.doc.toString(), {selection: editor.state.selection.toJSON()})
-        return true;
-    }
-};
-
-const emitCommand = {
-    key: "Mod-e",
-    run: (editor) => {
-        const content = editor.state.doc.toString()
-        const selections = editor.state.selection.ranges.every(range => range.empty)
-            ? [content]
-            : editor.state.selection.ranges.map(({from, to}) => content.substring(from, to))
-
-        console.log({selections})
-
-        Events.send(panelEmit, [{fields: {selections}}])
-        return true;
-    }
-};
+const commands = Behaviors.gather(/Command$/)
 
 editor.dispatch({
-    effects: keymapCompartment.reconfigure(keymap.of([saveCommand, emitCommand]))
+    effects: keymapCompartment.reconfigure(keymap.of(Object.values(commands)))
 });
 
 ((record, recordData, editor) => {

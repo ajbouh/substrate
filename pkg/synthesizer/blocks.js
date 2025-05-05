@@ -229,6 +229,10 @@ export const blocks = async () => ({
                 },
             },
         },
-        scripts: [await fetchText(new URL('./blocks/text-editor.renkon.js', import.meta.url).toString())],
+        scripts: [
+            await fetchText(new URL('./blocks/text-editor.renkon.js', import.meta.url).toString()),
+            await fetchText(new URL('./blocks/text-editor/commands/save.renkon.js', import.meta.url).toString()),
+            await fetchText(new URL('./blocks/text-editor/commands/emit.renkon.js', import.meta.url).toString()),
+        ],
     },
 })
