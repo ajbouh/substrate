@@ -94,7 +94,7 @@ export const surfaceBlockBootstrap = async () => {
         recordsUpdatedScripts,
         [
             await fetchText(new URL('./blocks/bootstrap-surface.renkon.js', import.meta.url).toString()),
-            await fetchText(new URL('./blocks/bootstrap-recordstore.renkon.js', import.meta.url).toString()),
+            await fetchText(new URL('./blocks/bootstrap-recordstore-remote.renkon.js', import.meta.url).toString()),
             await fetchText(new URL('./blocks/bootstrap-recordstore-address.renkon.js', import.meta.url).toString()),
             await fetchText(new URL('./blocks/start/starters/new-surface.renkon.js', import.meta.url).toString()),
         ],
