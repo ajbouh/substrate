@@ -1,26 +1,20 @@
 
-export const plumbingForRecord = (plumbing, record, verb) => {
-    const candidates = plumbing.flatMap(
-        (plumb) => ((!verb || plumb.verb === verb) && plumb.match && plumb.match(record))
-            ? [{q: 1, ...plumb}]
-            : []);
-    candidates.sort((a, b) => a.q - b.q)
-    return candidates[0]
-}
 
-const matchRecordType = pattern => record => record?.fields?.type?.match(pattern)
-const matchRecordPath = pattern => record => record?.fields?.path?.match(pattern)
+const recordTypeLike = pattern => ({type: [{compare: "like", value: pattern}]})
+const recordPathLike = pattern => ({path: [{compare: "like", value: pattern}]})
+const anything = ({})
 
 export const plumbing = [
-    {verb: 'view', match: matchRecordType(/^image/), block: 'media viewer', querykey: 'records'},
-    {verb: 'view', match: matchRecordType(/^video/), block: 'media viewer', querykey: 'records'},
-    {verb: 'view', match: matchRecordType(/^audio/), block: 'media viewer', querykey: 'records'},
-    {verb: 'view', match: matchRecordType(/^application\/pdf$/), block: 'pdf viewer', querykey: 'records'},
-    {verb: 'edit', match: matchRecordType(/^text/), block: 'text editor', querykey: 'records'},
-    {verb: 'view', match: matchRecordPath(/\.renkon$/), block: 'renkon pad runner', querykey: 'records'},
-    {verb: 'view', match: matchRecordPath(/\.msgindex$/), block: 'msgindex viewer', querykey: 'records'},
-    {verb: 'view', match: matchRecordPath(/\.surface$/), block: 'surface', querykey: 'surface'},
-    {verb: 'view', match: record => true, block: 'record inspector', querykey: 'records'},
+    {verb: 'view', criteria: recordTypeLike("image/%"), block: 'media viewer', querykey: 'records'},
+    {verb: 'view', criteria: recordTypeLike("video/%"), block: 'media viewer', querykey: 'records'},
+    {verb: 'view', criteria: recordTypeLike("audio/%"), block: 'media viewer', querykey: 'records'},
+    {verb: 'view', criteria: recordTypeLike("application/pdf"), block: 'pdf viewer', querykey: 'records'},
+    {verb: 'view', criteria: recordTypeLike("text/%"), block: 'text editor', querykey: 'records'},
+    {verb: 'edit', criteria: recordTypeLike("text/%"), block: 'text editor', querykey: 'records'},
+    {verb: 'view', criteria: recordPathLike("%.renkon"), block: 'renkon pad runner', querykey: 'records'},
+    {verb: 'view', criteria: recordPathLike("%.msgindex"), block: 'msgindex viewer', querykey: 'records'},
+    {verb: 'view', criteria: recordPathLike("%.surface"), block: 'surface', querykey: 'surface'},
+    {verb: 'view', criteria: anything, block: 'record inspector', querykey: 'records'},
 ]
 
 const fetchText = url => fetch(url).then(response => response.text())
@@ -107,10 +101,23 @@ export const fetchPanelsBlock = async () => ({
             view_criteria: {
                 where: {type: [{compare: "=", value: "panel"}]},
             },
-            view: "group-by-path-max-id",        
+            view: "group-by-path-max-id",
         },
+        cues: {
+            view_criteria: {
+                where: {type: [{compare: "=", value: "action/cue"}]},
+            },
+        }
     }},
-    scripts: [await fetchText(new URL('./blocks/panels.renkon.js', import.meta.url).toString())],
+    scripts: [
+        await fetchText(new URL('./blocks/panels.renkon.js', import.meta.url).toString()),
+        await fetchText(new URL('./blocks/panels/actions.renkon.js', import.meta.url).toString()),
+        await fetchText(new URL('./blocks/panels/actions/redo.renkon.js', import.meta.url).toString()),
+        await fetchText(new URL('./blocks/panels/actions/sendmsg.renkon.js', import.meta.url).toString()),
+        await fetchText(new URL('./blocks/panels/actions/delete.renkon.js', import.meta.url).toString()),
+        await fetchText(new URL('./blocks/panels/actions/reflect.renkon.js', import.meta.url).toString()),
+        await fetchText(new URL('./blocks/panels/actions/plumbing.renkon.js', import.meta.url).toString()),
+    ],
 });
 
 const fetchTreeViewerBlock = async () => ({
@@ -124,9 +131,6 @@ const fetchTreeViewerBlock = async () => ({
     },
     scripts: [
         await fetchText(new URL('./blocks/tree-viewer.renkon.js', import.meta.url).toString()),
-        await fetchText(new URL('./blocks/tree-viewer/actions/sendmsg.renkon.js', import.meta.url).toString()),
-        await fetchText(new URL('./blocks/tree-viewer/actions/delete.renkon.js', import.meta.url).toString()),
-        await fetchText(new URL('./blocks/tree-viewer/actions/reflect.renkon.js', import.meta.url).toString()),
         await fetchText(new URL('./blocks/tree-viewer/facets/age.renkon.js', import.meta.url).toString()),
         await fetchText(new URL('./blocks/tree-viewer/facets/path.renkon.js', import.meta.url).toString()),
         await fetchText(new URL('./blocks/tree-viewer/facets/size.renkon.js', import.meta.url).toString()),

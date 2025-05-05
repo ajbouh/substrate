@@ -2,16 +2,17 @@ const reflectAction = (() => {
     const fetchText = url => url ? fetch(url).then(response => response.text()) : Promise.resolve('')
 
     return {
-        label: 'reflect',
+        verb: 'reflect',
         criteria: {
             type: [{compare: "=", value: 'text/uri-list'}]
             // how to check if the record has data?
             // && record.data_url
         },
-        act: ({record, event}) => {
+        act: ({msg, records, event}) => {
+            const record = records?.[0]
             fetchText(record.data_url).then(data => {
                 const uri = data.split('\n').find(line => !line.startsWith('#'))
-                reflect(uri).then((msgindex) => {
+                msg.reflect(uri).then((msgindex) => {
                     Events.send(recordsWrite, [{
                         fields: {
                             type: 'msgindex',
@@ -21,7 +22,7 @@ const reflectAction = (() => {
                     }])
                 })
             })
-            return false
+            return true
         },
     }
 })()

@@ -18,6 +18,11 @@ function mergeInPlace(dst, src, mergeFn, keypath = () => []) {
     return dst
 }
 
+export function mergeRecordWrite(...writes) {
+    writes = structuredClone(writes);
+    return mergeInPlace(...writes)
+}
+
 // grandchildren of "where" are concatenated. everything else is blended and duplicates are not tolerated.
 export function mergeRecordQueries(...queries) {
     queries = structuredClone(queries);
@@ -40,6 +45,12 @@ export function mergeRecordQueries(...queries) {
     return merged;
 }
 
+export function mergeRecordQuerysets(...querysets) {
+    const v = mergeRecordQueries(...querysets)
+    console.log("mergeRecordQuerysets", {querysets, v})
+    return v
+}
+
 const sqliteLikeToRegExp = (likePattern, isCaseSensitive = false) => {
     const regexString = likePattern
         .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // $& inserts the matched character
@@ -52,9 +63,9 @@ const unknownCondition = condition => { throw new Error(`unknown condition: ${JS
 const conditions = {
     like: ({value}) => {
         const pattern = sqliteLikeToRegExp(value)
-        return fieldval => fieldval.match(pattern)
+        return fieldval => fieldval !== undefined && pattern.test(fieldval)
     },
-    "=": ({value}) => fieldval => value === fieldval,
+    "=": ({value}) => fieldval => value === fieldval || (value === 1 && fieldval === true), // sqlite treats 1 as true
     ">": ({value}) => fieldval => value > fieldval,
     ">=": ({value}) => fieldval => value >= fieldval,
     "<": ({value}) => fieldval => value < fieldval,
@@ -64,13 +75,23 @@ const conditionMatcher = condition => (conditions[condition.compare] ?? unknownC
 const fieldConditionsMatcher = (key, conditions) => {
     const matchers = conditions.map(condition => conditionMatcher(condition))
     return record => {
-        const value = record.fields[key]
+        // NB(adamb) we are trying to recreate sqlite's json_extract path parsing.
+        // but this is a very poor parsing strategy. for example, it can't handle a . in quotes.
+        const parsedKey = key.includes('.')
+            ? key.split('.').map(fragment => fragment[0] === '"' ? JSON.parse(fragment) : fragment)
+            : [key]
+        const value = parsedKey.reduce((acc, k) => acc?.[k], record.fields)
         return matchers.every(matcher => matcher(value))
     }
 }
 export const criteriaMatcher = criteria => {
     const fieldMatchers = Object.entries(criteria || {}).map(([key, conditions]) => fieldConditionsMatcher(key, conditions))
-    return record => fieldMatchers.every(matcher => matcher(record))
+    return Object.assign(record => fieldMatchers.every(matcher => matcher(record)), {criteria})
+}
+
+export const everyMatcher = matcher => records => {
+    const v = records.every(matcher)
+    return v
 }
 
 const recordWriteFromDataURL = (fields, dataURL) => {

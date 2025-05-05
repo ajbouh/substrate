@@ -2,14 +2,19 @@
 // group these together so we can delay init until they are all loaded and available.
 const modules = Behaviors.resolvePart({
     preact: import("./preact.standalone.module.js"),
+    records: import("./records.js"),
     blocks: import("./blocks.js"),
     blockComponent: import("./block.renkon.component.js"),
 });
 const {
-    plumbingForRecord,
     plumbing,
     blocks,
 } = modules.blocks
+
+const {
+    criteriaMatcher,
+} = modules.records
+
 const init = Events.once(modules)
 
 const blockDefs0 = Behaviors.collect(
@@ -24,6 +29,15 @@ const blockDefs = blockDefs0;
 })(blockDefs);
 
 const {h, html, render} = modules.preact
+
+const plumbingForRecord = (plumbing, record, verb) => {
+    const candidates = plumbing.flatMap(
+        (plumb) => ((!verb || plumb.verb === verb) && plumb.criteria && criteriaMatcher(plumb.criteria)(record))
+            ? [{q: 1, ...plumb}]
+            : []);
+    candidates.sort((a, b) => a.q - b.q)
+    return candidates[0]
+}
 
 const blockComponent = Renkon.component(modules.blockComponent.component)
 

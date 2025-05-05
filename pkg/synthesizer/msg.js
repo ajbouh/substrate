@@ -1,3 +1,4 @@
+// /spaceview;space=image:source/esbuild/pkg/toolkit/msg
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -122,12 +123,23 @@ function formatPointer(p) {
 __name(formatPointer, "formatPointer");
 function get(o, path) {
   const fragments = parsePointer(path);
-  const v = fragments.reduce((acc, fragment) => fragment ? acc && (Array.isArray(acc) ? acc[+fragment] : acc[fragment]) : acc, o);
-  return v;
+  return getPath(o, fragments);
 }
 __name(get, "get");
+function getPath(o, fragments) {
+  const v = fragments.reduce(
+    (acc, fragment) => fragment !== void 0 ? acc && (Array.isArray(acc) ? acc[+fragment] : acc[fragment]) : acc,
+    o
+  );
+  return v;
+}
+__name(getPath, "getPath");
 function set(r, path, v) {
   const fragments = parsePointer(path);
+  return setPath(r, fragments, v);
+}
+__name(set, "set");
+function setPath(r, fragments, v) {
   const last = fragments[fragments.length - 1];
   if (fragments.length === 1 && last === "") {
     return mergeInPlace(r, v);
@@ -156,9 +168,13 @@ function set(r, path, v) {
   }
   return r;
 }
-__name(set, "set");
+__name(setPath, "setPath");
 
 // pluck.ts
+function pluck(bindings, src) {
+  return pluckInto(bindings, {}, src);
+}
+__name(pluck, "pluck");
 function pluckInto(bindings, dst, src) {
   if (bindings) {
     for (const dstPath in bindings) {
@@ -366,9 +382,9 @@ var CapReflect = /* @__PURE__ */ __name(async (env, msg) => {
 
 // capreflectedmsg.ts
 var CapReflectedMsg = /* @__PURE__ */ __name(async (env, msg) => {
-  return await env.apply(null, reflectedmsg(msg.url, msg.name, msg.data));
+  return await env.apply(null, reflectedmsg(msg));
 }, "CapReflectedMsg");
-function reflectedmsg(url, name, data) {
+function reflectedmsg({ url, name, data }) {
   return {
     cap: "seq",
     tmp: {
@@ -474,7 +490,14 @@ async function reflect(url) {
 }
 __name(reflect, "reflect");
 export {
+  formatPointer,
+  get,
+  getPath,
+  pluck,
+  pluckInto,
   reflect,
   reflectedmsg,
-  sender
+  sender,
+  set,
+  setPath
 };
