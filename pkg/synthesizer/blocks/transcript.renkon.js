@@ -14,9 +14,10 @@ const init = Events.once(modules);
 const records = Behaviors.collect(
   [],
   recordsUpdated,
-  (now, {records: {incremental, records}}) =>
+  (now, { records: { incremental, records } }) =>
     incremental ? [...now, ...records] : records
 );
+console.log({ records });
 
 const style = (() => {
   const head = document.querySelector("head");
@@ -50,7 +51,7 @@ const pageLoad = Behaviors.keep(Events.once(new Date()));
 const session = Behaviors.collect(
   undefined,
   recordsUpdated,
-  (now, {records: {incremental, records}}) => {
+  (now, { records: { incremental, records } }) => {
     return records.reduce(
       (acc, e) => {
         if (e.fields.deleted) return acc;
@@ -69,7 +70,7 @@ console.log({ sessionStart });
 const transcript = Behaviors.collect(
   [],
   recordsUpdated,
-  (now, {records: {incremental, records}}) => {
+  (now, { records: { incremental, records } }) => {
     const t = records.flatMap((evt) => {
       if (evt.fields.deleted) return [];
       if (!evt.fields?.path?.endsWith("/transcription/segmented")) return [];
@@ -81,7 +82,7 @@ const transcript = Behaviors.collect(
 console.log({ transcript });
 
 const keyedBy = (keyFn, updateFn) => {
-  return (now, {records: {incremental, records}}) => {
+  return (now, { records: { incremental, records } }) => {
     const updates = records.reduce((map, item) => {
       // TODO remove entries for deleted items
       if (item.fields.deleted) return map;
@@ -120,7 +121,7 @@ console.log({ byId });
 
 const getLinked = (e, linkName) => {
   const link = e.fields.links[linkName];
-  if (link == null) {
+  if (link == null || link.attributes == null) {
     return null;
   }
   return byId.get(link.attributes["eventref:event"]);
@@ -169,17 +170,19 @@ const assistants = new Map();
 const speakersFor = () => [];
 
 const model = transcript.map((t) => {
-  const track = t.fields.links.track.attributes;
+  const track = t.fields.links.track?.attributes;
   return {
     transcript: t,
     translations: translations.get(t.id) || [],
     assistants: assistants.get(t.id) || [],
     tools: [],
-    speakers: speakersFor(
-      track["eventref:event"],
-      track["eventref:start"],
-      track["eventref:end"]
-    ),
+    speakers: track
+      ? speakersFor(
+          track["eventref:event"],
+          track["eventref:start"],
+          track["eventref:end"]
+        )
+      : [],
   };
 });
 console.log({ model });
@@ -196,7 +199,7 @@ const Topbar = h(
         { class: "py-1 text-xl font-bold" },
         sessionStart.toLocaleString()
       )
-    : null
+    : "(no session)"
 );
 
 const Entry = (entry) => {
@@ -206,9 +209,9 @@ const Entry = (entry) => {
     !entry.transcript.fields ||
     !entry.transcript.fields.segments
   )
-    return null;
+    return h("pre", null, JSON.stringify(entry, null, 2));
   const data = entry.transcript.fields;
-  const track = data.links.track.attributes["eventref:event"];
+  const track = data.links.track?.attributes["eventref:event"];
   const words = data.segments.flatMap((seg) => seg.words);
   return h(
     "div",
@@ -285,7 +288,7 @@ const Chat = h(
       Events.send(recordsWrite, [
         {
           fields: {
-            path: "/bridge/demo/transcription/segmented",
+            path: "/bridge-demo/transcription/segmented",
             source_language: "en",
             segments: [
               {
@@ -332,5 +335,5 @@ const App = h(
 );
 
 // http://localhost:8000/?recordstore=https://substrate-a3a1.local/events;data=sp-01JMD68PYB46TJEQDZ55XWV2PA/
-// {"basis_criteria":{"prefix":{"path":[{"prefix":"/bridge/demo/"}]}}}
+// {"basis_criteria":{"prefix":{"path":[{"prefix":"/bridge-demo/"}]}}}
 render(App, document.body);
