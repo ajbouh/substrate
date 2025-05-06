@@ -177,7 +177,8 @@ export const blocks = async () => ({
         fields: {queryset: {records: {
             global: true,
             basis_criteria: {
-                where: { path: [{ compare: "like", value: "/bridge/demo/%" }] }
+                bias: -1,
+                where: { path: [{ compare: "like", value: "/bridge-demo/%" }] }
             },
         }}},
         scripts: [await fetchText(new URL("./blocks/transcript.renkon.js", import.meta.url).toString())],
