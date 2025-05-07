@@ -57,7 +57,7 @@ const newQuery = ({key, query, url, port}, onresult) => {
         port,
         close: () => {
             console.log("aborting query")
-            abort.abort()
+            abort.abort("close")
             onresult(undefined)
         },
     }
