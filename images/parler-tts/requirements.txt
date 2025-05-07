@@ -1,0 +1,7 @@
+fastapi==0.115.0
+torch==2.4.1
+parler_tts @ git+https://github.com/huggingface/parler-tts.git@dcaed95e1cce6f616e3e1956f8d63f0f3f5dfe5f
+transformers==4.43.3
+soundfile==0.12.1
+pydantic==2.9.2
+uvicorn==0.22.0
