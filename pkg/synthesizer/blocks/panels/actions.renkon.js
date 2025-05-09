@@ -43,8 +43,6 @@ const actionCues = Events.select(
             for (const cue of cues) {
                 let {query, verb} = cue.fields
 
-                let resolveRecords = async () => await recordsQueryRead(query)
-
                 if (!verb) {
                     // should use description to impute verb, if we can
                     verb = 'view'
@@ -52,7 +50,7 @@ const actionCues = Events.select(
 
                 // todo also allow an action to be cued directly by its key
 
-                resolveRecords().then(records => {
+                recordsQueryRead(query).then(records => {
                     const candidates = offersAndMatchers.filter(
                         ({matchVerb, matchRecords}) => matchVerb(verb) && matchRecords(records));
                     const winner = candidates.find(({act}) => act({...actDefaults, records, cue}))
