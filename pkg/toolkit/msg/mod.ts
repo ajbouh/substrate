@@ -1,3 +1,5 @@
 export { reflect } from './reflect.ts'
 export { reflectedmsg } from './capreflectedmsg.ts'
 export { sender } from './sender.ts'
+export { pluck, pluckInto } from './pluck.ts'
+export { formatPointer, set, setPath, get, getPath } from './pointer.ts'

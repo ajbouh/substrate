@@ -9,9 +9,7 @@ const init = Events.once(modules);
     Events.send(ready, true);
 })(init);
 
-console.log("text-editor", {recordsUpdated})
 const synthRecords = Behaviors.collect([], recordsUpdated, (now, {records: {incremental, records}}) => incremental ? [...now, ...records] : records);
-console.log({synthRecords});
 const synthRecord = synthRecords[0] ?? false
 const synthRecordData = Events.select(
     undefined,
@@ -23,13 +21,8 @@ const synthRecordData = Events.select(
     },
 );
 
-const synthSaveData = (data) => {
-    const latest = {fields: {...synthRecord?.fields}, data}
-    Events.send(recordsWrite, [latest])
-    return {data, latest}
-};
-
 const {
+    EditorSelection,
     EditorView,
     Compartment,
     keymap,
@@ -55,24 +48,27 @@ const editor = new EditorView({
     ],
 });
 
-const saveCommand = {
-    key: "Mod-s",
-    run: (editor) => {
-        synthSaveData(editor.state.doc.toString())
-        return true;
-    }
-};
+const commands = Behaviors.gather(/Command$/)
 
 editor.dispatch({
-    effects: keymapCompartment.reconfigure(keymap.of([saveCommand]))
+    effects: keymapCompartment.reconfigure(keymap.of(Object.values(commands)))
 });
 
-((recordData, editor) => {
+((record, recordData, editor) => {
     const from = 0
     const to = editor.state.doc.length
     const insert = recordData
-    editor.dispatch(editor.state.update({changes: {from, to, insert}}))
-})(synthRecordData, editor);
+    let selection
+    try {
+        selection = record.fields?.selection ? EditorSelection.fromJSON(record.fields?.selection) : undefined
+    } catch (e) {
+        console.error(e, {record})
+    }
+    editor.dispatch(editor.state.update({
+        changes: {from, to, insert},
+        selection,
+    }))
+})(synthRecord, synthRecordData, editor);
 
 ((editor, focused) => {
     editor.focus()

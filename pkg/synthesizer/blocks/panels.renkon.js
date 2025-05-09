@@ -7,9 +7,11 @@ const modules = Behaviors.resolvePart({
     inputs: import("./inputs.js"),
     blocks: import("./blocks.js"),
     blockComponent: import("./block.renkon.component.js"),
+    msg: import("./msg.js"),
+    msgtxt: import("./msgtxt.js"),
+    ohm: import("./ohm.js"),
 });
 const {
-    plumbingForRecord,
     blocks,
     plumbing,
     recordsUpdatedScripts,
@@ -18,10 +20,16 @@ const {
 const {h, html, render} = modules.preact
 const {
     mergeRecordQueries,
+    plumbingForRecord,
     recordWriteFromFile,
+    criteriaMatcher,
+    everyMatcher,
 } = modules.records
 const {makeInputs} = modules.inputs
 const {select, textinput, button} = makeInputs({h});
+const {sender, reflect} = modules.msg
+const {makeParser} = modules.msgtxt
+const msgtxtParser = makeParser({ohm: modules.ohm.default})
 
 const blockComponent = Renkon.component(modules.blockComponent.component)
 
@@ -193,28 +201,22 @@ const panelBlockScripts = Behaviors.collect(
     },
 );
 
+console.log("in panels", {actionOffersUpdated});
+
 const windowMessages = Events.listener(window, "message", evt => evt, {queued: true});
 
 // TODO write separator logic... look at presenter.html
 // TODO add support for rearranging, accept writes of "after" or "swap" and do the right thing
 
-const blockEvents = Events.some(windowMessages, Events.change(panelKeys), panelQuerysetsUpdates)
+const actionOffersUpdatedBlockEvent = Events.select(undefined,
+    actionOffersUpdated, (now, actionOffersUpdated) => actionOffersUpdated,
+    Events.change(panelKeys), (now, _) => now,
+)
 
-const panelWrite = (key, {target, panel: {blockForRecord, recordQuery, ...panelRequest}}) => {
+const blockEvents = Events.some(windowMessages, Events.change(panelKeys), panelQuerysetsUpdates, actionOffersUpdatedBlockEvent)
+
+const panelWrite = (key, {target, panel: panelRequest}) => {
     const panel = panelMap.get(key)
-    if (blockForRecord) {
-        const {block, querykey} = plumbingForRecord(plumbing, blockForRecord) || {}
-        if (!panelRequest.block) {
-            panelRequest.block = block
-        }
-
-        if (recordQuery) {
-            panelRequest.queryset = mergeRecordQueries(
-                panelRequest.queryset || {},
-                {[querykey]: recordQuery},
-            )
-        }
-    }
 
     const write = (panel && (target === 'self'))
         ? panelBuilder.update(panel, {back: panelID(panel), ...panelRequest, next: undefined})
@@ -223,6 +225,16 @@ const panelWrite = (key, {target, panel: {blockForRecord, recordQuery, ...panelR
     if ((target !== 'self')) {
         Events.send(surfaceWrite, {op: 'panel:ensure-after', before: panel ? panelKey(panel) : undefined, after: [write.fields.key]})
     }
+}
+
+const panelEmit = (key, emits) => {
+    // HACK using the same path for all emits means they will overwrite each other. So only inject it if we have a single thing to emit.
+    let path = emits.length <= 1 ? panelMap.get(key)?.fields?.path : undefined
+    if (path) {
+        path = path + '.emit'
+    }
+    emits = emits.map(emit => ({...emit, fields: {...emit.fields, panel: key, path}}))
+    Events.send(recordsWrite, emits)
 }
 
 const panelKeys = (() => {
@@ -239,6 +251,11 @@ const panelKeys = (() => {
 // console.log({panelMap});
 // console.log({panelRecords});
 // console.log({recordsUpdated});
+
+const ensurePanelField =
+    (panelValue, pending) => pending.fields?.panel
+        ? pending
+        : {...pending, fields: {...pending.fields, panel: panelValue}};
 
 const panelVDOMs = Array.from(panelKeys, (key) => {
     const panel = panelMap.get(key)
@@ -263,16 +280,22 @@ const panelVDOMs = Array.from(panelKeys, (key) => {
         scripts: panelBlockScripts,
         notifiers: {
             panelWrite: (key, requests) => (requests.forEach(request => panelWrite(key, request))),
-            recordsWrite: (key, recordses) => Events.send(recordsWrite, recordses.flatMap(records => records)),
+            panelEmit: (key, requests) => (requests.forEach(request => panelEmit(key, request))),
+            recordsWrite: (key, recordses) => {
+                Events.send(recordsWrite, recordses.flatMap(
+                    records => records.map(record => ensurePanelField(key, record))))
+            },
             recordsQuery: (key, queries) => queries.forEach(({ns, ...q}) => Events.send(recordsQuery, {...q, ns: [key, ...ns], [Renkon.app.transferSymbol]: q.port ? [q.port] : []})),
+            actionsOffer: (key, offers) => offers.forEach(({ns, ...q}) => Events.send(actionsOffer, {...q, ns: [key, ...ns]})),
             close: (key, closes) => closes.forEach(c => Events.send(close, {ns: [key, ...c.ns]})),
         },
         events: blockEvents,
         defineExtraEvents: [
             {name: "querysetUpdated", keyed: true},
+            {name: "actionOffersUpdated", keyed: false},
         ],
-        eventsReceivers: ["querysetUpdated"],
-        eventsReceiversQueued: ["close", "recordsQuery", "recordsWrite", "panelWrite"],
+        eventsReceivers: ["querysetUpdated", "actionOffersUpdated"],
+        eventsReceiversQueued: ["close", "recordsQuery", "recordsWrite", "panelWrite", "panelEmit", "actionsOffer"],
     }, key);
 
     return {

@@ -13,15 +13,24 @@ export function formatPointer(p: Array<string>): Pointer {
 
 export function get(o: any, path: Pointer) {
   const fragments = parsePointer(path)
-  const v = fragments.reduce((acc, fragment) => fragment
-    ? acc && (Array.isArray(acc) ? acc[+fragment] : acc[fragment])
-    : acc, o)
-  // console.log("get", o, path, "->", v)
+  return getPath(o, fragments)
+}
+
+export function getPath(o: any, fragments: Array<string>) {
+  const v = fragments.reduce(
+    (acc, fragment) => fragment !== undefined
+      ? acc && (Array.isArray(acc) ? acc[+fragment] : acc[fragment])
+      : acc,
+    o)
   return v
 }
   
 export function set(r: any, path: Pointer, v: any) {
   const fragments = parsePointer(path)
+  return setPath(r, fragments, v)
+}
+
+export function setPath(r: any, fragments: Array<string>, v: any) {
   const last = fragments[fragments.length - 1]
   if (fragments.length === 1 && last === "")  {
     return mergeInPlace(r, v)

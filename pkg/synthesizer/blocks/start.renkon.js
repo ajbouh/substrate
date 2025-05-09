@@ -81,7 +81,10 @@ render(
                     if (write) {
                         Events.send(recordsWrite, write)
                     }
-                    Events.send(panelWrite, {target: evt.metaKey ? undefined : 'self', panel: {block, queryset, scripts}})
+                    Events.send(panelWrite, {
+                        target: evt.metaKey ? undefined : 'self',
+                        panel: {block, queryset, scripts},
+                    })
                 },
             }, label),
         ),

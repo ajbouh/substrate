@@ -15,13 +15,6 @@ type CapSeqStepBreak struct {
 	Out Bindings      `json:"out"`
 }
 
-type CapSeqStep struct {
-	Par   map[string]Fields `json:"par"`
-	Break []CapSeqStepBreak `json:"break"`
-
-	Out Bindings `json:"out"`
-}
-
 var _ Cap = (*CapSeq)(nil)
 
 func mapReduce[K comparable, P any, R any](
@@ -74,7 +67,7 @@ func (a *CapSeq) Apply(env Env, d Fields) (Fields, error) {
 			return nil, err
 		}
 
-		step, err := As[CapSeqStep](stepFields)
+		par, err := GetPath[map[string]Fields](d, "seq", iStr, "par")
 		if err != nil {
 			return nil, err
 		}
@@ -85,7 +78,7 @@ func (a *CapSeq) Apply(env Env, d Fields) (Fields, error) {
 		var stepErrs []error
 		var mu sync.Mutex
 		var didBreak bool
-		mapReduce(step.Par,
+		mapReduce(par,
 			func(k string, p Fields) (Fields, error) {
 				p, err := p.Clone()
 				if err != nil {
@@ -102,13 +95,22 @@ func (a *CapSeq) Apply(env Env, d Fields) (Fields, error) {
 					return
 				}
 
-				stepFields, err = SetPath(stepFields, []string{"par", k}, ret)
+				parFields, err := GetPath[Fields](stepFields, "par")
 				if err != nil {
 					stepErrs = append(stepErrs, err)
 					return
 				}
 
-				for _, b := range step.Break {
+				parFields[k] = ret
+				stepFields["par"] = parFields
+
+				brk, _, err := MaybeGetPath[[]CapSeqStepBreak](d, "seq", iStr, "break")
+				if err != nil {
+					stepErrs = append(stepErrs, err)
+					return
+				}
+
+				for _, b := range brk {
 					for _, probe := range b.And {
 						maybe, ok, err := MaybeGet[any](stepFields, probe)
 						if err != nil {
@@ -140,7 +142,12 @@ func (a *CapSeq) Apply(env Env, d Fields) (Fields, error) {
 			}
 		}
 
-		d, err = step.Out.PluckInto(d, stepFields)
+		out, _, err := MaybeGetPath[Bindings](d, "seq", iStr, "out")
+		if err != nil {
+			return nil, err
+		}
+
+		d, err = out.PluckInto(d, stepFields)
 		if err != nil {
 			return nil, err
 		}
@@ -153,8 +160,10 @@ func (a *CapSeq) Apply(env Env, d Fields) (Fields, error) {
 		return nil, err
 	}
 	if len(ret) > 0 {
-		return ret.PluckInto(Fields{}, d)
+		d, err = ret.PluckInto(Fields{}, d)
+	} else {
+		d, err = GetPath[Fields](d, "seq", iStr)
 	}
 
-	return GetPath[Fields](d, "seq", iStr)
+	return d, err
 }

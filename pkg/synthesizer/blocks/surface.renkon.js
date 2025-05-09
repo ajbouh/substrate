@@ -15,6 +15,7 @@ const {
 const {h, html, render} = modules.preact
 const {
     mergeRecordQueries,
+    mergeRecordQuerysets,
 } = modules.records
 
 const blockComponent = Renkon.component(modules.blockComponent.component)
@@ -32,6 +33,11 @@ const ensureSurfaceField =
         ? pending
         : {...pending, fields: {...pending.fields, surface: surfaceValue}};
 
+const ensureActorField =
+    (actorValue, pending) => pending.fields?.actor
+        ? pending
+        : {...pending, fields: {...pending.fields, actor: actorValue}};
+
 const surfaceCriteria = (path) => ({
     view_criteria: {
         where: {surface: [{compare: "=", value: path}]},
@@ -44,13 +50,55 @@ const surfaceUpdated = Events.collect(undefined, recordsUpdated, (now, {surface:
 const surface = Behaviors.keep(surfaceUpdated)
 
 const panelsKey = "panelsKey"
-// const panelsScriptsUpdates = Events.collect(undefined, surfaceUpdated, (now, surface) => ({[panelsKey]: mergeBlockScripts(panelsBlock, recordsUpdatedScripts)}))
-const panelsQuerysetUpdates = Events.collect(undefined, surfaceUpdated, (now, surface) => ({[panelsKey]: panelsBlock.fields.queryset}))
+const panelsQuerysetUpdates = Events.collect(
+    undefined,
+    surfaceUpdated, (now, surface) => ({
+        [panelsKey]: mergeRecordQuerysets(
+            panelsBlock.fields.queryset,
+            {cues: {basis_criteria: {where: {actor: [{compare: "=", value: actor}]}}},
+        })
+    }),
+)
 const panelsScriptsUpdates = {[panelsKey]: mergeBlockScripts(panelsBlock, recordsUpdatedScripts)}
-// const panelsQuerysetUpdates = {[panelsKey]: panelsBlock.fields.queryset}
-const panelsEvents = Events.some(windowMessages, Events.change([panelsKey]), panelsQuerysetUpdates, surfaceUpdated)
+const panelsEvents = Events.some(windowMessages, Events.change([panelsKey]), panelsQuerysetUpdates, surfaceUpdated, actionOffersUpdated)
 
 const structuredClone = window.structuredClone
+
+// a randomly generated value that uniquely identifies this particular view and distinguishes it from
+// all others. specific to this runtime instance of the surface block.
+function genchars(length) {
+    let result = '';
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    const charsLength = chars.length;
+    for ( let i = 0; i < length; i++ ) {
+      result += chars.charAt(Math.floor(Math.random() * charsLength));
+    }
+    return result;
+}
+
+// use a unique value on every boot. this allows us to only act on actions that were written by this runtime instance.
+const actor = genchars(10)
+
+const actionsOffer = Events.receiver();
+console.log({actionsOffer});
+
+const actionOffersUpdated = Events.select(
+    {},
+    actionsOffer, (now, offerses) => {
+        const addOffers = {}
+        for (const offers of offerses) {
+            console.log({offers})
+            for (const {ns, label, verb, description, criteria} of offers) {
+                const key = JSON.stringify(ns)
+                addOffers[key] = {key, ns, label, verb, description, criteria}
+            }
+        }
+        return {
+            ...now,
+            ...addOffers,
+        }
+    },
+)
 
 const bc = blockComponent({
     key: panelsKey,
@@ -65,7 +113,7 @@ const bc = blockComponent({
     notifiers: {
         recordsWrite: (key, recordses) => {
             const records = recordses.flatMap(
-                records => records.map(record => ensureSurfaceField(surface.fields?.path, record)))
+                records => records.map(record => ensureActorField(actor, ensureSurfaceField(surface.fields?.path, record))))
             Events.send(recordsWrite, records)
         },
         recordsQuery: (key, queries) => {
@@ -84,6 +132,12 @@ const bc = blockComponent({
                 })
             }
         },
+        // actionsOffer is very similar to recordswrite, but is not persisted. switch it to recordsWrite once we figure
+        // out how to avoid stale action offers.
+        actionsOffer: (key, offers) => {
+            Events.send(actionsOffer, offers)
+        },
+
         close: (key, closes) => closes.forEach(c => Events.send(close, {ns: [key, ...c.ns]})),
         surfaceWrite: (key, writes) => {
             let surfaceFields = surface.fields
@@ -147,9 +201,10 @@ const bc = blockComponent({
     defineExtraEvents: [
         {name: "querysetUpdated", keyed: true},
         {name: "surfaceUpdated", keyed: false},
+        {name: "actionOffersUpdated", keyed: false},
     ],
-    eventsReceivers: ["querysetUpdated", "surfaceUpdated"],
-    eventsReceiversQueued: ["recordsQuery", "close", "recordsWrite", "surfaceWrite"],
+    eventsReceivers: ["querysetUpdated", "surfaceUpdated", "actionOffersUpdated"],
+    eventsReceiversQueued: ["recordsQuery", "close", "recordsWrite", "actionsOffer", "surfaceWrite"],
 }, panelsKey);
 
 render(
