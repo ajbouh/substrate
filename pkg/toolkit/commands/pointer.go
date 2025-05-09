@@ -65,8 +65,7 @@ func (p DataPointer) Path() []string {
 }
 
 func As[T any](o any) (t T, err error) {
-	var ok bool
-	t, ok = o.(T)
+	t, ok := maybeAs[T](o)
 	if ok {
 		return
 	}
@@ -158,18 +157,57 @@ func ensureLength[T any](ts []T, length int) []T {
 }
 
 func as[T any](o any, err error) (T, error) {
-	t, ok := o.(T)
-	if ok || err != nil {
-		return t, err
+	if err != nil {
+		var zeroT T
+		return zeroT, err
 	}
 
-	return t, fmt.Errorf("cannot assign %T to %T", o, t)
+	t, ok := maybeAs[T](o)
+	if ok {
+		return t, nil
+	}
+
+	var zeroT T
+	return zeroT, fmt.Errorf("cannot assign %T to %T", o, t)
+}
+
+func maybeAs[T any](o any) (T, bool) {
+	t, ok := o.(T)
+	if ok {
+		return t, true
+	}
+
+	if o != nil {
+		to := reflect.TypeOf(o)
+		tt := reflect.TypeFor[T]()
+		if to.ConvertibleTo(tt) {
+			converted := reflect.ValueOf(o).Convert(tt)
+			return converted.Interface().(T), true
+		}
+	}
+
+	return t, false
 }
 
 func SetPath[T any](t0 T, path []string, v any) (T, error) {
+	return setPath(t0, path, v, path)
+}
+
+func setPath[T any](t0 T, path []string, v any, parentPath []string) (T, error) {
 	var err error
 
 	if len(path) == 0 || path[0] == "" {
+		// special case for blending Fields
+		tFields, tOk := maybeAs[Fields](t0)
+		vFields, vOk := maybeAs[Fields](v)
+		if tOk && vOk {
+			tFields, err = MergeFields(tFields, vFields)
+			if err != nil {
+				var zeroT T
+				return zeroT, fmt.Errorf("error setting path=%v; parentPath=%v for %T: %w", path, parentPath, t0, err)
+			}
+			return as[T](tFields, err)
+		}
 		return as[T](v, nil)
 	}
 
@@ -196,21 +234,21 @@ func SetPath[T any](t0 T, path []string, v any) (T, error) {
 	fail := false
 	switch t := any(t0).(type) {
 	case Fields:
-		t[k], err = SetPath[any](t[k], path[1:], v)
+		t[k], err = setPath[any](t[k], path[1:], v, parentPath)
 	case map[string]any:
-		t[k], err = SetPath[any](t[k], path[1:], v)
+		t[k], err = setPath[any](t[k], path[1:], v, parentPath)
 	case map[string][]string:
-		t[k], err = SetPath[[]string](t[k], path[1:], v)
+		t[k], err = setPath[[]string](t[k], path[1:], v, parentPath)
 	case []any:
 		if kiok {
 			t = ensureLength(t, ki+1)
-			t[ki], err = SetPath[any](t[ki], path[1:], v)
+			t[ki], err = setPath[any](t[ki], path[1:], v, parentPath)
 		} else {
 			fail = true
 		}
 	case map[string]string: // leaf
 		if vstring, ok := v.(string); ok {
-			t[k], err = SetPath[string](t[k], path[1:], vstring)
+			t[k], err = setPath[string](t[k], path[1:], vstring, parentPath)
 		} else {
 			fail = true
 		}
@@ -218,7 +256,7 @@ func SetPath[T any](t0 T, path []string, v any) (T, error) {
 		if kiok && len(path) == 1 {
 			if vstring, ok := v.(string); ok {
 				t = ensureLength(t, ki+1)
-				t[ki], err = SetPath[string](t[ki], path[1:], vstring)
+				t[ki], err = setPath[string](t[ki], path[1:], vstring, parentPath)
 			} else {
 				fail = true
 			}
@@ -228,7 +266,7 @@ func SetPath[T any](t0 T, path []string, v any) (T, error) {
 	}
 
 	if fail {
-		return t0, fmt.Errorf("cannot set path to value on %T; path=%#v; value=%#v", t0, path, v)
+		return t0, fmt.Errorf("cannot set path to value on %T; path=%#v; fullpath=%#v; value=%#v", t0, path, parentPath, v)
 	}
 
 	return as[T](t0, err)

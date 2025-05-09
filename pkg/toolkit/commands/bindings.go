@@ -40,5 +40,8 @@ func (b Bindings) PluckInto(dst, src Fields) (Fields, error) {
 	}
 
 	err := errors.Join(errs...)
+	if err != nil {
+		err = fmt.Errorf("error in PluckInto with bindings %v: %w", b, err)
+	}
 	return dst, err
 }

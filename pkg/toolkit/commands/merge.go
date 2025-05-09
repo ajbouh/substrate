@@ -3,6 +3,7 @@ package commands
 import (
 	"errors"
 	"fmt"
+	"reflect"
 )
 
 const maxMergeDepth = 64
@@ -21,6 +22,10 @@ func merge0(dst, src map[string]any, keypath []string) (any, error) {
 
 	for key, srcVal := range src {
 		if dstVal, ok := dst[key]; ok {
+			if reflect.DeepEqual(srcVal, dstVal) {
+				continue
+			}
+
 			var errs []error
 			srcMap, srcMapErr := As[map[string]any](srcVal)
 			if srcMapErr != nil {
