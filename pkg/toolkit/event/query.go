@@ -48,12 +48,12 @@ func NewCriteria() Criteria {
 	}
 }
 
-func (c Criteria) WithLimit(i int) Criteria {
+func (c *Criteria) WithLimit(i int) *Criteria {
 	c.Limit = &i
 	return c
 }
 
-func (c Criteria) AndWhere(field string, ws ...Where) Criteria {
+func (c *Criteria) AndWhere(field string, ws ...Where) *Criteria {
 	for _, w := range ws {
 		switch o := w.(type) {
 		case *WhereCompare:
@@ -68,12 +68,12 @@ func (c Criteria) AndWhere(field string, ws ...Where) Criteria {
 	return c
 }
 
-func (c Criteria) Clone() Criteria {
+func (c *Criteria) Clone() *Criteria {
 	whereCompare := map[string][]WhereCompare{}
 	for k, v := range c.WhereCompare {
 		whereCompare[k] = slices.Clone(v)
 	}
-	return Criteria{
+	return &Criteria{
 		WhereCompare: whereCompare,
 		Limit:        clonePtr(c.Limit),
 		Bias:         clonePtr(c.Bias),
@@ -93,6 +93,11 @@ type Query struct {
 }
 
 type QuerySet map[string]Query
+
+func (q *Query) WithView(view View) *Query {
+	q.View = view
+	return q
+}
 
 func (q *Query) Until(id ID) *Query {
 	q.BasisCriteria.AndWhere("id", &WhereCompare{Compare: "<=", Value: id.String()})
@@ -143,10 +148,10 @@ func (q *Query) Clone() *Query {
 		viewPlaceholders[k] = v
 	}
 	return &Query{
-		BasisCriteria: q.BasisCriteria.Clone(),
+		BasisCriteria: *q.BasisCriteria.Clone(),
 
 		View:             q.View,
-		ViewCriteria:     q.ViewCriteria.Clone(),
+		ViewCriteria:     *q.ViewCriteria.Clone(),
 		ViewPlaceholders: viewPlaceholders,
 
 		DetectMore: q.DetectMore,
@@ -180,13 +185,15 @@ func NewQuery(view View) *Query {
 }
 
 func QueryByID(id ID) *Query {
-	return NewQuery(ViewEvents).
+	return (&Query{}).
+		WithView(ViewEvents).
 		WithViewLimit(1, false).
 		AndBasisWhere("id", &WhereCompare{Compare: "=", Value: id.String()})
 }
 
 func QueryLatestByPath(path string) *Query {
-	return NewQuery(ViewGroupByPathMaxID).
+	return (&Query{}).
+		WithView(ViewGroupByPathMaxID).
 		WithViewLimit(1, false).
 		AndBasisWhere("path", &WhereCompare{Compare: "=", Value: path})
 }
@@ -205,12 +212,14 @@ func WherePrefix(prefix string) *WhereCompare {
 }
 
 func QueryLatestByPathPrefix(pathPrefix string) *Query {
-	return NewQuery(ViewGroupByPathMaxID).
+	return (&Query{}).
+		WithView(ViewGroupByPathMaxID).
 		AndBasisWhere("path", WherePrefix(pathPrefix))
 }
 
 func QueryLatestPathDirEntriesByPathPrefix(pathPrefix string) *Query {
-	return NewQuery(ViewPathDirEntriesMaxID).
+	return (&Query{}).
+		WithView(ViewPathDirEntriesMaxID).
 		AndBasisWhere("path", WherePrefix(pathPrefix)).
 		WithViewPlaceholder("path", pathPrefix)
 }

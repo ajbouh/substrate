@@ -95,6 +95,10 @@ func (b *BootstrapStrategy) Do(ctx context.Context, input *BootstrapInput, gathe
 		if cursor.Deleted {
 			continue
 		}
+		if !strings.HasPrefix(cursor.Path, input.CursorsPathPrefix) {
+			slog.Info("BootstrapStrategy.Do() skipping cursor that we shouldn't have", "cursor.Path", cursor.Path)
+			continue
+		}
 		cursorsMap[cursor.Path] = &cursor
 	}
 
@@ -102,6 +106,10 @@ func (b *BootstrapStrategy) Do(ctx context.Context, input *BootstrapInput, gathe
 	for _, rule := range rules {
 		// ignore rules that are disabled or deleted.
 		if rule.Disabled || rule.Deleted {
+			continue
+		}
+		if !strings.HasPrefix(rule.Path, input.RulesPathPrefix) {
+			slog.Info("BootstrapStrategy.Do() skipping rule that we shouldn't have", "rule.Path", rule.Path)
 			continue
 		}
 
