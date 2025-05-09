@@ -144,7 +144,7 @@ func (h *EventStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// at this time we only write the event fields as data. we don't yet include "since" or "data".
 	writeEvents := func(n event.Notification) error {
-		slog.Info("EventStreamHandler.ServeHTTP writeEvents()", "until", n.Until, "err", n.Error)
+		// slog.Info("EventStreamHandler.ServeHTTP writeEvents()", "until", n.Until, "err", n.Error)
 
 		if n.Error != nil {
 			for _, b := range [][]byte{

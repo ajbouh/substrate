@@ -104,7 +104,7 @@ func (s *Stream) process(ctx context.Context, querier event.Querier, qs event.Qu
 			}
 			fresh := maxID.Compare(after) > 0
 
-			slog.Info("Stream.process() queried", "q", q, "fresh", fresh, "len(events)", len(events), "maxID", maxID, "after", after)
+			// slog.Info("Stream.process() queried", "q", q, "fresh", fresh, "len(events)", len(events), "maxID", maxID, "after", after)
 			// don't send notification unless at least one event is newer than after
 			if fresh || initial {
 				notification.Updates[k] = event.Update{
