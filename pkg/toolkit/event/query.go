@@ -42,12 +42,6 @@ type Criteria struct {
 	Bias  *int `json:"bias,omitempty"`  // -1 if we want the earliest "Limit"-amount, 1 if we want the most recent "Limit"-amount, 0 if we want a comprehensive window of "Limit"-amount
 }
 
-func NewCriteria() Criteria {
-	return Criteria{
-		WhereCompare: map[string][]WhereCompare{},
-	}
-}
-
 func (c *Criteria) WithLimit(i int) *Criteria {
 	c.Limit = &i
 	return c
