@@ -95,10 +95,17 @@ func MaybeGet[T any](m any, p DataPointer) (t T, ok bool, err error) {
 func MaybeGetPath[T any](m any, path ...string) (t T, ok bool, err error) {
 	var o any
 	o, ok, err = getPath(m, path)
-	if !ok || err != nil {
+	if err != nil {
+		err = fmt.Errorf("can't get path %#v: %w", path, err)
+		return
+	}
+	if !ok {
 		return
 	}
 	t, err = As[T](o)
+	if err != nil {
+		err = fmt.Errorf("can't get path %#v: %w", path, err)
+	}
 	return t, true, err
 }
 
