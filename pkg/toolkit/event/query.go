@@ -169,15 +169,6 @@ func AndBasisWhereFunc(path string, w ...Where) QueryMutation {
 	}
 }
 
-func NewQuery(view View) *Query {
-	return &Query{
-		BasisCriteria:    NewCriteria(),
-		ViewCriteria:     NewCriteria(),
-		ViewPlaceholders: map[string]any{},
-		View:             view,
-	}
-}
-
 func QueryByID(id ID) *Query {
 	return (&Query{}).
 		WithView(ViewEvents).

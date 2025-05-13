@@ -98,7 +98,7 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 
 		var fields []byte
 		err = rows.Scan(&idBytes, &atBytes, &sinceBytes, &deleted,
-			&fields, &evt.FieldsSize, &evt.FieldsSHA256,
+			&fields,
 			&dataSize, &dataSHA256,
 			&vecManifoldIDBytes, &vecID,
 			&vecDistance)
@@ -229,39 +229,22 @@ func (es *EventStore) WriteEvents(ctx context.Context,
 	since event.ID,
 	set *event.PendingEventSet,
 	cb event.WriteNotifyFunc) error {
-	slog.Info("EventStore.WriteEvents", "since", since, "len(fieldsList)", len(set.FieldsList), "len(dataList)", len(set.DataList))
+	slog.Info("EventStore.WriteEvents", "since", since, "len", set.Len())
 
-	if len(set.FieldsList) == 0 {
+	if set.Len() == 0 {
 		return nil
 	}
-
-	lastUnusedReadCloserIndex := 0
-	defer func() {
-		if len(set.DataList) <= lastUnusedReadCloserIndex {
-			return
-		}
-		// close remaining unused dataList, if any.
-		for _, rc := range set.DataList[lastUnusedReadCloserIndex+1:] {
-			if rc != nil {
-				rc.Close()
-			}
-		}
-	}()
 
 	var committers []EventDataCommitFunc
 
 	writeDataIfAny := func(tx db.Tx, id event.ID, i int) ([]byte, int64, error) {
-		l := len(set.DataList)
-		if l == 0 || i >= l {
-			return nil, 0, nil
-		}
-
-		readCloser := set.DataList[i]
+		readCloser, err := set.DataAt(i)
 		if readCloser == nil {
 			return nil, 0, nil
 		}
-
-		lastUnusedReadCloserIndex = i
+		if err != nil {
+			return nil, 0, err
+		}
 
 		d := es.newDigester()
 
@@ -291,12 +274,7 @@ func (es *EventStore) WriteEvents(ctx context.Context,
 
 	vmr := NewVectorManifoldCache(es.VectorManifoldResolver)
 	writeVectorDataIfAny := func(tx db.Tx, i int) (rowid int64, manifoldID *event.ID, err error) {
-		l := len(set.VectorList)
-		if l == 0 || i >= l {
-			return
-		}
-
-		vec := set.VectorList[i]
+		vec := set.VectorAt(i)
 		if vec == nil {
 			return
 		}
@@ -310,19 +288,10 @@ func (es *EventStore) WriteEvents(ctx context.Context,
 		return
 	}
 
-	conflictKeysIfAny := func(i int) []string {
-		l := len(set.ConflictFieldKeysList)
-		if l == 0 || i >= l {
-			return nil
-		}
-
-		return set.ConflictFieldKeysList[i]
-	}
-
-	checkExisting := func(tx db.Tx, i int, fields json.RawMessage) (*event.ID, int, []byte, int64, []byte, bool, error) {
-		conflictKeys := conflictKeysIfAny(i)
+	checkExisting := func(tx db.Tx, i int, fields json.RawMessage) (*event.ID, int64, []byte, bool, error) {
+		conflictKeys := set.ConflictFieldKeysAt(i)
 		if conflictKeys == nil {
-			return nil, 0, nil, 0, nil, false, nil
+			return nil, 0, nil, false, nil
 		}
 
 		expr := From(
@@ -330,8 +299,6 @@ func (es *EventStore) WriteEvents(ctx context.Context,
 			As("new", SQL("SELECT", As("fields", V(string(fields))))),
 		).Select(
 			eventFieldNameJSON("id"),
-			eventFieldNameJSON("fields_size"),
-			eventFieldNameJSON("fields_sha256"),
 			eventFieldNameJSON("data_size"),
 			eventFieldNameJSON("data_sha256"),
 		)
@@ -346,22 +313,20 @@ func (es *EventStore) WriteEvents(ctx context.Context,
 
 		rows, err := tx.QueryContext(ctx, query, args...)
 		if err != nil {
-			return nil, 0, nil, 0, nil, false, err
+			return nil, 0, nil, false, err
 		}
 		defer rows.Close()
 
 		if !rows.Next() {
-			return nil, 0, nil, 0, nil, false, rows.Err()
+			return nil, 0, nil, false, rows.Err()
 		}
 
 		var id event.ID
-		var fieldsDigest []byte
-		var fieldsSize int
 		var dataDigest []byte
 		var dataSize int64
 
-		err = rows.Scan(&id, &fieldsSize, &fieldsDigest, &dataSize, &dataDigest)
-		return &id, fieldsSize, fieldsDigest, dataSize, dataDigest, err == nil, err
+		err = rows.Scan(&id, &dataSize, &dataDigest)
+		return &id, dataSize, dataDigest, err == nil, err
 	}
 
 	var lastMaxID *event.ID
@@ -369,7 +334,8 @@ func (es *EventStore) WriteEvents(ctx context.Context,
 	err := es.Txer.Tx(ctx, func(tx db.Tx) error {
 		var at event.ID
 
-		for i, fields := range set.FieldsList {
+		for i := range set.Len() {
+			fields := set.FieldsAt(i)
 			id := es.eventIDFunc()
 			if i == 0 {
 				at = id
@@ -380,19 +346,15 @@ func (es *EventStore) WriteEvents(ctx context.Context,
 				return err
 			}
 
-			var fieldsDigest []byte
-			var fieldsSize int
 			var dataDigest []byte
 			var dataSize int64
 
-			existingID, existingFieldsSize, existingFieldsDigest, existingDataSize, existingDataDigest, useExisting, err := checkExisting(tx, i, fields)
+			existingID, existingDataSize, existingDataDigest, useExisting, err := checkExisting(tx, i, fields)
 			if err != nil {
 				return err
 			}
 			if useExisting {
 				id = *existingID
-				fieldsSize = existingFieldsSize
-				fieldsDigest = existingFieldsDigest
 				dataSize = existingDataSize
 				dataDigest = existingDataDigest
 			} else {
@@ -401,8 +363,6 @@ func (es *EventStore) WriteEvents(ctx context.Context,
 				if err != nil {
 					return err
 				}
-				fieldsDigest = fieldsDigester.Sum(nil)
-				fieldsSize = len(fieldsBytes)
 
 				dataDigest, dataSize, err = writeDataIfAny(tx, id, i)
 				if err != nil {
@@ -415,17 +375,17 @@ func (es *EventStore) WriteEvents(ctx context.Context,
 				}
 
 				if vectorManifoldID != nil {
-					_, err = tx.ExecContext(ctx, `INSERT INTO "`+eventsTable+`" (id, at, since, data_size, data_sha256, fields_size, fields_sha256, fields, vector_manifold_id, vector_data_rowid) VALUES (?, ?, ?, ?, ?, ?, ?, jsonb(?), ?, ?)`,
+					_, err = tx.ExecContext(ctx, `INSERT INTO "`+eventsTable+`" (id, at, since, data_size, data_sha256, fields, vector_manifold_id, vector_data_rowid) VALUES (?, ?, ?, ?, ?, jsonb(?), ?, ?)`,
 						id.String(), at.String(), since.String(),
 						dataSize, dataDigest,
-						fieldsSize, fieldsDigest, fieldsBytes,
+						fieldsBytes,
 						vectorManifoldID.String(), vectorDataRowid,
 					)
 				} else {
-					_, err = tx.ExecContext(ctx, `INSERT INTO "`+eventsTable+`" (id, at, since, data_size, data_sha256, fields_size, fields_sha256, fields) VALUES (?, ?, ?, ?, ?, ?, ?, jsonb(?))`,
+					_, err = tx.ExecContext(ctx, `INSERT INTO "`+eventsTable+`" (id, at, since, data_size, data_sha256, fields) VALUES (?, ?, ?, ?, ?, jsonb(?))`,
 						id.String(), at.String(), since.String(),
 						dataSize, dataDigest,
-						fieldsSize, fieldsDigest, fieldsBytes,
+						fieldsBytes,
 					)
 				}
 
@@ -440,7 +400,7 @@ func (es *EventStore) WriteEvents(ctx context.Context,
 			}
 
 			if cb != nil {
-				cb(i, id, fieldsSize, fieldsDigest, dataSize, dataDigest)
+				cb(i, id, dataSize, dataDigest)
 			}
 
 			lastMaxID = &id

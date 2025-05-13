@@ -194,11 +194,13 @@ var WriteTreeDataPathCommand = handle.HTTPCommand(
 				FieldsList: []json.RawMessage{
 					json.RawMessage(fmt.Sprintf(`{"path":%q}`, "/"+args.Path)),
 				},
-				DataList: []io.ReadCloser{
-					args.Reader,
+				DataList: []func() (io.ReadCloser, error){
+					func() (io.ReadCloser, error) {
+						return args.Reader, nil
+					},
 				},
 			},
-			func(i int, id event.ID, fieldsSize int, fieldsSha256 []byte, dataSize int64, dataSha256 []byte) {
+			func(i int, id event.ID, dataSize int64, dataSha256 []byte) {
 				wroteID = id
 			},
 		)
@@ -473,8 +475,7 @@ var EventPathLinksQueryCommand = handle.HTTPCommand(
 type WriteEventsReturns struct {
 	IDs []event.ID `json:"ids"`
 
-	FieldsSHA256s []*event.SHA256Digest `json:"fields_sha256s"`
-	DataSHA256s   []*event.SHA256Digest `json:"data_sha256s"`
+	DataSHA256s []*event.SHA256Digest `json:"data_sha256s"`
 }
 
 var WriteEventsCommand = handle.Command(
@@ -497,17 +498,14 @@ var WriteEventsCommand = handle.Command(
 		}
 		// pre-allocate
 		returns.IDs = make([]event.ID, 0, len(args.Events))
-		returns.FieldsSHA256s = make([]*event.SHA256Digest, 0, len(args.Events))
 		returns.DataSHA256s = make([]*event.SHA256Digest, 0, len(args.Events))
 
 		err = t.Writer.WriteEvents(ctx, args.Since, set,
-			func(i int, id event.ID, fieldsSize int, fieldsSha256 []byte, dataSize int64, dataSha256 []byte) {
+			func(i int, id event.ID, dataSize int64, dataSha256 []byte) {
 				slog.Info("write pending", "i", i, "id", id,
-					"fieldsSize", fieldsSize, "fieldsSha256", fieldsSha256,
 					"dataSize", dataSize, "dataSha256", dataSha256,
 				)
 				returns.IDs = append(returns.IDs, id)
-				returns.FieldsSHA256s = append(returns.FieldsSHA256s, event.SHA256DigestFromBytes(fieldsSha256))
 				returns.DataSHA256s = append(returns.DataSHA256s, event.SHA256DigestFromBytes(dataSha256))
 			})
 		if err != nil {
@@ -525,10 +523,12 @@ type QueryEventsReturns struct {
 
 var QueryEventsCommand = handle.Command(
 	"events:query", "Query events in store",
+	// "POST /events/query", "/",
 	func(ctx context.Context,
 		t *struct {
-			Querier   event.Querier
-			EventURLs *EventURLs
+			Querier     event.Querier
+			DataQuerier event.DataQuerier
+			EventURLs   *EventURLs
 		},
 		args struct {
 			View event.View `json:"view" query:"view"`
@@ -548,11 +548,23 @@ var QueryEventsCommand = handle.Command(
 			VectorInManifold *event.ID  `json:"vector_in_manifold" query:"vector_in_manifold"`
 			VectorNear       *[]float32 `json:"vector_near"`
 			VectorLimit      *int       `json:"vector_limit"`
+
+			Query *event.Query `json:"query" query:"queryjson"`
+
+			Writer http.ResponseWriter `json:"-"`
 		},
 	) (QueryEventsReturns, error) {
 		returns := QueryEventsReturns{}
 
-		sq := event.NewQuery(args.View)
+		sq := args.Query
+
+		if sq == nil {
+			sq = &event.Query{}
+		}
+
+		if args.View != "" {
+			sq.View = args.View
+		}
 
 		sq.ViewCriteria.Limit = args.Limit
 		sq.ViewCriteria.Bias = args.Bias

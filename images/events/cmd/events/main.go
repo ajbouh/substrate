@@ -73,6 +73,8 @@ func main() {
 		},
 		&units.SelfLinks{},
 
+		units.ExportEventsCommand,
+		units.ImportEventsCommand,
 
 		units.WriteTreeFieldsPathCommand,
 		units.GetTreeFieldsPathCommand,

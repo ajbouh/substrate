@@ -21,7 +21,6 @@ type Querier interface {
 type WriteNotifyFunc func(
 	i int,
 	id ID,
-	fieldsSize int, fieldsSha256 []byte,
 	dataSize int64, dataSha256 []byte,
 )
 
@@ -39,49 +38,111 @@ type PendingEvent struct {
 	ConflictKeys []string `json:"conflict_keys"`
 }
 
+func (p *PendingEvent) DataOpener() func() (io.ReadCloser, error) {
+	if p.Data == "" {
+		return nil
+	}
+	return func() (rc io.ReadCloser, err error) {
+		if p.DataEncoding == "base64" {
+			b, err := base64.StdEncoding.DecodeString(p.Data)
+			if err != nil {
+				return nil, err
+			}
+			return io.NopCloser(bytes.NewReader(b)), nil
+		}
+		return io.NopCloser(strings.NewReader(p.Data)), nil
+	}
+}
+
 type PendingEventSet struct {
 	FieldsList            []json.RawMessage
-	DataList              []io.ReadCloser
+	DataList              []func() (io.ReadCloser, error)
 	VectorList            []*VectorInput[float32]
 	ConflictFieldKeysList [][]string
 }
 
+type PendingEventSetBuilder struct {
+	pending *PendingEventSet
+}
+
+func NewPendingEventSetBuilder(len int) *PendingEventSetBuilder {
+	return &PendingEventSetBuilder{
+		pending: &PendingEventSet{
+			FieldsList:            make([]json.RawMessage, 0, len),
+			DataList:              make([]func() (io.ReadCloser, error), 0, len),
+			VectorList:            make([]*VectorInput[float32], 0, len),
+			ConflictFieldKeysList: make([][]string, 0, len),
+		},
+	}
+}
+
+func (b *PendingEventSetBuilder) Append(
+	f json.RawMessage,
+	d func() (io.ReadCloser, error),
+	v *VectorInput[float32],
+	c []string,
+) {
+	b.pending.FieldsList = append(b.pending.FieldsList, f)
+	// this is a bit of a waste. not all writes will include data. we should lazily allocate this array.
+	b.pending.DataList = append(b.pending.DataList, d)
+	// this is a bit of a waste. not all writes will include vectors. we should lazily allocate this array.
+	b.pending.VectorList = append(b.pending.VectorList, v)
+	// this is a bit of a waste. not all writes will include conflict. we should lazily allocate this array.
+	b.pending.ConflictFieldKeysList = append(b.pending.ConflictFieldKeysList, c)
+}
+
+func (b *PendingEventSetBuilder) Finish() *PendingEventSet {
+	set := b.pending
+	b.pending = &PendingEventSet{}
+	return set
+}
+
 func PendingFromEntries(entries []PendingEvent) (*PendingEventSet, error) {
-	fieldses := make([]json.RawMessage, 0, len(entries))
-	readers := make([]io.ReadCloser, 0, len(entries))
-	vectors := make([]*VectorInput[float32], 0, len(entries))
-	conflict := make([][]string, 0, len(entries))
-
+	b := NewPendingEventSetBuilder(len(entries))
 	for _, entry := range entries {
-		fieldses = append(fieldses, entry.Fields)
-		var reader io.ReadCloser
-		if entry.Data != "" {
-			if entry.DataEncoding == "base64" {
-				b, err := base64.StdEncoding.DecodeString(entry.Data)
-				if err != nil {
-					return nil, err
-				}
-				reader = io.NopCloser(bytes.NewReader(b))
-			} else {
-				reader = io.NopCloser(strings.NewReader(entry.Data))
-			}
-		}
-		// this is a bit of a waste. not all writes will include data. we should lazily allocate this array.
-		readers = append(readers, reader)
+		b.Append(entry.Fields, entry.DataOpener(), entry.Vector, entry.ConflictKeys)
+	}
+	return b.Finish(), nil
+}
 
-		// this is a bit of a waste. not all writes will include vectors. we should lazily allocate this array.
-		vectors = append(vectors, entry.Vector)
+func (set *PendingEventSet) Len() int {
+	return len(set.FieldsList)
+}
 
-		// this is a bit of a waste. not all writes will include conflict. we should lazily allocate this array.
-		conflict = append(conflict, entry.ConflictKeys)
+func (set *PendingEventSet) FieldsAt(i int) json.RawMessage {
+	return set.FieldsList[i]
+}
+
+func (set *PendingEventSet) DataAt(i int) (io.ReadCloser, error) {
+	l := len(set.DataList)
+	if l == 0 || i >= l {
+		return nil, nil
 	}
 
-	return &PendingEventSet{
-		FieldsList:            fieldses,
-		DataList:              readers,
-		VectorList:            vectors,
-		ConflictFieldKeysList: conflict,
-	}, nil
+	data := set.DataList[i]
+	if data == nil {
+		return nil, nil
+	}
+
+	return data()
+}
+
+func (set *PendingEventSet) VectorAt(i int) *VectorInput[float32] {
+	l := len(set.VectorList)
+	if l == 0 || i >= l {
+		return nil
+	}
+
+	return set.VectorList[i]
+}
+
+func (set *PendingEventSet) ConflictFieldKeysAt(i int) []string {
+	l := len(set.ConflictFieldKeysList)
+	if l == 0 || i >= l {
+		return nil
+	}
+
+	return set.ConflictFieldKeysList[i]
 }
 
 type Writer interface {

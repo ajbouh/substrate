@@ -60,8 +60,6 @@ const createEventsTable = `CREATE TABLE IF NOT EXISTS "` + eventsTable + `" (
 	at TEXT,
 	data_size INT,
 	data_sha256 BLOB,
-	fields_size INT,
-	fields_sha256 BLOB,
 	fields BLOB,
 	vector_manifold_id TEXT,
 	vector_data_rowid INT,

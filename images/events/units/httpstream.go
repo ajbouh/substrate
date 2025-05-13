@@ -37,8 +37,7 @@ func eventQueryFromURLQuerySet(defaultKey string, uq url.Values) (event.QuerySet
 	var q *event.Query
 	ensureQ := func() *event.Query {
 		if q == nil {
-			// q =
-			q = event.NewQuery("")
+			q = &event.Query{}
 		}
 		return q
 	}

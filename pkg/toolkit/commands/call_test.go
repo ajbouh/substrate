@@ -81,8 +81,7 @@ func TestCallEvent(t *testing.T) {
 	type WriteEventsReturns struct {
 		IDs []event.ID `json:"ids"`
 
-		FieldsSHA256s []*event.SHA256Digest `json:"fields_sha256s"`
-		DataSHA256s   []*event.SHA256Digest `json:"data_sha256s"`
+		DataSHA256s []*event.SHA256Digest `json:"data_sha256s"`
 	}
 	h := InitHandler(
 		&service.Service{},

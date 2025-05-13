@@ -120,9 +120,7 @@ type Event struct {
 	DataSize   *int          `json:"data_size,omitempty"`
 	DataSHA256 *SHA256Digest `json:"data_sha256,omitempty"`
 
-	FieldsSize   int             `json:"fields_size,omitempty"`
-	FieldsSHA256 SHA256Digest    `json:"fields_sha256,omitempty"`
-	Payload      json.RawMessage `json:"fields"`
+	Payload json.RawMessage `json:"fields"`
 
 	Vector         *Vector[float32] `json:"vector,omitempty"`
 	VectorDistance *float64         `json:"vector_distance,omitempty"`

@@ -74,6 +74,37 @@ var _ engine.Depender = (*CommandFunc[any, any, any])(nil)
 var _ HTTPResource = (*CommandFunc[any, any, any])(nil)
 var _ HTTPResourceReflect = (*CommandFunc[any, any, any])(nil)
 
+func mustCloneExamples(m map[string]commands.Fields) map[string]commands.Fields {
+	var b []byte
+	b, err := json.Marshal(m)
+	if err != nil {
+		panic(err)
+	}
+
+	var o map[string]commands.Fields
+	err = json.Unmarshal(b, &o)
+	if err != nil {
+		panic(err)
+	}
+
+	return o
+}
+
+func (r *CommandFunc[Target, Params, Returns]) Clone() *CommandFunc[Target, Params, Returns] {
+	return &CommandFunc[Target, Params, Returns]{
+		Target: r.Target,
+		Name:   r.Name,
+		Desc:   r.Desc,
+		Func:   r.Func,
+
+		Examples: mustCloneExamples(r.Examples),
+
+		HTTPMethod:              r.HTTPMethod,
+		HTTPResourcePath:        r.HTTPResourcePath,
+		HTTPResourceReflectPath: r.HTTPResourceReflectPath,
+	}
+}
+
 func (r *CommandFunc[Target, Params, Returns]) String() string {
 	return "*CommandFunc[" + r.Name + "]"
 }

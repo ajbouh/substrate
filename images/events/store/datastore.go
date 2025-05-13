@@ -46,11 +46,11 @@ func (ds *ExternalDataStore) Initialize() {
 func (ds *ExternalDataStore) WriteEventData(ctx context.Context, tx db.Tx, id event.ID, r io.Reader) (int64, EventDataCommitFunc, error) {
 	fileName := ds.resolve(id)
 	f, err := ds.createTemp(id)
-	defer f.Close()
-
 	if err != nil {
 		return 0, nil, err
 	}
+	defer f.Close()
+
 	n, err := io.Copy(f, r)
 	if err != nil {
 		return n, nil, err

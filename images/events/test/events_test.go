@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
 	"github.com/ajbouh/substrate/images/events/db"
@@ -149,18 +150,18 @@ var eventJSON = `{
 	]
   }`
 
-func TestCallEvent(t *testing.T) {
-	h := InitHandler(
+func InitEvents(name, dir string) http.Handler {
+	return InitHandler(
 		&service.Service{},
 
 		&sqliteuri.URI{
+			FileName: dir + "/db.sqlite",
 			URIOptions: sqliteuri.URIOptions{
-				Mode:        sqliteuri.ModeMemory,
 				JournalMode: sqliteuri.JournalModeWAL,
 			},
 		},
 		&sqliteuri.Opener{
-			Driver: "sqlite_custom",
+			Driver: "sqlite_custom_" + name,
 		},
 		&db.MultiReaderDB{},
 		&db.SingleWriterDB{},
@@ -175,7 +176,7 @@ func TestCallEvent(t *testing.T) {
 			}),
 
 		&store.ExternalDataStore{
-			BaseDir: t.TempDir(),
+			BaseDir: dir + "/data",
 		},
 		&store.EventStore{},
 		&store.VectorManifoldStore{},
@@ -186,32 +187,56 @@ func TestCallEvent(t *testing.T) {
 		},
 		&units.SelfLinks{},
 
-		units.WriteTreeFieldsPathCommand,
-		units.GetTreeFieldsPathCommand,
+		units.ExportEventsCommand.Clone(),
+		units.ImportEventsCommand.Clone(),
 
-		units.WriteTreeDataPathCommand,
-		units.GetTreeDataPathCommand,
+		units.WriteTreeFieldsPathCommand.Clone(),
+		units.GetTreeFieldsPathCommand.Clone(),
 
-		units.GetTreeRawPathCommand,
+		units.WriteTreeDataPathCommand.Clone(),
+		units.GetTreeDataPathCommand.Clone(),
 
-		units.GetEventCommand,
-		units.GetEventDataCommand,
-		units.IDLinksQueryCommand,
-		units.EventPathLinksQueryCommand,
+		units.GetTreeRawPathCommand.Clone(),
 
-		units.WriteEventsCommand,
-		units.TryReactionCommand,
-		units.QueryEventsCommand,
+		units.GetEventCommand.Clone(),
+		units.GetEventDataCommand.Clone(),
+		units.IDLinksQueryCommand.Clone(),
+		units.EventPathLinksQueryCommand.Clone(),
+
+		units.WriteEventsCommand.Clone(),
+		units.TryReactionCommand.Clone(),
+		units.QueryEventsCommand.Clone(),
 		&units.EventStreamHandler{},
 	)
+}
+
+func as[Out any](t *testing.T, o any) Out {
+	out, err := commands.As[Out](o)
+	if err != nil {
+		t.Fatalf("error converting to %T: %s", out, err)
+	}
+	return out
+}
+
+func callURL[Out, In any](t *testing.T, env commands.Env, url, command string, params In) *Out {
+	out, err := commands.CallURL[Out, In](context.Background(), env, url, command, params)
+	if err != nil {
+		t.Fatalf("error calling command: %v", err)
+	}
+	t.Logf("url=%s command=%s params=%#v response: %#v", url, command, params, out)
+	return out
+}
+
+func TestCallEvent(t *testing.T) {
+	h := InitEvents(t.Name(), t.TempDir())
+	srv := httptest.NewServer(h)
+	defer srv.Close()
 
 	client := &struct {
 		Env commands.Env
 	}{}
 	Assemble(&service.Service{}, client)
-
-	srv := httptest.NewServer(h)
-	defer srv.Close()
+	env := client.Env
 
 	var input commands.Fields
 	err := json.Unmarshal([]byte(eventJSON), &input)
@@ -219,46 +244,75 @@ func TestCallEvent(t *testing.T) {
 		t.Fatalf("error unmarshalling input: %v", err)
 	}
 
-	response, err := commands.CallURL[units.WriteEventsReturns](context.Background(), client.Env, srv.URL, "events:write", input)
-	if err != nil {
-		t.Fatalf("error calling command: %v", err)
-	}
+	response := callURL[units.WriteEventsReturns](t, env, srv.URL, "events:write", input)
 	t.Logf("Response: %#v", response)
+}
 
-	response, err = commands.CallURL[units.WriteEventsReturns](context.Background(), client.Env, srv.URL, "events:write", input)
-	if err != nil {
-		t.Fatalf("error calling command: %v", err)
+func must1[A any](t *testing.T, failFmt string, f func(a A) bool, a A) {
+	if f(a) {
+		return
 	}
-	t.Logf("Response: %#v", response)
+	t.Logf(failFmt, a)
+	t.FailNow()
+}
 
-	response, err = commands.CallURL[units.WriteEventsReturns](context.Background(), client.Env, srv.URL, "events:write", input)
-	if err != nil {
-		t.Fatalf("error calling command: %v", err)
+func must2[A, B any](t *testing.T, failFmt string, f func(a A, b B) bool, a A, b B) {
+	if f(a, b) {
+		return
 	}
-	t.Logf("Response: %#v", response)
+	t.Logf(failFmt, a, b)
+	t.FailNow()
+}
 
-	response, err = commands.CallURL[units.WriteEventsReturns](context.Background(), client.Env, srv.URL, "events:write", input)
-	if err != nil {
-		t.Fatalf("error calling command: %v", err)
-	}
-	t.Logf("Response: %#v", response)
+func TestTransit(t *testing.T) {
+	h1 := InitEvents(t.Name()+"_h1", t.TempDir())
+	srv1 := httptest.NewServer(h1)
+	defer srv1.Close()
 
-	response, err = commands.CallURL[units.WriteEventsReturns](context.Background(), client.Env, srv.URL, "events:write", input)
-	if err != nil {
-		t.Fatalf("error calling command: %v", err)
-	}
-	t.Logf("Response: %#v", response)
+	h2 := InitEvents(t.Name()+"_h2", t.TempDir())
+	srv2 := httptest.NewServer(h2)
+	defer srv2.Close()
 
-	response, err = commands.CallURL[units.WriteEventsReturns](context.Background(), client.Env, srv.URL, "events:write", input)
-	if err != nil {
-		t.Fatalf("error calling command: %v", err)
-	}
-	t.Logf("Response: %#v", response)
+	client := &struct {
+		Env commands.Env
+	}{}
+	Assemble(&service.Service{}, client)
+	env := client.Env
 
-	response, err = commands.CallURL[units.WriteEventsReturns](context.Background(), client.Env, srv.URL, "events:write", input)
-	if err != nil {
-		t.Fatalf("error calling command: %v", err)
-	}
-	t.Logf("Response: %#v", response)
+	type F = commands.Fields
+	callURL[units.WriteEventsReturns](t, env, srv1.URL, "events:write",
+		F{"events": []any{F{"fields": F{"name": "alice"}}}})
 
+	must2(t, "first event should be present; expected %#v, got %#v",
+		reflect.DeepEqual,
+		any(F{"name": "alice"}),
+		any(as[F](t,
+			callURL[units.QueryEventsReturns](t, env, srv1.URL, "events:query",
+				F{"query": F{"basis_criteria": F{"where": F{"name": []any{F{"compare": "=", "value": "alice"}}}}}}).Events[0].Payload)))
+
+	exportResponse := callURL[units.ExportEventsReturns](t, env, srv1.URL, "events:export",
+		F{
+			"accept": "application/json",
+			"query":  F{"basis_criteria": F{"where": F{"name": []any{F{"compare": "=", "value": "alice"}}}}}},
+	)
+	must1(t, "export should be present; expected %#v > 0",
+		func(len int) bool { return len > 0 },
+		len(exportResponse.Export),
+	)
+
+	must1(t, "no events should be present; expected no events, got %#v",
+		func(events []event.Event) bool { return len(events) == 0 },
+		callURL[units.QueryEventsReturns](t, env, srv2.URL, "events:query",
+			F{"query": F{"basis_criteria": F{"where": F{"name": []any{F{"compare": "=", "value": "alice"}}}}}}).Events)
+
+	importResponse := callURL[units.ImportEventsReturns](t, env, srv2.URL, "events:import",
+		F{"import": exportResponse.Export})
+	_ = importResponse
+
+	must2(t, "first event should be present; expected %#v, got %#v",
+		reflect.DeepEqual,
+		any(F{"name": "alice"}),
+		any(as[F](t,
+			callURL[units.QueryEventsReturns](t, env, srv2.URL, "events:query",
+				F{"query": F{"basis_criteria": F{"where": F{"name": []any{F{"compare": "=", "value": "alice"}}}}}}).Events[0].Payload)))
 }

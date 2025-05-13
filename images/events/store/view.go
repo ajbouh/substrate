@@ -18,7 +18,7 @@ var V = db.V
 func renderFieldName(name string, jsonb bool) string {
 	switch name {
 	// these are top-level columns
-	case "id", "since", "at", "fields", "data_size", "data_sha256", "fields_size", "fields_sha256", "vector_manifold_id", "vector_data_rowid", "vector_data_nn_distance":
+	case "id", "since", "at", "fields", "data_size", "data_sha256", "vector_manifold_id", "vector_data_rowid", "vector_data_nn_distance":
 		return name
 	default:
 		if jsonb {
@@ -103,8 +103,6 @@ func prepareBasis(ctx context.Context, vmr VectorManifoldResolver, q event.Crite
 		As("at", eventFieldNameJSONB("at")),
 		As("since", eventFieldNameJSONB("since")),
 		As("fields", eventFieldNameJSONB("fields")),
-		As("fields_size", eventFieldNameJSONB("fields_size")),
-		As("fields_sha256", eventFieldNameJSONB("fields_sha256")),
 		As("data_size", eventFieldNameJSONB("data_size")),
 		As("data_sha256", eventFieldNameJSONB("data_sha256")),
 		As("vector_manifold_id", eventFieldNameJSONB("vector_manifold_id")),
@@ -125,8 +123,6 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 			As("since", "since"),
 			As("deleted", "0"),
 			As("fields", "json(fields)"),
-			As("fields_size", eventFieldNameJSONB("fields_size")),
-			As("fields_sha256", eventFieldNameJSONB("fields_sha256")),
 			As("data_size", eventFieldNameJSONB("data_size")),
 			As("data_sha256", eventFieldNameJSONB("data_sha256")),
 			As("vector_manifold_id", eventFieldNameJSONB("vector_manifold_id")),
@@ -144,8 +140,6 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 			As("since", `since`),
 			As("deleted", "1"),
 			As("fields", `'{}'`),
-			As("fields_size", "0"),
-			As("fields_sha256", "null"),
 			As("data_size", "0"),
 			As("data_sha256", "null"),
 			As("vector_manifold_id", "null"),
@@ -165,8 +159,6 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 					As("deleted", "0"),
 					As("path", eventFieldNameJSONB("path")),
 					As("fields", eventFieldNameJSONB("fields")),
-					As("fields_size", eventFieldNameJSONB("fields_size")),
-					As("fields_sha256", eventFieldNameJSONB("fields_sha256")),
 					As("data_size", eventFieldNameJSONB("data_size")),
 					As("data_sha256", eventFieldNameJSONB("data_sha256")),
 					As("vector_manifold_id", eventFieldNameJSONB("vector_manifold_id")),
@@ -186,8 +178,6 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 				As("since", "since"),
 				As("deleted", "deleted"),
 				As("fields", "json(fields)"),
-				As("fields_size", eventFieldNameJSONB("fields_size")),
-				As("fields_sha256", eventFieldNameJSONB("fields_sha256")),
 				As("data_size", eventFieldNameJSONB("data_size")),
 				As("data_sha256", eventFieldNameJSONB("data_sha256")),
 				As("vector_manifold_id", eventFieldNameJSONB("vector_manifold_id")),
@@ -232,8 +222,6 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 					// `'size'`, `sum(length(fields) + length(data))`),
 				),
 			),
-			As("fields_size", Call("sum", eventFieldNameJSONB("fields_size"))),
-			As("fields_sha256", "null"), // kind of meaningless?
 			As("data_size", Call("sum", eventFieldNameJSONB("data_size"))),
 			As("data_sha256", "null"), // kind of meaningless?
 			As("vector_manifold_id", "null"),
