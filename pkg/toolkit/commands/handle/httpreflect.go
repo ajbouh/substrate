@@ -132,7 +132,7 @@ func (h *HTTPResourceReflectHandler) ContributeHTTP(ctx context.Context, mux *ht
 	h.ReflectorsPerRoute = commands.Group(h.Aggregate.GatherReflectorsExcluding(context.Background(), nil), HTTPResourceReflectPath)
 
 	// rename the empty route to the given default reflect path
-	h.ReflectorsPerRoute[h.DefaultHTTPResourceReflectPath] = h.ReflectorsPerRoute[""]
+	h.ReflectorsPerRoute[h.DefaultHTTPResourceReflectPath] = append(h.ReflectorsPerRoute[h.DefaultHTTPResourceReflectPath], h.ReflectorsPerRoute[""]...)
 	delete(h.ReflectorsPerRoute, "")
 
 	slog.Info("HTTPResourceReflectHandler.ContributeHTTP", "ReflectorsPerRoute", h.ReflectorsPerRoute)
