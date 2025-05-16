@@ -172,6 +172,10 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 				return false
 			}
 
+			if !HasContentType(req, "application/json") {
+				return false
+			}
+
 			return commands.HasJSONFields(paramsType, true)
 		}
 

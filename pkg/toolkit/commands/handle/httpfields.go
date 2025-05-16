@@ -4,6 +4,7 @@ import (
 	"encoding"
 	"encoding/json"
 	"fmt"
+	"mime"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -12,6 +13,16 @@ import (
 
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 )
+
+func HasContentType(req *http.Request, mimetype string) bool {
+	for _, v := range strings.Split(req.Header.Get("Content-Type"), ",") {
+		t, _, err := mime.ParseMediaType(v)
+		if err == nil && t == mimetype {
+			return true
+		}
+	}
+	return false
+}
 
 func fieldNameIfAny(p reflect.StructField) (string, bool) {
 	if jsonTag, ok := p.Tag.Lookup("json"); ok {

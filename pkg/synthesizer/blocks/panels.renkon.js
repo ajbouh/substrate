@@ -286,6 +286,8 @@ const panelVDOMs = Array.from(panelKeys, (key) => {
                     records => records.map(record => ensurePanelField(key, record))))
             },
             recordsQuery: (key, queries) => queries.forEach(({ns, ...q}) => Events.send(recordsQuery, {...q, ns: [key, ...ns], [Renkon.app.transferSymbol]: q.port ? [q.port] : []})),
+            recordsImport: (key, imports) => imports.forEach(({ns, ...q}) => Events.send(recordsImport, {...q, ns: [key, ...ns], [Renkon.app.transferSymbol]: [...(q.port ? [q.port] : []), ...(q.readable ? [q.readable] : [])]})),
+            recordsExport: (key, exports) => exports.forEach(({ns, ...q}) => Events.send(recordsExport, {...q, ns: [key, ...ns], [Renkon.app.transferSymbol]: q.port ? [q.port] : []})),
             actionsOffer: (key, offers) => offers.forEach(({ns, ...q}) => Events.send(actionsOffer, {...q, ns: [key, ...ns]})),
             close: (key, closes) => closes.forEach(c => Events.send(close, {ns: [key, ...c.ns]})),
         },
@@ -295,7 +297,7 @@ const panelVDOMs = Array.from(panelKeys, (key) => {
             {name: "actionOffersUpdated", keyed: false},
         ],
         eventsReceivers: ["querysetUpdated", "actionOffersUpdated"],
-        eventsReceiversQueued: ["close", "recordsQuery", "recordsWrite", "panelWrite", "panelEmit", "actionsOffer"],
+        eventsReceiversQueued: ["close", "recordsQuery", "recordsExport", "recordsImport", "recordsWrite", "panelWrite", "panelEmit", "actionsOffer"],
     }, key);
 
     return {
@@ -331,6 +333,26 @@ const importFilesAsRecordWrites = ({fields, pathPrefix}) =>
         if (!files) return resolve([]);
         try {
           resolve(Promise.all(Array.from(files, file => recordWriteFromFile({...fields, path: pathPrefix + file.name}, file))));
+        } catch (error) {
+          reject(error);
+        }
+      };
+      input.click();
+    });
+
+const importFilesAsSnapshots = ({fields}) =>
+    new Promise((resolve, reject) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.onchange = async () => {
+        const files = input.files;
+        if (!files) return resolve([]);
+        try {
+          resolve(Array.from(files, file => {
+            const readable = file.stream()
+            return {...fields, readable, ns: [], [Renkon.app.transferSymbol]: [readable]}
+          }));
         } catch (error) {
           reject(error);
         }
@@ -470,6 +492,11 @@ const panelsH = h('div', {
         button(
             () => importFilesAsRecordWrites({fields: {}, pathPrefix: fileImportPathPrefix}).then(records => Events.send(recordsWrite, records)),
             "📂",
+            {style: 'width: 2em; height: 2em;'}
+        ),
+        button(
+            () => importFilesAsSnapshots({fields: {}}).then(imports => imports.forEach(imprt => Events.send(recordsImport, imprt))),
+            "🚛",
             {style: 'width: 2em; height: 2em;'}
         ),
         h('div', {style: {flex: '1'}}),

@@ -35,6 +35,9 @@ const verbsForRecord = record => [...new Set(actionsAndMatchers.filter(v => v[0]
 
 const commonInput = {h, decodeTime}
 
+const queryRecords = Behaviors.collect(undefined, querysetUpdated, (now, {records}) => records);
+console.log({queryRecords})
+
 const act = ({verb, record, event}) => {
     const write = {fields: {
         type: "action/cue",
@@ -61,9 +64,36 @@ const pick = (o, ...keys) => {
     return v
 }
 
+const recordsExportQuery = (query, name) => new Promise((resolve, reject) => {
+    const ch = new window.MessageChannel()
+    ch.port2.onmessage = ({data}) => {
+        resolve(data)
+    }
+    ch.port2.onmessageerror = (evt) => reject(evt)
+    Events.send(recordsExport, {
+        ns: [`recordsexport-hack-${Date.now()}`], // this approach to ns is a hack :(
+        port: ch.port1,
+        query,
+        name,
+        [Renkon.app.transferSymbol]: [ch.port1],
+    })
+})
+
+const downloadURL = (url, fileName) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+};
+  
 render(
-    h('div', {},
-        records.map(record => {
+    h('div', {}, [
+        // todo make this a list of actions that apply to all records
+        h('a', {href: '#', onclick: (event) => {
+            const name = `export-${Date.now()}.synth`
+            recordsExportQuery(queryRecords, name).then(url => downloadURL(url, name))
+        }}, 'export'),
+        h('div', {}, records.map(record => {
             const input = {...commonInput, record}
 
             return h('div', {
@@ -81,5 +111,6 @@ render(
                 ]),
             ])
         })),
+    ]),
     document.body,
 )

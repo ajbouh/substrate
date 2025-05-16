@@ -116,6 +116,30 @@ const bc = blockComponent({
                 records => records.map(record => ensureActorField(actor, ensureSurfaceField(surface.fields?.path, record))))
             Events.send(recordsWrite, records)
         },
+        recordsImport: (key, imports) => {
+            for (let {ns, port, fields, readable} of imports) {
+                ({fields} = ensureActorField(actor, ensureSurfaceField(surface.fields?.path, {fields})));
+                Events.send(recordsImport, {
+                    fields,
+                    readable,
+                    ns: [key, ...ns],
+                    port,
+                    [Renkon.app.transferSymbol]: [...(port ? [port] : []), ...(readable ? [readable] : [])],
+                })
+            }
+        },
+        recordsExport: (key, exports) => {
+            for (let {name, query, ns, port} of exports) {
+                query = query.global ? query : mergeRecordQueries({...query, global: true}, surfaceCriteria(surface.fields?.path))
+                Events.send(recordsExport, {
+                    query,
+                    name,
+                    ns: [key, ...ns],
+                    port,
+                    [Renkon.app.transferSymbol]: port ? [port] : [],
+                })
+            }
+        },
         recordsQuery: (key, queries) => {
             for (let {queryset: queryset0, stream, ns, port} of queries) {
                 const queryset = Object.fromEntries(
@@ -204,7 +228,7 @@ const bc = blockComponent({
         {name: "actionOffersUpdated", keyed: false},
     ],
     eventsReceivers: ["querysetUpdated", "surfaceUpdated", "actionOffersUpdated"],
-    eventsReceiversQueued: ["recordsQuery", "close", "recordsWrite", "actionsOffer", "surfaceWrite"],
+    eventsReceiversQueued: ["recordsQuery", "recordsExport", "recordsImport", "close", "recordsWrite", "actionsOffer", "surfaceWrite"],
 }, panelsKey);
 
 render(

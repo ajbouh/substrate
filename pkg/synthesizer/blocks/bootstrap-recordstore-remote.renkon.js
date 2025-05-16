@@ -1,6 +1,8 @@
 const recordsWrite = Events.receiver({queued: true})
 const close = Events.receiver({queued: true});
 const recordsQuery = Events.receiver({queued: true});
+const recordsExport = Events.receiver({queued: true});
+const recordsImport = Events.receiver({queued: true});
 
 const renderRecordStreamQueryURL = (recordQuerySet) => {
     const url = new URL(`${recordStoreBaseURL}/stream/events`)
@@ -21,6 +23,19 @@ console.log({recordsWrite});
 const recordsWriteResponse = ((recordses) => writeRecords(recordses.flatMap(r => r)))(recordsWrite);
 
 const readRecordDataURL = id => `${recordStoreBaseURL}/events/${id}/data`
+const exportRecordsURL = (query, name) => {
+    const url = new URL(`${recordStoreBaseURL}/events/export`)
+    url.searchParams.set("queryjson", JSON.stringify(query))
+    if (name) {
+        url.searchParams.set("name", name)
+    }
+    return url.toString()
+}
+const importRecordsURL = (fields) => {
+    const url = new URL(`${recordStoreBaseURL}/events/import`)
+    url.searchParams.set("fieldsjson", JSON.stringify(fields))
+    return url.toString()
+}
 const ensureDataURL = record => record.data_sha256 ? {...record, data_url: readRecordDataURL(record.id)} : record
 const newStreamingQuery = ({key, query, url, port}) => {
     const eventSource = new window.EventSource(url)
@@ -77,6 +92,33 @@ const watchKey = raw => {
     const s = JSON.stringify(raw)
     return s.slice(0, s.length-1) // remove trailing ]
 }
+
+const recordsExports = Events.select(
+    undefined,
+    recordsExport, (now, exports) => {
+        for (let {name, query, ns, port} of exports) {
+            console.log({'exportRecordsURL(query, name)': exportRecordsURL(query, name)})
+            port.postMessage(exportRecordsURL(query, name))
+        }
+    },
+)
+
+const recordsImports = Events.select(
+    undefined,
+    recordsImport, (now, imports) => {
+        for (let {ns, port, fields, readable} of imports) {
+            fetch(importRecordsURL(fields), {
+                method: 'POST',
+                body: readable,
+                duplex: 'half',
+                headers: {
+                    'Content-Type': 'application/zip',
+                },
+            }).then(res => port.postMessage({status: res.status}))
+            console.log('recordsImports', {ns, port, fields, readable})
+        }
+    },
+)
 
 const recordsQueries = Events.select(
     {map: new Map()},

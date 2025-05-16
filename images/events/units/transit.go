@@ -15,6 +15,7 @@ import (
 
 	"github.com/elnormous/contenttype"
 
+	"github.com/ajbouh/substrate/pkg/toolkit/commands"
 	"github.com/ajbouh/substrate/pkg/toolkit/commands/handle"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 )
@@ -157,26 +158,6 @@ func PendingFromZip(r io.ReaderAt, size int64) (*event.PendingEventSet, error) {
 	return b.Finish(), nil
 }
 
-func WriteFromZip(ctx context.Context, ew event.Writer, since event.ID, r io.ReaderAt, size int64) (event.ID, error) {
-	var wroteID event.ID
-
-	set, err := PendingFromZip(r, size)
-	if err != nil {
-		return wroteID, err
-	}
-
-	err = ew.WriteEvents(
-		ctx,
-		since,
-		set,
-		func(i int, id event.ID, dataSize int64, dataSha256 []byte) {
-			wroteID = id
-		},
-	)
-
-	return wroteID, err
-}
-
 type ImportEventsReturns struct {
 	MaxID event.ID `json:"max_id"`
 }
@@ -190,12 +171,13 @@ var ImportEventsCommand = handle.HTTPCommand(
 			Writer event.Writer
 		},
 		args struct {
-			Since  event.ID `query:"since"`
-			Import []byte   `json:"import"`
-			// Reader io.ReadCloser `json:"-"`
+			Since  event.ID        `query:"since"`
+			Fields json.RawMessage `json:"fields" query:"fieldsjson"`
+			Type   string          `header:"Content-Type"`
+			Import []byte          `json:"import"`
+			Reader io.ReadCloser   `json:"-"`
 		},
 	) (ImportEventsReturns, error) {
-		slog.Info("ImportEventsCommand", "t", t, "args", args)
 		returns := ImportEventsReturns{}
 
 		f, err := os.CreateTemp("", "")
@@ -204,15 +186,62 @@ var ImportEventsCommand = handle.HTTPCommand(
 		}
 		defer os.Remove(f.Name())
 
-		n, err := f.Write(args.Import)
+		var n int64
 
-		// defer args.Reader.Close()
-		// n, err := io.Copy(f, args.Reader)
+		switch args.Type {
+		case "application/json":
+			var nWrite int
+			nWrite, err = f.Write(args.Import)
+			n = int64(nWrite)
+		default:
+			defer args.Reader.Close()
+			n, err = io.Copy(f, args.Reader)
+		}
 		if err != nil {
 			return returns, err
 		}
 
-		returns.MaxID, err = WriteFromZip(ctx, t.Writer, args.Since, f, int64(n))
+		pending, err := PendingFromZip(f, n)
+		if err != nil {
+			return returns, err
+		}
+
+		if len(args.Fields) > 0 {
+			for i := range pending.Len() {
+				var forceFields commands.Fields
+				err = json.Unmarshal(args.Fields, &forceFields)
+				if err != nil {
+					return returns, err
+				}
+
+				var fields commands.Fields
+				err = json.Unmarshal(pending.FieldsAt(i), &fields)
+				if err != nil {
+					return returns, err
+				}
+
+				fields, err = commands.MergeFieldsFavoringSrc(fields, forceFields)
+				if err != nil {
+					return returns, err
+				}
+
+				b, err := json.Marshal(fields)
+				if err != nil {
+					return returns, err
+				}
+
+				pending.SetFieldsAt(i, b)
+			}
+		}
+
+		err = t.Writer.WriteEvents(
+			ctx,
+			args.Since,
+			pending,
+			func(i int, id event.ID, dataSize int64, dataSha256 []byte) {
+				returns.MaxID = id
+			},
+		)
 		return returns, err
 	})
 
@@ -222,30 +251,32 @@ type ExportEventsReturns struct {
 
 var ExportEventsCommand = handle.HTTPCommand(
 	"events:export", "Export events from store",
-	"POST /events/export", "/",
+	"GET /events/export", "/",
 	func(ctx context.Context,
 		t *struct {
 			Querier     event.Querier
 			DataQuerier event.DataQuerier
 		},
 		args struct {
-			Query *event.Query `json:"query"`
-			// TODO figure out how to use header
-			Accept string              `json:"accept"`
-			Writer http.ResponseWriter `json:"-"`
+			QueryJSON json.RawMessage     `json:"query" query:"queryjson"`
+			Accept    string              `json:"accept" header:"Accept"`
+			Name      string              `json:"name" query:"name"`
+			Writer    http.ResponseWriter `json:"-"`
 		},
 	) (ExportEventsReturns, error) {
 		returns := ExportEventsReturns{}
+		var err error
 
-		sq := args.Query
-		if sq == nil {
+		var sq *event.Query
+
+		err = json.Unmarshal(args.QueryJSON, &sq)
+		if err != nil {
 			return returns, &handle.HTTPStatusError{
+				Err:    err,
 				Status: http.StatusBadRequest,
 			}
 		}
 
-		var err error
-		slog.Info("ExportEventsCommand", "t", t, "args", args, "sq", sq)
 		events, _, _, err := t.Querier.QueryEvents(ctx, sq)
 		if err != nil {
 			return returns, &handle.HTTPStatusError{
@@ -254,14 +285,14 @@ var ExportEventsCommand = handle.HTTPCommand(
 			}
 		}
 
-		// req := httpframework.ContextOriginalRequest(ctx)
-
 		availableMediaTypes := []contenttype.MediaType{
-			contenttype.NewMediaType("application/json"),
-			contenttype.NewMediaType("application/json; charset=utf-8"),
+			// prefer to send a raw zip
 			contenttype.NewMediaType("application/zip"),
 			contenttype.NewMediaType("application/x-zip"),
 			contenttype.NewMediaType("application/x-zip-compressed"),
+			// but also support a json response like {"export": <base64>}
+			contenttype.NewMediaType("application/json"),
+			contenttype.NewMediaType("application/json; charset=utf-8"),
 		}
 
 		accepted, _, err := contenttype.GetAcceptableMediaTypeFromHeader(args.Accept, availableMediaTypes)
@@ -273,7 +304,7 @@ var ExportEventsCommand = handle.HTTPCommand(
 		}
 
 		switch accepted.Type + "/" + accepted.Subtype {
-		case "application/json", "":
+		case "application/json":
 			// header := args.Writer.Header()
 			// header.Set("Content-Type", "application/json")
 			// err = json.NewEncoder(args.Writer).Encode(returns)
@@ -281,8 +312,13 @@ var ExportEventsCommand = handle.HTTPCommand(
 			err = WriteZip(ctx, &b, t.DataQuerier, events)
 			returns.Export = b.Bytes()
 			return returns, err
-		case "application/zip", "application/x-zip", "application/x-zip-compressed":
+		case "application/zip", "application/x-zip", "application/x-zip-compressed", "":
 			header := args.Writer.Header()
+			contentDisposition := "attachment"
+			if args.Name != "" {
+				contentDisposition = fmt.Sprintf("%s; filename=%q", contentDisposition, args.Name)
+			}
+			header.Set("Content-Disposition", contentDisposition)
 			header.Set("Content-Type", accepted.Type+"/"+accepted.Subtype)
 			err = WriteZip(ctx, args.Writer, t.DataQuerier, events)
 			return returns, err

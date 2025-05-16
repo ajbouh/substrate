@@ -112,6 +112,9 @@ func (set *PendingEventSet) Len() int {
 func (set *PendingEventSet) FieldsAt(i int) json.RawMessage {
 	return set.FieldsList[i]
 }
+func (set *PendingEventSet) SetFieldsAt(i int, fields json.RawMessage) {
+	set.FieldsList[i] = fields
+}
 
 func (set *PendingEventSet) DataAt(i int) (io.ReadCloser, error) {
 	l := len(set.DataList)
