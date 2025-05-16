@@ -87,6 +87,7 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 		var atBytes sql.RawBytes
 		var sinceBytes sql.RawBytes
 		var deleted int
+		var matches []byte
 
 		var dataSHA256 sql.RawBytes
 		var dataSize int
@@ -101,6 +102,7 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 			&fields,
 			&dataSize, &dataSHA256,
 			&vecManifoldIDBytes, &vecID,
+			&matches,
 			&vecDistance)
 		if err != nil {
 			// slog.Info("QueryEvents rows.Scan", "err", err)
@@ -125,6 +127,14 @@ func (es *EventStore) QueryEvents(ctx context.Context, q *event.Query) ([]event.
 
 		if len(sinceBytes) > 0 {
 			err = evt.Since.Scan(string(sinceBytes))
+			if err != nil {
+				// slog.Info("QueryEvents Since.Scan", "err", err)
+				return nil, maxID, false, err
+			}
+		}
+
+		if len(matches) > 0 {
+			err = json.Unmarshal(matches, &evt.Matches)
 			if err != nil {
 				// slog.Info("QueryEvents Since.Scan", "err", err)
 				return nil, maxID, false, err

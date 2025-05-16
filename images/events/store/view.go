@@ -15,33 +15,61 @@ var SQL = db.SQL
 var Call = db.Call
 var V = db.V
 
-func renderFieldName(name string, jsonb bool) string {
+func renderFieldName(name string, jsonb bool, table string) string {
+	prefix := ""
+	if table != "" {
+		prefix = table + "."
+	}
 	switch name {
 	// these are top-level columns
 	case "id", "since", "at", "fields", "data_size", "data_sha256", "vector_manifold_id", "vector_data_rowid", "vector_data_nn_distance":
-		return name
+		return prefix + name
 	default:
 		if jsonb {
-			return "jsonb_extract(fields, '$." + name + "')"
+			return "jsonb_extract(" + prefix + "fields, '$." + name + "')"
 		}
-		return "jsonb_extract(fields, '$." + name + "')"
+		return "json_extract(" + prefix + "fields, '$." + name + "')"
 	}
 }
 
 func eventFieldNameJSON(name string) db.Expr {
-	return SQL(renderFieldName(name, false))
+	return SQL(renderFieldName(name, false, ""))
 }
 
 func eventFieldNameJSONB(name string) db.Expr {
-	return SQL(renderFieldName(name, true))
+	return SQL(renderFieldName(name, true, ""))
 }
 
-func prepareCriteria(ctx context.Context, s *db.SelectExpr, vmr VectorManifoldResolver, defaultOrderByIfBias string, q event.Criteria) (*db.SelectExpr, error) {
+func eventFieldNameWithTableJSON(name, table string) db.Expr {
+	return SQL(renderFieldName(name, false, table))
+}
+
+func eventFieldNameWithTableJSONB(name, table string) db.Expr {
+	return SQL(renderFieldName(name, true, table))
+}
+
+func prepareCriteria(ctx context.Context, s *db.SelectExpr, vmr VectorManifoldResolver, defaultOrderByIfBias string, defaultMatchValue string, q event.Criteria) (*db.SelectExpr, error) {
+	hasMatches := false
 	for field, wheres := range q.WhereCompare {
-		fieldName := eventFieldNameJSONB(field)
-		for _, where := range wheres {
-			s.AndWhere(SQL(fieldName, where.Compare, V(where.Value)))
+		if field == "" {
+			hasMatches = true
+			s.AndFrom(As("jt", "json_tree(fields)"))
+			s.GroupBy(SQL("basis.id"))
+			for _, where := range wheres {
+				s.AndWhere(SQL("jt.value", where.Compare, V(where.Value)))
+			}
+		} else {
+			fieldName := eventFieldNameJSONB(field)
+			for _, where := range wheres {
+				s.AndWhere(SQL(fieldName, where.Compare, V(where.Value)))
+			}
 		}
+	}
+
+	if hasMatches {
+		s.Select(As("matches", "json_group_array(jt.fullkey)"))
+	} else {
+		s.Select(As("matches", defaultMatchValue))
 	}
 
 	if q.Near != nil {
@@ -97,9 +125,9 @@ func prepareCriteria(ctx context.Context, s *db.SelectExpr, vmr VectorManifoldRe
 
 func prepareBasis(ctx context.Context, vmr VectorManifoldResolver, q event.Criteria) (db.Expr, error) {
 	s := From(
-		SQL(eventsTable),
+		As("basis", eventsTable),
 	).Select(
-		As("id", eventFieldNameJSONB("id")),
+		As("id", eventFieldNameWithTableJSONB("id", "basis")),
 		As("at", eventFieldNameJSONB("at")),
 		As("since", eventFieldNameJSONB("since")),
 		As("fields", eventFieldNameJSONB("fields")),
@@ -109,14 +137,14 @@ func prepareBasis(ctx context.Context, vmr VectorManifoldResolver, q event.Crite
 		As("vector_data_rowid", eventFieldNameJSONB("vector_data_rowid")),
 	)
 
-	return prepareCriteria(ctx, s, vmr, renderFieldName("id", true), q)
+	return prepareCriteria(ctx, s, vmr, renderFieldName("id", true, "basis"), "null", q)
 }
 
 func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *db.SelectExpr {
 	switch view {
 	case event.ViewEvents:
 		return From(
-			SQL("(", basis, ")"),
+			As("basis", "(", basis, ")"),
 		).Select(
 			As("id", "id"),
 			As("at", "at"),
@@ -133,7 +161,7 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 		)
 	case event.ViewGroupByPathMaxID:
 		return From(
-			SQL("(", basis, ")"),
+			As("basis", "(", basis, ")"),
 		).Select(
 			As("id", `max(id)`),
 			As("at", `at`),
@@ -149,7 +177,7 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 		).AndWhere(
 			SQL(eventFieldNameJSONB("deleted"), "IS", "1"),
 		).Union(
-			From(SQL("(",
+			From(As("basis", "(",
 				From(
 					SQL("(", basis, ")"),
 				).Select(
@@ -195,7 +223,7 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 			`CASE instr(path, '/') WHEN 0 THEN length(path) ELSE instr(path, '/') END`)
 
 		return From(
-			SQL("(",
+			As("basis", "(",
 				From(
 					SQL("(", prepareView(event.ViewGroupByPathMaxID, nil, basis), ")"),
 				).Select(
@@ -205,7 +233,7 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 					As("fields", eventFieldNameJSONB("fields")),
 					As("data_size", eventFieldNameJSONB("data_size")),
 					As("path", Call(`substr`,
-						renderFieldName("path", true),
+						renderFieldName("path", true, ""),
 						SQL(Call(`length`, V(placeholders["path"])), `+`, `1`))),
 				),
 				")"),
@@ -240,7 +268,7 @@ func renderEventQuery(ctx context.Context, vmr VectorManifoldResolver, q *event.
 	}
 
 	s := prepareView(q.View, q.ViewPlaceholders, basis)
-	s, err = prepareCriteria(ctx, s, vmr, renderFieldName("id", false), q.ViewCriteria)
+	s, err = prepareCriteria(ctx, s, vmr, renderFieldName("id", false, ""), "matches", q.ViewCriteria)
 	if err != nil {
 		return 0, nil, err
 	}

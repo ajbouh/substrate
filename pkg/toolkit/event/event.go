@@ -120,6 +120,8 @@ type Event struct {
 	DataSize   *int          `json:"data_size,omitempty"`
 	DataSHA256 *SHA256Digest `json:"data_sha256,omitempty"`
 
+	Matches []string `json:"matches,omitempty"`
+
 	Payload json.RawMessage `json:"fields"`
 
 	Vector         *Vector[float32] `json:"vector,omitempty"`
