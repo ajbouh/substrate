@@ -203,7 +203,6 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 					As("at", "null"),
 					As("since", "null"),
 					As("fields", eventFieldNameJSONB("fields")),
-					As("fields_size", eventFieldNameJSONB("fields_size")),
 					As("data_size", eventFieldNameJSONB("data_size")),
 					As("path", Call(`substr`,
 						renderFieldName("path", true),
