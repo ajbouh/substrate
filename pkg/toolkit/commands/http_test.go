@@ -2,6 +2,7 @@ package commands_test
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http/httptest"
 	"reflect"
@@ -106,6 +107,50 @@ func TestHTTPCommand(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %q; want %q", got, want)
+	}
+}
+
+func TestHTTPCommandWithJSONInQuery(t *testing.T) {
+	client := &struct {
+		Env commands.Env
+	}{}
+	Assemble(&service.Service{}, client)
+
+	type Args struct {
+		Q json.RawMessage `json:"q" query:"q"`
+	}
+
+	type Returns struct {
+		Q any `json:"q"`
+	}
+
+	h := InitHandler(
+		&service.Service{},
+		handle.HTTPCommand("echo", "Echo",
+			"POST /echo/{p}", "/",
+			func(ctx context.Context,
+				t *struct{},
+				args Args) (Returns, error) {
+				slog.Info("echo", "args", args)
+				return Returns{Q: args.Q}, nil
+			}),
+	)
+
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	got, err := commands.CallURL[Returns](context.Background(), client.Env, srv.URL, "echo", commands.Fields{
+		"q": "[2, true]",
+	})
+	if err != nil {
+		t.Fatalf("error calling command: %v", err)
+	}
+
+	want := &Returns{
+		Q: []any{float64(2), true},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %#v; want %#v", got, want)
 	}
 }
 

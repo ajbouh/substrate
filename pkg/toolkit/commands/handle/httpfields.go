@@ -2,6 +2,7 @@ package handle
 
 import (
 	"encoding"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -152,6 +153,10 @@ func getQueryValueForField(field reflect.StructField, q url.Values) (any, bool, 
 		case reflect.String:
 			return queryValue[0], true, nil
 		}
+	}
+
+	if field.Type.AssignableTo(reflect.TypeFor[json.RawMessage]()) {
+		return json.RawMessage(queryValue[0]), true, nil
 	}
 
 	return nil, false, fmt.Errorf(`bad type for field with query struct tag %#v; must be string or *string or []string`, field)

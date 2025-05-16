@@ -173,6 +173,7 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 			As("vector_manifold_id", "null"),
 			As("vector_data_rowid", "null"),
 			// As("vector_data", "null"),
+			As("matches", `null`),
 			As("vector_data_nn_distance", "0"),
 		).AndWhere(
 			SQL(eventFieldNameJSONB("deleted"), "IS", "1"),
@@ -193,6 +194,7 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 					As("vector_data_rowid", eventFieldNameJSONB("vector_data_rowid")),
 
 					// As("vector_data", "vector_data"),
+					As("matches", `matches`),
 					As("vector_data_nn_distance", "vector_data_nn_distance"),
 				).GroupBy(
 					eventFieldNameJSONB("path"),
@@ -228,6 +230,7 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 					SQL("(", prepareView(event.ViewGroupByPathMaxID, nil, basis), ")"),
 				).Select(
 					As("id", eventFieldNameJSONB("id")),
+					As("matches", `matches`),
 					As("at", "null"),
 					As("since", "null"),
 					As("fields", eventFieldNameJSONB("fields")),
