@@ -63,11 +63,6 @@ func (a *CapHTTP) Apply(env Env, m Fields) (Fields, error) {
 		return nil, err
 	}
 
-	urlStr, err = resolveURLWithEnv(env, urlStr)
-	if err != nil {
-		return nil, err
-	}
-
 	var pathVars map[string]string
 	pathVars, _, err = MaybeGetPath[map[string]string](m, "http", "request", "path")
 	if err != nil {
@@ -80,15 +75,20 @@ func (a *CapHTTP) Apply(env Env, m Fields) (Fields, error) {
 		urlStr = strings.ReplaceAll(urlStr, "{"+pathVar+"...}", pathVal)
 	}
 
+	urlStr, err = resolveURLWithEnv(env, urlStr)
+	if err != nil {
+		return nil, err
+	}
+
 	urlQuery, _, err := MaybeGetPath[map[string][]string](m, "http", "request", "query")
 	if err != nil {
 		return nil, err
 	}
 	if len(urlQuery) > 0 {
 		if strings.Contains(urlStr, "?") {
-			urlStr = urlStr + "?" + url.Values(urlQuery).Encode()
-		} else {
 			urlStr = urlStr + "&" + url.Values(urlQuery).Encode()
+		} else {
+			urlStr = urlStr + "?" + url.Values(urlQuery).Encode()
 		}
 	}
 

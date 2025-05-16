@@ -114,3 +114,59 @@ func TestJSONPointer(t *testing.T) {
 		})
 	}
 }
+
+func TestSetPath(t *testing.T) {
+	testCases := []struct {
+		name         string
+		initial      any
+		path         []string
+		value        any
+		expect       any
+		expectStrErr bool
+	}{
+		{
+			name:   "root",
+			path:   []string{},
+			value:  "something",
+			expect: "something",
+		},
+		{
+			name:   "simple map",
+			path:   []string{"foo"},
+			value:  "something",
+			expect: map[string]any{"foo": "something"},
+		},
+		{
+			name:   "simple slice",
+			path:   []string{"0"},
+			value:  "something",
+			expect: []any{"something"},
+		},
+		{
+			name:   "slice in a map",
+			path:   []string{"top", "0"},
+			value:  "something",
+			expect: map[string]any{"top": []any{"something"}},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := commands.SetPath(tc.initial, tc.path, tc.value)
+			if !tc.expectStrErr && err != nil {
+				t.Fatalf("SetPath(%#v, %q, %#v) returned unexpected error: %v", tc.initial, tc.path, tc.value, err)
+			}
+
+			if tc.expectStrErr {
+				if err == nil {
+					t.Fatalf("SetPath(%#v, %q, %#v) expected an error, but got nil", tc.initial, tc.path, tc.value)
+				}
+				return
+			}
+
+			if !reflect.DeepEqual(tc.expect, got) {
+				t.Errorf("got %#v; want %#v", tc.expect, got)
+			}
+		})
+	}
+}

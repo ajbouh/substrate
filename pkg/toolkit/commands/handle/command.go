@@ -75,19 +75,27 @@ var _ HTTPResource = (*CommandFunc[any, any, any])(nil)
 var _ HTTPResourceReflect = (*CommandFunc[any, any, any])(nil)
 
 func mustCloneExamples(m map[string]commands.Fields) map[string]commands.Fields {
+	o, err := cloneExamples(m)
+	if err != nil {
+		panic(err)
+	}
+	return o
+}
+
+func cloneExamples(m map[string]commands.Fields) (map[string]commands.Fields, error) {
 	var b []byte
 	b, err := json.Marshal(m)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	var o map[string]commands.Fields
 	err = json.Unmarshal(b, &o)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return o
+	return o, nil
 }
 
 func (r *CommandFunc[Target, Params, Returns]) Clone() *CommandFunc[Target, Params, Returns] {
@@ -167,7 +175,7 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 			return commands.HasJSONFields(paramsType, true)
 		}
 
-		params := commands.Fields{}
+		var params commands.Fields
 
 		if shouldUnmarshalRequestBody() {
 			err := json.NewDecoder(req.Body).Decode(&params)
@@ -176,6 +184,10 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 				http.Error(w, fmt.Sprintf(`{"message": %q}`, err.Error()), http.StatusBadRequest)
 				return
 			}
+		}
+
+		if params == nil {
+			params = commands.Fields{}
 		}
 
 		err := populateRequestBasedFields(w, req, paramsType, params)
@@ -206,6 +218,8 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 }
 
 func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (commands.DefIndex, error) {
+	slog.Info("CommandFunc[Target, Params, Returns].Reflect()", "Target", reflect.TypeFor[Target](), "Params", reflect.TypeFor[Params](), "Returns", reflect.TypeFor[Returns]())
+
 	var errs []error
 	meta := commands.Meta{}
 	var params commands.Fields
@@ -237,7 +251,13 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (com
 			return
 		} else if queryVar, ok := field.Tag.Lookup("query"); ok {
 			inBindings.Add(
-				commands.NewDataPointer("msg", "http", "request", "query", queryVar),
+				commands.NewDataPointer("msg", "http", "request", "query", queryVar, "0"),
+				prefix.Append(name),
+			)
+			return
+		} else if headerVar, ok := field.Tag.Lookup("header"); ok {
+			inBindings.Add(
+				commands.NewDataPointer("msg", "http", "request", "headers", headerVar, "0"),
 				prefix.Append(name),
 			)
 			return
@@ -294,16 +314,11 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (com
 	}
 
 	if len(r.Examples) > 0 {
-		examples := map[string]commands.Fields{}
 		var err error
-		for k, v := range r.Examples {
-			examples[k], err = v.Clone()
-			if err != nil {
-				return nil, err
-			}
+		def["examples"], err = cloneExamples(r.Examples)
+		if err != nil {
+			return nil, err
 		}
-
-		def["examples"] = examples
 	}
 
 	if r.HTTPResourcePath != "" {

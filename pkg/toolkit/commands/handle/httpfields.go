@@ -126,7 +126,7 @@ func getPathValueForField(field reflect.StructField, r PathValuer) (any, bool, e
 	}
 
 	pathValue := r.PathValue(key)
-	return pathValue, true, nil
+	return pathValue, pathValue != "", nil
 }
 
 func getQueryValueForField(field reflect.StructField, q url.Values) (any, bool, error) {
@@ -157,6 +157,34 @@ func getQueryValueForField(field reflect.StructField, q url.Values) (any, bool, 
 	return nil, false, fmt.Errorf(`bad type for field with query struct tag %#v; must be string or *string or []string`, field)
 }
 
+func getHeaderValueForField(field reflect.StructField, h http.Header) (any, bool, error) {
+	key, ok := field.Tag.Lookup("header")
+	if !ok {
+		return nil, false, nil
+	}
+
+	headerValue, ok := h[key]
+	if !ok {
+		return nil, false, nil
+	}
+
+	switch field.Type.Kind() {
+	case reflect.String:
+		return headerValue[0], true, nil
+	case reflect.Slice:
+		if field.Type.Elem().Kind() == reflect.String {
+			return headerValue, true, nil
+		}
+	case reflect.Pointer:
+		switch field.Type.Elem().Kind() {
+		case reflect.String:
+			return headerValue[0], true, nil
+		}
+	}
+
+	return nil, false, fmt.Errorf(`bad type for field with header struct tag %#v; must be string or *string or []string`, field)
+}
+
 func getRequestBasedField(field reflect.StructField, w http.ResponseWriter, r *http.Request, q url.Values) (string, any, bool, error) {
 	var val any
 	val, ok, err := getPathValueForField(field, r)
@@ -166,6 +194,13 @@ func getRequestBasedField(field reflect.StructField, w http.ResponseWriter, r *h
 
 	if !ok {
 		val, ok, err = getQueryValueForField(field, q)
+		if err != nil {
+			return "", val, false, err
+		}
+	}
+
+	if !ok {
+		val, ok, err = getHeaderValueForField(field, r.Header)
 		if err != nil {
 			return "", val, false, err
 		}
