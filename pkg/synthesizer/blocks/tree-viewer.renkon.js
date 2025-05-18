@@ -23,14 +23,22 @@ const init = Events.once(modules);
 
 const sortRecords = records => records.sort((a, b) => a.fields?.path?.localeCompare(b.fields?.path))
 
-const records = Behaviors.collect(undefined, recordsUpdated, (now, {records: {incremental, records}}) => sortRecords(incremental ? [...now, ...records] : records));
+const records = Behaviors.collect(undefined, recordsUpdated, (now, {records: {incremental, records}={}}) => records ? sortRecords(incremental ? [...now, ...records] : records) : now);
 
 const facets = Behaviors.gather(/Facet$/)
 const facetsAndMatchers = Object.values(facets).map(facet => [criteriaMatcher(facet.criteria), facet])
 const facetsForRecord = record => facetsAndMatchers.map(v => v[0](record) ? v[1] : undefined)
 
-const actionOffers = Behaviors.collect(undefined, actionOffersUpdated, (now, offers) => offers)
-const actionsAndMatchers = Object.values(actionOffers).map(offer => [criteriaMatcher(offer.criteria), offer])
+const actionOffers = Behaviors.collect(
+    undefined,
+    recordsUpdated, (now, {offers: {incremental, records: offers}={}}) => {
+        return offers
+            ? (incremental
+                ? [...now, ...offers]
+                : offers)
+            : now ?? []
+    })
+const actionsAndMatchers = actionOffers.flatMap(({fields: {offerset}}) => Object.values(offerset).map(offer => [criteriaMatcher(offer.criteria), offer]))
 const verbsForRecord = record => [...new Set(actionsAndMatchers.filter(v => v[0](record)).map(v => v[1].verb))]
 
 const commonInput = {h, decodeTime}

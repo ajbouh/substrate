@@ -44,6 +44,13 @@ const surfaceCriteria = (path) => ({
     },
 });
 
+const actorCriteria = (value) => ({
+    view_criteria: {
+        where: {actor: [{compare: "=", value: value}]},
+        limit: 1,
+    },
+});
+
 const windowMessages = Events.listener(window, "message", evt => evt, {queued: true});
 
 const surfaceUpdated = Events.collect(undefined, recordsUpdated, (now, {surface: {incremental, records}={}}) => records ? records?.[0] : now);
@@ -55,14 +62,23 @@ const panelsQuerysetUpdates = Events.collect(
     surfaceUpdated, (now, surface) => ({
         [panelsKey]: mergeRecordQuerysets(
             panelsBlock.fields.queryset,
-            {cues: {basis_criteria: {where: {actor: [{compare: "=", value: actor}]}}},
-        })
+            {
+                cues: {basis_criteria: {where: {actor: [{compare: "=", value: actor}]}}},
+                offers: {basis_criteria: {where: {actor: [{compare: "=", value: actor}]}}},
+            },
+        )
     }),
 )
 const panelsScriptsUpdates = {[panelsKey]: mergeBlockScripts(panelsBlock, recordsUpdatedScripts)}
-const panelsEvents = Events.some(windowMessages, Events.change([panelsKey]), panelsQuerysetUpdates, surfaceUpdated, actionOffersUpdated)
+const panelsEvents = Events.some(windowMessages, Events.change([panelsKey]), panelsQuerysetUpdates, surfaceUpdated)
 
 const structuredClone = window.structuredClone
+
+const sendRecordsWrite = (...recordses) => {
+    const records = recordses.flatMap(
+        records => records.map(record => ensureActorField(actor, ensureSurfaceField(surface.fields?.path, record))))
+    Events.send(recordsWrite, records)
+}
 
 // a randomly generated value that uniquely identifies this particular view and distinguishes it from
 // all others. specific to this runtime instance of the surface block.
@@ -79,7 +95,7 @@ function genchars(length) {
 // use a unique value on every boot. this allows us to only act on actions that were written by this runtime instance.
 const actor = genchars(10)
 
-const actionsOffer = Events.receiver();
+const actionsOffer = Events.receiver({queued: true});
 console.log({actionsOffer});
 
 const actionOffersUpdated = Events.select(
@@ -88,17 +104,27 @@ const actionOffersUpdated = Events.select(
         const addOffers = {}
         for (const offers of offerses) {
             console.log({offers})
-            for (const {ns, label, verb, description, criteria} of offers) {
+            for (const {ns, offer} of offers) {
                 const key = JSON.stringify(ns)
-                addOffers[key] = {key, ns, label, verb, description, criteria}
+                addOffers[key] = offer
             }
         }
+        console.log({addOffers});
         return {
             ...now,
             ...addOffers,
         }
     },
-)
+);
+
+((actionOffersUpdated) => {
+    sendRecordsWrite([{
+        fields: {
+            type: 'action/offers',
+            offerset: actionOffersUpdated
+        },
+    }])
+})(actionOffersUpdated);
 
 const bc = blockComponent({
     key: panelsKey,
@@ -111,11 +137,7 @@ const bc = blockComponent({
     `,
     scripts: panelsScriptsUpdates,
     notifiers: {
-        recordsWrite: (key, recordses) => {
-            const records = recordses.flatMap(
-                records => records.map(record => ensureActorField(actor, ensureSurfaceField(surface.fields?.path, record))))
-            Events.send(recordsWrite, records)
-        },
+        recordsWrite: (key, recordses) => sendRecordsWrite(...recordses),
         recordsImport: (key, imports) => {
             for (let {ns, port, fields, readable} of imports) {
                 ({fields} = ensureActorField(actor, ensureSurfaceField(surface.fields?.path, {fields})));
@@ -141,10 +163,14 @@ const bc = blockComponent({
             }
         },
         recordsQuery: (key, queries) => {
+            const impliedCriteria = (querykey) => [
+                querykey === 'offers' ? actorCriteria(actor) : [],
+                surfaceCriteria(surface.fields?.path),
+            ]
             for (let {queryset: queryset0, stream, ns, port} of queries) {
                 const queryset = Object.fromEntries(
                     Object.entries(queryset0).map(
-                        ([k, query]) => [k, query.global ? query : mergeRecordQueries({...query, global: true}, surfaceCriteria(surface.fields?.path))],
+                        ([k, query]) => [k, query.global ? query : mergeRecordQueries({...query, global: true}, ...impliedCriteria(k))],
                     )
                 )
                 Events.send(recordsQuery, {
@@ -158,8 +184,9 @@ const bc = blockComponent({
         },
         // actionsOffer is very similar to recordswrite, but is not persisted. switch it to recordsWrite once we figure
         // out how to avoid stale action offers.
-        actionsOffer: (key, offers) => {
-            Events.send(actionsOffer, offers)
+        actionsOffer: (key, offerses) => {
+            Events.send(actionsOffer, offerses.flatMap(
+                offers => offers.map(({ns, ...q}) => ({...q, ns: [key, ...ns]}))))
         },
 
         close: (key, closes) => closes.forEach(c => Events.send(close, {ns: [key, ...c.ns]})),
@@ -225,9 +252,8 @@ const bc = blockComponent({
     defineExtraEvents: [
         {name: "querysetUpdated", keyed: true},
         {name: "surfaceUpdated", keyed: false},
-        {name: "actionOffersUpdated", keyed: false},
     ],
-    eventsReceivers: ["querysetUpdated", "surfaceUpdated", "actionOffersUpdated"],
+    eventsReceivers: ["querysetUpdated", "surfaceUpdated"],
     eventsReceiversQueued: ["recordsQuery", "recordsExport", "recordsImport", "close", "recordsWrite", "actionsOffer", "surfaceWrite"],
 }, panelsKey);
 

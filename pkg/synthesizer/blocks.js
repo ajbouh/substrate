@@ -107,7 +107,12 @@ export const fetchPanelsBlock = async () => ({
             view_criteria: {
                 where: {type: [{compare: "=", value: "action/cue"}]},
             },
-        }
+        },
+        offers: {
+            view_criteria: {
+                where: {type: [{compare: "=", value: "action/offers"}]},
+            },
+        },
     }},
     scripts: [
         await fetchText(new URL('./blocks/panels.renkon.js', import.meta.url).toString()),
@@ -126,6 +131,11 @@ const fetchTreeViewerBlock = async () => ({
             records: {
                 view: "group-by-path-max-id",
                 basis_criteria: {where: {path: [{compare: "like", value: "/%"}]}},
+            },
+            offers: {
+                view_criteria: {
+                    where: {type: [{compare: "=", value: "action/offers"}]},
+                },
             },
         },
     },

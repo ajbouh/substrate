@@ -201,19 +201,12 @@ const panelBlockScripts = Behaviors.collect(
     },
 );
 
-console.log("in panels", {actionOffersUpdated});
-
 const windowMessages = Events.listener(window, "message", evt => evt, {queued: true});
 
 // TODO write separator logic... look at presenter.html
 // TODO add support for rearranging, accept writes of "after" or "swap" and do the right thing
 
-const actionOffersUpdatedBlockEvent = Events.select(undefined,
-    actionOffersUpdated, (now, actionOffersUpdated) => actionOffersUpdated,
-    Events.change(panelKeys), (now, _) => now,
-)
-
-const blockEvents = Events.some(windowMessages, Events.change(panelKeys), panelQuerysetsUpdates, actionOffersUpdatedBlockEvent)
+const blockEvents = Events.some(windowMessages, Events.change(panelKeys), panelQuerysetsUpdates)
 
 const panelWrite = (key, {target, panel: panelRequest}) => {
     const panel = panelMap.get(key)
@@ -288,15 +281,17 @@ const panelVDOMs = Array.from(panelKeys, (key) => {
             recordsQuery: (key, queries) => queries.forEach(({ns, ...q}) => Events.send(recordsQuery, {...q, ns: [key, ...ns], [Renkon.app.transferSymbol]: q.port ? [q.port] : []})),
             recordsImport: (key, imports) => imports.forEach(({ns, ...q}) => Events.send(recordsImport, {...q, ns: [key, ...ns], [Renkon.app.transferSymbol]: [...(q.port ? [q.port] : []), ...(q.readable ? [q.readable] : [])]})),
             recordsExport: (key, exports) => exports.forEach(({ns, ...q}) => Events.send(recordsExport, {...q, ns: [key, ...ns], [Renkon.app.transferSymbol]: q.port ? [q.port] : []})),
-            actionsOffer: (key, offers) => offers.forEach(({ns, ...q}) => Events.send(actionsOffer, {...q, ns: [key, ...ns]})),
+            actionsOffer: (key, offerses) => {
+                Events.send(actionsOffer, offerses.flatMap(
+                    offers => offers.map(({ns, ...q}) => ({...q, ns: [key, ...ns]}))))
+            },
             close: (key, closes) => closes.forEach(c => Events.send(close, {ns: [key, ...c.ns]})),
         },
         events: blockEvents,
         defineExtraEvents: [
             {name: "querysetUpdated", keyed: true},
-            {name: "actionOffersUpdated", keyed: false},
         ],
-        eventsReceivers: ["querysetUpdated", "actionOffersUpdated"],
+        eventsReceivers: ["querysetUpdated"],
         eventsReceiversQueued: ["close", "recordsQuery", "recordsExport", "recordsImport", "recordsWrite", "panelWrite", "panelEmit", "actionsOffer"],
     }, key);
 

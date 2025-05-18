@@ -14,7 +14,7 @@ const offersAndMatchers = offers
 
 const actionsOfferSends = Behaviors.select(
     undefined,
-    offers, (now, offers) => Events.send(actionsOffer, offers.map(({act, ...offer}) => offer)),
+    offers, (now, offers) => Events.send(actionsOffer, offers.map(({act, ns, ...offer}) => ({ns, offer}))),
 )
 
 const recordsQueryRead = query => new Promise((resolve, reject) => {
