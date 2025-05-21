@@ -216,9 +216,6 @@ export const blocks = async () => ({
         baseURI: new URL('./blocks/renkon-pad/', document.baseURI).toString(),
         scripts: [await fetchText(new URL('./blocks/renkon-pad-runner.renkon.js', import.meta.url).toString())],
     },
-    'field inspector': {
-        scripts: [await fetchText(new URL('./blocks/field-inspector.renkon.js', import.meta.url).toString())],
-    },
     'media viewer': {
         scripts: [await fetchText(new URL('./blocks/media-viewer.renkon.js', import.meta.url).toString())],
     },
