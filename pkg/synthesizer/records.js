@@ -25,6 +25,10 @@ export function mergeRecordWrite(...writes) {
 
 // grandchildren of "where" are concatenated. everything else is blended and duplicates are not tolerated.
 export function mergeRecordQueries(...queries) {
+    if (queries.length < 2) {
+        return queries[0]
+    }
+
     queries = structuredClone(queries);
     const merged = queries.reduce(
         (acc, query) =>
