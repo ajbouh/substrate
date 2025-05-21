@@ -163,14 +163,15 @@ const bc = blockComponent({
             }
         },
         recordsQuery: (key, queries) => {
-            const impliedCriteria = (querykey) => [
-                querykey === 'offers' ? actorCriteria(actor) : [],
-                surfaceCriteria(surface.fields?.path),
+            const impliedCriteria = (querykey, query) => [
+                ...(query.self ? [actorCriteria(actor)] : []),
+                ...(querykey === 'offers' ? [actorCriteria(actor)] : []),
+                ...(query.global ? [] : [surfaceCriteria(surface.fields?.path)]),
             ]
             for (let {queryset: queryset0, stream, ns, port} of queries) {
                 const queryset = Object.fromEntries(
                     Object.entries(queryset0).map(
-                        ([k, query]) => [k, query.global ? query : mergeRecordQueries({...query, global: true}, ...impliedCriteria(k))],
+                        ([k, query]) => [k, mergeRecordQueries(query, ...impliedCriteria(k, query))],
                     )
                 )
                 Events.send(recordsQuery, {

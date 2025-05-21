@@ -163,6 +163,7 @@ export const blocks = async () => ({
             await fetchText(new URL('./blocks/start/starters/new-msgtxt.renkon.js', import.meta.url).toString()),
             await fetchText(new URL('./blocks/start/starters/new-renkon-pad.renkon.js', import.meta.url).toString()),
             await fetchText(new URL('./blocks/start/starters/new-surface.renkon.js', import.meta.url).toString()),
+            await fetchText(new URL('./blocks/start/starters/search.renkon.js', import.meta.url).toString()),
             await fetchText(new URL('./blocks/start/starters/new-text.renkon.js', import.meta.url).toString()),
             await fetchText(new URL('./blocks/start/starters/new-urilist.renkon.js', import.meta.url).toString()),
         ],
@@ -220,6 +221,12 @@ export const blocks = async () => ({
     },
     'media viewer': {
         scripts: [await fetchText(new URL('./blocks/media-viewer.renkon.js', import.meta.url).toString())],
+    },
+    'search': {
+        scripts: [await fetchText(new URL('./blocks/search.renkon.js', import.meta.url).toString())],
+    },
+    'demo-echo': {
+        scripts: [await fetchText(new URL('./blocks/demo-echo.renkon.js', import.meta.url).toString())],
     },
     'pdf viewer': {
         baseURI: new URL('./blocks/pdfjs/', document.baseURI).toString(),
