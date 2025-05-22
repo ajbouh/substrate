@@ -1,28 +1,30 @@
 export function component({
     key,
-    style,
+    debug,
     scripts,
     events,
     notifiers,
-    defineExtraEvents,
-    eventsReceivers,
-    eventsReceiversQueued,
+    receivers,
 }) {
     const encodeURIComponents = (components) => Object.entries(components).flatMap(([k, v]) => (Array.isArray(v) ? v : [v]).map(v => `${k}=${encodeURIComponent(v)}`)).join("&")
     const iframeURLParameters = {
         initjson: JSON.stringify({type: 'block-init', key}),
         emitjson: JSON.stringify({type: 'block-emit', key}),
-        "Events.receiver": ["ready", ...eventsReceivers],
-        "Events.queuedReceiver": [...eventsReceiversQueued],
+        "Events.receiver": ["ready", ...receivers.filter(({type, nodeclare, queued}) => type === "event" && !nodeclare && !queued).map(({name}) => name)],
+        "Events.queuedReceiver": receivers.filter(({type, nodeclare, queued}) => type === "event" && !nodeclare && queued).map(({name}) => name),
+        "Behaviors.receiver": receivers.filter(({type, nodeclare}) => type === "behavior" && !nodeclare).map(({name}) => name),
         "output": [
             "ready",
             ...Object.keys(notifiers),
         ]
     }
-    // console.log(key, {iframeURLParameters});
+
+    const key0 = Behaviors.keep(key)
     const iframeURL = `block.html?${encodeURIComponents(iframeURLParameters)}`;
 
-    // console.log(key, {events});
+    if (debug) {
+        console.log(key0, {events});
+    }
     const [
         windowMessages,
         keys,
@@ -41,7 +43,7 @@ export function component({
                     continue
                 }
                 const {data: {type, key: initKey, port: initPort}} = o;
-                if (type !== 'block-init' || initKey !== key) {
+                if (type !== 'block-init' || initKey !== key0) {
                     continue
                 }
                 // const portWasUndefined = port === undefined
@@ -61,7 +63,7 @@ export function component({
                     continue
                 }
                 const {data: {type, key: emitKey, nodes}} = o;
-                if (type !== 'block-emit' || emitKey !== key) {
+                if (type !== 'block-emit' || emitKey !== key0) {
                     continue
                 }
                 
@@ -86,36 +88,38 @@ export function component({
 
     const scripts0 = Behaviors.collect(
         undefined,
-        scripts, (now, scriptsUpdated) => scriptsUpdated?.[key] ?? now);
+        scripts, (now, scriptsUpdated) => scriptsUpdated?.[key0] ?? now);
 
     const extraEventsChanged = Events.collect(
         [],
         Events.change(extraEvents), (now, extraEvents) => {
             let deltas = 0
             const next = extraEvents
-                .map((v, i) => defineExtraEvents[i]?.keyed ? v?.[key] : v)
+                .map((v, i) => receivers[i]?.keyed ? v?.[key0] : v)
                 .map((v, i) => now[i] === v ? undefined : (deltas++, v));
             return deltas > 0 ? next : now
         },
     );
-    // console.log(key, {extraEventsChanged})
-        
+    // console.log(key, {extraEventsChanged})        
     const message = Events.collect(
         {
             port: undefined,
             scripts: undefined,
             sentInitial: false,
             ready: false,
-            extraEvents: {},
-            pendingMessage: undefined,
+            extraBehaviors: {},
+            pendingEvents: undefined,
         },
         Events.some(Events.change(port), ready, Events.change(scripts0), extraEventsChanged),
             (now, [portChanged, nowReady, scriptsChanged, extraEventsChanged]) => {
                 // console.log(key, {now, portChanged, nowReady, scriptsChanged, extraEventsChanged})
+
                 const next = {
                     ...now,
-                    pendingMessage: undefined,
+                    pendingEvents: undefined,
                 }
+                let pendingEvents = now.pendingEvents || {}
+                let pendingBehaviors = {}
                 if (nowReady) {
                     next.ready = true
                 }
@@ -133,15 +137,33 @@ export function component({
                 }
                 if (extraEventsChanged) {
                     extraEventsChanged.forEach((v, i) => {
-                        if (v !== undefined) {
-                            next.extraEvents[defineExtraEvents[i].name] = v
+                        if (v === undefined) {
+                            return
+                        }
+                        const receiver = receivers[i]
+                        const name = receiver.name
+                        switch (receiver.type) {
+                        case "behavior":
+                            next.extraBehaviors[name] = v
+                            pendingBehaviors[name] = v
+                            break
+                        case "event":
+                            pendingEvents[name] = receiver.queued
+                                ? (pendingEvents[name] || []).push(v)
+                                : v;
+                            break
                         }
                     })
                 }
                 // if we're not ready then we can send scripts, baseURI
                 if (!next.ready) {
                     if (!next.sentInitial && next.port && next.scripts) {
-                        const initialMessage = {scripts: next.scripts, baseURI: next.baseURI, reload: true}
+                        const initialMessage = {
+                            scripts: next.scripts,
+                            baseURI: next.baseURI,
+                            reload: true,
+                            registerEvents: next.extraBehaviors,
+                        }
                         // console.log(key, "sending setup initialMessage", initialMessage)
                         next.port.postMessage(initialMessage)
                         next.sentInitial = true
@@ -150,40 +172,38 @@ export function component({
                     }
                 }
 
-                // either keep building up our pending message or make a new one
-                const message = now.pendingMessage || {registerEvents: {}}
-                let injectedEventKeys
-                if (portChanged || scriptsChanged) {
-                    injectedEventKeys = Object.keys(next.extraEvents)
-                } else {
-                    injectedEventKeys = extraEventsChanged.flatMap((v, i) => v !== undefined ? [defineExtraEvents[i].name] : [])
-                }
-                // console.log(key, {injectedEventKeys})
+                if (next.port) {
+                    let message = {registerEvents: {}}
 
-                for (const key of injectedEventKeys) {
-                    message.registerEvents[key] = next.extraEvents[key]
-                }
+                    if (portChanged || scriptsChanged) {
+                        Object.assign(message.registerEvents, next.extraBehaviors)
+                    }
 
-                // send our message if we can.
-                if (next.port && next.ready && Object.keys(message.registerEvents).length > 0) {
-                    // console.log(key, "sending message", message)
-                    next.port.postMessage(message)
-                } else {
-                    // console.log(key, "delaying message", message)
-                    next.pendingMessage = message
+                    // if we're ready, include events
+                    if (next.ready) {
+                        Object.assign(message.registerEvents, pendingEvents)
+                        pendingEvents = undefined
+                        Object.assign(message.registerEvents, pendingBehaviors)
+                        pendingBehaviors = undefined
+                    }
+
+                    // send our message if we have anything to say
+                    if (Object.keys(message.registerEvents).length > 0) {
+                        // console.log(key, "sending message", message)
+                        next.port.postMessage(message)
+                    }
                 }
+                
+                next.pendingEvents = pendingEvents
 
                 return next
             },
     );
 
     const iframeProps = {
-        key,
-        style,
+        key: key0,
         src: iframeURL,
     };
-
-    // console.log(key, {iframeProps})
 
     return {
         iframeProps,

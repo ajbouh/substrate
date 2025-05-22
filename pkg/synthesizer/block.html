@@ -7,12 +7,10 @@
     <body style="margin: 0; height: 100vh;"></body>
     <script type="module">
         // console.log("loaded", document.baseURI, "at", new Date())
-        import {CodeMirror, ProgramState, newInspector} from "./renkon-web.js";
-        window.CodeMirror = CodeMirror;
+        import {ProgramState} from "./renkon-core.js";
         window.ProgramState = ProgramState;
 
         const url = new URL(document.baseURI)
-        const values = url.searchParams.getAll("Behaviors.receiver")
         const behaviorsReceivers = url.searchParams.getAll("Behaviors.receiver")
         const eventsReceivers = url.searchParams.getAll("Events.receiver")
         const eventsQueuedReceivers = url.searchParams.getAll("Events.queuedReceiver")
@@ -80,7 +78,6 @@
                 get state() {
                     return ps
                 },
-                newInspector,
             })
             return ps
         }
@@ -138,7 +135,13 @@
 
             if (registerEvents) {
                 for (const k in registerEvents) {
-                    ps.registerEvent(k, registerEvents[k]);
+                    if (queuedReceivers.has(k)) {
+                        for (const v of registerEvents[k]) {
+                            ps.registerEvent(k, v);
+                        }
+                    } else {
+                        ps.registerEvent(k, registerEvents[k]);
+                    }
                 }
             }
 
