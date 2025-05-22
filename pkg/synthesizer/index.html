@@ -11,24 +11,125 @@
     </head>
     <body style="margin: 0; width: 100vw; height: 100vh; overscroll-behavior: contain;">
         <script type="module">
-            import {view, CodeMirror, ProgramState, newInspector} from "./renkon-web.js";
-            import {surfaceBlockBootstrap} from "./blocks.js";
+            import {ProgramState} from "./renkon-core.js";
+            import {RecordStoreRemote} from "./recordstore-remote.js";
+            import {recordStoreBaseURL} from "./recordstore-address.js";
 
-            window.CodeMirror = CodeMirror;
-            window.ProgramState = ProgramState;
-            const ps = new ProgramState(0, {
-                newInspector,
-                transferSymbol: Symbol("transfer"),
-            });
-            window.programState = ps;
+            import {featureset as surface} from "./featuresets/surface/surface.featureset.js";
 
-            surfaceBlockBootstrap().then((block) => {
+            console.log({recordStoreBaseURL});
+
+            (async () => {
+                const recordStore = new RecordStoreRemote(await recordStoreBaseURL)
+                console.log({recordStore});
+
+                const url = new URL(document.baseURI);
+                const surfacePath = `/surfaces/${url.searchParams.get("surface") || 'default.surface'}`
+                const overrideBlock = url.searchParams.has("overrideBlock")
+                const reinstall = url.searchParams.has("reinstall")
+
+                const featuresets = url.searchParams.has("featureset")
+                    ? url.searchParams.getAll("featureset")
+                    : ['surface']
+
+                console.log('featuresets', featuresets)
+
+                const stageFeatureset = async (surfacePath, featureset) => {
+                    let writes = await featureset.records({path: surfacePath})
+                    writes = writes.map(write => ({
+                        ...write,
+                        fields: {
+                            ...write?.fields,
+                            surface: surfacePath,
+                            featureset: featureset.name,
+                        },
+                    }))
+                    return writes
+                }
+
+                const resolveFeatureset = async (name) => name === 'surface'
+                    ? surface
+                    : (await import(name)).featureset;
+
+                // ?recordstore=...&featureset=./featuresets/dev/dev.featureset.js&featureset=./featuresets/pdf/pdf.featureset.js&reinstall
+                if (reinstall) {
+                    const writeses = await Promise.all(featuresets.map(async name => await stageFeatureset(surfacePath, await resolveFeatureset(name))))
+                    const writes = writeses.flat(1)
+                    // writes = writes.map((write) => ({surface: surfacePath, ...write}))
+                    console.log(`reinstalling featuresets: ${featuresets.join(", ")}`, writes, writeses)
+                    await recordStore.writeRecords(writes)
+                }
+
+                const blockQueryset = {
+                    block: {
+                        global: true,
+                        view_criteria: {
+                            where: {
+                                type: [{compare: "=", value: "block"}],
+                                block: [{compare: "=", value: surfacePath}],
+                            },
+                        },
+                        view: "group-by-path-max-id",
+                    }
+                }
+
+                let block
+                
+                const refresh = async () => ([
+                    {block: [block]=[]}={},
+                ] = await Promise.all([
+                    block
+                        ? {block: [block]}
+                        : (overrideBlock
+                            ? surface.records({path: surfacePath}).then(records => ({block: records.filter(({fields}) => fields.type === 'block' && fields.path === surfacePath)}))
+                            : recordStore.newQuery({
+                                url: recordStore.renderRecordStreamQueryURL(blockQueryset),
+                                query: blockQueryset,
+                            }).promise),
+                ]));
+                await refresh()
+
+                let shouldRefresh = false
+                if (!block) {
+                    const writes = await surface.records({path: surfacePath})
+                    console.log('writing bootstrap surface block', writes)
+                    await recordStore.writeRecords(writes)
+                    shouldRefresh = true
+                }
+
+                if (shouldRefresh) {
+                    await refresh()
+                }
+
+                // todo reload after doing the above.
+                const raise = err => { throw err }
+                const fetchText = url => fetch(new URL(url, import.meta.url).toString()).then(response => response.ok
+                    ? response.text()
+                    : raise(new Error(`response is not ok; status="${response.status} ${response.statusText}"`)))
+
+                const scripts = await Promise.all([
+                    `const recordStore = Renkon.app.recordStore;`,
+                    fetchText('./bootstrap/recordstore.renkon.js'),
+
+                    `const ready = Events.receiver();`,
+                    `const queryset = ${JSON.stringify(block.fields.queryset)};`,
+
+                    ...block.fields.scripts,
+                ]);
+
+                window.ProgramState = ProgramState;
+                const ps = new ProgramState(0, {
+                    transferSymbol: Symbol("transfer"),
+                    recordStore,
+                });
+                window.programState = ps;
+
                 // This is like Renkon.merge, but works with text
-                ps.setupProgram([...ps.scripts, ...block.scripts]);
+                ps.setupProgram([...ps.scripts, ...scripts]);
                 if (!ps.evaluatorRunning) {
                     ps.evaluator();
                 }
-            });
+            })();
         </script>
     </body>
 </html>

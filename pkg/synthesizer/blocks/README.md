@@ -1,1 +1,0 @@
-Each file in this directory is a block intended to be loaded by Synthesizer
