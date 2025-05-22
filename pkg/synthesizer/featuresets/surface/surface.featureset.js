@@ -42,7 +42,7 @@ async function records({path}) {
                         modules: {
                             phase: "pre-ready",
                             view: "group-by-path-max-id",
-                            basis_criteria: {
+                            view_criteria: {
                                 where: {
                                     path: [{compare: "like", value: `/blocks/surface/modules/%`}],
                                 },
@@ -52,7 +52,11 @@ async function records({path}) {
                     scripts: [
                         await fetchText('./blocks/surface.renkon.js'),
                         await fetchText('./actions.renkon.js'),
+                        await fetchText('./panels.renkon.js'),
+                        await fetchText('./workers.renkon.js'),
+                        await fetchText('../../block.renkon.js'),
                         await fetchText('../../records-updated.renkon.js'),
+                        await fetchText('../../records-query-merge.js'),
                         await fetchText('../../components.renkon.js'),
                         await fetchText('../../modules.renkon.js'),
                     ],
@@ -68,7 +72,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'blockComponent',
@@ -78,7 +82,17 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
+                    type: 'module',
+                    schema: {'data': {format: 'text/javascript'}},
+                    module: 'workerComponent',
+                    path: `/blocks/surface/modules/worker.renkon.component.js`,
+                },
+                data: await fetchText(`../../worker.renkon.component.js`),
+            },
+            {
+                fields: {
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'preact',
@@ -88,7 +102,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'recordsMatcher',
@@ -98,17 +112,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
-                    type: 'module',
-                    schema: {'data': {format: 'text/javascript'}},
-                    module: 'recordsQueryMerge',
-                    path: `/blocks/surface/modules/records-query-merge.js`,
-                },
-                data: await fetchText(`../../records-query-merge.js`),
-            },
-            {
-                fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'msg',
@@ -118,7 +122,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'msgtxt',
@@ -128,7 +132,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'ohm',
@@ -148,7 +152,7 @@ async function records({path}) {
                         modules: {
                             phase: "pre-ready",
                             view: "group-by-path-max-id",
-                            basis_criteria: {
+                            view_criteria: {
                                 where: {
                                     path: [{compare: "like", value: `/blocks/start/modules/%`}],
                                 },
@@ -163,14 +167,16 @@ async function records({path}) {
                     scripts: [
                         await fetchText('./blocks/start.renkon.js'),
                         await fetchText('../../records-updated.renkon.js'),
+                        await fetchText('../../block.renkon.js'),
                         await fetchText('../../modules.renkon.js'),
                         await fetchText('../../verbs.renkon.js'),
+                        await fetchText('../../records-query-merge.js'),
                     ],
                 },
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'preact',
@@ -188,7 +194,7 @@ async function records({path}) {
                         modules: {
                             phase: "pre-ready",
                             view: "group-by-path-max-id",
-                            basis_criteria: {
+                            view_criteria: {
                                 where: {
                                     path: [{compare: "like", value: `/blocks/featuresets/modules/%`}],
                                 },
@@ -197,6 +203,8 @@ async function records({path}) {
                     },
                     scripts: [
                         await fetchText('./blocks/featuresets.renkon.js'),
+                        await fetchText('../../block.renkon.js'),
+                        await fetchText('../../records-query-merge.js'),
                         await fetchText('../../records-updated.renkon.js'),
                         await fetchText('../../modules.renkon.js'),
                     ],
@@ -204,7 +212,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'preact',
@@ -214,7 +222,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'recordsMatcher',
@@ -224,12 +232,14 @@ async function records({path}) {
             },
         ],
         ...await Promise.all([
+            'worker-actions',
             'surface-actions',
             'panel-actions',
             'start-install-featuresets',
             'start-new-surface',
         ].map(async name => ({
             fields: {
+                self: ['type', 'action'],
                 type: 'action',
                 action: name,
                 schema: {'data': {format: 'text/javascript'}},

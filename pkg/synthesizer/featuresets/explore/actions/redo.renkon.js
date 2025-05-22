@@ -10,9 +10,9 @@ export function component({
                 'links.cause.attributes."eventref:redo"': [{compare: "=", value: 1}],
             },
 
-            act: ({records}) => {
-                const id = records[0].fields.links.cause.attributes['eventref:event']
-                console.log({id})
+            act: ({records, cue: {fields: {panel, dat: {event}={}}}}) => {
+                const record = records[0]
+                const id = record.fields.links.cause.attributes['eventref:event']
                 if (!id) {
                     return false
                 }
@@ -20,6 +20,12 @@ export function component({
                     const write = {
                         fields: {
                             ...cause.fields,
+                            dat: {
+                                ...cause.fields.dat,
+                                event,
+                            },
+                            panel,
+                            redo: record.id,
                             actor: undefined, // do not reuse the previous actor value
                         }
                     }

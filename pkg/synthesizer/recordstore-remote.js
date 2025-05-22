@@ -94,6 +94,9 @@ export class RecordStoreRemote {
             port.postMessage(notification)
         }
         eventSource.addEventListener("message", listener)
+        eventSource.addEventListener("open", evt => console.log("EventSource open", {eventSource, url, evt}))
+        eventSource.addEventListener("streamerror", err => console.error(err, {eventSource, url}))
+        eventSource.addEventListener("error", err => console.error(err, {eventSource, url}))
         return entry
     }
 
@@ -109,7 +112,6 @@ export class RecordStoreRemote {
             abort,
             promise,
             close: () => {
-                console.log("aborting query")
                 abort.abort("close")
                 reject("close")
             },

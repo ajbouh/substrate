@@ -7,7 +7,7 @@ export function component({
             // criteria,
             description: 'start demo echo',
             act: ({panelWrite, cue: {fields: {query, panel, dat: {event: {metaKey} = {}}}}}) => {
-                const target = metaKey ? undefined : 'self'
+                const target = metaKey ? null : undefined
                 return panelWrite(panel, {
                     target,
                     panel: {
@@ -22,7 +22,7 @@ export function component({
             // criteria,
             description: 'start search',
             act: ({panelWrite, cue: {fields: {query, panel, dat: {event: {metaKey} = {}}}}}) => {
-                const target = metaKey ? undefined : 'self'
+                const target = metaKey ? null : undefined
                 return panelWrite(panel, {
                     target,
                     panel: {

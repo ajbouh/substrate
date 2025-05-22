@@ -13,6 +13,7 @@ async function records({path}) {
     return [
         ...[
             {
+                self: ['path'],
                 type: 'plumbing',
                 verb: 'inspect',
                 criteria: anything,
@@ -24,17 +25,18 @@ async function records({path}) {
         ].map(fields => ({fields})),
         ...await Promise.all([
             "block",
-            "copyquery",
+            "copy",
             "delete",
             "redo",
             "reflect",
             "sendmsg",
             "plumbing",
-            'start-browse-tree',
+            // "selection",
+            'start-explorer',
             // "selection",
         ].map(async action => ({
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'action'],
                     type: 'action',
                     schema: {'data': {format: 'text/javascript'}},
                     action,
@@ -45,7 +47,7 @@ async function records({path}) {
         ...[
             {
                 fields: {
-                    self: ['surface', 'type', 'block'],
+                    self: ['type', 'block'],
                     type: 'block',
                     block: 'record inspector',
                     // HACK we don't really want path, we're just using it because that's currently the only way to get "latest-by" semantics
@@ -59,7 +61,7 @@ async function records({path}) {
                         modules: {
                             phase: "pre-ready",
                             view: "group-by-path-max-id",
-                            basis_criteria: {
+                            view_criteria: {
                                 where: {
                                     path: [{compare: "like", value: `/blocks/record-inspector/modules/%`}],
                                 },
@@ -69,6 +71,8 @@ async function records({path}) {
                     scripts: [
                         await fetchText('./blocks/record-inspector.renkon.js'),
                         await fetchText('../../verbs.renkon.js'),
+                        await fetchText('../../block.renkon.js'),
+                        await fetchText('../../records-query-merge.js'),
                         await fetchText('../../records-updated.renkon.js'),
                         await fetchText('../../modules.renkon.js'),
                     ]
@@ -76,7 +80,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'inspect',
@@ -86,7 +90,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'inspector',
@@ -96,7 +100,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'preact',
@@ -106,7 +110,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'recordsMatcher',
@@ -117,16 +121,13 @@ async function records({path}) {
 
             {
                 fields: {
-                    self: ['surface', 'type', 'block'],
+                    self: ['type', 'block'],
                     type: 'block',
                     block: 'explorer',
                     // HACK we don't really want path, we're just using it because that's currently the only way to get "latest-by" semantics
                     path: `/blocks/explorer`,
                     queryset: {
-                        records: {
-                            view: "group-by-path-max-id",
-                            basis_criteria: {where: {path: [{compare: "like", value: "/%"}]}},
-                        },
+                        records: {},
                         offers: {
                             view_criteria: {
                                 where: {type: [{compare: "=", value: "action/offers"}]},
@@ -135,7 +136,7 @@ async function records({path}) {
                         modules: {
                             phase: "pre-ready",
                             view: "group-by-path-max-id",
-                            basis_criteria: {
+                            view_criteria: {
                                 where: {
                                     path: [{compare: "like", value: `/blocks/explorer/modules/%`}],
                                 },
@@ -153,6 +154,8 @@ async function records({path}) {
                     scripts: [
                         await fetchText('./blocks/explorer.renkon.js'),
                         await fetchText('../../verbs.renkon.js'),
+                        await fetchText('../../block.renkon.js'),
+                        await fetchText('../../records-query-merge.js'),
                         await fetchText('../../records-updated.renkon.js'),
                         await fetchText('../../modules.renkon.js'),
                     ],
@@ -160,7 +163,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'preact',
@@ -170,7 +173,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'ulid',
@@ -180,7 +183,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'recordsMatcher',
@@ -188,20 +191,11 @@ async function records({path}) {
                 },
                 data: await fetchText(`../../records-matcher.js`),
             },
-            {
-                fields: {
-                    self: ['surface', 'type', 'module'],
-                    type: 'module',
-                    schema: {'data': {format: 'text/javascript'}},
-                    module: 'recordsQueryMerge',
-                    path: `/blocks/explorer/modules/records-query-merge.js`,
-                },
-                data: await fetchText(`../../records-query-merge.js`),
-            },
         ],
         ...await Promise.all([
             'age',
             'id',
+            'fingerprint',
             'path',
             'size',
             'surface',
@@ -209,7 +203,7 @@ async function records({path}) {
             'type',
         ].map(async name => ({
             fields: {
-                self: ['surface', 'type', 'facet'],
+                self: ['type', 'facet'],
                 type: 'facet',
                 facet: name,
                 schema: {'data': {format: 'text/renkon'}},

@@ -6717,6 +6717,48 @@ function findDeclarations(node, input) {
   }
   return declarations;
 }
+function findTopLevelDeclarations(node) {
+  var _a2, _b2;
+  const declarations = [];
+  function declareLocal(node2) {
+    declarations.push(node2.name);
+  }
+  function declarePattern(node2) {
+    switch (node2.type) {
+      case "Identifier":
+        declareLocal(node2);
+        break;
+      case "ObjectPattern":
+        node2.properties.forEach((node3) => declarePattern(node3.type === "Property" ? node3.value : node3));
+        break;
+      case "ArrayPattern":
+        node2.elements.forEach((node3) => node3 && declarePattern(node3));
+        break;
+      case "RestElement":
+        declarePattern(node2.argument);
+        break;
+      case "AssignmentPattern":
+        declarePattern(node2.left);
+        break;
+    }
+  }
+  switch (node.type) {
+    case "VariableDeclaration":
+      node.declarations.forEach((child) => declarePattern(child.id));
+      break;
+    case "ClassDeclaration":
+    case "FunctionDeclaration":
+      declareLocal(node.id);
+      break;
+    case "ExportNamedDeclaration":
+      if (((_a2 = node.declaration) == null ? void 0 : _a2.type) === "VariableDeclaration") {
+        node.declaration.declarations.forEach((child) => declarePattern(child.id));
+      } else if (((_b2 = node.declaration) == null ? void 0 : _b2.type) === "FunctionDeclaration") {
+        declareLocal(node.declaration.id);
+      }
+  }
+  return declarations;
+}
 function isScope(node) {
   return node.type === "FunctionExpression" || node.type === "FunctionDeclaration" || node.type === "ArrowFunctionExpression" || node.type === "Program";
 }
@@ -9035,19 +9077,18 @@ function detype(input) {
   return String(output);
 }
 function removeTypeNode(output, node) {
-  if (node.type.startsWith("TS")) {
-    output.delete(node.start, node.end);
+  if (Array.isArray(node)) {
+    node.forEach((a2) => removeTypeNode(output, a2));
     return;
   }
-  for (let k2 in node) {
-    let v2 = node[k2];
-    if (Array.isArray(v2)) {
-      v2.forEach((a2) => removeTypeNode(output, a2));
-      continue;
+  if (typeof node === "object" && node !== null && typeof node.type === "string") {
+    if (node.type.startsWith("TS")) {
+      output.delete(node.start, node.end);
+      return;
     }
-    if (typeof v2 === "object" && v2 !== null && v2 instanceof Node) {
+    for (let k2 in node) {
+      let v2 = node[k2];
       removeTypeNode(output, v2);
-      continue;
     }
   }
 }
@@ -9058,11 +9099,15 @@ const acornOptions = {
 function findDecls(input) {
   const body = parseProgram(input);
   const list2 = body.body;
-  return list2.map((decl) => ({
-    code: input.slice(decl.start, decl.end),
-    start: decl.start,
-    end: decl.end
-  }));
+  return list2.map((decl) => {
+    const decls = findTopLevelDeclarations(decl);
+    return {
+      code: input.slice(decl.start, decl.end),
+      start: decl.start,
+      end: decl.end,
+      decls
+    };
+  });
 }
 function isCompilerArtifact(b2) {
   if (b2.type !== "Program") {
@@ -9290,8 +9335,8 @@ function getReturn(returnNode) {
         return null;
       }
       result[prop.key.name] = prop.value.name;
-      return result;
     }
+    return result;
   }
   return null;
 }
@@ -9346,7 +9391,7 @@ function rewriteRenkonCalls(output, body) {
     }
   });
 }
-const version$1 = "0.7.9";
+const version$1 = "0.7.11";
 const packageJson = {
   version: version$1
 };
@@ -10403,6 +10448,13 @@ class ProgramState {
   findDecls(code) {
     return findDecls(code);
   }
+  findDecl(name) {
+    const decls = this.findDecls(this.scripts.join("\n"));
+    const decl = decls.find((d2) => d2.decls.includes(name));
+    if (decl) {
+      return decl.code;
+    }
+  }
   evaluate(now, callConclude = true) {
     this.time = now - this.startTime;
     this.updated = false;
@@ -10635,7 +10687,9 @@ class ProgramState {
       });
     });
   }
-  component(func) {
+  component(argFunc) {
+    const func = typeof argFunc === "string" ? Function(`return ` + argFunc)() : argFunc;
+    const funcString = typeof argFunc === "string" ? argFunc : argFunc.toString();
     return (input, key) => {
       let programState;
       let returnValues = null;
@@ -10649,13 +10703,13 @@ class ProgramState {
         programState = subProgramState.programState;
         returnValues = subProgramState.returnArray;
       }
-      const maybeOldFunc = subProgramState == null ? void 0 : subProgramState.func;
-      if (newProgramState || func !== maybeOldFunc) {
-        const { params, returnValues: r, output } = getFunctionBody(func.toString(), false);
+      const maybeOldFunc = subProgramState == null ? void 0 : subProgramState.funcString;
+      if (newProgramState || funcString !== maybeOldFunc) {
+        const { params, returnValues: r, output } = getFunctionBody(funcString, false);
         returnValues = r;
         const receivers = params.map((r2) => `const ${r2} = Events.receiver();`).join("\n");
         programState.setupProgram([receivers, output], func.name);
-        this.programStates.set(key, { programState, func, returnArray: r });
+        this.programStates.set(key, { programState, funcString, returnArray: r });
       }
       const trigger = (input2) => {
         for (let key2 in input2) {

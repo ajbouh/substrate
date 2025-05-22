@@ -31,18 +31,42 @@ const genpath = (now) => {
     return `/${fmtdate(now ?? new Date())}-${genchars(7)}`
 }
 
-const actionCueRecord = ({records, dat, path, panel, verb}) => ({
-    fields: {
-        type: "action/cue",
-        query: {
-            global: true,
+const pathToQuery = (path) => ({
+    view: "group-by-path-max-id",
+    basis_criteria: {
+        where: {
+            path: [{compare: "=", value: path}]
+        },
+    },
+})
+
+const recordsToQuery = (() => {
+    const recordsAllHavePath = (records) => records.every(record => record.fields.path)
+    return (records) => recordsAllHavePath(records)
+        ? {
             view: "group-by-path-max-id",
             basis_criteria: {
                 where: {
-                    path: [{compare: "in", value: path ? [path] : records.filter(record => record?.fields?.path).map(record => record?.fields?.path)}]
+                    path: [{compare: "in", value: records.map(record => record.fields.path)}]
+                },
+            }
+        }
+        : {
+            global: true,
+            basis_criteria: {
+                where: {
+                    id: [{compare: "in", value: records.map(record => record.id)}],
                 },
             },
-        },
+        };
+})();
+
+const actionCueRecord = ({records, dat, path, panel, verb}) => ({
+    fields: {
+        type: "action/cue",
+        query: path
+            ? pathToQuery(path)
+            : recordsToQuery(records),
         panel,
         dat,
         verb,
@@ -72,11 +96,11 @@ const actionComponentCommonInput = {
 
 const actionOffers = Behaviors.select(
     undefined,
-    actionRecordsUpdated, (now, arus) => {
-        if (!now) {
-            return now
+    actionRecordsUpdated, (prev, arus) => {
+        if (!prev) {
+            return prev
         }
-        const next = {...now}
+        const next = {...prev}
         let any = false
         for (const {key, recordsUpdated} of arus) {
             const current = next[key]
@@ -98,6 +122,11 @@ const actionOffers = Behaviors.select(
                 console.error(e, "error gathering action offers", {record, component})
             }
 
+            if (!offers) {
+                console.warn("did actionRecordsUpdated and offers came back empty", {key, recordsUpdated, current, offers})
+                continue
+            }
+
             if (current.offers === offers) {
                 continue
             }
@@ -106,7 +135,7 @@ const actionOffers = Behaviors.select(
             any = true
         }
 
-        return any ? next : now
+        return any ? next : prev
     },
     actionComponents, (prev, actionComponents) => {
         let any = false
@@ -230,12 +259,8 @@ const actionCuesUpdated = Events.observe(notify => recordsSubscribe(notify, {
 
 const actDefaults = {msgtxtParser, msg: modules.msg, panelWrite}
 
-const queryThenActOn = (cue) => recordsRead({records: cue.fields.query}).then((o) => act({cue, records: o.records}))
-
 const act = ({cue, records}) => {
     let {verb, key} = cue.fields
-
-    console.log({cue, records})
 
     if (!key && !verb) {
         // should we use description to impute verb, if we can?
@@ -243,18 +268,16 @@ const act = ({cue, records}) => {
         verb = 'view'
     }
 
-    console.log({records})
-    console.log({offersAndMatchers})
     let candidates = offersAndMatchers.filter(
         ({matchKey, matchVerb}) => matchKey(key) && matchVerb(verb));
     candidates.sort((a, b) => b.weight - a.weight)
     
     // if there's only one candidate, no need to fetch records
+    let initialCandidatesLength = candidates.length
     if (candidates.length > 1) {
         candidates = candidates.filter(({matchRecords}) => matchRecords(records))
     }
 
-    console.log({candidates})
     let writes
     for (const candidate of candidates) {
         writes = candidate.act({...actDefaults, records, cue})
@@ -262,7 +285,9 @@ const act = ({cue, records}) => {
             break
         }
     }
-    console.log({writes})
+
+    console.log('acting on cue', {cue, records, offersAndMatchers, candidates, writes, initialCandidatesLength})
+
     if (writes) {
         if (writes.length) {
             return sendRecordsWrite(writes)
@@ -272,10 +297,12 @@ const act = ({cue, records}) => {
     }
 }
 
+const queryThenActOn = (cue) => recordsRead({records: cue.fields.query}).then((o) => act({cue, records: o.records}))
+
 const actionCues = Events.select(
     undefined,
     actionCuesUpdated, (now, {cues: {incremental, records}={}}) => {
-        console.log('high water mark is', now)
+        // console.log('high water mark is', now)
 
         if (!records) {
             return now
@@ -297,12 +324,12 @@ const actionCues = Events.select(
                 continue
             }
 
-            console.log('processing cue', cue.id, {cue, actor})
+            // console.log('processing cue', cue.id, {cue, actor})
 
             queryThenActOn(cue)
         }
 
-        console.log('updating high water mark to', now)
+        // console.log('updating high water mark to', now)
 
         return now
     },

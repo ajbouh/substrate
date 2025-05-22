@@ -29,13 +29,13 @@
 
         const transferSymbol = Symbol("transfer")
         const queuedReceivers = new Set(eventsQueuedReceivers)
-        const includeTransferForReceiver = (transfer, name, value) => {
+        const includeTransferForReceiver = (transfer, iterableValue, value) => {
             const include = v => {
                 if (typeof v === 'object' && transferSymbol in v) {
                     transfer.push(...v[transferSymbol])
                 }
             }
-            if (queuedReceivers.has(name)) {
+            if (iterableValue) {
                 for (const v of value) {
                     include(v)
                 }
@@ -64,8 +64,20 @@
                             const node = ps.resolved.get(name)
                             if (node) {
                                 maxTime = Math.max(maxTime, node.time)
-                                message.nodes[name] = node.value
-                                includeTransferForReceiver(transfer, name, node.value)
+                                try {
+                                    let iterableValue = queuedReceivers.has(name)
+                                    let value = node.value
+                                    // HACK for some reason we see sometimes see "unqueued" values. fix them before passing upwards.
+                                    if (iterableValue && !Array.isArray(value)) {
+                                        console.warn("node is queued receiver, but its value is not an array", {name, value})
+                                        value = [value]
+                                        iterableValue = true
+                                    }
+                                    message.nodes[name] = value
+                                    includeTransferForReceiver(transfer, iterableValue, value)
+                                } catch (e) {
+                                    console.error(e, "error including transfer for receiver", {name, node})
+                                }
                             }
                         }
                         // only postMessage if at least one value is new
@@ -93,7 +105,7 @@
         channel.port1.onmessage = ({data: {clear, reload, reset, baseURI, scripts, registerEvents}}) => {
             if (reload && ps) {
                 console.log("reloading...")
-                document.location.href = document.location.href
+                document.location.reload()
             }
 
             if (reset && ps) {
@@ -118,6 +130,7 @@
             }
 
             if (!ps) {
+                console.log("setupProgram", {behaviorsReceivers, eventsReceivers, eventsQueuedReceivers, outputs, emit, persistentScripts, baseURI})
                 ps = createProgramState()
                 ps.setupProgram(persistentScripts, baseURI)
                 ps.evaluate(0)

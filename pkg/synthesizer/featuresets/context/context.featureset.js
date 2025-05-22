@@ -33,6 +33,8 @@ async function records({path}) {
                     surface: path,
                     scripts: [
                         await fetchText('./blocks/context.renkon.js'),
+                        await fetchText('../../block.renkon.js'),
+                        await fetchText('../../records-query-merge.js'),
                         await fetchText('../../records-updated.renkon.js'),
                         await fetchText('../../modules.renkon.js'),
                     ],
@@ -51,7 +53,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'preact',

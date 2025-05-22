@@ -18,8 +18,6 @@ const synthRecordData = Events.select(
     },
 );
 
-console.log({modules});
-
 const {criteriaMatcher} = modules.recordsMatcher
 
 const {
@@ -71,6 +69,19 @@ const saver = Events.receiver();
     }
 })(saver, synthRecord);
 
+// TODO come up with something better than this.
+const panelEmit = Events.receiver({queued: true})
+
+const sendPanelEmit = (emits) => {
+    // HACK using the same path for all emits means they will overwrite each other. So only inject it if we have a single thing to emit.
+    let path = emits.length <= 1 ? self?.fields?.path : undefined
+    if (path) {
+        path = path + '.emit'
+    }
+    emits = emits.map(emit => ({...emit, fields: {...emit.fields, path}}))
+    Events.send(recordsWrite, emits)
+}
+
 const extensions = extensionComponents.map(
     ({component, record}) =>
         component({
@@ -119,6 +130,11 @@ const appendEditor = ((editor) => {
     document.body.appendChild(editor.dom)
 })(Events.once(editor));
 
+// TODO to make it easier to edit the fields of an object, we can:
+// - calculate allPointers for record
+// - populate a select with all the pointers in the object
+// - including data
+// - when a pointer is selected, update the current value of the record and then swap to the newly chosen pointer
 
 function allPointers(o, parentPath = "", visited = new Set()) {
     let pointers = [];
@@ -142,7 +158,3 @@ function allPointers(o, parentPath = "", visited = new Set()) {
     
     return pointers;
 }
-// calculate allPointers for record
-// populate a select with all the pointers in the object
-// including data
-// when a pointer is selected, update the current value of the record and then swap to the newly chosen pointer

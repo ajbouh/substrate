@@ -26,8 +26,9 @@ const pathFacet = (() => {
         }])
     }
     return {
-        label: 'path',
+        label: 'Path',
         priority: 100,
+        align: 'left',
         render: ({h, record}) => h('a', {
             href: '#',
             onclick: (evt) => {

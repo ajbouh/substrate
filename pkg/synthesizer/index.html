@@ -112,8 +112,9 @@
                     fetchText('./bootstrap/recordstore.renkon.js'),
 
                     `const ready = Events.receiver();`,
-                    `const queryset = ${JSON.stringify(block.fields.queryset)};`,
-
+                    `const self = Behaviors.receiver();`,
+                    // is the right value?
+                    `const block = {};`,
                     ...block.fields.scripts,
                 ]);
 
@@ -126,6 +127,8 @@
 
                 // This is like Renkon.merge, but works with text
                 ps.setupProgram([...ps.scripts, ...scripts]);
+                ps.evaluate(0);
+                ps.registerEvent('self', block);
                 if (!ps.evaluatorRunning) {
                     ps.evaluator();
                 }

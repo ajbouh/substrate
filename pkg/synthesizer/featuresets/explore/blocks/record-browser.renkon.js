@@ -157,7 +157,6 @@ const blockEvents = Events.some(windowMessages, Events.change(blockKeys), Events
 console.log('record browser', {blockEvents});
 
 const receivers = [
-    {name: "queryset", keyed: true, type: "behavior"},
     {name: "recordsUpdated", keyed: true, type: "event", nodeclare: true},
 
     {name: "close", keyed: true, queued: true, type: "event"},

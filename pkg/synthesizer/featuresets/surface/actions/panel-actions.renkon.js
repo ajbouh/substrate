@@ -8,7 +8,7 @@ export function component({
             description: '',
             act: ({panelWrite, records, cue: {fields: {query, panel: sender, dat: {event: {metaKey} = {}, layout, fields}}}}) => {
                 const panelKeys = [null]
-                return panelKeys.flatMap(key => panelWrite(sender, {target: key, panel: {...fields, block: 'start'}, layout}))
+                return panelKeys.flatMap(key => panelWrite(sender, {target: key, panel: {block: 'start', ...fields}, layout}))
             },
         },
         {

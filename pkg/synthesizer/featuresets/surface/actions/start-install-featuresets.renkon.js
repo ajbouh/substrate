@@ -8,7 +8,7 @@ export function component({
             description: 'install featuresets',
             act: ({panelWrite, cue: {fields: {query, panel, dat: {event: {metaKey} = {}}}}}) => {
                 console.log("start-install-featuresets", panel)
-                const target = metaKey ? undefined : 'self'
+                const target = metaKey ? null : undefined
                 return panelWrite(panel, {
                     target,
                     panel: {

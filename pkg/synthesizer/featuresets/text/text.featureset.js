@@ -13,6 +13,7 @@ async function records({path}) {
     return [
         ...[
             {
+                self: ['path'],
                 type: 'plumbing',
                 verb: 'view',
                 criteria: recordTypeLike("text/%"),
@@ -22,6 +23,7 @@ async function records({path}) {
                 path: `/plumbing/view-text`,
             },
             {
+                self: ['path'],
                 type: 'plumbing',
                 verb: 'edit',
                 criteria: recordTypeLike("text/%"),
@@ -31,6 +33,7 @@ async function records({path}) {
                 path: `/plumbing/edit-text`,
             },
             {
+                self: ['path'],
                 type: 'plumbing',
                 verb: 'view',
                 criteria: {
@@ -42,6 +45,7 @@ async function records({path}) {
                 path: `/plumbing/view-text-data`,
             },
             {
+                self: ['path'],
                 type: 'plumbing',
                 verb: 'edit',
                 criteria: {
@@ -53,6 +57,7 @@ async function records({path}) {
                 path: `/plumbing/edit-text-data`,
             },
             {
+                self: ['path'],
                 type: 'plumbing',
                 verb: 'view',
                 criteria: recordTypeLike("text/markdown"),
@@ -63,6 +68,7 @@ async function records({path}) {
                 weight: 2,
             },
             {
+                self: ['path'],
                 type: 'plumbing',
                 verb: 'view',
                 criteria: {
@@ -78,6 +84,7 @@ async function records({path}) {
         ...[
             {
                 fields: {
+                    self: ['type', 'block'],
                     type: 'block',
                     block: 'text editor',
                     // HACK we don't really want path, we're just using it because that's currently the only way to get "latest-by" semantics
@@ -85,12 +92,12 @@ async function records({path}) {
                     queryset: {
                         records: {
                             view: "group-by-path-max-id",
-                            basis_criteria: {where: {path: [{compare: "like", value: "/%"}]}},
+                            view_criteria: {where: {path: [{compare: "like", value: "/%"}]}},
                         },
                         modules: {
                             phase: "pre-ready",
                             view: "group-by-path-max-id",
-                            basis_criteria: {
+                            view_criteria: {
                                 where: {
                                     path: [{compare: "like", value: `/blocks/text-editor/modules/%`}],
                                 },
@@ -103,6 +110,8 @@ async function records({path}) {
                     },
                     scripts: [
                         await fetchText('./blocks/text-editor.renkon.js'),
+                        await fetchText('../../block.renkon.js'),
+                        await fetchText('../../records-query-merge.js'),
                         await fetchText('../../records-updated.renkon.js'),
                         await fetchText('../../modules.renkon.js'),
                         await fetchText('../../components.renkon.js'),
@@ -111,7 +120,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'codemirror',
@@ -121,7 +130,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'recordsMatcher',
@@ -131,7 +140,7 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'preact',
@@ -142,6 +151,7 @@ async function records({path}) {
 
             {
                 fields: {
+                    self: ['type', 'block'],
                     type: 'block',
                     block: 'markdown viewer',
                     // HACK we don't really want path, we're just using it because that's currently the only way to get "latest-by" semantics
@@ -149,12 +159,12 @@ async function records({path}) {
                     queryset: {
                         records: {
                             view: "group-by-path-max-id",
-                            basis_criteria: {where: {path: [{compare: "like", value: "/%"}]}},
+                            view_criteria: {where: {path: [{compare: "like", value: "/%"}]}},
                         },
                         modules: {
                             phase: "pre-ready",
                             view: "group-by-path-max-id",
-                            basis_criteria: {
+                            view_criteria: {
                                 where: {
                                     path: [{compare: "like", value: `/blocks/markdown-viewer/modules/%`}],
                                 },
@@ -163,6 +173,8 @@ async function records({path}) {
                     },
                     scripts: [
                         await fetchText('./blocks/markdown-viewer.renkon.js'),
+                        await fetchText('../../block.renkon.js'),
+                        await fetchText('../../records-query-merge.js'),
                         await fetchText('../../records-updated.renkon.js'),
                         await fetchText('../../modules.renkon.js'),
                         await fetchText('../../components.renkon.js'),
@@ -171,17 +183,17 @@ async function records({path}) {
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'markdownIt',
-                    path: `/blocks/markdown-viewer/modules/records-matcher.js`,
+                    path: `/blocks/markdown-viewer/modules/markdown-it.js`,
                 },
                 data: await fetchText(`./markdown-it.min.js`),
             },
             {
                 fields: {
-                    self: ['surface', 'type', 'module'],
+                    self: ['type', 'module'],
                     type: 'module',
                     schema: {'data': {format: 'text/javascript'}},
                     module: 'preact',
@@ -196,7 +208,7 @@ async function records({path}) {
         ].map(async name => ({
             fields: {
                 type: 'component/text-editor-extension',
-                action: name,
+                extension: name,
                 schema: {'data': {format: 'text/javascript'}},
                 path: `/extensions/${name}`,
             },
@@ -207,6 +219,7 @@ async function records({path}) {
             'start-new-text',
         ].map(async name => ({
             fields: {
+                self: ['type', 'action'],
                 type: 'action',
                 action: name,
                 schema: {'data': {format: 'text/javascript'}},
@@ -219,6 +232,7 @@ async function records({path}) {
             'renkon.md',
         ].map(async name => ({
             fields: {
+                self: ['path'],
                 type: 'documentation',
                 action: name,
                 schema: {'data': {format: 'text/markdown'}},

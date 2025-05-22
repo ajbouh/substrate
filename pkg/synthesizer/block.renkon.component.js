@@ -3,6 +3,7 @@ export function component({
     debug,
     scripts,
     events,
+    behaviors,
     notifiers,
     receivers,
 }) {
@@ -18,6 +19,9 @@ export function component({
             ...Object.keys(notifiers),
         ]
     }
+
+    const eventReceivers = receivers.filter(({type}) => type === "event")
+    const behaviorReceivers = receivers.filter(({type}) => type === "behavior")
 
     const key0 = Behaviors.keep(key)
     const iframeURL = `block.html?${encodeURIComponents(iframeURLParameters)}`;
@@ -95,12 +99,13 @@ export function component({
         Events.change(extraEvents), (now, extraEvents) => {
             let deltas = 0
             const next = extraEvents
-                .map((v, i) => receivers[i]?.keyed ? v?.[key0] : v)
+                .map((v, i) => eventReceivers[i]?.keyed ? v?.[key0] : v)
                 .map((v, i) => now[i] === v ? undefined : (deltas++, v));
             return deltas > 0 ? next : now
         },
     );
     // console.log(key, {extraEventsChanged})        
+
     const message = Events.collect(
         {
             port: undefined,
@@ -110,9 +115,9 @@ export function component({
             extraBehaviors: {},
             pendingEvents: undefined,
         },
-        Events.some(Events.change(port), ready, Events.change(scripts0), extraEventsChanged),
-            (now, [portChanged, nowReady, scriptsChanged, extraEventsChanged]) => {
-                // console.log(key, {now, portChanged, nowReady, scriptsChanged, extraEventsChanged})
+        Events.some(Events.change(port), ready, Events.change(scripts0), Events.change(behaviors), extraEventsChanged),
+            (now, [portChanged, nowReady, scriptsChanged, behaviorsChanged, extraEventsChanged]) => {
+                // console.log(key, {now, portChanged, nowReady, scriptsChanged, behaviorsChanged, extraEventsChanged})
 
                 const next = {
                     ...now,
@@ -140,20 +145,24 @@ export function component({
                         if (v === undefined) {
                             return
                         }
-                        const receiver = receivers[i]
+                        const receiver = eventReceivers[i]
                         const name = receiver.name
-                        switch (receiver.type) {
-                        case "behavior":
-                            next.extraBehaviors[name] = v
-                            pendingBehaviors[name] = v
-                            break
-                        case "event":
-                            pendingEvents[name] = receiver.queued
-                                ? (pendingEvents[name] || []).push(v)
-                                : v;
-                            break
-                        }
+                        pendingEvents[name] = receiver.queued
+                            ? (pendingEvents[name] || []).push(v)
+                            : v;
                     })
+                }
+                if (behaviorsChanged) {
+                    for (const receiver of behaviorReceivers) {
+                        const name = receiver.name
+                        const v = receiver.keyed ? behaviorsChanged[name]?.[key0] : behaviorsChanged[name]
+                        if (v !== undefined) {
+                            if (next.extraBehaviors[name] !== v) {
+                                next.extraBehaviors[name] = v
+                                pendingBehaviors[name] = v
+                            }
+                        }
+                    }
                 }
                 // if we're not ready then we can send scripts, baseURI
                 if (!next.ready) {
@@ -175,9 +184,9 @@ export function component({
                 if (next.port) {
                     let message = {registerEvents: {}}
 
-                    if (portChanged || scriptsChanged) {
-                        Object.assign(message.registerEvents, next.extraBehaviors)
-                    }
+                    // if (portChanged || scriptsChanged) {
+                    //     Object.assign(message.registerEvents, next.extraBehaviors)
+                    // }
 
                     // if we're ready, include events
                     if (next.ready) {
@@ -189,7 +198,6 @@ export function component({
 
                     // send our message if we have anything to say
                     if (Object.keys(message.registerEvents).length > 0) {
-                        // console.log(key, "sending message", message)
                         next.port.postMessage(message)
                     }
                 }

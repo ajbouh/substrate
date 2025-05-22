@@ -5,24 +5,20 @@ export function component({
     const offers = [
         {
             verb: 'start',
-            key: 'start-new-action',
+            key: 'start-new-text',
             // criteria,
-            description: 'start new action',
+            description: 'start new text',
             act: ({cue: {fields: {query, panel, dat} = {}}}) => {
-                const path = `${genpath()}.renkon.js`
+                const path = `${genpath()}.txt`
                 const start = {
                     fields: {
                         path,
-                        type: "action",
-                        action: path,
+                        type: "text",
                         schema: {
-                            data: {format: "text/javascript"},
+                            data: {format: "text/plain"},
                         },
                     },
-                    data: `export function component() {
-    // write your new action here!
-    return []
-}`,
+                    data: `sample data for ${path}`,
                 }
                 return withActionCueRecord([start], {verb: 'edit', panel, dat})
             },

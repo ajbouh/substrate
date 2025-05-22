@@ -13,6 +13,7 @@ async function records({path}) {
     return [
             ...[
             {
+                self: ['path'],
                 type: 'plumbing',
                 verb: 'view',
                 criteria: recordPathLike("%.msgindex"),
@@ -23,6 +24,7 @@ async function records({path}) {
             },
 
             {
+                self: ['type', 'block'],
                 type: 'block',
                 block: 'msgindex viewer',
                 // HACK we don't really want path, we're just using it because that's currently the only way to get "latest-by" semantics
@@ -34,6 +36,8 @@ async function records({path}) {
                 },
                 scripts: [
                     await fetchText('./blocks/msgindex-viewer.renkon.js'),
+                    await fetchText('../../block.renkon.js'),
+                    await fetchText('../../records-query-merge.js'),
                     await fetchText('../../records-updated.renkon.js'),
                 ],
             },
@@ -42,7 +46,7 @@ async function records({path}) {
             fields: {
                 type: 'text/javascript',
                 name: 'records-matcher.js',
-                path: `/blocks/text-editor/modules/records-matcher.js`,
+                path: `/blocks/msgindex-viewer/modules/records-matcher.js`,
             },
             data: await fetchText(`../../records-matcher.js`),
         },
@@ -51,6 +55,7 @@ async function records({path}) {
             'start-new-uri-list',
         ].map(async name => ({
             fields: {
+                self: ['type', 'action'],
                 type: 'action',
                 action: name,
                 schema: {'data': {format: 'text/javascript'}},

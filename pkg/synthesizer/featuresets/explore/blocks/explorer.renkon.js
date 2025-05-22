@@ -6,10 +6,6 @@
 const {h, html, render, Component} = modules.preact
 const {decodeTime} = modules.ulid
 const {criteriaMatcher} = modules.recordsMatcher
-const {
-    mergeRecordQueries,
-    mergeRecordQuerysets,
-} = modules.recordsQueryMerge
 
 const init = Events.once(modules);
 ((init) => {
@@ -17,31 +13,69 @@ const init = Events.once(modules);
 })(init);
 
 const sortRecords = records => records.sort((a, b) => a.fields?.path?.localeCompare(b.fields?.path))
+// const sortRecords = records => records.sort((a, b) => a.fields?.path?.localeCompare(b.fields?.path))
+// const sortRecords = records => records.reverse()
 
 const records = Behaviors.collect(
     undefined,
     recordsUpdated, (now, {records: {incremental, records}={}}) =>
         records
-            ? sortRecords(incremental ? [...now, ...records] : records)
+            ? sortRecords(incremental ? [...records, ...now] : records)
             : now,
 );
 
-const recordsById = Behaviors.collect(
-    {map: new Map()},
-    recordsUpdated, (now, {records: {incremental, records}={}}) => {
+const recordStringDigest = record => record.fields.self
+    ? JSON.stringify({self: record.fields.self, ...(Object.fromEntries(record.fields.self.map(field => [field, record.fields[field]])))})
+    : JSON.stringify({self: ["id"], id: record.id})
+
+const recordKey = record => recordStringDigest(record)
+
+const recordsMap = Behaviors.collect(
+    {map: new Map(), removed: new Set()},
+    recordsUpdated, (prev, {records: {incremental, records}={}}) => {
         if (!records) {
-            return now
+            return prev
         }
-        const next = incremental ? {...now} : {map: new Map()}
-        for (const record of records) {
-            next.map.set(record.id, record)
+
+        let removed
+        let map
+        let any = false
+        if (incremental) {
+            removed = new Set()
+            map = prev.map
+            for (const record of records) {
+                const key = recordKey(record)
+                if (map.has(key)) {
+                    continue
+                }
+                map.set(key, record)
+                any = true
+            }
+        } else {
+            any = true
+            removed = new Set(prev.map.keys())
+            map = new Map()
+            for (const record of records) {
+                const key = recordKey(record)
+                removed.delete(key)
+                map.set(key, record)
+            }
         }
-        return next
-    },
-);
+
+        return any ? {map, removed} : prev
+    }
+)
+
+const recordsRemoved = Events.collect(undefined, recordsMap, (prev, {removed}) => removed.size ? removed : undefined)
+
+console.log({recordsRemoved})
 
 const facets = Behaviors.gather(/Facet$/);
 const facetEntries = Object.values(facets);
+const facetDomains = Object.values(Behaviors.gather(/FacetDomain$/));
+((facetDomains, records) => {
+    facetDomains.map(domain => domain(records, {decodeTime}))
+})(facetDomains, records)
 
 const commonInput = {h, decodeTime}
 
@@ -52,38 +86,45 @@ const actOnRecordSelections = Events.receiver();
     act({verb, records: recordSelections, event})
 })(actOnRecordSelections);
 
-const recordSelectionDelta = Events.receiver();
 const recordSelectionReplace = Events.receiver();
 const recordSelectionMap = Behaviors.select(
-    {map: new Map()},
-    recordSelectionDelta, (now, {record, selected}) => {
-        const map = now.map
-        selected
-            ? map.set(record.id, record)
-            : map.delete(record.id);
-        return {map}
-    },
-    recordSelectionReplace, (now, {ids}) => {
+    {map: new Map(), options: []},
+    recordSelectionReplace, (now, {options}) => {
         const map = new Map()
-        for (const id of ids) {
-            map.set(id, recordsById.map.get(id))
+        for (const option of options) {
+            const key = option.value
+            map.set(key, recordsMap.map.get(key))
         }
-        return {map}
+        return {map, options}
     },
+    recordsRemoved, (now, removed) => {
+        const optionMap = new Map(Array.from(now.options, option => [option.value, option]))
+        const map = new Map(now.map)
+        for (const key of removed) {
+            map.delete(key)
+            const option = optionMap.get(key)
+            if (option) {
+                option.selected = false
+                optionMap.delete(key)
+            }
+        }
+        return {map, options: [...optionMap.values()]}
+    }
 )
 const recordSelections = [...recordSelectionMap.map.values()]
-const recordSelectionIds = new Set(recordSelectionMap.map.keys())
+const recordSelectionKeys = new Set(recordSelectionMap.map.keys())
 
 const SelectableList = ({oninput, ondblclick, onmousedown, facet, records}) => {
-    return h('div', {}, [
+    return h('div', {
+        style: `
+            position: sticky;
+            left: 0;
+            z-index: 1;
+        `,
+    }, [
         h('div', {
-            style: `
-                height: 1em;
-                border-bottom: 1px solid #bbb;
-                border-right: 1px solid #bbb;
-                padding-left: 0.5rem;
-            `,
-        }, ''),
+            class: 'facet-heading',
+        }, facet.label),
         h('select', {
             multiple: true,
             size: records.length,
@@ -92,7 +133,7 @@ const SelectableList = ({oninput, ondblclick, onmousedown, facet, records}) => {
             onmousedown,
         }, records.map((record, i) =>
             h('option', {
-                value: record.id,
+                value: recordKey(record),
             }, facet.render({...commonInput, record}))))
     ])
 };
@@ -106,7 +147,7 @@ select {
     overflow: hidden;
     border-radius: 0;
 
-    font-family: Inter, sans-serif;
+    font-family: monospace;
     font-size: 1rem;
     line-height: 1.8;
     padding-top: 0px;
@@ -117,7 +158,7 @@ select {
 
 option {
     color: rgb(31, 41, 55);
-    font-family: Inter, sans-serif;
+    font-family: monospace;
     font-size: 1rem;
     height: calc(1.2rem);
     min-height: calc(1.2rem);
@@ -139,6 +180,10 @@ option:nth-child(even):not(:checked) {
     border-left: 1px solid #bbb;
     border-right: 1px solid #bbb;
     padding-left: 0.5rem;
+
+    position: sticky;
+    top: 0;
+    background-color: white;
 }
 
 .facet-column {
@@ -149,12 +194,14 @@ option:nth-child(even):not(:checked) {
     box-sizing: border-box;
     user-select: none;
     flex-grow: 1;
+
+    position: relative;
 }
 
 .facet-cell {
     display: flex;
     align-items: center;
-    justify-content: right;
+    justify-content: var(--facet-align, right);
     font-family: Inter, sans-serif;
     font-size 1rem;
     color: #374151;
@@ -174,43 +221,52 @@ option:nth-child(even):not(:checked) {
     background-color: rgb(186,214,251);
 }
 
-body:focus-within .facet-cell[data-selected=true] {
+.facet-table:focus-within .facet-cell[data-selected=true] {
     background-color: rgb(186,214,251);
 }
 
-body:not(:focus-within) .facet-cell[data-selected=true] {
+.facet-table:not(:focus-within) .facet-cell[data-selected=true] {
     background-color: #cecece;
 }
 
 `
 
-const addFilter = (criteria) => {
-    Events.send(recordsWrite, [{
-        fields: {
-            ...panel.fields,
-            queryset: mergeRecordQuerysets(queryset, {
-                "records": {basis_criteria: {where: criteria}}
-            }),
-        }
-    }])
+const addFilter = (criteria, event) => {
+    act({
+        key: 'panel-modify',
+        records: [self],
+        event,
+        dat: {
+            fields: {
+                queryset: mergeRecordQuerysets(self.fields.queryset, {
+                    "records": {view_criteria: {where: criteria}}
+                }),
+            },
+        },
+    })
 }
 
-const DataColumnList = ({facetEntries, records, recordSelectionIds}) => {
+const DataColumnList = ({facetEntries, records, recordSelectionKeys}) => {
     return h(Component, null, [
         ...facetEntries.map((facet) => {
-            return h('div', { class: 'facet-column' }, [
+            return h('div', {
+                class: 'facet-column',
+                style: {
+                    '--facet-align': facet.align || 'right',
+                },
+            }, [
                 h('div', {class: 'facet-heading'}, facet.label),
                 ...records.map((record, i) => {
                     return facet.filterable
                         ? h('a', {
                             class: 'facet-cell',
                             href: '#',
-                            onclick: (evt) => addFilter(facet.filterable(record)),
-                            'data-selected': recordSelectionIds.has(record.id) ? true : undefined,
+                            onclick: (evt) => addFilter(facet.filterable(record), evt),
+                            'data-selected': recordSelectionKeys.has(recordKey(record)) ? true : undefined,
                         }, facet.render({...commonInput, record}))
                         : h('div', {
                             class: 'facet-cell',
-                            'data-selected': recordSelectionIds.has(record.id) ? true : undefined,
+                            'data-selected': recordSelectionKeys.has(recordKey(record)) ? true : undefined,
                         }, facet.render({...commonInput, record}));
                 })
             ])
@@ -220,14 +276,15 @@ const DataColumnList = ({facetEntries, records, recordSelectionIds}) => {
                 ...records.map((record, i) => {
                     return h('div', {
                         class: 'facet-cell',
-                        'data-selected': recordSelectionIds.has(record.id) ? true : undefined,
+                        'data-selected': recordSelectionKeys.has(recordKey(record)) ? true : undefined,
                     }, '');
                 })
         ])
     ]);
 }
 
-const facetForSelectionList = facets['pathFacet'];
+// const facetForSelectionList = facets['pathFacet'];
+const facetForSelectionList = facets['idFacet'];
 
 render(
     h('div', {
@@ -258,18 +315,19 @@ render(
             flex-grow: 1;
             overflow: auto;
             `,
+            class: 'facet-table',
         }, [
             h(SelectableList, {
                 records,
                 facet: facetForSelectionList,
-                oninput: (evt) => Events.send(recordSelectionReplace, {ids: Array.from(evt.target.selectedOptions, elt => elt.value)}),
-                onmousedown: (evt) => requestAnimationFrame(() => Events.send(recordSelectionReplace, {ids: Array.from(evt.target.parentElement.selectedOptions, elt => elt.value)})),
+                oninput: (evt) => Events.send(recordSelectionReplace, {options: evt.target.selectedOptions}),
+                onmousedown: (evt) => requestAnimationFrame(() => Events.send(recordSelectionReplace, {options: evt.target.parentElement.selectedOptions})),
                 ondblclick: (evt) => Events.send(actOnRecordSelections, {verbFallbacks: ['open', 'edit', 'view', 'inspect'], event: evt}),
             }),
             h(DataColumnList, {
                 records,
                 facetEntries: facetEntries.filter(facet => facet !== facetForSelectionList),
-                recordSelectionIds,
+                recordSelectionKeys,
             })
         ]),
     ]),

@@ -16,6 +16,7 @@ async function records({path}) {
                 surface: path,
                 scripts: [
                     await fetchText('./blocks/search.renkon.js'),
+                    await fetchText('../../../block.renkon.js'),
                     await fetchText('../../../records-updated.renkon.js'),
                 ],
             },
@@ -27,6 +28,7 @@ async function records({path}) {
                 surface: path,
                 scripts: [
                     await fetchText('./blocks/demo-echo.renkon.js'),
+                    await fetchText('../../../block.renkon.js'),
                     await fetchText('../../../records-updated.renkon.js'),
                 ],
             },
@@ -38,6 +40,7 @@ async function records({path}) {
                 surface: path,
                 scripts: [
                     await fetchText('./blocks/demo-search-like.renkon.js'),
+                    await fetchText('../../../block.renkon.js'),
                     await fetchText('../../../records-updated.renkon.js'),
                 ],
             },

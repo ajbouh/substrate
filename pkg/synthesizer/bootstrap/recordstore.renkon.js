@@ -47,7 +47,6 @@ const recordsQueries = Events.select(
                     entry.promise.then((notification) => {
                         port.postMessage(notification)
                     }).finally(() => {
-                        console.log("cleaning up read", ns)
                         Events.send(close, {ns})
                     })
                 }
@@ -70,7 +69,7 @@ const recordsQueries = Events.select(
         const del = []
         for (const {ns} of closes) {
             const key = watchKey(ns)
-            const existing = Array.from(now.map.keys().filter(k => k.startsWith(key)))
+            const existing = [...now.map.keys()].filter(k => k.startsWith(key))
             del.push(...existing)
         }
 

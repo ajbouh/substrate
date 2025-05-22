@@ -54,7 +54,7 @@ const results = Behaviors.collect(undefined,
 // watch for anything with this searchid in it
 Events.send(recordsWrite, [{
     fields: {
-        ...panel.fields,
+        ...self.fields,
         queryset: {
             ...queryset,
             "results": {

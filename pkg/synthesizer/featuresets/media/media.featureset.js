@@ -19,6 +19,8 @@ async function records({path}) {
             surface: path,
             scripts: [
                 await fetchText('./blocks/media-viewer.renkon.js'),
+                await fetchText('../../block.renkon.js'),
+                await fetchText('../../records-query-merge.js'),
                 await fetchText('../../records-updated.renkon.js'),
             ],
         },
@@ -58,6 +60,7 @@ async function records({path}) {
 
 export const featureset = {
     title: 'media featureset',
+    name: 'media',
     description,
     records,
     url: import.meta.url,

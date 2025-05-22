@@ -32,6 +32,8 @@ async function records({path}) {
                 // baseURI: new URL('./pdfjs/', document.baseURI).toString(),
                 scripts: [
                     await fetchText('./blocks/pdf-viewer.renkon.js'),
+                    await fetchText('../../block.renkon.js'),
+                    await fetchText('../../records-query-merge.js'),
                     await fetchText('../../records-updated.renkon.js'),
                     await fetchText('../../modules.renkon.js'),
                     await fetchText('../../assets.renkon.js'),
@@ -40,7 +42,7 @@ async function records({path}) {
                     assets: {
                         phase: "pre-ready",
                         view: "group-by-path-max-id",
-                        basis_criteria: {
+                        view_criteria: {
                             where: {
                                 path: [{compare: "like", value: `/blocks/pdf-viewer/assets/%`}],
                             },
@@ -49,7 +51,7 @@ async function records({path}) {
                     modules: {
                         phase: "pre-ready",
                         view: "group-by-path-max-id",
-                        basis_criteria: {
+                        view_criteria: {
                             where: {
                                 path: [{compare: "like", value: `/blocks/pdf-viewer/modules/%`}],
                             },
@@ -79,6 +81,7 @@ async function records({path}) {
 
 export const featureset = {
     title: 'pdf featureset',
+    name: 'pdf',
     description,
     records,
     url: import.meta.url,
