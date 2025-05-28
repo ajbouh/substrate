@@ -1,6 +1,7 @@
 package db
 
 import (
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -68,6 +69,22 @@ type PlaceholderExpr struct {
 }
 
 func (e *PlaceholderExpr) Render(s []string, v []any) ([]string, []any) {
+	// handle the situation where
+	rv := reflect.ValueOf(e.Value)
+	if rv.Kind() == reflect.Slice {
+		s = append(s, "(")
+		for i := range rv.Len() {
+			if i > 0 {
+				s = append(s, ",")
+			}
+			s = append(s, "?")
+			o := rv.Index(i).Interface()
+			v = append(v, o)
+		}
+		s = append(s, ")")
+		return s, v
+	}
+
 	return append(s, "?"), append(v, e.Value)
 }
 
