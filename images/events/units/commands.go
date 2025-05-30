@@ -368,6 +368,37 @@ var GetEventDataCommand = handle.HTTPCommand(
 			Querier:     t.Querier,
 			DataQuerier: t.DataQuerier,
 		}
+
+		header := args.Writer.Header()
+
+		fields := struct {
+			Type   string `json:"type"`
+			Schema struct {
+				Data struct {
+					Format string `json:"format"`
+				} `json:"data"`
+			} `json:"schema"`
+		}{}
+		err = json.Unmarshal(event.Payload, &fields)
+		if err != nil {
+			return returns, err
+		}
+
+		header.Set("Substrate-Record-Fields", string(event.Payload))
+
+		contentType := fields.Type
+		if fields.Schema.Data.Format != "" {
+			contentType = fields.Schema.Data.Format
+		}
+
+		// a hacky rule for detecting a valid content type
+		mimeType, _, hasMimeType := strings.Cut(contentType, "/")
+		if hasMimeType {
+			switch mimeType {
+			case "application", "audio", "example", "font", "image", "model", "text", "video", "message", "multipart/":
+				header.Add("Content-Type", contentType)
+			}
+		}
 		http.ServeFileFS(args.Writer, r, fsys, args.ID.String())
 
 		return returns, nil
