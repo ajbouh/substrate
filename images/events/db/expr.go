@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/json"
 	"reflect"
 	"strconv"
 	"strings"
@@ -71,15 +72,22 @@ type PlaceholderExpr struct {
 func (e *PlaceholderExpr) Render(s []string, v []any) ([]string, []any) {
 	// handle the situation where
 	rv := reflect.ValueOf(e.Value)
-	if rv.Kind() == reflect.Slice {
+	switch rv.Kind() {
+	case reflect.Map:
+		b, err := json.Marshal(e.Value)
+		if err == nil {
+			s = append(s, "jsonb(?)")
+			v = append(v, string(b))
+			return s, v
+		}
+	case reflect.Slice:
 		s = append(s, "(")
 		for i := range rv.Len() {
 			if i > 0 {
 				s = append(s, ",")
 			}
-			s = append(s, "?")
-			o := rv.Index(i).Interface()
-			v = append(v, o)
+			var o any = rv.Index(i).Interface()
+			s, v = (&PlaceholderExpr{Value: o}).Render(s, v)
 		}
 		s = append(s, ")")
 		return s, v
