@@ -146,7 +146,7 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 		return From(
 			As("basis", "(", basis, ")"),
 		).Select(
-			As("id", "id"),
+			As("id", eventFieldNameWithTableJSONB("id", "basis")),
 			As("at", "at"),
 			As("since", "since"),
 			As("deleted", "0"),
@@ -163,7 +163,7 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 		return From(
 			As("basis", "(", basis, ")"),
 		).Select(
-			As("id", `max(id)`),
+			As("id", `max(basis.id)`),
 			As("at", `at`),
 			As("since", `since`),
 			As("deleted", "1"),
@@ -203,7 +203,7 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 				),
 				")"),
 			).Select(
-				As("id", "id"),
+				As("id", "basis.id"),
 				As("at", "at"),
 				As("since", "since"),
 				As("deleted", "deleted"),
@@ -241,7 +241,7 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 				),
 				")"),
 		).Select(
-			As("id", `max(id)`),
+			As("id", `max(basis.id)`),
 			As("at", `null`),    // kind of meaningless?
 			As("since", `null`), // kind of meaningless?
 			As("deleted", "0"),
