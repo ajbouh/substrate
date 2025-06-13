@@ -139,6 +139,12 @@ const internalRecordsUpdated = Events.observe(notify => recordsSubscribe(notify,
             },
             view: "group-by-path-max-id",
         },
+        "workers/control": {
+            self: true,
+            view_criteria: {
+                where: {type: [{compare: "=", value: "worker-control"}]},
+            },
+        },
         blocks: {
             view_criteria: {
                 where: {type: [{compare: "=", value: "block"}]},

@@ -88,7 +88,7 @@ async function records({path}) {
                     module: 'workerComponent',
                     path: `/blocks/surface/modules/worker.renkon.component.js`,
                 },
-                data: await fetchText(`../../worker.renkon.component.js`),
+                data: await fetchText(`./worker.renkon.component.js`),
             },
             {
                 fields: {
