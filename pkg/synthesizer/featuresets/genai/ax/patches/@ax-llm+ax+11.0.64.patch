@@ -1,0 +1,540 @@
+diff --git a/node_modules/@ax-llm/ax/index.js b/node_modules/@ax-llm/ax/index.js
+index a32e896..80fdeb4 100644
+--- a/node_modules/@ax-llm/ax/index.js
++++ b/node_modules/@ax-llm/ax/index.js
+@@ -1,5 +1,5 @@
+ // ai/base.ts
+-import crypto2 from "crypto";
++// import crypto2 from "crypto";
+ import { context, SpanKind } from "@opentelemetry/api";
+ 
+ // trace/trace.ts
+@@ -67,7 +67,7 @@ var AxSpanKindValues = /* @__PURE__ */ ((AxSpanKindValues2) => {
+ })(AxSpanKindValues || {});
+ 
+ // util/apicall.ts
+-import crypto from "crypto";
++// import crypto from "crypto";
+ import {
+   ReadableStream as ReadableStream2,
+   TextDecoderStream as TextDecoderStreamNative,
+@@ -347,7 +347,7 @@ var apiCall = async (api, json) => {
+   const timeoutMs = api.timeout ?? defaultTimeoutMs;
+   const metrics = createRequestMetrics();
+   let timeoutId;
+-  const baseUrl = new URL(process.env["PROXY"] ?? api.url);
++  const baseUrl = new URL(api.url);
+   const apiPath = `${[baseUrl.pathname, api.name].filter(Boolean).join("/").replace(/\/+/g, "/")}${baseUrl.search}`;
+   const apiUrl = new URL(apiPath, baseUrl);
+   const requestId = crypto.randomUUID();
+@@ -842,7 +842,7 @@ var AxBaseAI = class {
+     this.tracer = options.tracer;
+     this.modelInfo = modelInfo;
+     this.models = models;
+-    this.id = crypto2.randomUUID();
++    this.id = crypto.randomUUID();
+     const model = this.getModel(defaults.model) ?? defaults.model;
+     const embedModel = this.getEmbedModel(defaults.embedModel) ?? defaults.embedModel;
+     this.defaults = { model, embedModel };
+@@ -1452,7 +1452,7 @@ function validateModels(models) {
+ }
+ 
+ // ai/google-vertex/auth.ts
+-import { GoogleAuth } from "google-auth-library";
++// import { GoogleAuth } from "google-auth-library";
+ var GoogleVertexAuth = class {
+   auth;
+   client;
+@@ -2490,9 +2490,9 @@ var AxAIOpenAIBase = class extends AxBaseAI {
+     chatReqUpdater,
+     supportFor
+   }) {
+-    if (!apiKey || apiKey === "") {
+-      throw new Error("OpenAI API key not set");
+-    }
++    // if (!apiKey || apiKey === "") {
++    //   throw new Error("OpenAI API key not set");
++    // }
+     const aiImpl = new AxAIOpenAIImpl(
+       config,
+       options?.streamingUsage ?? true,
+@@ -2501,7 +2501,11 @@ var AxAIOpenAIBase = class extends AxBaseAI {
+     super(aiImpl, {
+       name: "OpenAI",
+       apiURL: apiURL ? apiURL : "https://api.openai.com/v1",
+-      headers: async () => ({ Authorization: `Bearer ${apiKey}` }),
++      headers: async () => ({
++        ...(apiKey && apiKey.length
++          ? {Authorization: `Bearer ${apiKey}`}
++          : {}),
++      }),
+       modelInfo,
+       defaults: {
+         model: config.model,
+@@ -7283,7 +7287,8 @@ var AxInstanceRegistry = class {
+ };
+ 
+ // dsp/sig.ts
+-import { createHash } from "crypto";
++import { sha256 } from '@noble/hashes/sha2';
++import { concatBytes, bytesToHex } from '@noble/hashes/utils';
+ 
+ // dsp/parser.ts
+ var SignatureParser = class {
+@@ -7725,7 +7730,12 @@ var AxSignature = class _AxSignature {
+         throw new Error("Image type is not supported in output fields.");
+       }
+     });
+-    this.sigHash = createHash("sha256").update(this.description ?? "").update(JSON.stringify(this.inputFields)).update(JSON.stringify(this.outputFields)).digest("hex");
++    const encoder = new TextEncoder();
++    this.sigHash = bytesToHex(sha256(concatBytes(
++        encoder.encode(this.description ?? ""),
++        encoder.encode(JSON.stringify(this.inputFields)),
++        encoder.encode(JSON.stringify(this.outputFields)),
++      )));
+     this.sigString = renderSignature(
+       this.description,
+       this.inputFields,
+@@ -8918,51 +8928,51 @@ function pick(obj, keys) {
+ }
+ 
+ // docs/tika.ts
+-import { createReadStream } from "fs";
+-var AxApacheTika = class {
+-  tikaUrl;
+-  fetch;
+-  constructor(args) {
+-    const _args = args ?? { url: "http://localhost:9998/" };
+-    this.tikaUrl = new URL("/tika", _args.url);
+-    this.fetch = _args.fetch;
+-  }
+-  async _convert(file, options) {
+-    const fileData = typeof file === "string" ? createReadStream(file) : file.stream();
+-    if (!fileData) {
+-      throw new Error("Failed to read file data");
+-    }
+-    const acceptValue = options?.format === "html" ? "text/html" : "text/plain";
+-    try {
+-      const res = await (this.fetch ?? fetch)(this.tikaUrl, {
+-        body: fileData,
+-        headers: { Accept: acceptValue },
+-        duplex: "half",
+-        method: "PUT"
+-      });
+-      if (!res.ok) {
+-        throw new Error(`Failed to upload file: ${res.statusText}`);
+-      }
+-      const text = await res.text();
+-      return text;
+-    } catch (error) {
+-      throw new Error(`Error converting file: ${error}`);
+-    }
+-  }
+-  async convert(files, options) {
+-    const results = [];
+-    const bs = options?.batchSize ?? 10;
+-    for (let i = 0; i < files.length; i += bs) {
+-      const batch = files.slice(i, i + bs);
+-      const uploadPromises = batch.map(
+-        (files2) => this._convert(files2, { format: options?.format })
+-      );
+-      const batchResults = await Promise.all(uploadPromises);
+-      results.push(...batchResults);
+-    }
+-    return results;
+-  }
+-};
++// import { createReadStream } from "fs";
++// var AxApacheTika = class {
++//   tikaUrl;
++//   fetch;
++//   constructor(args) {
++//     const _args = args ?? { url: "http://localhost:9998/" };
++//     this.tikaUrl = new URL("/tika", _args.url);
++//     this.fetch = _args.fetch;
++//   }
++//   async _convert(file, options) {
++//     const fileData = typeof file === "string" ? createReadStream(file) : file.stream();
++//     if (!fileData) {
++//       throw new Error("Failed to read file data");
++//     }
++//     const acceptValue = options?.format === "html" ? "text/html" : "text/plain";
++//     try {
++//       const res = await (this.fetch ?? fetch)(this.tikaUrl, {
++//         body: fileData,
++//         headers: { Accept: acceptValue },
++//         duplex: "half",
++//         method: "PUT"
++//       });
++//       if (!res.ok) {
++//         throw new Error(`Failed to upload file: ${res.statusText}`);
++//       }
++//       const text = await res.text();
++//       return text;
++//     } catch (error) {
++//       throw new Error(`Error converting file: ${error}`);
++//     }
++//   }
++//   async convert(files, options) {
++//     const results = [];
++//     const bs = options?.batchSize ?? 10;
++//     for (let i = 0; i < files.length; i += bs) {
++//       const batch = files.slice(i, i + bs);
++//       const uploadPromises = batch.map(
++//         (files2) => this._convert(files2, { format: options?.format })
++//       );
++//       const batchResults = await Promise.all(uploadPromises);
++//       results.push(...batchResults);
++//     }
++//     return results;
++//   }
++// };
+ 
+ // ai/balance.ts
+ var AxBalancer = class _AxBalancer {
+@@ -10489,66 +10499,66 @@ var AxHFDataLoader = class {
+ };
+ 
+ // funcs/code.ts
+-import * as _crypto from "crypto";
+-import * as _fs from "fs";
+-import * as _http from "http";
+-import * as _https from "https";
+-import * as _os from "os";
+-import * as _process from "process";
+-import { runInNewContext } from "vm";
+-var AxJSInterpreterPermission = /* @__PURE__ */ ((AxJSInterpreterPermission2) => {
+-  AxJSInterpreterPermission2["FS"] = "node:fs";
+-  AxJSInterpreterPermission2["NET"] = "net";
+-  AxJSInterpreterPermission2["OS"] = "os";
+-  AxJSInterpreterPermission2["CRYPTO"] = "crypto";
+-  AxJSInterpreterPermission2["PROCESS"] = "process";
+-  return AxJSInterpreterPermission2;
+-})(AxJSInterpreterPermission || {});
+-var AxJSInterpreter = class {
+-  permissions;
+-  constructor({
+-    permissions = []
+-  } = {}) {
+-    this.permissions = permissions ?? [];
+-  }
+-  codeInterpreterJavascript(code) {
+-    const context3 = { console };
+-    if (this.permissions.includes("node:fs" /* FS */)) {
+-      context3.fs = _fs;
+-    }
+-    if (this.permissions.includes("net" /* NET */)) {
+-      context3.http = _http;
+-      context3.https = _https;
+-    }
+-    if (this.permissions.includes("os" /* OS */)) {
+-      context3.os = _os;
+-    }
+-    if (this.permissions.includes("crypto" /* CRYPTO */)) {
+-      context3.crypto = _crypto;
+-    }
+-    if (this.permissions.includes("process" /* PROCESS */)) {
+-      context3.process = _process;
+-    }
+-    return runInNewContext(`(function() { ${code} })()`, context3);
+-  }
+-  toFunction() {
+-    return {
+-      name: "javascriptInterpreter",
+-      description: "Use this function to run Javascript code and get any expected return value",
+-      parameters: {
+-        type: "object",
+-        properties: {
+-          code: {
+-            type: "string",
+-            description: "JS code with a return value in the end."
+-          }
+-        },
+-        required: ["code"]
+-      },
+-      func: ({ code }) => this.codeInterpreterJavascript(code)
+-    };
+-  }
+-};
++// import * as _crypto from "crypto";
++// import * as _fs from "fs";
++// import * as _http from "http";
++// import * as _https from "https";
++// import * as _os from "os";
++// import * as _process from "process";
++// import { runInNewContext } from "vm";
++// var AxJSInterpreterPermission = /* @__PURE__ */ ((AxJSInterpreterPermission2) => {
++//   AxJSInterpreterPermission2["FS"] = "node:fs";
++//   AxJSInterpreterPermission2["NET"] = "net";
++//   AxJSInterpreterPermission2["OS"] = "os";
++//   // AxJSInterpreterPermission2["CRYPTO"] = "crypto";
++//   AxJSInterpreterPermission2["PROCESS"] = "process";
++//   return AxJSInterpreterPermission2;
++// })(AxJSInterpreterPermission || {});
++// var AxJSInterpreter = class {
++//   permissions;
++//   constructor({
++//     permissions = []
++//   } = {}) {
++//     this.permissions = permissions ?? [];
++//   }
++//   codeInterpreterJavascript(code) {
++//     const context3 = { console };
++//     if (this.permissions.includes("node:fs" /* FS */)) {
++//       context3.fs = _fs;
++//     }
++//     if (this.permissions.includes("net" /* NET */)) {
++//       context3.http = _http;
++//       context3.https = _https;
++//     }
++//     if (this.permissions.includes("os" /* OS */)) {
++//       context3.os = _os;
++//     }
++//     // if (this.permissions.includes("crypto" /* CRYPTO */)) {
++//     //   context3.crypto = _crypto;
++//     // }
++//     if (this.permissions.includes("process" /* PROCESS */)) {
++//       context3.process = _process;
++//     }
++//     return runInNewContext(`(function() { ${code} })()`, context3);
++//   }
++//   toFunction() {
++//     return {
++//       name: "javascriptInterpreter",
++//       description: "Use this function to run Javascript code and get any expected return value",
++//       parameters: {
++//         type: "object",
++//         properties: {
++//           code: {
++//             type: "string",
++//             description: "JS code with a return value in the end."
++//           }
++//         },
++//         required: ["code"]
++//       },
++//       func: ({ code }) => this.codeInterpreterJavascript(code)
++//     };
++//   }
++// };
+ 
+ // mcp/httpTransport.ts
+ var AxMCPHTTPSSETransport = class {
+@@ -11512,11 +11522,11 @@ ${dataContext}
+ };
+ 
+ // ai/mock/api.ts
+-import crypto3 from "crypto";
++// import crypto3 from "crypto";
+ var AxMockAIService = class {
+   constructor(config = {}) {
+     this.config = config;
+-    this.config.id = this.config.id ?? crypto3.randomUUID();
++    this.config.id = this.config.id ?? crypto.randomUUID();
+   }
+   metrics = {
+     latency: {
+@@ -13139,51 +13149,51 @@ var AxEvalUtil = {
+ };
+ 
+ // ../../node_modules/uuid/dist/esm-node/rng.js
+-import crypto4 from "crypto";
+-var rnds8Pool = new Uint8Array(256);
+-var poolPtr = rnds8Pool.length;
+-function rng() {
+-  if (poolPtr > rnds8Pool.length - 16) {
+-    crypto4.randomFillSync(rnds8Pool);
+-    poolPtr = 0;
+-  }
+-  return rnds8Pool.slice(poolPtr, poolPtr += 16);
+-}
++// import crypto4 from "crypto";
++// var rnds8Pool = new Uint8Array(256);
++// var poolPtr = rnds8Pool.length;
++// function rng() {
++//   if (poolPtr > rnds8Pool.length - 16) {
++//     crypto4.randomFillSync(rnds8Pool);
++//     poolPtr = 0;
++//   }
++//   return rnds8Pool.slice(poolPtr, poolPtr += 16);
++// }
+ 
+-// ../../node_modules/uuid/dist/esm-node/stringify.js
+-var byteToHex = [];
+-for (let i = 0; i < 256; ++i) {
+-  byteToHex.push((i + 256).toString(16).slice(1));
+-}
+-function unsafeStringify(arr, offset = 0) {
+-  return byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + "-" + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + "-" + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + "-" + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + "-" + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]];
+-}
++// // ../../node_modules/uuid/dist/esm-node/stringify.js
++// var byteToHex = [];
++// for (let i = 0; i < 256; ++i) {
++//   byteToHex.push((i + 256).toString(16).slice(1));
++// }
++// function unsafeStringify(arr, offset = 0) {
++//   return byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + "-" + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + "-" + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + "-" + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + "-" + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]];
++// }
+ 
+ // ../../node_modules/uuid/dist/esm-node/native.js
+-import crypto5 from "crypto";
+-var native_default = {
+-  randomUUID: crypto5.randomUUID
+-};
++// import crypto5 from "crypto";
++// var native_default = {
++//   randomUUID: crypto.randomUUID
++// };
+ 
+ // ../../node_modules/uuid/dist/esm-node/v4.js
+-function v4(options, buf, offset) {
+-  if (native_default.randomUUID && !buf && !options) {
+-    return native_default.randomUUID();
+-  }
+-  options = options || {};
+-  const rnds = options.random || (options.rng || rng)();
+-  rnds[6] = rnds[6] & 15 | 64;
+-  rnds[8] = rnds[8] & 63 | 128;
+-  if (buf) {
+-    offset = offset || 0;
+-    for (let i = 0; i < 16; ++i) {
+-      buf[offset + i] = rnds[i];
+-    }
+-    return buf;
+-  }
+-  return unsafeStringify(rnds);
+-}
+-var v4_default = v4;
++// function v4(options, buf, offset) {
++//   if (native_default.randomUUID && !buf && !options) {
++//     return native_default.randomUUID();
++//   }
++//   options = options || {};
++//   const rnds = options.random || (options.rng || rng)();
++//   rnds[6] = rnds[6] & 15 | 64;
++//   rnds[8] = rnds[8] & 63 | 128;
++//   if (buf) {
++//     offset = offset || 0;
++//     for (let i = 0; i < 16; ++i) {
++//       buf[offset + i] = rnds[i];
++//     }
++//     return buf;
++//   }
++//   return unsafeStringify(rnds);
++// }
++// var v4_default = v4;
+ 
+ // mcp/client.ts
+ var AxMCPClient = class {
+@@ -13295,7 +13305,7 @@ var AxMCPClient = class {
+     }
+   }
+   async sendRequest(method, params = {}) {
+-    const requestId = v4_default();
++    const requestId = crypto.randomUUID();
+     const request = {
+       jsonrpc: "2.0",
+       id: requestId,
+@@ -13357,42 +13367,42 @@ ${JSON.stringify(res, null, 2)}`,
+ };
+ 
+ // mcp/stdioTransport.ts
+-import { spawn } from "child_process";
+-import readline from "readline";
+-var AxMCPStdioTransport = class {
+-  process;
+-  rl;
+-  pendingResponses = /* @__PURE__ */ new Map();
+-  constructor(config) {
+-    this.process = spawn(config.command, config.args ?? [], {
+-      env: config.env ? { ...process.env, ...config.env } : process.env
+-    });
+-    this.rl = readline.createInterface({ input: this.process.stdout });
+-    this.rl.on("line", (line) => {
+-      const response = JSON.parse(line);
+-      const resolver = this.pendingResponses.get(response.id);
+-      if (resolver) {
+-        resolver(response);
+-        this.pendingResponses.delete(response.id);
+-      }
+-    });
+-  }
+-  async send(message) {
+-    return new Promise((resolve) => {
+-      this.pendingResponses.set(message.id, (res) => {
+-        resolve(res);
+-      });
+-      this.process.stdin.write(`${JSON.stringify(message)}
+-`);
+-    });
+-  }
+-  async sendNotification(message) {
+-    this.process.stdin.write(`${JSON.stringify(message)}
+-`);
+-  }
+-  async connect() {
+-  }
+-};
++// import { spawn } from "child_process";
++// import readline from "readline";
++// var AxMCPStdioTransport = class {
++//   process;
++//   rl;
++//   pendingResponses = /* @__PURE__ */ new Map();
++//   constructor(config) {
++//     this.process = spawn(config.command, config.args ?? [], {
++//       env: config.env ? { ...process.env, ...config.env } : process.env
++//     });
++//     this.rl = readline.createInterface({ input: this.process.stdout });
++//     this.rl.on("line", (line) => {
++//       const response = JSON.parse(line);
++//       const resolver = this.pendingResponses.get(response.id);
++//       if (resolver) {
++//         resolver(response);
++//         this.pendingResponses.delete(response.id);
++//       }
++//     });
++//   }
++//   async send(message) {
++//     return new Promise((resolve) => {
++//       this.pendingResponses.set(message.id, (res) => {
++//         resolve(res);
++//       });
++//       this.process.stdin.write(`${JSON.stringify(message)}
++// `);
++//     });
++//   }
++//   async sendNotification(message) {
++//     this.process.stdin.write(`${JSON.stringify(message)}
++// `);
++//   }
++//   async connect() {
++//   }
++// };
+ 
+ // ai/multiservice.ts
+ var AxMultiServiceRouter = class {
+@@ -13687,7 +13697,7 @@ export {
+   AxAIServiceTimeoutError,
+   AxAITogether,
+   AxAgent,
+-  AxApacheTika,
++  // AxApacheTika,
+   AxAssertionError,
+   AxBalancer,
+   AxBaseAI,
+@@ -13711,12 +13721,12 @@ export {
+   AxGenerateError,
+   AxHFDataLoader,
+   AxInstanceRegistry,
+-  AxJSInterpreter,
+-  AxJSInterpreterPermission,
++  // AxJSInterpreter,
++  // AxJSInterpreterPermission,
+   AxLLMRequestTypeValues,
+   AxMCPClient,
+   AxMCPHTTPSSETransport,
+-  AxMCPStdioTransport,
++  // AxMCPStdioTransport,
+   AxMCPStreambleHTTPTransport,
+   AxMemory,
+   AxMiPRO,

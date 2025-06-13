@@ -7,6 +7,7 @@ export const featuresets = Promise.all([
     importFeatureset(`./text/text.featureset.js`),
     importFeatureset(`./msg/msg.featureset.js`),
     importFeatureset(`./media/media.featureset.js`),
+    importFeatureset(`./genai/genai.featureset.js`),
     importFeatureset(`./pdf/pdf.featureset.js`),
     importFeatureset(`./search/search.featureset.js`),
 ])

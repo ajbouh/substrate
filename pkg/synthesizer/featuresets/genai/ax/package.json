@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "bundle": "node bundle.js"
+  },
+  "dependencies": {
+    "@ax-llm/ax": "^11.0.64",
+    "@noble/hashes": "^1.8.0"
+  },
+  "devDependencies": {
+    "esbuild-plugins-node-modules-polyfill": "^1.7.1"
+  }
+}
