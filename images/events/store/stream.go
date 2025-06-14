@@ -13,17 +13,26 @@ type Stream struct {
 	mu      *sync.Mutex
 	pending *event.ID
 	tapCh   chan struct{}
+	cancel  func()
+	ctx     context.Context
 }
 
-func newStream() *Stream {
+func newStream(parentCtx context.Context) *Stream {
+	ctx, cancel := context.WithCancel(parentCtx)
 	return &Stream{
 		eventCh: make(chan event.Notification),
 		mu:      &sync.Mutex{},
 		tapCh:   make(chan struct{}, 1),
+		ctx:     ctx,
+		cancel:  cancel,
 	}
 }
 
 var _ event.Stream = (*Stream)(nil)
+
+func (s *Stream) Done() <-chan struct{} {
+	return s.ctx.Done()
+}
 
 func (s *Stream) Events() <-chan event.Notification {
 	return s.eventCh
@@ -49,7 +58,12 @@ func (s *Stream) tap(until event.ID) {
 	}
 }
 
-func (s *Stream) process(ctx context.Context, querier event.Querier, qs event.QuerySet) {
+func (s *Stream) process(querier event.Querier, qs event.QuerySet) {
+	defer close(s.eventCh)
+	defer s.cancel()
+
+	ctx := s.ctx
+
 	var after, until event.ID
 	initial := true
 

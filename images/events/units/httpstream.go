@@ -158,8 +158,8 @@ func (h *EventStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					return err
 				}
-				w.(http.Flusher).Flush()
 			}
+			w.(http.Flusher).Flush()
 			return n.Error
 		}
 
@@ -178,8 +178,8 @@ func (h *EventStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return err
 			}
-			w.(http.Flusher).Flush()
 		}
+		w.(http.Flusher).Flush()
 		return nil
 	}
 
@@ -189,17 +189,11 @@ func (h *EventStreamHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	for {
-		select {
-		case n, ok := <-stream.Events():
-			if !ok {
-				return
-			}
-			err := writeEvents(n)
-			if err != nil {
-				slog.Error("error writing event", "err", err)
-				return
-			}
+	for n := range stream.Events() {
+		err := writeEvents(n)
+		if err != nil {
+			slog.Error("error writing event", "err", err)
+			return
 		}
 	}
 }

@@ -477,20 +477,21 @@ func (es *EventStore) notifyStreamsOfNewMaxID(eventID event.ID) {
 }
 
 func (es *EventStore) StreamEvents(ctx context.Context, qs event.QuerySet) (event.Stream, error) {
-	stream := newStream()
-
 	until, err := es.QueryMaxID(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	go stream.process(ctx, es, qs)
+	stream := newStream(ctx)
+	es.streams.Store(stream, stream.tap)
+
+	go stream.process(es, qs)
+
 	go func() {
 		defer es.streams.Delete(stream)
-		<-ctx.Done()
+		<-stream.Done()
 	}()
 
-	es.streams.Store(stream, stream.tap)
 	stream.tap(until)
 
 	return stream, nil
