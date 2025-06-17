@@ -176,6 +176,7 @@ func main() {
 		&substratehttp.CORSMiddleware{
 			Options: cors.Options{
 				AllowCredentials: true,
+				AllowedHeaders:   []string{"*"},
 				AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodDelete, http.MethodPut, http.MethodHead, "REFLECT"},
 				AllowOriginRequestFunc: func(r *http.Request, origin string) bool {
 					// slog.Info("AllowOriginFunc", "origin", origin, "url", r.URL.String())
