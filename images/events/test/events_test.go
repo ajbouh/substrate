@@ -2,10 +2,14 @@ package events_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ajbouh/substrate/images/events/db"
@@ -88,6 +92,16 @@ func Assemble(units ...engine.Unit) *engine.Assembly {
 	return asm
 }
 
+func NewServer(t *testing.T, name string) string {
+	name = strings.ReplaceAll(
+		strings.ReplaceAll(t.Name(), "#", "_"),
+		"/", "_") + "_" + name
+	h := InitEvents(name, t.TempDir())
+	srv := httptest.NewServer(h)
+	t.Cleanup(srv.Close)
+	return srv.URL
+}
+
 func InitEvents(name, dir string) http.Handler {
 	return InitHandler(
 		&service.Service{},
@@ -105,9 +119,9 @@ func InitEvents(name, dir string) http.Handler {
 		&db.SingleWriterDB{},
 		notify.On(
 			func(ctx context.Context,
-				evt db.Initialized[db.Txer],
+				evt db.Ready[db.Txer],
 				t *struct{}) {
-				err := store.CreateTables(ctx, evt.Initialized)
+				err := store.CreateTables(ctx, evt.Ready)
 				if err != nil {
 					panic(err)
 				}
@@ -116,7 +130,10 @@ func InitEvents(name, dir string) http.Handler {
 		&store.ExternalDataStore{
 			BaseDir: dir + "/data",
 		},
-		&store.EventStore{},
+		&store.IncrementingIDSource{},
+		&store.Writer{},
+		&store.Streamer{},
+		&store.Querier{},
 		&store.VectorManifoldStore{},
 		&units.EventURLs{
 			URLForEvent: func(ctx context.Context, eventID event.ID) string {
@@ -142,13 +159,14 @@ func InitEvents(name, dir string) http.Handler {
 		units.EventPathLinksQueryCommand.Clone(),
 
 		units.WriteEventsCommand.Clone(),
-		units.TryReactionCommand.Clone(),
 		units.QueryEventsCommand.Clone(),
 		&units.EventStreamHandler{},
 	)
 }
 
 func as[Out any](t *testing.T, o any) Out {
+	t.Helper()
+
 	out, err := commands.As[Out](o)
 	if err != nil {
 		t.Fatalf("error converting to %T: %s", out, err)
@@ -157,15 +175,56 @@ func as[Out any](t *testing.T, o any) Out {
 }
 
 func callURL[Out, In any](t *testing.T, env commands.Env, url, command string, params In) *Out {
+	t.Helper()
+
 	out, err := commands.CallURL[Out, In](context.Background(), env, url, command, params)
 	if err != nil {
 		t.Fatalf("error calling command: %v", err)
 	}
-	t.Logf("url=%s command=%s params=%#v response: %#v", url, command, params, out)
+	// t.Logf("url=%s command=%s params=%#v response: %#v", url, command, params, out)
 	return out
 }
 
+type testClient struct {
+	T   *testing.T
+	url string
+	Env commands.Env
+}
+
+func NewClient(t *testing.T) *testClient {
+	url := NewServer(t, "")
+	return NewClientForURL(t, url)
+}
+
+func NewClientForURL(t *testing.T, url string) *testClient {
+	t.Helper()
+
+	client := &testClient{url: url}
+	Assemble(&service.Service{}, t, client)
+	return client
+}
+
+func (c *testClient) NewClient(t *testing.T) *testClient {
+	client := &testClient{url: c.url}
+	Assemble(&service.Service{}, t, client)
+	return client
+}
+
+func (c *testClient) Write(events ...any) {
+	c.T.Helper()
+	callURL[units.WriteEventsReturns](c.T, c.Env, c.url, "events:write",
+		commands.Fields{"events": events})
+}
+
+func (c *testClient) Query(queryFields commands.Fields) *units.QueryEventsReturns {
+	c.T.Helper()
+	return callURL[units.QueryEventsReturns](c.T, c.Env, c.url, "events:query",
+		commands.Fields{"query": queryFields})
+}
+
 func must1[A any](t *testing.T, failFmt string, f func(a A) bool, a A, moreArgs ...any) {
+	t.Helper()
+
 	if f(a) {
 		return
 	}
@@ -175,10 +234,39 @@ func must1[A any](t *testing.T, failFmt string, f func(a A) bool, a A, moreArgs 
 }
 
 func must2[A, B any](t *testing.T, failFmt string, f func(a A, b B) bool, a A, b B, moreArgs ...any) {
+	t.Helper()
+
 	if f(a, b) {
 		return
 	}
 	args := append([]any{a, b}, moreArgs...)
 	t.Logf(failFmt, args...)
 	t.FailNow()
+}
+
+func mustEq[T any](t *testing.T, failFmt string, a any, b any, moreArgs ...any) {
+	t.Helper()
+
+	must2(t, failFmt, reflect.DeepEqual,
+		any(as[T](t, a)),
+		any(as[T](t, b)),
+		moreArgs...,
+	)
+}
+
+func mustQuery[T any](c *testClient, failFmt string, a any, query any, moreArgs ...any) {
+	c.T.Helper()
+
+	q := as[commands.Fields](c.T, query)
+
+	c.T.Logf("mustQuery query=%s", query)
+	b := c.Query(q)
+
+	var results []json.RawMessage
+	for _, evt := range b.Events {
+		results = append(results, evt.Payload)
+		c.T.Logf("mustQuery result=%s", string(evt.Payload))
+	}
+
+	mustEq[T](c.T, failFmt, a, results, moreArgs...)
 }

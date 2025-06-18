@@ -1,8 +1,8 @@
-FROM docker.io/library/golang:1.23-bookworm AS source
+# FROM cgr.dev/chainguard/go:latest-dev AS source 
+# (go 1.24.5)
+FROM cgr.dev/chainguard/go:latest-dev@sha256:e494d603a72a6a2f503574f8e33a809178eca31153d5752d1bf6e950211ae50a AS source
 
-RUN echo "deb http://deb.debian.org/debian trixie main" >>/etc/apt/sources.list
-RUN set -x && apt-get update && \
-  DEBIAN_FRONTEND=noninteractive apt-get install -y libsqlite3-dev/trixie
+RUN apk add --no-cache sqlite-dev
 
 WORKDIR /go/src/github.com/ajbouh/substrate/pkg/toolkit/
 COPY pkg/toolkit/go.mod pkg/toolkit/go.sum ./
@@ -31,10 +31,12 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 FROM source AS test
 
-# Used when we want to debug
-FROM docker.io/tianon/toybox:latest AS toybox
+FROM cgr.dev/chainguard/wolfi-base AS dist
+# FROM cgr.dev/chainguard/static AS dist
 
-FROM gcr.io/distroless/base-nossl-debian12 AS dist
+RUN apk add --no-cache \
+  sqlite-libs \
+  glibc
 
 COPY --from=build /events /app/events
 

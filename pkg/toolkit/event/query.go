@@ -88,6 +88,33 @@ type Query struct {
 
 type QuerySet map[string]Query
 
+func (qs QuerySet) Modify(mutations ...QueryMutation) QuerySet {
+	if len(mutations) == 0 {
+		return qs
+	}
+	qs2 := QuerySet{}
+	for k, q := range qs {
+		q = *q.Clone()
+		for _, m := range mutations {
+			m(&q)
+		}
+		qs2[k] = q
+	}
+	return qs2
+}
+
+func Until(id ID) QueryMutation {
+	return func(q *Query) {
+		q.Until(id)
+	}
+}
+
+func After(id ID) QueryMutation {
+	return func(q *Query) {
+		q.After(id)
+	}
+}
+
 func (q *Query) WithView(view View) *Query {
 	q.View = view
 	return q

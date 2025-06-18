@@ -18,6 +18,23 @@ type Querier interface {
 	QueryMaxID(ctx context.Context) (ID, error)
 }
 
+func QueryEventset(ctx context.Context, querier Querier, maxID ID, qs QuerySet) (map[string][]Event, map[string]bool, ID, error) {
+	results := map[string][]Event{}
+	mores := map[string]bool{}
+
+	for k, q := range qs {
+		q := &q
+		q = q.Clone().Until(maxID)
+		events, _, more, err := querier.QueryEvents(ctx, q)
+		if err != nil {
+			return results, mores, maxID, err
+		}
+		results[k] = events
+		mores[k] = more
+	}
+	return results, mores, maxID, nil
+}
+
 type WriteNotifyFunc func(
 	i int,
 	id ID,
@@ -62,16 +79,16 @@ type PendingEventSet struct {
 }
 
 type PendingEventSetBuilder struct {
-	pending *PendingEventSet
+	pending PendingEventSet
 }
 
-func NewPendingEventSetBuilder(len int) *PendingEventSetBuilder {
+func NewPendingEventSetBuilder(cap int) *PendingEventSetBuilder {
 	return &PendingEventSetBuilder{
-		pending: &PendingEventSet{
-			FieldsList:            make([]json.RawMessage, 0, len),
-			DataList:              make([]func() (io.ReadCloser, error), 0, len),
-			VectorList:            make([]*VectorInput[float32], 0, len),
-			ConflictFieldKeysList: make([][]string, 0, len),
+		pending: PendingEventSet{
+			FieldsList:            make([]json.RawMessage, 0, cap),
+			DataList:              make([]func() (io.ReadCloser, error), 0, cap),
+			VectorList:            make([]*VectorInput[float32], 0, cap),
+			ConflictFieldKeysList: make([][]string, 0, cap),
 		},
 	}
 }
@@ -93,8 +110,8 @@ func (b *PendingEventSetBuilder) Append(
 
 func (b *PendingEventSetBuilder) Finish() *PendingEventSet {
 	set := b.pending
-	b.pending = &PendingEventSet{}
-	return set
+	b.pending = PendingEventSet{}
+	return &set
 }
 
 func PendingFromEntries(entries []PendingEvent) (*PendingEventSet, error) {

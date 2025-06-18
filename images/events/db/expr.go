@@ -2,6 +2,7 @@ package db
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -43,6 +44,23 @@ type Expr interface {
 	Render([]string, []any) ([]string, []any)
 }
 
+func Delimited(delimiter string, exprs ...Expr) *DelimitedSQLExpr {
+	return &DelimitedSQLExpr{
+		Exprs:     exprs,
+		Delimiter: delimiter,
+	}
+}
+
+type DelimitedSQLExpr struct {
+	Prefix    []string
+	Exprs     []Expr
+	Delimiter string
+}
+
+func (q *DelimitedSQLExpr) Render(s []string, v []any) ([]string, []any) {
+	return renderExprSlice(s, v, q.Prefix, q.Delimiter, q.Exprs)
+}
+
 func SQL(list ...any) SQLExpr {
 	return SQLExpr(list)
 }
@@ -76,7 +94,7 @@ func (e *PlaceholderExpr) Render(s []string, v []any) ([]string, []any) {
 	case reflect.Map:
 		b, err := json.Marshal(e.Value)
 		if err == nil {
-			s = append(s, "jsonb(?)")
+			s = append(s, "jsonb(", "?", ")")
 			v = append(v, string(b))
 			return s, v
 		}
@@ -166,6 +184,7 @@ type SelectExpr struct {
 	GroupByExprs  []Expr
 	HavingExprs   []Expr
 	UnionExpr     *SelectExpr
+	IsUnionAll    bool
 
 	Limit   *Limit
 	OrderBy *OrderBy
@@ -187,6 +206,13 @@ func (q *SelectExpr) Select(exprs ...Expr) *SelectExpr {
 func (q *SelectExpr) Union(expr *SelectExpr) *SelectExpr {
 	tail := q.tail()
 	tail.UnionExpr = expr
+	return q
+}
+
+func (q *SelectExpr) UnionAll(expr *SelectExpr) *SelectExpr {
+	tail := q.tail()
+	tail.UnionExpr = expr
+	tail.IsUnionAll = true
 	return q
 }
 
@@ -232,7 +258,11 @@ func (q *SelectExpr) Render(s []string, v []any) ([]string, []any) {
 	s, v = renderExprSlice(s, v, []string{"GROUP BY"}, ",", q.GroupByExprs)
 	s, v = renderExprSlice(s, v, []string{"HAVING"}, "AND", q.HavingExprs)
 	if q.UnionExpr != nil {
-		s = append(s, "UNION")
+		if q.IsUnionAll {
+			s = append(s, "UNION ALL")
+		} else {
+			s = append(s, "UNION")
+		}
 		s, v = q.UnionExpr.Render(s, v)
 	}
 
@@ -245,6 +275,71 @@ func (q *SelectExpr) Render(s []string, v []any) ([]string, []any) {
 func Render(e Expr) (string, []any) {
 	s, v := e.Render(nil, nil)
 	return strings.Join(s, " ") + ";", v
+}
+
+func Bake(e Expr) (Expr, error) {
+	strs, v := e.Render(nil, nil)
+	list := make([]any, 0, len(strs))
+
+	var bakeValue func(v any) ([]any, error)
+	bakeValue = func(v any) ([]any, error) {
+		rv := reflect.ValueOf(v)
+		switch rv.Kind() {
+		case reflect.Slice:
+			s := []any{"("}
+			for i := range rv.Len() {
+				if i > 0 {
+					s = append(s, ",")
+				}
+				var o any = rv.Index(i).Interface()
+				s2, err := bakeValue(o)
+				if err != nil {
+					return nil, err
+				}
+				s = append(s, s2...)
+			}
+			s = append(s, ")")
+			return s, nil
+		case reflect.Int:
+			return []any{strconv.FormatInt(rv.Int(), 10)}, nil
+		case reflect.String:
+			return []any{"'" + strings.ReplaceAll(rv.String(), "'", "''") + "'"}, nil
+		default:
+			b, err := json.Marshal(v)
+			if err != nil {
+				return nil, err
+			}
+
+			var escaped = string(b)
+			escaped = strings.ReplaceAll(escaped, "'", "''")
+			return []any{"jsonb(", "'" + escaped + "'", ")"}, nil
+		}
+	}
+
+	vi := 0
+	for _, s := range strs {
+		if s == "?" {
+			if vi >= len(v) {
+				return nil, fmt.Errorf("couldn't bake expr due to placeholder mismatch: no value for placeholder index %d; len(values)=%d sql=%s", vi, len(v), strings.Join(strs, " "))
+			}
+
+			vs, err := bakeValue(v[vi])
+			if err != nil {
+				return nil, fmt.Errorf("couldn't bake expr due to json error at placeholder index %d; len(values)=%d sql=%s; %w", vi, len(v), strings.Join(strs, " "), err)
+			}
+
+			list = append(list, vs...)
+			vi++
+		} else {
+			list = append(list, s)
+		}
+	}
+
+	if vi != len(v) {
+		return nil, fmt.Errorf("couldn't bake expr due to placeholder mismatch: %d unused values; len(values)=%d expr=%s", len(v)-vi, len(v), strings.Join(strs, " "))
+	}
+
+	return SQL(list...), nil
 }
 
 func renderExprSlice(s []string, v []any, prefix []string, delim string, exprs []Expr) ([]string, []any) {

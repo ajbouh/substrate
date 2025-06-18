@@ -1,25 +1,43 @@
 package store
 
 import (
-	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"os"
 	"path"
 
 	"github.com/ajbouh/substrate/images/events/db"
+	"github.com/ajbouh/substrate/images/events/store/storeio"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
 )
 
-type EventDataCommitFunc func(bool) error
+type EventDataTx interface {
+	Finish(bool) error
+	Open() (io.ReadSeekCloser, error)
+}
 
 type EventDataWriter interface {
-	WriteEventData(ctx context.Context, tx db.Tx, id event.ID, read io.Reader) (int64, EventDataCommitFunc, error)
+	WriteEventData(ctx context.Context, tx db.Tx, id event.ID, read io.Reader) (int64, EventDataTx, error)
 }
 
 type EventDataSource interface {
 	OpenEventData(ctx context.Context, id event.ID) (io.ReadSeekCloser, error)
 }
+
+type EventDataSourceList []EventDataSource
+
+func (e EventDataSourceList) OpenEventData(ctx context.Context, id event.ID) (io.ReadSeekCloser, error) {
+	for _, eds := range e {
+		rsc, err := eds.OpenEventData(ctx, id)
+		if err != nil || rsc != nil {
+			return rsc, err
+		}
+	}
+	return nil, nil
+}
+
+var _ EventDataSource = (EventDataSourceList)(nil)
 
 type ExternalDataStore struct {
 	BaseDir string
@@ -43,7 +61,36 @@ func (ds *ExternalDataStore) Initialize() {
 	}
 }
 
-func (ds *ExternalDataStore) WriteEventData(ctx context.Context, tx db.Tx, id event.ID, r io.Reader) (int64, EventDataCommitFunc, error) {
+type eventDataTx struct {
+	finish func(bool) error
+	open   func() (io.ReadSeekCloser, error)
+}
+
+func (e *eventDataTx) Finish(b bool) error {
+	return e.finish(b)
+}
+
+func (e *eventDataTx) Open() (io.ReadSeekCloser, error) {
+	return e.open()
+}
+
+var _ EventDataTx = (*eventDataTx)(nil)
+
+type PendingEventDataSource map[event.ID]EventDataTx
+
+func (p PendingEventDataSource) OpenEventData(ctx context.Context, id event.ID) (io.ReadSeekCloser, error) {
+	for pID, tx := range p {
+		if pID == id {
+			slog.Info("PendingEventDataSource.OpenEventData found", "id", id)
+			return tx.Open()
+		}
+	}
+	return nil, nil
+}
+
+var _ EventDataSource = (PendingEventDataSource)(nil)
+
+func (ds *ExternalDataStore) WriteEventData(ctx context.Context, tx db.Tx, id event.ID, r io.Reader) (int64, EventDataTx, error) {
 	fileName := ds.resolve(id)
 	f, err := ds.createTemp(id)
 	if err != nil {
@@ -56,14 +103,19 @@ func (ds *ExternalDataStore) WriteEventData(ctx context.Context, tx db.Tx, id ev
 		return n, nil, err
 	}
 
-	commit := func(commit bool) error {
-		if commit {
-			return os.Rename(f.Name(), fileName)
-		} else {
-			return os.Remove(f.Name())
-		}
-	}
-	return n, commit, nil
+	return n, &eventDataTx{
+		finish: func(commit bool) error {
+			if commit {
+				return os.Rename(f.Name(), fileName)
+			} else {
+				return os.Remove(f.Name())
+			}
+		},
+		open: func() (io.ReadSeekCloser, error) {
+			slog.Info("eventDataTx.open", "f.Name()", f.Name())
+			return os.Open(f.Name())
+		},
+	}, nil
 }
 
 func (ds *ExternalDataStore) OpenEventData(ctx context.Context, id event.ID) (io.ReadSeekCloser, error) {
@@ -78,22 +130,25 @@ type DBDataStore struct {
 var _ EventDataSource = (*DBDataStore)(nil)
 var _ EventDataWriter = (*DBDataStore)(nil)
 
-func (ds *DBDataStore) WriteEventData(ctx context.Context, tx db.Tx, id event.ID, r io.Reader) (int64, EventDataCommitFunc, error) {
+func (ds *DBDataStore) WriteEventData(ctx context.Context, tx db.Tx, id event.ID, r io.Reader) (int64, EventDataTx, error) {
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	commit := func(commit bool) error {
-		if commit {
-			_, err = tx.ExecContext(ctx, `INSERT INTO "data" (event_id, data) VALUES (?, ?)`,
-				id, data)
-			return err
-		}
-		return nil
-	}
-
-	return int64(len(data)), commit, nil
+	return int64(len(data)), &eventDataTx{
+		finish: func(commit bool) error {
+			if commit {
+				_, err = tx.ExecContext(ctx, `INSERT INTO "data" (event_id, data) VALUES (?, ?)`,
+					id, data)
+				return err
+			}
+			return nil
+		},
+		open: func() (io.ReadSeekCloser, error) {
+			return storeio.NewReadSeekCloserForBytes(data), nil
+		},
+	}, nil
 }
 
 func (ds *DBDataStore) OpenEventData(ctx context.Context, id event.ID) (io.ReadSeekCloser, error) {
@@ -103,35 +158,15 @@ func (ds *DBDataStore) OpenEventData(ctx context.Context, id event.ID) (io.ReadS
 	}
 	defer rows.Close()
 
-	for rows.Next() {
+	if rows.Next() {
 		var b []byte
 		err := rows.Scan(&b)
 		if err != nil {
 			return nil, err
 		}
 
-		return &bytesReadSeekCloser{reader: bytes.NewReader(b)}, rows.Err()
+		return storeio.NewReadSeekCloserForBytes(b), rows.Err()
 	}
 
 	return nil, os.ErrNotExist
-}
-
-var _ io.ReadSeekCloser = (*bytesReadSeekCloser)(nil)
-
-type bytesReadSeekCloser struct {
-	reader *bytes.Reader
-}
-
-func (b *bytesReadSeekCloser) Close() error {
-	// garbage collect.
-	b.reader = nil
-	return nil
-}
-
-func (b *bytesReadSeekCloser) Read(p []byte) (n int, err error) {
-	return b.reader.Read(p)
-}
-
-func (b *bytesReadSeekCloser) Seek(offset int64, whence int) (int64, error) {
-	return b.reader.Seek(offset, whence)
 }

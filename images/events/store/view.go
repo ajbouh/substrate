@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ajbouh/substrate/images/events/db"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
@@ -48,18 +49,18 @@ func eventFieldNameWithTableJSONB(name, table string) db.Expr {
 	return SQL(renderFieldName(name, true, table))
 }
 
-func prepareCriteria(ctx context.Context, s *db.SelectExpr, vmr VectorManifoldResolver, defaultOrderByIfBias string, defaultMatchValue string, q event.Criteria) (*db.SelectExpr, error) {
+func prepareCriteria(ctx context.Context, s *db.SelectExpr, vmr VectorManifoldResolver, table string, defaultOrderByIfBias string, defaultMatchValue string, q event.Criteria) (*db.SelectExpr, error) {
 	hasMatches := false
 	for field, wheres := range q.WhereCompare {
 		if field == "" {
 			hasMatches = true
-			s.AndFrom(As("jt", "json_tree(fields)"))
-			s.GroupBy(SQL("basis.id"))
+			s.AndFrom(As("jt", "json_tree("+table+".fields)"))
+			s.GroupBy(SQL(table + ".id"))
 			for _, where := range wheres {
 				s.AndWhere(SQL("jt.value", where.Compare, V(where.Value)))
 			}
 		} else {
-			fieldName := eventFieldNameJSONB(field)
+			fieldName := eventFieldNameWithTableJSONB(field, table)
 			for _, where := range wheres {
 				s.AndWhere(SQL(fieldName, where.Compare, V(where.Value)))
 			}
@@ -137,7 +138,7 @@ func prepareBasis(ctx context.Context, vmr VectorManifoldResolver, q event.Crite
 		As("vector_data_rowid", eventFieldNameJSONB("vector_data_rowid")),
 	)
 
-	return prepareCriteria(ctx, s, vmr, renderFieldName("id", true, "basis"), "null", q)
+	return prepareCriteria(ctx, s, vmr, "basis", renderFieldName("id", true, "basis"), "null", q)
 }
 
 func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *db.SelectExpr {
@@ -177,7 +178,7 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 			As("vector_data_nn_distance", "0"),
 		).AndWhere(
 			SQL(eventFieldNameJSONB("deleted"), "IS", "1"),
-		).Union(
+		).UnionAll(
 			From(As("basis", "(",
 				From(
 					SQL("(", basis, ")"),
@@ -264,6 +265,151 @@ func prepareView(view event.View, placeholders map[string]any, basis db.Expr) *d
 	}
 }
 
+// on boot also create our temp_reaction_triggers table columns are: (id, )
+// CREATE TEMP TABLE table_name (id TEXT PRIMARY KEY) WITHOUT ROWID;
+// todo before write, DELETE FROM temp_reaction_triggers;
+// todo after write, SELECT id FROM temp_reaction_triggers;
+
+const reactionTriggerTable = "temp_reaction_triggers_for_this_write"
+const reactionTriggerShadowTable = "temp_reaction_shadow_triggers"
+
+func triggerNameForEvent(fpk event.FingerprintKey) string {
+	return "reaction_trigger_" + fpk.String()
+}
+
+const createReactionTriggerTable = `CREATE TEMP TABLE ` + reactionTriggerTable + ` (id TEXT PRIMARY KEY, fpk TEXT) WITHOUT ROWID, strict;`
+const dropReactionTriggerTable = `DROP TABLE IF EXISTS "` + reactionTriggerTable + `";`
+
+const createReactionTriggerShadowTable = `CREATE TEMP TABLE ` + reactionTriggerShadowTable + ` (fpk TEXT PRIMARY KEY, shadows_id TEXT, shadows_fpk TEXT) WITHOUT ROWID, strict;`
+const dropReactionTriggerShadowTable = `DROP TABLE IF EXISTS "` + reactionTriggerShadowTable + `";`
+
+const dropReactionTriggerTableRows = `DELETE FROM ` + reactionTriggerTable + `;`
+
+func renderDropEventTrigger(fpk event.FingerprintKey) db.Expr {
+	return db.SQL("DROP TRIGGER IF EXISTS", triggerNameForEvent(fpk), ";")
+}
+
+func renderTriggerQuery(ctx context.Context, vmr VectorManifoldResolver, trigger Trigger) (db.Expr, error) {
+	return renderTriggerQueryFromTable(ctx, vmr, func() (*db.SelectExpr, error) {
+		return db.From(As("basis", eventsTable)), nil
+	}, "basis", trigger)
+}
+
+func renderTriggerQueryFromTable(ctx context.Context, vmr VectorManifoldResolver, from func() (*db.SelectExpr, error), table string, trigger Trigger) (db.Expr, error) {
+	if trigger.Err != nil {
+		return nil, fmt.Errorf("invalid trigger: %w", trigger.Err)
+	}
+
+	if len(trigger.QuerySet) == 0 {
+		return nil, nil
+	}
+
+	var s *db.SelectExpr
+	for _, q := range trigger.QuerySet {
+		all, err := from()
+		if err != nil {
+			return nil, err
+		}
+
+		if len(q.BasisCriteria.WhereCompare) > 0 {
+			_, err := prepareCriteria(ctx, all, vmr, table, renderFieldName("id", false, ""), "null", q.BasisCriteria)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if len(q.ViewCriteria.WhereCompare) > 0 {
+			_, err := prepareCriteria(ctx, all, vmr, table, renderFieldName("id", false, ""), "null", q.ViewCriteria)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if len(all.WhereExprs) > 0 {
+			// we just want a boolean
+			all.Columns = []db.Expr{db.SQL("1")}
+
+			if s == nil {
+				s = all
+				s.Limit = &db.Limit{Limit: 1}
+			} else {
+				s.UnionAll(all)
+			}
+		}
+	}
+
+	return s, nil
+}
+
+const selectReactionTriggerTableRows = `SELECT id FROM ` + reactionTriggerTable + ` WHERE fpk NOT IN (SELECT shadows_fpk FROM ` + reactionTriggerShadowTable + `) ORDER BY id ASC;`
+
+func renderInsertReactionShadow(fpk, shadowsID event.ID, shadowsFPK event.FingerprintKey) db.Expr {
+	return db.SQL(
+		"INSERT INTO", reactionTriggerShadowTable,
+		"(fpk, shadows_id, shadows_fpk)",
+		"VALUES", "(",
+		V(fpk.String()),
+		",",
+		V(shadowsID.String()),
+		",",
+		V(shadowsFPK.String()),
+		")",
+		"ON CONFLICT(fpk) DO UPDATE SET shadows_id = excluded.shadows_id, shadows_fpk = excluded.shadows_fpk",
+	)
+}
+
+func renderDeleteReactionShadow(fpk event.FingerprintKey) db.Expr {
+	return db.SQL(
+		"DELETE FROM", reactionTriggerShadowTable,
+		"WHERE",
+		"fpk", "=", V(fpk.String()),
+		";",
+	)
+}
+
+func renderInsertReactionNotification(id event.ID, fpk event.FingerprintKey) db.Expr {
+	return db.SQL(
+		"INSERT INTO", reactionTriggerTable,
+		"(id, fpk)",
+		"VALUES", "(",
+		V(id.String()),
+		",",
+		V(fpk.String()),
+		")",
+		"ON CONFLICT(id) DO NOTHING;",
+	)
+}
+
+func renderCreateEventTrigger(ctx context.Context, vmr VectorManifoldResolver, trigger Trigger) (db.Expr, error) {
+	some, err := renderTriggerQueryFromTable(ctx, vmr, func() (*db.SelectExpr, error) { return db.From(), nil }, "NEW", trigger)
+	if err != nil {
+		return nil, err
+	}
+	some, err = db.Bake(some)
+	if err != nil {
+		return nil, err
+	}
+
+	insert := renderInsertReactionNotification(trigger.ID, trigger.FingerprintKey)
+	insert, err = db.Bake(insert)
+	if err != nil {
+		return nil, err
+	}
+
+	return db.SQL(
+		"CREATE TEMPORARY TRIGGER",
+		triggerNameForEvent(trigger.FingerprintKey),
+		"AFTER INSERT ON",
+		"main."+eventsTable,
+		"WHEN",
+		"(", some, ")",
+		"BEGIN",
+		insert,
+		"END",
+	), nil
+
+}
+
 func renderEventQuery(ctx context.Context, vmr VectorManifoldResolver, q *event.Query) (int, *db.SelectExpr, error) {
 	basis, err := prepareBasis(ctx, vmr, q.BasisCriteria)
 	if err != nil {
@@ -271,7 +417,7 @@ func renderEventQuery(ctx context.Context, vmr VectorManifoldResolver, q *event.
 	}
 
 	s := prepareView(q.View, q.ViewPlaceholders, basis)
-	s, err = prepareCriteria(ctx, s, vmr, renderFieldName("id", false, ""), "matches", q.ViewCriteria)
+	s, err = prepareCriteria(ctx, s, vmr, "basis", renderFieldName("id", false, ""), "matches", q.ViewCriteria)
 	if err != nil {
 		return 0, nil, err
 	}
