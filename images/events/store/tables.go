@@ -28,31 +28,12 @@ func CreateTables(ctx context.Context, txer db.Txer) error {
 	})
 }
 
-// // for debugging. this is a data structure that tracks information about what events were created
-// // due to what queries and invocations.
-// type StepTrace struct {
-// 	ID string
-
-// 	SubscriptionID string
-// 	Select          StepQuery
-
-// 	EmittedIDs []string
-// 	Logs            []string
-// 	Error           any
-
-// 	Start time.Time
-// 	Dur   time.Duration
-// }
-
-// // we tie a specific query pattern to a specific command that should be invoked whenever a batch
-// // of matching events is available.
-
 const eventsTable = "events2"
 const manifoldsTable = "event_vector_manifolds2"
 
 const dropEventsTable = `DROP TABLE IF EXISTS "` + eventsTable + `"`
 
-// fields column is JSONB, has "path", "type", "refs", "deleted"
+// fields column is JSONB, has "path", "type", "links", "deleted"
 
 const createEventsTable = `CREATE TABLE IF NOT EXISTS "` + eventsTable + `" (
 	id TEXT,

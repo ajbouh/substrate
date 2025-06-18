@@ -13,8 +13,8 @@ import (
 
 var _ Txer = (*SingleWriterDB)(nil)
 
-type Initialized[T any] struct {
-	Initialized T
+type Ready[T any] struct {
+	Ready T
 }
 
 type SingleWriterDB struct {
@@ -23,7 +23,7 @@ type SingleWriterDB struct {
 	Opener *sqliteuri.Opener
 	URI    *sqliteuri.URI
 
-	InitializedNotifiers []notify.Notifier[Initialized[Txer]]
+	ReadyNotifiers []notify.Notifier[Ready[Txer]]
 }
 
 func (s *SingleWriterDB) Initialize() {
@@ -37,7 +37,7 @@ func (s *SingleWriterDB) Initialize() {
 
 	s.db.SetMaxOpenConns(1)
 
-	notify.Notify(context.Background(), s.InitializedNotifiers, Initialized[Txer]{Initialized: s})
+	notify.Notify(context.Background(), s.ReadyNotifiers, Ready[Txer]{Ready: s})
 }
 
 func (s *SingleWriterDB) Stats() sql.DBStats {

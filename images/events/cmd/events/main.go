@@ -6,13 +6,11 @@ import (
 	"log/slog"
 	"os"
 	"path"
-	"time"
 
 	sqlite_vec "github.com/asg017/sqlite-vec-go-bindings/cgo"
 
 	"github.com/ajbouh/substrate/images/events/db"
 	"github.com/ajbouh/substrate/images/events/store"
-	"github.com/ajbouh/substrate/images/events/tick"
 	"github.com/ajbouh/substrate/images/events/units"
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
 	"github.com/ajbouh/substrate/pkg/toolkit/event"
@@ -56,9 +54,9 @@ func main() {
 		&db.SingleWriterDB{},
 		notify.On(
 			func(ctx context.Context,
-				evt db.Initialized[db.Txer],
+				evt db.Ready[db.Txer],
 				t *struct{}) {
-				err := store.CreateTables(ctx, evt.Initialized)
+				err := store.CreateTables(ctx, evt.Ready)
 				if err != nil {
 					panic(err)
 				}
@@ -67,7 +65,10 @@ func main() {
 		&store.ExternalDataStore{
 			BaseDir: os.Getenv("EVENTS_DATA_BASE_DIR"),
 		},
-		&store.EventStore{},
+		&store.DefaultIDSource{},
+		&store.Writer{},
+		&store.Querier{},
+		&store.Streamer{},
 		&store.VectorManifoldStore{},
 		&units.EventURLs{
 			URLForEvent: func(ctx context.Context, eventID event.ID) string {
@@ -93,24 +94,12 @@ func main() {
 		units.EventPathLinksQueryCommand,
 
 		units.WriteEventsCommand,
-		units.TryReactionCommand,
 		units.QueryEventsCommand,
 		&units.EventStreamHandler{},
 		&units.FSHandler{},
 
-		&tick.BootstrapStrategy{},
-		&tick.BootstrapInput{
-			RulesPathPrefix:   "/rules/defs/",
-			CursorsPathPrefix: "/rules/runs/",
-		},
-		&tick.BoostrapTicker{},
-		&tick.BootstrapLoop{},
 		units.GetStatsCommand,
 
 		&httpframework.PProfHandler{},
-
-		&tick.CommandStrategy{
-			DefaultTimeout: 60 * time.Second,
-		},
 	)
 }

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"time"
 
 	"github.com/oklog/ulid/v2"
 )
@@ -30,6 +31,10 @@ func (i ID) String() string {
 }
 func (i ID) Time() uint64 {
 	return (ulid.ULID)(i).Time()
+}
+
+func Time(i ID) time.Time {
+	return time.UnixMilli(int64(i.Time()))
 }
 
 func (i *ID) UnmarshalBinary(data []byte) error {

@@ -32,7 +32,7 @@ func connExecContext(ctx context.Context, conn *sqlite3.SQLiteConn, query string
 	start := time.Now()
 	var err error
 	defer func() {
-		slog.Info("Exec", "sql", query, "len(values)", len(values), "time", time.Since(start), "err", err)
+		slog.Info("Conn.ExecContext", "sql", query, "len(values)", len(values), "time", time.Since(start), "err", err)
 	}()
 
 	args := make([]driver.NamedValue, len(values))
