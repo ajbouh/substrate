@@ -102,6 +102,10 @@ func main() {
 		},
 		&tick.BoostrapTicker{},
 		&tick.BootstrapLoop{},
+		units.GetStatsCommand,
+
+		&httpframework.PProfHandler{},
+
 		&tick.CommandStrategy{
 			DefaultTimeout: 60 * time.Second,
 		},

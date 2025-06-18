@@ -79,6 +79,13 @@ func (s *MultiReaderDB) Initialize() {
 
 }
 
+func (s *MultiReaderDB) Stats() sql.DBStats {
+	if s.db == nil {
+		return sql.DBStats{}
+	}
+	return s.db.Stats()
+}
+
 func (s *MultiReaderDB) Terminate() error {
 	return s.db.Close()
 }

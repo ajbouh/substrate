@@ -172,6 +172,8 @@ func main() {
 		space.NewCommand,
 		substratehttp.EvalCommand,
 
+		&httpframework.PProfHandler{},
+
 		// TODO how do we want to handle authentication for this?
 		&substratehttp.CORSMiddleware{
 			Options: cors.Options{

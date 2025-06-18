@@ -40,6 +40,14 @@ func (s *SingleWriterDB) Initialize() {
 	notify.Notify(context.Background(), s.InitializedNotifiers, Initialized[Txer]{Initialized: s})
 }
 
+func (s *SingleWriterDB) Stats() sql.DBStats {
+	if s.db == nil {
+		return sql.DBStats{}
+	}
+
+	return s.db.Stats()
+}
+
 func (s *SingleWriterDB) Terminate() error {
 	return s.db.Close()
 }
