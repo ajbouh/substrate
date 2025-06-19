@@ -92,7 +92,7 @@ const extensions = extensionComponents.map(
         }, record.id));
 
 const extensionsWithMatchers = Object.values(extensions).map(
-    ({criteria, extension}) => ({matcher: criteriaMatcher(criteria), criteria, extension}));
+    ({criteria, matcher, extension}) => ({matcher: matcher || criteriaMatcher(criteria), criteria, extension}));
 
 ((record, extensionsWithMatchers) => {
     const filtered = extensionsWithMatchers.filter(({matcher}) => !matcher || matcher(record))

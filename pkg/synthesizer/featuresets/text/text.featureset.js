@@ -204,6 +204,7 @@ async function records({path}) {
         ],
         ...await Promise.all([
             'save',
+            'javascript',
             'emit',
         ].map(async name => ({
             fields: {
