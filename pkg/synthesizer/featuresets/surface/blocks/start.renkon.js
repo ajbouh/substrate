@@ -8,6 +8,13 @@ const {criteriaMatcher} = modules.recordsMatcher
 
 const starts = Object.values(Behaviors.gather(/Starter$/))
 
+const actionOfferRecords = Behaviors.collect(
+    undefined,
+    recordsUpdated, (now, {offers: {incremental, records: offers}={}}) => {
+        return offers ?? now
+    })
+const actionOffersets = actionOfferRecords.map(({fields: {offerset}}) => offerset)
+
 
 // it should show blocks that don't need a specific input, or that we can write a record for and then open
 
@@ -69,20 +76,7 @@ render(
     }, [
         ...startOffers.map(({description, key}) =>
             h('button', {
-                onclick: (evt) => {
-                    const writes = [
-                        {
-                            fields: {
-                                type: "action/cue",
-                                dat: {
-                                    event: pick(evt, "metaKey", "shiftKey", "ctrlKey", "altKey", "repeat", "key", "code", "button"),
-                                },
-                                key,
-                            },
-                        },
-                    ]
-                    Events.send(recordsWrite, writes)
-                },
+                onclick: (event) => act({key, event}),
             }, description),
         ),
     ]),

@@ -12,6 +12,13 @@ const init = Events.once(modules);
     Events.send(ready, true);
 })(init);
 
+const actionOfferRecords = Behaviors.collect(
+    undefined,
+    recordsUpdated, (now, {offers: {incremental, records: offers}={}}) => {
+        return offers ?? now
+    })
+const actionOffersets = actionOfferRecords.map(({fields: {offerset}}) => offerset)
+
 const sortRecords = records => records.sort((a, b) => a.fields?.path?.localeCompare(b.fields?.path))
 // const sortRecords = records => records.sort((a, b) => a.fields?.path?.localeCompare(b.fields?.path))
 // const sortRecords = records => records.reverse()
@@ -80,16 +87,20 @@ const facetDomains = Object.values(Behaviors.gather(/FacetDomain$/));
 const commonInput = {h, decodeTime}
 
 const actOnRecordSelections = Events.receiver();
-(({verbFallbacks, event}) => {
-    const definedVerbs = new Set(verbsForRecords(recordSelections))
-    const verb = verbFallbacks.find(verb => definedVerbs.has(verb))
-    act({verb, records: recordSelections, event})
-})(actOnRecordSelections);
+(({verbFallbacks, event}) => act({verb: verbFallbacks, records: recordSelections, event}))(actOnRecordSelections);
 
 const recordSelectionReplace = Events.receiver();
 const recordSelectionMap = Behaviors.select(
     {map: new Map(), options: []},
-    recordSelectionReplace, (now, {options}) => {
+    // self.fields.selectionQuery, (prev, query) => {
+    //     const map = new Map()
+    //     const matcher = criteriaMatcher(query)
+    //     for (const record of records.filter(matcher)) {
+
+    //     }
+    //     return prev
+    // },
+    recordSelectionReplace, (prev, {options}) => {
         const map = new Map()
         for (const option of options) {
             const key = option.value
@@ -97,24 +108,47 @@ const recordSelectionMap = Behaviors.select(
         }
         return {map, options}
     },
-    recordsRemoved, (now, removed) => {
-        const optionMap = new Map(Array.from(now.options, option => [option.value, option]))
-        const map = new Map(now.map)
+    recordsRemoved, (prev, removed) => {
+        const optionMap = new Map(Array.from(prev.options, option => [option.value, option]))
+        const map = new Map(prev.map)
+        let any
         for (const key of removed) {
-            map.delete(key)
+            if (map.delete(key)) {
+                any = true
+            }
             const option = optionMap.get(key)
             if (option) {
                 option.selected = false
                 optionMap.delete(key)
             }
         }
-        return {map, options: [...optionMap.values()]}
+        return any ? {map, options: [...optionMap.values()]} : prev
     }
 )
+
+console.log('in explorer', {self});
+console.log('in explorer', {recordSelectionMap});
+
+((declareSelection, recordSelections) => {
+    declareSelection(recordSelections)
+})(declareSelection, Events.change(recordSelections));
+
 const recordSelections = [...recordSelectionMap.map.values()]
 const recordSelectionKeys = new Set(recordSelectionMap.map.keys())
 
-const SelectableList = ({oninput, ondblclick, onmousedown, facet, records}) => {
+const defaultElement = Behaviors.receiver();
+const windowFocus = Events.listener(window, 'focus', event => event);
+((defaultElement, windowFocus) => {
+    if (!defaultElement) {
+        return
+    }
+    if (document.activeElement === defaultElement) {
+        return
+    }
+    defaultElement.focus();
+})(defaultElement, windowFocus);
+
+const SelectableList = ({oninput, ondblclick, onmousedown, facet, records, selectRef}) => {
     return h('div', {
         style: `
             position: sticky;
@@ -126,6 +160,7 @@ const SelectableList = ({oninput, ondblclick, onmousedown, facet, records}) => {
             class: 'facet-heading',
         }, facet.label),
         h('select', {
+            ref: selectRef,
             multiple: true,
             size: records.length,
             oninput,
@@ -137,7 +172,6 @@ const SelectableList = ({oninput, ondblclick, onmousedown, facet, records}) => {
             }, facet.render({...commonInput, record}))))
     ])
 };
-
 
 const style = `
 select {
@@ -231,6 +265,13 @@ option:nth-child(even):not(:checked) {
 
 `
 
+// simple implementation of structural equality
+const eq = (a, b) => (a === b) || (JSON.stringify(a) === JSON.stringify(b))
+const conservedBehavior = (prev, next) => eq(prev, next) ? prev : next
+const selfQueryset = Behaviors.collect(self.fields.queryset, self.fields.queryset, conservedBehavior)
+const selfKey = Behaviors.collect(self.fields.key, self.fields.key, conservedBehavior)
+const selfPath = Behaviors.collect(self.fields.path, self.fields.path, conservedBehavior)
+
 const addFilter = (criteria, event) => {
     act({
         key: 'panel-modify',
@@ -238,12 +279,34 @@ const addFilter = (criteria, event) => {
         event,
         dat: {
             fields: {
-                queryset: mergeRecordQuerysets(self.fields.queryset, {
+                queryset: mergeRecordQuerysets(selfQueryset, {
                     "records": {view_criteria: {where: criteria}}
                 }),
             },
         },
     })
+}
+
+const declareSelection = (selection) => {
+    const selectionQuery = recordsToQuery(selection)
+    if (eq(self.fields.selectionQuery, selectionQuery)) {
+        console.warn("breaking infinite loop!!!!")
+        return
+    }
+    console.log({
+        'eq(self.fields.selectionQuery, selectionQuery)': eq(self.fields.selectionQuery, selectionQuery),
+        selectionQuery,
+        'self.fields.selectionQuery': self.fields.selectionQuery,
+    })
+    Events.send(recordsWrite, [
+        {
+            fields: {
+                ...self.fields,
+                selectionQuery,
+            },
+        },
+    ])
+    console.log("declaring selection", selection)
 }
 
 const DataColumnList = ({facetEntries, records, recordSelectionKeys}) => {
@@ -295,19 +358,6 @@ render(
         `,
     }, [
         h('style', null, style),
-
-        h('div', {
-            style: `
-                padding: 0.5em;
-            `
-        }, [
-            ...(recordSelections.length > 0
-                ? verbsForRecords(recordSelections).flatMap(verb => [
-                    ' ',
-                    h('button', {onclick: (event) => act({verb, records: recordSelections, event})}, verb)
-                ])
-                : []),
-        ]),
         h('div', {
             style: `
             display: flex;
@@ -318,6 +368,7 @@ render(
             class: 'facet-table',
         }, [
             h(SelectableList, {
+                selectRef: dom => dom && Events.send(defaultElement, dom),
                 records,
                 facet: facetForSelectionList,
                 oninput: (evt) => Events.send(recordSelectionReplace, {options: evt.target.selectedOptions}),

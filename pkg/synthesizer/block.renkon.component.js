@@ -16,6 +16,7 @@ export function component({
         "Behaviors.receiver": receivers.filter(({type, nodeclare}) => type === "behavior" && !nodeclare).map(({name}) => name),
         "output": [
             "ready",
+            "focused",
             ...Object.keys(notifiers),
         ]
     }

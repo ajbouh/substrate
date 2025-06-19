@@ -5,6 +5,7 @@ export function component() {
     const offers = [
         {
             verb: 'reflect',
+            group: 'msg',
             criteria: {
                 type: [{compare: "=", value: 'text/uri-list'}]
                 // how to check if the record has data?

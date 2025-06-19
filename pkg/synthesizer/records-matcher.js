@@ -12,7 +12,8 @@ const conditions = {
         const pattern = sqliteLikeToRegExp(value)
         return fieldval => fieldval !== undefined && pattern.test(fieldval)
     },
-    "is not": ({value}) => fieldval => value !== fieldval,
+    "in": ({value}) => fieldval => value.includes(fieldval),
+    "is not": ({value}) => fieldval => value != fieldval,
     "=": ({value}) => fieldval => value === fieldval || (value === 1 && fieldval === true), // sqlite treats 1 as true
     ">": ({value}) => fieldval => value > fieldval,
     ">=": ({value}) => fieldval => value >= fieldval,

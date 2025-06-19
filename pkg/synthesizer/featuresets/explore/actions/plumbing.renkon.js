@@ -29,12 +29,14 @@ export function component({
     );
 
     const plumbingOfferFn = Behaviors.keep(({fields: rule}) => {
-        const {verb, criteria, weight, description, block, querykey} = rule
+        const {verb, group, criteria, weight, description, block, querykey} = rule
         return {
             verb,
+            group,
             criteria,
             description,
             weight,
+            scopes: ['external'],
             act: ({panelWrite, cue: {fields: {query, panel, dat: {event: {metaKey} = {}} = {}}}}) => {
                 const target = metaKey ? null : undefined
                 return panelWrite(panel, {
@@ -42,6 +44,7 @@ export function component({
                     panel: {
                         block,
                         queryset: {[querykey]: query},
+                        selectionQuery: undefined,
                     }
                 })
             },

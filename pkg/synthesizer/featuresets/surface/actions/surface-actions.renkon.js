@@ -77,7 +77,34 @@ export function component({
 
     const offers = [
         {
-            verb: 'export',
+            verb: 'draft command',
+            key: 'surface-draft-command',
+            description: '',
+            label: '$ _',
+            criteria: {
+                path: [{compare: 'like', value: '%.surface'}],
+            },
+            act: ({ribbonControl, records, cue: {fields: {query, panel: sender, dat: {event: {metaKey} = {}, layout, fields}}}}) => {
+                ribbonControl({draft: {}})
+                return []
+            },
+        },
+        {
+            verb: 'start panel',
+            key: 'surface-start-panel',
+            description: '',
+            label: '➕',
+            criteria: {
+                path: [{compare: 'like', value: '%.surface'}],
+            },
+            act: ({panelWrite, records, cue: {fields: {query, panel: sender, dat: {event: {metaKey} = {}, layout, fields}}}}) => {
+                const panelKeys = [null]
+                return panelKeys.flatMap(key => panelWrite(sender, {target: key, panel: {block: 'start', ...fields}, layout}))
+            },
+        },
+        {
+            verb: 'export snapshot',
+            group: 'transit',
             key: 'surface-export-snapshot',
             description: '',
             criteria: {},
@@ -87,15 +114,23 @@ export function component({
             },
         },
         {
-            // verb: '',
+            verb: 'import files',
+            // group: 'transit',
             key: 'surface-import-files',
             description: '',
+            criteria: {
+                path: [{compare: 'like', value: '%.surface'}],
+            },
             act: () => importFilesAsRecordWrites({fields: {}, pathPrefix: fileImportPathPrefix}),
         },
         {
-            // verb: '',
+            verb: 'import snapshot',
+            // group: 'transit',
             key: 'surface-import-snapshots',
             description: '',
+            criteria: {
+                path: [{compare: 'like', value: '%.surface'}],
+            },
             act: () => importFilesAsSnapshots({fields: {}}),
         },
     ];

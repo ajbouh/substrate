@@ -228,17 +228,220 @@ const cuePanelAction = (arg) => {
     sendRecordsWrite([write])
 }
 
+const actionKeyDownEvent = Events.listener(document, 'keydown', event => (event.key === 'k' && (event.metaKey || event.ctrlKey)) ? (event.preventDefault(), event) : undefined);
+console.log({actionKeyDownEvent});
+
+const surfaceRecordsRead = queryset => new Promise((resolve, reject) => {
+    const ch = new window.MessageChannel()
+    ch.port2.onmessage = ({data}) => {
+        // console.log("recordRead", id, record)
+        resolve(data)
+    }
+    ch.port2.onmessageerror = (evt) => reject(evt)
+    sendRecordsQuery({
+        ns: [`recordsread-${noncer()}`],
+        port: ch.port1,
+        queryset,
+        [Renkon.app.transferSymbol]: [ch.port1],
+    })
+})
+
+const surfaceAct = (() => {
+    return ({verb, key, query, records, event, panel, dat, parameters}) => {
+        const write = {
+            fields: {
+                type: "action/cue",
+                // records: [record],
+                query: query || recordsToQuery(records),
+                dat: {
+                    event: event ? pick(event, "metaKey", "shiftKey", "ctrlKey", "altKey", "repeat", "key", "code", "button") : undefined,
+                    ...dat,
+                },
+                verb,
+                key,
+                panel,
+                parameters,
+            },
+        }
+        sendRecordsWrite([write])
+    }
+})();
+
+const activeMetaSelectionKeyEvent = Events.receiver() // {tabs: {[tabKey]: key, ...}, active: [tabKey]}
+const activeMetaSelectionKey = Behaviors.collect(
+    {shownTab: '["surface"]', selections: {}},
+    activeMetaSelectionKeyEvent, (prev, {showTab, setSelections}) => {
+        return {
+            selections: {
+                ...prev.selections,
+                ...setSelections,
+            },
+            shownTab: showTab ?? prev.shownTab,
+        }
+    });
+
+const sendActiveMetaSelectionKeyEvent = value => {
+    Events.send(activeMetaSelectionKeyEvent, value);
+}
+// console.log({activeMetaSelectionKeyEvent})
+
+const focusedPanel = panelMap[activeMetaSelectionKey[`["surface","panel"]`]];
+const focusedPanelSelectionQuery = focusedPanel?.fields?.selectionQuery;
+console.log({focusedPanel});
+console.log({focusedPanelSelectionQuery});
+
+((panelKey) => {
+    document.getElementById(`panel_${panelKey}`)?.focus();
+    Events.send(activeMetaSelectionKeyEvent, ({setSelections: {[`["surface","panel"]`]: panelKey}}));
+})(panelFocusedEvent);
+
+const panelFocusedEvent = Events.receiver();
+
+const sendPanelFocused = ({key, time}) => {
+    Events.send(panelFocusedEvent, key);
+}
+
+// a gross hack
+const ribbonControl = Behaviors.receiver();
+console.log('outside', {ribbonControl});
+((init) => {
+    Events.send(ribbonControl, null);
+})(init);
+const sendRibbonControl = (kind) => {
+    Events.send(ribbonControl, kind);
+}
+// switch (kind) {
+// case 'draft command':
+// }
+
+const metaSelectionTabs = (() => {
+    const panelSelectionKey = `["surface","panel"]`
+    const panelKey = activeMetaSelectionKey.selections[panelSelectionKey] ?? Object.keys(panelMap)[0]
+    const panel = panelMap[panelKey];
+
+    const recordsQuerysetSelectionKeyFor = (panelKey) => panelKey ? `["surface","panel",${JSON.stringify(panelKey)},"records","queryset"]` : undefined
+    const recordsQuerysetSelectionKey = recordsQuerysetSelectionKeyFor(panelKey)
+    const recordsQuerysetKey = activeMetaSelectionKey.selections[recordsQuerysetSelectionKey] ?? (panel?.fields?.queryset ? Object.keys(panel?.fields?.queryset)?.[0] : undefined)
+
+    return [
+        {
+            key: `["surface"]`,
+            label: '',
+            nextBoundary: 'child',
+            options: [
+                {
+                    token: {
+                        showTab: `["surface"]`,
+                    },
+                    title: 'surface',
+                    scopes: ['internal'],
+                    records: [self],
+                },
+            ],
+        },
+        {
+            key: `["surface","panel"]`,
+            label: 'panel',
+            prevBoundary: 'parent',
+            nextBoundary: (panel?.fields?.queryset || panel?.fields?.selectionQuery)
+                ? 'child'
+                : undefined,
+            showSingleOptions: true,
+            selectedOption: panelKey,
+            options: Object.entries(panelMap).map(
+                ([panelKey, panel]) => ({
+                    token: {
+                        setSelections: {
+                            [`["surface","panel"]`]: panelKey,
+                        }
+                    },
+                    key: panelKey,
+                    panel: {key: panel.fields.key},
+                    label: panelKey,
+                    scopes: ['internal'],
+                    records: [panel],
+                })),
+        },
+        {
+            key: `["surface","panel","records"]`,
+            label: 'records',
+            prevBoundary: 'parent',
+            nextBoundary: 'sibling',
+            selectedOption: recordsQuerysetKey,
+            options: panel?.fields?.selectionQuery
+                ? []
+                : Object.entries(panel?.fields?.queryset || {}).map(
+                    ([querykey, query]) => ({
+                        token: {
+                            setSelections: {
+                                [recordsQuerysetSelectionKey]: querykey,
+                            }
+                        },
+                        key: querykey,
+                        label: querykey,
+                        scopes: ['internal', 'focus'],
+                        panel: {key: panel.fields.key},
+                        query,
+                    })),
+        },
+        {
+            key: `["surface","panel","records","selection"]`,
+            label: 'selection',
+            prevBoundary: 'sibling',
+            options: panel?.fields?.selectionQuery
+                    ? (console.log('selectionQuery', panel?.fields?.selectionQuery), [{
+                        panel: {key: panel.fields.key},
+                        query: panel.fields.selectionQuery,
+                        scopes: ['external', 'focus'],
+                    }])
+                    : [],
+        },
+    ]
+})()
+
+const activeMetaSelectionOptions = metaSelectionTabs.map(tab => tab?.options?.find(({key}, index) => tab.selectedOption ? key === tab.selectedOption : index === 0) ?? null);
+
+const activeMetaSelectionForOption = (async (activeMetaSelectionOption) => {
+    let {token, key, panel, query, scopes, records} = activeMetaSelectionOption || {}
+    if (!records && query) {
+        records = (await surfaceRecordsRead({records: query}))?.records;
+    }
+    if (records && !query) {
+        query = recordsToQuery(records)
+    }
+    let groupedVerbs = {}
+    if (records) {
+        groupedVerbs = groupedVerbsForRecords(records, scopes)
+    }
+    const actionFields = {panel, query, records}
+    const r = {token, key, panel, query, records, groupedVerbs, actionFields}
+    return r
+});
+
+const activeMetaSelections = Promise.all(activeMetaSelectionOptions.map(option => activeMetaSelectionForOption(option)))
+
 const {
     render: renderLayout,
 } = layoutComponentEntry({
     preact0: modules.preact,
     cuePanelAction0: cuePanelAction,
-    act0: act,
+    act0: surfaceAct,
     blockDefs0: blockDefs,
+    surface0: self,
     layout0: layout,
     panelMap0: panelMap,
     panelIframeProps0: panelIframeProps,
     panelKeys0: panelKeys,
+    msgtxtParser0: msgtxtParser,
+    msgtxtFormatter0: msgtxtFormatter,
+    ribbonControl0: ribbonControl,
+    sendRibbonControl0: sendRibbonControl,
+
+    activeMetaSelectionKey0: activeMetaSelectionKey,
+    sendActiveMetaSelectionKeyEvent0: sendActiveMetaSelectionKeyEvent,
+    metaSelectionTabs0: metaSelectionTabs,
+    activeMetaSelectionOptions0: activeMetaSelectionOptions,
+    activeMetaSelections0: activeMetaSelections,
 })
 
 const rendered = renderLayout(document.body)

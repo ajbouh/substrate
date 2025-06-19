@@ -6549,6 +6549,7 @@ const defaultGlobals = /* @__PURE__ */ new Set([
   "Boolean",
   "BigInt",
   "btoa",
+  "cancelAnimationFrame",
   "clearInterval",
   "clearTimeout",
   "console",
@@ -6565,6 +6566,7 @@ const defaultGlobals = /* @__PURE__ */ new Set([
   "Error",
   "escape",
   "eval",
+  "EventSource",
   "fetch",
   "File",
   "FileList",
@@ -6585,6 +6587,7 @@ const defaultGlobals = /* @__PURE__ */ new Set([
   "JSON",
   "Map",
   "Math",
+  "MessageChannel",
   "NaN",
   "Number",
   "navigator",
@@ -6599,12 +6602,12 @@ const defaultGlobals = /* @__PURE__ */ new Set([
   "ReferenceError",
   "Reflect",
   "RegExp",
-  "cancelAnimationFrame",
   "requestAnimationFrame",
   "Set",
   "setInterval",
   "setTimeout",
   "String",
+  "structuredClone",
   "Symbol",
   "SyntaxError",
   "TextDecoder",
@@ -6950,14 +6953,14 @@ function checkNested(body, baseId) {
         const properties = id.properties;
         for (const property of properties) {
           if (property.type === "RestElement") {
-            console.log("unsupported style of assignment");
+            console.warn("unsupported style of assignment");
             continue;
           }
           const p2 = property;
           if (p2.value.type === "Identifier" && p2.key.type === "Identifier") {
             rewriteSpecs.push({ definition: `const ${p2.value.name} = ${baseName}.${p2.key.name}`, type: "override" });
           } else {
-            console.log("unsupported style of assignment");
+            console.warn("unsupported style of assignment");
           }
         }
       }
@@ -6972,14 +6975,14 @@ function checkNested(body, baseId) {
             return;
           }
           if (element.type === "RestElement") {
-            console.log("unsupported style of assignment");
+            console.warn("unsupported style of assignment");
             continue;
           }
           const p2 = element;
           if (p2.type === "Identifier") {
             rewriteSpecs.push({ definition: `const ${p2.name} = ${baseName}[${ind}]`, type: "override" });
           } else {
-            console.log("unsupported style of assignment");
+            console.warn("unsupported style of assignment");
           }
         }
       }
@@ -9164,7 +9167,7 @@ function parseJavaScript(input, initialId, flattened = false) {
     const e = error;
     const message = e.message + `: error around -> 
 "${input.slice(e.pos - 30, e.pos + 30)}`;
-    console.log(message);
+    console.warn(message);
     throw error;
   }
   const allReferences = [];
@@ -9961,7 +9964,7 @@ class TSCompiler {
       const e = error;
       const message = e.message + `: error around -> 
 "${tsCode.slice(e.pos - 30, e.pos + 30)}`;
-      console.log(message);
+      console.warn(message);
       throw error;
     }
   }

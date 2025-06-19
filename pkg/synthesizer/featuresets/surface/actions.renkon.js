@@ -1,6 +1,6 @@
 const {criteriaMatcher} = modules.recordsMatcher
 const {sender, reflect} = modules.msg
-const {makeParser} = modules.msgtxt
+const {makeParser, formatter: msgtxtFormatter} = modules.msgtxt
 const msgtxtParser = makeParser({ohm: modules.ohm.default})
 
 const actionComponentPromises = Behaviors.collect(
@@ -40,28 +40,7 @@ const pathToQuery = (path) => ({
     },
 })
 
-const recordsToQuery = (() => {
-    const recordsAllHavePath = (records) => records.every(record => record.fields.path)
-    return (records) => recordsAllHavePath(records)
-        ? {
-            view: "group-by-path-max-id",
-            basis_criteria: {
-                where: {
-                    path: [{compare: "in", value: records.map(record => record.fields.path)}]
-                },
-            }
-        }
-        : {
-            global: true,
-            basis_criteria: {
-                where: {
-                    id: [{compare: "in", value: records.map(record => record.id)}],
-                },
-            },
-        };
-})();
-
-const actionCueRecord = ({records, dat, path, panel, verb}) => ({
+const actionCueRecord = ({records, dat, path, panel, verb, parameters}) => ({
     fields: {
         type: "action/cue",
         query: path
@@ -70,6 +49,7 @@ const actionCueRecord = ({records, dat, path, panel, verb}) => ({
         panel,
         dat,
         verb,
+        parameters,
     },
 })
 
@@ -94,7 +74,7 @@ const actionComponentCommonInput = {
     }), {id: Date.now()}),
 }
 
-const actionOffers = Behaviors.select(
+const actionOfferset = Behaviors.select(
     undefined,
     actionRecordsUpdated, (prev, arus) => {
         if (!prev) {
@@ -175,11 +155,12 @@ const actionOffers = Behaviors.select(
         return any ? next : prev
     })
 
-const offers = Object.entries(actionOffers).flatMap(
+const offers = Object.entries(actionOfferset).flatMap(
     ([key, {offers}]) => offers
         ? offers.map((offer, i) => ({...offer, ns: [key, offer.key || i]}))
         : []
-)
+);
+const actionOffersets = actionOfferRecords.map(({fields: {offerset}}) => offerset);
 
 const everyMatcher = matcher => records => matcher ? (records && records.every(matcher)) : !records
 
@@ -213,7 +194,7 @@ const actor = (() => {
     return genchars(10)
 })();
 
-const actionOffersUpdated = Events.select(
+const actorActionOffersUpdated = Events.select(
     {},
     actionsOffer, (now, offers) => {
         const addOffers = {}
@@ -228,16 +209,18 @@ const actionOffersUpdated = Events.select(
     },
 );
 
-((actionOffersUpdated) => {
-    sendRecordsWrite([{
-        fields: {
-            type: 'action/offers',
-            offerset: actionOffersUpdated
-        },
-    }])
-})(actionOffersUpdated);
+const actionOfferRecords = Behaviors.keep([{
+    fields: {
+        type: 'action/offers',
+        offerset: actorActionOffersUpdated
+    },
+}]);
 
-const actionCuesUpdated = Events.observe(notify => recordsSubscribe(notify, {
+((actionOfferRecords) => {
+    sendRecordsWrite(actionOfferRecords)
+})(actionOfferRecords);
+
+const actorActionCuesUpdated = Events.observe(notify => recordsSubscribe(notify, {
     queryset: {
         cues: {
             // HACK... this causes us to only see results that our surface has written.
@@ -255,11 +238,9 @@ const actionCuesUpdated = Events.observe(notify => recordsSubscribe(notify, {
     close: sendClose,
 }));
 
-// console.log('in surface', self.fields.path, {actionCuesUpdated});
+const actDefaults = {msgtxtParser, msg: modules.msg, panelWrite, ribbonControl: sendRibbonControl}
 
-const actDefaults = {msgtxtParser, msg: modules.msg, panelWrite}
-
-const act = ({cue, records}) => {
+const actorAct = ({cue, records}) => {
     let {verb, key} = cue.fields
 
     if (!key && !verb) {
@@ -268,40 +249,54 @@ const act = ({cue, records}) => {
         verb = 'view'
     }
 
-    let candidates = offersAndMatchers.filter(
-        ({matchKey, matchVerb}) => matchKey(key) && matchVerb(verb));
-    candidates.sort((a, b) => b.weight - a.weight)
-    
-    // if there's only one candidate, no need to fetch records
-    let initialCandidatesLength = candidates.length
-    if (candidates.length > 1) {
-        candidates = candidates.filter(({matchRecords}) => matchRecords(records))
-    }
-
     let writes
-    for (const candidate of candidates) {
-        writes = candidate.act({...actDefaults, records, cue})
+    const verbCandidates = {}
+    for (const v of Array.isArray(verb) ? verb : [verb]) {
+        let candidates = offersAndMatchers.filter(
+            ({matchKey, matchVerb}) => matchKey(key) && matchVerb(v));
+        candidates.sort((a, b) => b.weight - a.weight)
+        
+        // if there's only one candidate, no need to fetch records
+        if (candidates.length > 1) {
+            candidates = candidates.filter(({matchRecords}) => matchRecords(records))
+        }
+
+        verbCandidates[v] = candidates
+
+        for (const candidate of candidates) {
+            writes = candidate.act({...actDefaults, records, cue})
+            if (writes) {
+                break
+            }
+        }
+
         if (writes) {
             break
         }
     }
 
-    console.log('acting on cue', {cue, records, offersAndMatchers, candidates, writes, initialCandidatesLength})
-
     if (writes) {
+        console.log('acting on cue', {cue, verb, records, offersAndMatchers, verbCandidates, writes})
+
         if (writes.length) {
             return sendRecordsWrite(writes)
         } else if (writes instanceof Promise) {
             return writes.then(writes => writes?.length && sendRecordsWrite(writes))
         }
+    } else {
+        console.warn(
+            Object.values(verbCandidates).every(candidate => candidate.length === 0)
+                ? 'discarding cue because there are no matching candidates'
+                : 'cue appears to have been ignored by all candidates',
+            {cue, verb, records, offersAndMatchers, verbCandidates, writes})
     }
 }
 
-const queryThenActOn = (cue) => recordsRead({records: cue.fields.query}).then((o) => act({cue, records: o.records}))
+const queryThenActOn = (cue) => recordsRead({records: cue.fields.query}).then((o) => actorAct({cue, records: o.records}))
 
 const actionCues = Events.select(
     undefined,
-    actionCuesUpdated, (now, {cues: {incremental, records}={}}) => {
+    actorActionCuesUpdated, (now, {cues: {incremental, records}={}}) => {
         // console.log('high water mark is', now)
 
         if (!records) {

@@ -90,7 +90,6 @@ const blockScriptsQueryset = Behaviors.collect(
 )
 
 const panelMap = Object.fromEntries(panelRecords.map((panel) => [panel.fields.key, panel]))
-console.log({panelMap})
 
 const panelKey = panel => panel?.fields?.key
 
@@ -247,6 +246,7 @@ const panelNotifiers = {
     recordsQuery: (key, queries) => queries.forEach(({ns, ...q}) => sendRecordsQuery({...q, ns: [key, ...ns], [Renkon.app.transferSymbol]: q.port ? [q.port] : []})),
     recordsExport: (key, exports) => exports.forEach(({ns, ...q}) => sendRecordsExport({...q, ns: [key, ...ns], [Renkon.app.transferSymbol]: q.port ? [q.port] : []})),
     close: (key, closes) => closes.forEach(c => sendClose({ns: [key, ...c.ns]})),
+    focused: (key, time) => sendPanelFocused({key, time}),
 }
 
 const activePanelKeys = [...panelKeys].filter(key => panelMap[key])
@@ -316,7 +316,7 @@ const newPanelWriter = (panelPathPrefix) => {
     }
 
     const prepareLayoutWrite = (write) => {
-        console.log('prepareLayoutWrite', {write})
+        // console.log('prepareLayoutWrite', {write})
         let layoutFields = layout.fields
         if (write.op?.startsWith('surface:')) {
             switch (write.op) {
@@ -374,7 +374,7 @@ const newPanelWriter = (panelPathPrefix) => {
 
     return (sender, {target, panel: panelRequest, close}) => {
         const key = sender?.key
-        console.log('preparePanelWrite', {key, target, panelRequest, close})
+        // console.log('preparePanelWrite', {key, target, panelRequest, close})
 
         // if target == null, we mean new
         if (target === undefined) {
@@ -382,15 +382,15 @@ const newPanelWriter = (panelPathPrefix) => {
         }
 
         if (target !== null && !target) {
-            console.warn("discarding panelWrite to an unknown panel key", key)
+            console.warn("discarding panelWrite to an unknown panel key", target)
             return []
         }
 
         const writeNew = !target && !close
-        const panel = panelMap[key]
+        const panel = panelMap[target]
         console.log({key, target, panel, writeNew, panelMap})
         if (!panel && !writeNew && !close) {
-            console.warn("discarding panel write to an unknown panel key", key, ":", JSON.stringify(panelRequest), {panelMap, panel})
+            console.warn("discarding panel write to an unknown panel key", target, ":", JSON.stringify(panelRequest), {panelMap, panel})
             return []
         }
 

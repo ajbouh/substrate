@@ -31,7 +31,7 @@ const searchid = Events.collect(
     search, ({current}={}, search) => ({stale: current ? [current] : undefined, current: genchars(10)})
 )
 
-Events.send(recordsWrite, [{fields: {search, searchid: searchid.current}}])
+Events.send(recordsWrite, [{fields: {type: "search", search, searchid: searchid.current}}])
 
 // emit information marking the old one as stale so other components stop investing resources in it
 // this is an example where we don't care about a "path", but we want to be able to "update" a previously written object to no longer appear in queries
@@ -58,9 +58,10 @@ Events.send(recordsWrite, [{
         queryset: {
             ...queryset,
             "results": {
-                basis_criteria: {
+                view_criteria: {
                     where: {
-                        match: [{compare: "like", value: "%"}],
+                        type: [{compare: "=", value: "match"}],
+                        // match: [{compare: "like", value: "%"}],
                         searchid: [{compare: "=", value: searchid.current}],
                     },
                 },

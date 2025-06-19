@@ -58,6 +58,7 @@ export function component({
     const offers = [
         {
             verb: 'run',
+            group: 'msg',
             criteria: {
                 path: [{compare: "like", value: '%.msgtxt'}]
                 // how to check if the record has data?

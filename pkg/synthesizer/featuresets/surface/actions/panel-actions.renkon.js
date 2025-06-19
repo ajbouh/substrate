@@ -3,18 +3,11 @@ export function component({
 }) {
     const offers = [
         {
-            // verb: '',
-            key: 'panel-start',
-            description: '',
-            act: ({panelWrite, records, cue: {fields: {query, panel: sender, dat: {event: {metaKey} = {}, layout, fields}}}}) => {
-                const panelKeys = [null]
-                return panelKeys.flatMap(key => panelWrite(sender, {target: key, panel: {block: 'start', ...fields}, layout}))
-            },
-        },
-        {
             verb: 'close',
+            group: 'panel',
             key: 'panel-close',
-            criteria: {},
+            label: "✕",
+            criteria: {type: [{compare: '=', value: 'panel'}]},
             description: '',
             act: ({panelWrite, records, cue: {fields: {query, panel: sender, dat: {event: {metaKey} = {}, keys}}}}) => {
                 const panels = records
@@ -25,6 +18,7 @@ export function component({
         },
         {
             // verb: '',
+            group: 'panel',
             key: 'panel-modify',
             criteria: {type: [{compare: '=', value: 'panel'}]},
             description: '',
@@ -36,21 +30,25 @@ export function component({
         },
         {
             verb: 'navigate-back',
+            group: 'panel',
             key: 'panel-navigate-back',
+            label: "⏴",
             criteria: {type: [{compare: '=', value: 'panel'}]},
+            enabled: {back: [{compare: 'is not', value: null}]},
             description: '',
             act: async ({panelWrite, records, cue: {fields: {query, panel: sender, dat: {event: {metaKey} = {}}}}}) => {
-                console.log('panel-navigate-back', records)
                 const panels = records
                 const panelKeys = panels.map(panel => panel.fields.key)
                 const targetKeys = metaKey ? panelKeys.map(_ => null) : panelKeys
                 const historicals = await Promise.all(panels.map(panel => panel.fields?.back && recordRead(panel.fields?.back)))
+                console.log('panel-navigate-back', {records, panelKeys, targetKeys, historicals})
                 const writes = await Promise.all(historicals.map(
                     (read, i) => read
                         ? panelWrite(sender, {
                             target: targetKeys[i],
                             panel: {
                                 queryset: undefined,
+                                selectionQuery: undefined,
                                 ...read.fields,
                                 next: panels[i].id,
                             },
@@ -62,8 +60,11 @@ export function component({
         },
         {
             verb: 'navigate-forward',
+            group: 'panel',
             key: 'panel-navigate-forward',
+            label: "⏵",
             criteria: {type: [{compare: '=', value: 'panel'}]},
+            enabled: {next: [{compare: 'is not', value: null}]},
             description: '',
             act: async ({panelWrite, records, cue: {fields: {query, panel: sender, dat: {event: {metaKey} = {}}}}}) => {
                 console.log('panel-navigate-forward', records)
@@ -77,6 +78,7 @@ export function component({
                             target: targetKeys[i],
                             panel: {
                                 queryset: undefined,
+                                selectionQuery: undefined,
                                 ...read.fields,
                                 back: panels[i].id,
                                 next: undefined,

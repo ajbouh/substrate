@@ -18,6 +18,7 @@ async function records({path}) {
                     await fetchText('./blocks/search.renkon.js'),
                     await fetchText('../../../block.renkon.js'),
                     await fetchText('../../../records-updated.renkon.js'),
+                    await fetchText('../../records-query-merge.js'),
                 ],
             },
             {
@@ -30,6 +31,7 @@ async function records({path}) {
                     await fetchText('./blocks/demo-echo.renkon.js'),
                     await fetchText('../../../block.renkon.js'),
                     await fetchText('../../../records-updated.renkon.js'),
+                    await fetchText('../../records-query-merge.js'),
                 ],
             },
             {
@@ -42,6 +44,7 @@ async function records({path}) {
                     await fetchText('./blocks/demo-search-like.renkon.js'),
                     await fetchText('../../../block.renkon.js'),
                     await fetchText('../../../records-updated.renkon.js'),
+                    await fetchText('../../records-query-merge.js'),
                 ],
             },
         ].map(fields => ({fields})),

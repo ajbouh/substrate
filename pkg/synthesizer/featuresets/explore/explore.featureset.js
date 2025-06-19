@@ -15,6 +15,7 @@ async function records({path}) {
             {
                 self: ['path'],
                 type: 'plumbing',
+                group: 'dev',
                 verb: 'inspect',
                 criteria: anything,
                 block: 'record inspector',
@@ -70,7 +71,6 @@ async function records({path}) {
                     },
                     scripts: [
                         await fetchText('./blocks/record-inspector.renkon.js'),
-                        await fetchText('../../verbs.renkon.js'),
                         await fetchText('../../block.renkon.js'),
                         await fetchText('../../records-query-merge.js'),
                         await fetchText('../../records-updated.renkon.js'),
@@ -153,8 +153,9 @@ async function records({path}) {
                     },
                     scripts: [
                         await fetchText('./blocks/explorer.renkon.js'),
-                        await fetchText('../../verbs.renkon.js'),
                         await fetchText('../../block.renkon.js'),
+                        await fetchText('../../act.renkon.js'),
+                        await fetchText('../../records-to-query.renkon.js'),
                         await fetchText('../../records-query-merge.js'),
                         await fetchText('../../records-updated.renkon.js'),
                         await fetchText('../../modules.renkon.js'),

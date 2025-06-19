@@ -17,7 +17,7 @@ const activeSearches = Events.observe(notify => recordsSubscribe(notify, {
     },
 }));
 
-console.log({activeSearches});
+console.log('demo-echo', {activeSearches});
 // write back an echo result
 
 (({records: {records}={}}) => {
@@ -25,6 +25,6 @@ console.log({activeSearches});
         return
     }
     const writes = records.map(({id, fields: {searchid, search}}) => ({fields: {searchid, match: id, matchText: search}}))
-    console.log('activeSearches', {writes})
+    console.log('demo-echo activeSearches', {writes})
     Events.send(recordsWrite, writes)
 })(activeSearches);

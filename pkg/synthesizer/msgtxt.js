@@ -30,8 +30,9 @@ Msg {
     | number                            -- number
     | boolean                           -- boolean
     | interpolation                     -- interpolation
+    | ident                             -- ident
 
-  ident = letter (alnum | "_")*
+  ident = (letter | "_" | "/" | ".") (alnum | "_" | "-" | "/" | ".")*
   key = ident | string
 
   boolean = "true" | "false"
@@ -75,6 +76,27 @@ Msg {
   nl = "\n"
 }
 `;
+
+const identPattern = /^[a-zA-Z_/.][a-zA-Z0-9_\-/\.]*$/
+
+export const formatter = {
+    formatParameterValues(value) {
+        return Object.entries(value).map(([k, v]) => `${this.formatValue(k)}: ${this.formatValue(v)}`).join(" ")
+    },
+    formatValue(value) {
+        switch (typeof value) {
+        case 'object':
+            return Array.isArray(value)
+                ? `[${value.map(v => formatValue(v)).join(",")}]`
+                : `{${this.formatParameterValues(value)}}`
+        case 'string':
+            return identPattern.test(value)
+                ? value
+                : JSON.stringify(value)
+        }
+        return JSON.stringify(value)
+    },
+}
 
 export function makeParser({ohm}) {
     const g = ohm.grammar(msgGrammar);
@@ -126,6 +148,7 @@ export function makeParser({ohm}) {
             msgName_templateString: (s) => s.toMsg(),
             msgName_interpolation: (i) => i.toMsg(),
             Json_interpolation: (i) => i.toMsg(),
+            Json_ident: (i) => i.toMsg(),
             templateStringCharacter_escaped(s, a) { return {value: this.sourceString} },
             templateStringCharacter_nonEscaped(a) { return {value: this.sourceString} },
             templateStringCharacter_interpolation: (i) => i.toMsg(),
@@ -265,6 +288,7 @@ export function makeParser({ohm}) {
                 error.expected = "Expected: " + match.getExpectedText();
                 error.pos = match.getRightmostFailurePosition();
                 error.src = str;
+                console.log({...error})
                 throw error;
             }
             return s(match)

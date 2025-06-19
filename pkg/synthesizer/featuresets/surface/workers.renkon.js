@@ -1,5 +1,3 @@
-console.log({internalRecordsUpdated})
-
 const workerComponentImpl = modules.workerComponent.component
 const workerComponent = Renkon.component(workerComponentImpl)
 
@@ -113,10 +111,11 @@ const workerInstances = Behaviors.collect(
     Events.or(workerKeys, workerComponent, workerScripts, workerNotifiers, workerBehaviors, workerEvents, workerReceivers), (prev, _) => {
         const next = new Set()
         const stale = new Set(prev)
+        let any = false
         for (const key of workerKeys) {
             const worker = workerComponent({
                 key,
-                debug: true,
+                debug: false,
                 scripts: workerScripts,
                 notifiers: workerNotifiers,
                 behaviors: workerBehaviors,
@@ -125,17 +124,22 @@ const workerInstances = Behaviors.collect(
                 onWorkerMessage: onWorkerMessage,
             }, key).worker
             next.add(worker)
-            stale.delete(worker)
+            if (!stale.delete(worker)) {
+                any = true
+            }
         }
 
-        console.log({stale, next})
+        if (stale.size) {
+            any = true
+        }
 
         for (const worker of stale) {
             console.log("terminating worker", worker)
             worker.terminate()
         }
 
-        return next
+        console.log({stale, next, any})
+        return any ? prev : next
     }
 )
 

@@ -82,14 +82,17 @@ const sendPanelEmit = (emits) => {
     Events.send(recordsWrite, emits)
 }
 
+const componentInputs = {
+    modules,
+    panel: self,
+    sendRecordsWrite: (writes) => Events.send(recordsWrite, writes),
+    sendPanelEmit: (writes) => Events.send(panelEmit, writes),
+    sendSaver: (fn) => Events.send(saver, fn)
+}
+
 const extensions = extensionComponents.map(
     ({component, record}) =>
-        component({
-            modules,
-            sendRecordsWrite: (writes) => Events.send(recordsWrite, writes),
-            sendPanelEmit: (writes) => Events.send(panelEmit, writes),
-            sendSaver: (fn) => Events.send(saver, fn)
-        }, record.id));
+        component(componentInputs, record.id));
 
 const extensionsWithMatchers = Object.values(extensions).map(
     ({criteria, matcher, extension}) => ({matcher: matcher || criteriaMatcher(criteria), criteria, extension}));

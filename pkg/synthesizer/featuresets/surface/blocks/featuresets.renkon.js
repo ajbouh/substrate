@@ -100,7 +100,7 @@ render(
                     style: `display: flex; justify-content: space-between; align-items: center;`,
                 }, [
                     h('span', {style: 'font-weight: bold; line-height: 2;'}, feature.title || `anonymous featureset`),
-                    h('button', {onclick: () => installLatestFeaturesets([feature])}, `import`),
+                    h('button', {onclick: () => installLatestFeaturesets([feature])}, `install`),
                 ]),
                 h('p', {
                     style: `

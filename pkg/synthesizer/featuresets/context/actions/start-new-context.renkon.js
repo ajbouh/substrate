@@ -14,8 +14,9 @@ export function component({
                 verb: `include in context ${actionRecord.fields.context.path}`,
                 criteria: {
                     // need a way to reference it
-                    self: [{compare: "is not", value: null}]
+                    // self: [{compare: "is not", value: null}]
                 },
+                scopes: ['focus'],
                 // description,
                 act: ({records, cue: {fields: {query, panel, dat: {event: {metaKey} = {}} = {}}}}) => {
                     return [

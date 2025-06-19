@@ -16,8 +16,6 @@ const inspectors = makeInspectors({h, newInspector});
 
 const records = Behaviors.collect([], recordsUpdated, (now, {records: {incremental, records}={}}) => records ? incremental ? [...now, ...records] : records : now);
 
-const verbs = verbsForRecords(records)
-
 render(
     h('div', {
         style: `
@@ -26,17 +24,6 @@ render(
             height: 100vh;
         `,
     }, [
-        h('div', {
-            style: `
-                padding: 0.5rem;
-                box-sizing: border-box;
-            `,
-        }, [
-            ...verbs.flatMap(verb => [
-                ' ',
-                h('button', {onclick: (event) => act({verb, records, event})}, verb)
-            ]),
-        ]),
         h('div', {
             style: `
                 flex-grow: 1;

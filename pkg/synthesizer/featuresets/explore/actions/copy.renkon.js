@@ -2,6 +2,7 @@ export function component() {
     const offers = [
         {
             verb: 'copy query',
+            group: 'dev',
             criteria: {},
             act: async ({cue: {fields: {query}}}) => {
                 console.log('copying query ...', query)
@@ -11,6 +12,7 @@ export function component() {
         },
         {
             verb: 'copy records query',
+            group: 'dev',
             criteria: {},
             act: async ({cue: {fields: {query}}}) => {
                 console.log('copying query ...', query)
@@ -20,6 +22,7 @@ export function component() {
         },
         {
             verb: 'copy data url',
+            group: 'dev',
             criteria: {},
             act: async ({records, cue: {fields: {query}}}) => {
                 console.log('copying query ...', query)
@@ -29,6 +32,7 @@ export function component() {
         },
         {
             verb: 'copy fields jsonl',
+            group: 'dev',
             criteria: {},
             act: async ({records, cue: {fields: {query}}}) => {
                 const jsonl = records.map(record => JSON.stringify(record.fields)).join("\n")
@@ -39,6 +43,7 @@ export function component() {
         },
         {
             verb: 'dump to console log',
+            group: 'dev',
             criteria: {},
             act: async ({records, cue: {fields: {query}}}) => {
                 console.log({records})

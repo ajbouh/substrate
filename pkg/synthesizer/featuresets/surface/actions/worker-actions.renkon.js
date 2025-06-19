@@ -36,6 +36,12 @@ export function component({
 
         const [_, ...frontmatterLines] = text.substring(0, i).split('\n')
 
+        // trim trailing comma, if present, so we can use JSON.parse
+        const lastFrontmatterLine = frontmatterLines[frontmatterLines.length - 1]
+        if (lastFrontmatterLine.endsWith(',')) {
+            frontmatterLines[frontmatterLines.length - 1] = lastFrontmatterLine.substring(0, lastFrontmatterLine.length-1)
+        }
+
         return {
             frontmatter: JSON.parse(["{", ...frontmatterLines, "}"].join("\n")),
             text: text.substring(i + frontmatterEnd.length),
@@ -178,6 +184,7 @@ export function component({
     const offers = [
         {
             verb: 'start worker',
+            group: 'worker',
             key: 'worker-start-from-text-data',
             criteria: {
                 'schema.data.format': [{compare: "like", value: "text/%"}],
@@ -187,6 +194,7 @@ export function component({
         },
         {
             verb: 'start worker',
+            group: 'worker',
             key: 'worker-start-from-text',
             criteria: {
                 'type': [{compare: "like", value: "text/%"}],
@@ -196,6 +204,7 @@ export function component({
         },
         {
             verb: 'restart worker',
+            group: 'worker',
             key: 'restart-worker',
             criteria: {
                 'type': [{compare: "=", value: "worker"}],
@@ -213,6 +222,7 @@ export function component({
         },
         {
             verb: 'stop worker',
+            group: 'worker',
             key: 'stop-worker',
             criteria: {
                 'type': [{compare: "=", value: "worker"}],
@@ -230,6 +240,7 @@ export function component({
         },
         {
             verb: 'start worker',
+            group: 'worker',
             key: 'start-worker',
             criteria: {
                 'type': [{compare: "=", value: "worker"}],

@@ -14,13 +14,10 @@ export function component({
     const encodeURIComponents = Behaviors.keep((components) => Object.entries(components).flatMap(([k, v]) => (Array.isArray(v) ? v : [v]).map(v => `${k}=${encodeURIComponent(v)}`)).join("&"))
     const urlParameters = Behaviors.keep({
         emitjson: JSON.stringify({type: 'worker-emit', key}),
-        "Events.receiver": ["ready", ...receivers0.filter(({type, nodeclare, queued}) => type === "event" && !nodeclare && !queued).map(({name}) => name)],
+        "Events.receiver": receivers0.filter(({type, nodeclare, queued}) => type === "event" && !nodeclare && !queued).map(({name}) => name),
         "Events.queuedReceiver": receivers0.filter(({type, nodeclare, queued}) => type === "event" && !nodeclare && queued).map(({name}) => name),
         "Behaviors.receiver": receivers0.filter(({type, nodeclare}) => type === "behavior" && !nodeclare).map(({name}) => name),
-        "output": [
-            "ready",
-            ...Object.keys(notifiers0),
-        ]
+        "output": Object.keys(notifiers0),
     })
 
     const eventReceivers = receivers0.filter(({type}) => type === "event")
@@ -79,7 +76,7 @@ export function component({
 
     const notifications = Events.select(
         undefined,
-        myMessagesEvents, (ready, messages) => {
+        myMessagesEvents, (_, messages) => {
             for (const o of messages) {
                 if (!o || typeof o.data !== 'object') {
                     continue
@@ -235,9 +232,9 @@ export function component({
 
     const sentInitial = pump.sentInitial
 
-    return [
+    return {
         key,
         worker,
         sentInitial,
-    ]
+    }
 }

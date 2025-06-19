@@ -3,6 +3,7 @@ export function component({
     const offers = [
         {
             verb: 'open',
+            scopes: ['external'],
             criteria: {
                 type: [{compare: "=", value: 'block'}]
             },

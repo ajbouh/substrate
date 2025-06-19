@@ -9,8 +9,9 @@ const activeSearchesRecords = Events.observe(notify => recordsSubscribe(notify, 
             self: true,
             basis_criteria: {
                 where: {
-                    search: [{compare: "like", value: "%"}],
-                    searchid: [{compare: "like", value: "%"}],
+                    type: [{compare: "=", value: "search"}],
+                    search: [{compare: "is not", value: null}],
+                    searchid: [{compare: "is not", value: null}],
                 },
             },
         },
@@ -27,23 +28,22 @@ const searchUpdates = Events.collect(
     },
 )
 
-// TODO for each searchUpdate, issue a recordsSubscription.
-// TODO for each record returned by subscription, return it
-
 const resultsUpdates = Events.receiver({queued: true})
 
 const recordsQueryForSearch = search => ({
     records: {
         view_criteria: {
             where: {
+                // avoid a loop
+                "type": [{compare: "is not", value: "match"}],
                 "": [{compare: "like", value: `%${search}%`}],
             },
+            limit: 10,
         },
-        limit: 10,
     }
 })
 
-console.log('searches', {searchUpdates})
+console.log('in demo-search-like searchUpdates', {searchUpdates})
 const pendingSearches = Behaviors.collect(
     undefined,
     searchUpdates, (now, searchUpdates) => {
@@ -63,27 +63,20 @@ const pendingSearches = Behaviors.collect(
 );
 
 ((resultsUpdates) => {
-    console.log('searches', {resultsUpdates})
+    console.log('in demo-search-like results updates', {resultsUpdates})
 })(resultsUpdates);
 
-const searches = Behaviors.collect(
-    undefined,
-    searchUpdates, (now, updates) => {
-        return {
-            ...now,
-            ...updates,
-        }
-    }
-)
 
-console.log('searches', {searches});
-// write back an echo result
-
-((searchUpdates) => {
-    const writes = Object.entries(searchUpdates).map(([searchid, {record, search}]) => ({fields: {searchid, match: record.id, matchText: search}}))
-    console.log('searches', {writes})
+((resultsUpdateses) => {
+    const writes = resultsUpdateses.flatMap(resultsUpdates => Object.entries(resultsUpdates).map(([searchid, {records}]) => ({
+        fields: {
+            type: "match",
+            searchid,
+            records,
+        }})))
+    console.log('in demo-search-like results', {writes})
     Events.send(recordsWrite, writes)
-})(searches);
+})(resultsUpdates);
 
 // todo query for a msgindex in the same surface
 // todo resolve embedding from that msgindex
