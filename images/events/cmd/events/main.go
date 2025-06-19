@@ -49,7 +49,10 @@ func main() {
 		&sqliteuri.Opener{
 			Driver: "sqlite_custom",
 		},
-		&db.MultiReaderDB{},
+		&db.MultiReaderDB{
+			MaxIdleConns: 16,
+			MaxOpenConns: 0,
+		},
 		&db.SingleWriterDB{},
 		notify.On(
 			func(ctx context.Context,

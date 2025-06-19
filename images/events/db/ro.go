@@ -61,6 +61,9 @@ type MultiReaderDB struct {
 	URI    *sqliteuri.URI
 	Opener *sqliteuri.Opener
 	db     *sql.DB
+
+	MaxIdleConns int
+	MaxOpenConns int
 }
 
 func (s *MultiReaderDB) Initialize() {
@@ -76,6 +79,9 @@ func (s *MultiReaderDB) Initialize() {
 	if err != nil {
 		panic(err)
 	}
+
+	s.db.SetMaxIdleConns(s.MaxIdleConns)
+	s.db.SetMaxOpenConns(s.MaxOpenConns)
 
 }
 
