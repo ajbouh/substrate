@@ -11,6 +11,7 @@ set -exo pipefail
 # +    - pcie_aspm=off
 
 rpm-ostree install \
+    btop \
     bootc \
     ipmitool \
     tailscale
