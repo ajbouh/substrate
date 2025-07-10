@@ -3,10 +3,9 @@
     "bundle": "node bundle.js"
   },
   "dependencies": {
-    "@ax-llm/ax": "^11.0.64",
-    "@noble/hashes": "^1.8.0"
+    "@ax-llm/ax": "^13.0.6"
   },
   "devDependencies": {
-    "esbuild-plugins-node-modules-polyfill": "^1.7.1"
+    "esbuild": "^0.25.6"
   }
 }

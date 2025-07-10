@@ -1,7 +1,7 @@
 // build.js
 import fs from 'node:fs/promises';
 import { build } from 'esbuild';
-import { nodeModulesPolyfillPlugin } from './node_modules/esbuild-plugins-node-modules-polyfill/dist/index.js';
+// import { nodeModulesPolyfillPlugin } from './node_modules/esbuild-plugins-node-modules-polyfill/dist/index.js';
 
 // This async function is the core of our build process
 async function runBuild() {
@@ -10,6 +10,10 @@ async function runBuild() {
       // --- Your build options from the CLI go here ---
       entryPoints: ['index.js'], // Your main JS file
       bundle: true,
+      minify: false,
+      define: {
+        'process.env.PROXY': 'undefined',
+      },
       format: 'esm',
       outfile: 'ax.js',
       platform: 'browser',
@@ -17,7 +21,7 @@ async function runBuild() {
       sourcemap: true,
       metafile: true,
       plugins: [
-        nodeModulesPolyfillPlugin({}),
+        // nodeModulesPolyfillPlugin({}),
       ],
     });
 
