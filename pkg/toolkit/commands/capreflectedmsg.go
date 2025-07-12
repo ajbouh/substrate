@@ -1,7 +1,5 @@
 package commands
 
-import "log/slog"
-
 type CapReflectedMsg struct {
 	Client HTTPClient
 }
@@ -14,7 +12,7 @@ func (a *CapReflectedMsg) Apply(env Env, m Fields) (Fields, error) {
 		return nil, err
 	}
 
-	slog.Info("CapReflectedMsg.Apply", "url", urlStr, "m", m)
+	// slog.Info("CapReflectedMsg.Apply", "url", urlStr, "m", m)
 
 	name, err := GetPath[string](m, "name")
 	if err != nil {

@@ -2,19 +2,18 @@ package commands
 
 import (
 	"context"
-	"log/slog"
 	"reflect"
 )
 
 func CallURL[Out, In any](ctx context.Context, env Env, url, command string, params In) (*Out, error) {
-	slog.InfoContext(ctx, "CallURL", "url", url, "command", command, "params", params)
+	// slog.InfoContext(ctx, "CallURL", "url", url, "command", command, "params", params)
 	result, err := env.Apply(nil, Fields{
 		"cap":  "reflectedmsg",
 		"url":  url,
 		"name": command,
 		"data": Fields{"parameters": params},
 	})
-	slog.InfoContext(ctx, "CallURL result", "result", result, "err", err)
+	// slog.InfoContext(ctx, "CallURL result", "result", result, "err", err)
 	if err != nil {
 		return nil, err
 	}

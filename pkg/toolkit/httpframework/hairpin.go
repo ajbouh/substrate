@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -53,7 +52,7 @@ func (c *HairpinHTTPClient) ContributeHTTP(ctx context.Context, m *http.ServeMux
 
 func (c *HairpinHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	match := c.Match(req)
-	slog.Info("HairpinHTTPClient.Do()", "method", req.Method, "url", req.URL.String(), "path", req.URL.Path, "host", req.URL.Host, "match", match)
+	// slog.Info("HairpinHTTPClient.Do()", "method", req.Method, "url", req.URL.String(), "path", req.URL.Path, "host", req.URL.Host, "match", match)
 	if !match {
 		return c.Fallback.Do(req)
 	}

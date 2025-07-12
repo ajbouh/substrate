@@ -135,7 +135,7 @@ func (h *HTTPResourceReflectHandler) ContributeHTTP(ctx context.Context, mux *ht
 	h.ReflectorsPerRoute[h.DefaultHTTPResourceReflectPath] = append(h.ReflectorsPerRoute[h.DefaultHTTPResourceReflectPath], h.ReflectorsPerRoute[""]...)
 	delete(h.ReflectorsPerRoute, "")
 
-	slog.Info("HTTPResourceReflectHandler.ContributeHTTP", "ReflectorsPerRoute", h.ReflectorsPerRoute)
+	// slog.Info("HTTPResourceReflectHandler.ContributeHTTP", "ReflectorsPerRoute", h.ReflectorsPerRoute)
 
 	// register unique REFLECT routes for each
 	for reflectPath, reflectors := range h.ReflectorsPerRoute {
@@ -151,7 +151,7 @@ func (h *HTTPResourceReflectHandler) ContributeHTTP(ctx context.Context, mux *ht
 			pattern = pattern + "{$}"
 		}
 
-		slog.Info("HTTPResourceReflectHandlerContributeHTTP", "pattern", pattern)
+		// slog.Info("HTTPResourceReflectHandlerContributeHTTP", "pattern", pattern)
 		mux.Handle(pattern, &HTTPReflectHandler{
 			Debug: h.Debug,
 			Reflector: &commands.DynamicReflector{

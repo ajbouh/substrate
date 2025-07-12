@@ -3,7 +3,6 @@ package calls
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"reflect"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/commands"
@@ -38,7 +37,7 @@ func CallDef[Out, In any](ctx context.Context, env commands.Env, url, command st
 		return nil, err
 	}
 
-	slog.InfoContext(ctx, "CallDef", "url", url, "command", command, "params", paramFields)
+	// slog.InfoContext(ctx, "CallDef", "url", url, "command", command, "params", paramFields)
 
 	resultFields, err := env.Apply(nil, commands.Fields{
 		"cap":        "reflect",
@@ -54,7 +53,7 @@ func CallDef[Out, In any](ctx context.Context, env commands.Env, url, command st
 		return nil, err
 	}
 	out, err := convertViaJSON[Out](returns)
-	slog.InfoContext(ctx, "CallDef", "out", out, "err", err, "resultFields", resultFields)
+	// slog.InfoContext(ctx, "CallDef", "out", out, "err", err, "resultFields", resultFields)
 	if err != nil {
 		return nil, err
 	}

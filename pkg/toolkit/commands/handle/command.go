@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"reflect"
 	"strings"
@@ -119,7 +118,7 @@ func (r *CommandFunc[Target, Params, Returns]) String() string {
 
 func (r *CommandFunc[Target, Params, Returns]) Assembly() []engine.Unit {
 	target, units, ok := xengine.AssemblyForPossiblyAnonymousTarget[Target]()
-	slog.Info("CommandFunc[Target, Params, Returns].Assembly", "r", reflect.TypeOf(r).String(), "target", target, "units", units, "ok", ok)
+	// slog.Info("CommandFunc[Target, Params, Returns].Assembly", "r", reflect.TypeOf(r).String(), "target", target, "units", units, "ok", ok)
 
 	if ok {
 		r.Target = target
@@ -128,7 +127,7 @@ func (r *CommandFunc[Target, Params, Returns]) Assembly() []engine.Unit {
 }
 
 func (r *CommandFunc[Target, Params, Returns]) Initialize() {
-	slog.Info("CommandFunc[Target, Params, Returns].Initialize", "r", reflect.TypeOf(r).String(), "target", r.Target)
+	// slog.Info("CommandFunc[Target, Params, Returns].Initialize", "r", reflect.TypeOf(r).String(), "target", r.Target)
 }
 
 func (r *CommandFunc[Target, Params, Returns]) WithExample(name string, data commands.Fields) *CommandFunc[Target, Params, Returns] {
@@ -157,7 +156,7 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		slog.Info("CommandFunc[Target, Params, Returns].HandlerFunc", "r", reflect.TypeOf(r).String(), "target", r.Target)
+		// slog.Info("CommandFunc[Target, Params, Returns].HandlerFunc", "r", reflect.TypeOf(r).String(), "target", r.Target)
 
 		paramsType := reflect.TypeFor[Params]()
 		returnsType := reflect.TypeFor[Returns]()
@@ -222,7 +221,7 @@ func (r *CommandFunc[Target, Params, Returns]) GetHTTPHandler() http.Handler {
 }
 
 func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (commands.DefIndex, error) {
-	slog.Info("CommandFunc[Target, Params, Returns].Reflect()", "Target", reflect.TypeFor[Target](), "Params", reflect.TypeFor[Params](), "Returns", reflect.TypeFor[Returns]())
+	// slog.Info("CommandFunc[Target, Params, Returns].Reflect()", "Target", reflect.TypeFor[Target](), "Params", reflect.TypeFor[Params](), "Returns", reflect.TypeFor[Returns]())
 
 	var errs []error
 	meta := commands.Meta{}
@@ -246,7 +245,7 @@ func (r *CommandFunc[Target, Params, Returns]) Reflect(ctx context.Context) (com
 					params.Set(name, pathVal)
 				}
 			}
-			slog.Info("paramBinding", "pathValuer", pathValuer, "name", name, "prefix", prefix, "pathVar", pathVar, "pathVal", pathVal, "ok", ok, "err", err)
+			// slog.Info("paramBinding", "pathValuer", pathValuer, "name", name, "prefix", prefix, "pathVar", pathVar, "pathVal", pathVal, "ok", ok, "err", err)
 
 			inBindings.Add(
 				commands.NewDataPointer("msg", "http", "request", "path", pathVar),

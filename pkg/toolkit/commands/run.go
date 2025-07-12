@@ -58,12 +58,12 @@ func Run[R Runner](ctx context.Context, xform RunTransformFunc, name string, p F
 		}
 	}
 
-	slog.Info("command run()", "command", name, "parameters", p, "runners", runners)
+	// slog.Info("command run()", "command", name, "parameters", p, "runners", runners)
 	for _, src := range runners {
-		slog.Info("command run()", "runner", src, "command", name, "parameters", p)
+		// slog.Info("command run()", "runner", src, "command", name, "parameters", p)
 		var err error
 		result, err := src.Run(ctx, name, p)
-		slog.Info("command run() done", "command", name, "parameters", p, "returns", result, "err", err)
+		// slog.Info("command run() done", "command", name, "parameters", p, "returns", result, "err", err)
 		if err == nil || !errors.Is(err, ErrNoSuchCommand) {
 			return result, err
 		}

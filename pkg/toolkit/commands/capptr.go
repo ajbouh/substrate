@@ -2,7 +2,6 @@ package commands
 
 import (
 	"fmt"
-	"log/slog"
 )
 
 type CapPtr struct {
@@ -11,7 +10,7 @@ type CapPtr struct {
 var _ Cap = (*CapPtr)(nil)
 
 func (a *CapPtr) Apply(env Env, m Fields) (Fields, error) {
-	slog.Info("CapPtr.Apply", "m", m)
+	// slog.Info("CapPtr.Apply", "m", m)
 
 	pointer, ok, err := MaybeGetPath[string](m, "pointer")
 	if err != nil {
