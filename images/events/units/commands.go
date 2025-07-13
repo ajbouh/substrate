@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"strings"
 
@@ -43,7 +42,7 @@ var GetTreeRawPathCommand = handle.HTTPCommand(
 			Encoding string   `json:"mode" query:"encoding"`
 		},
 	) (GetTreeRawPathReturns, error) {
-		slog.Info("GetTreeRawPathCommand", "t", t, "args", args)
+		// slog.Info("GetTreeRawPathCommand", "t", t, "args", args)
 
 		returns := GetTreeRawPathReturns{}
 
@@ -110,7 +109,7 @@ var GetTreeRawPathCommand = handle.HTTPCommand(
 			}
 		}
 
-		slog.Info("GetTreeRawPathCommand", "returns", returns)
+		// slog.Info("GetTreeRawPathCommand", "returns", returns)
 
 		return returns, nil
 	})
@@ -131,7 +130,7 @@ var GetTreeDataPathCommand = handle.HTTPCommand(
 			Writer http.ResponseWriter `json:"-"`
 		},
 	) (struct{}, error) {
-		slog.Info("GetTreeDataPathCommand", "t", t, "args", args)
+		// slog.Info("GetTreeDataPathCommand", "t", t, "args", args)
 
 		returns := struct{}{}
 		var err error
@@ -181,7 +180,7 @@ var WriteTreeDataPathCommand = handle.HTTPCommand(
 			Reader io.ReadCloser `json:"-"`
 		},
 	) (WriteTreeDataPathReturns, error) {
-		slog.Info("WriteTreeDataPathCommand", "t", t, "args", args)
+		// slog.Info("WriteTreeDataPathCommand", "t", t, "args", args)
 
 		defer args.Reader.Close()
 
@@ -231,7 +230,7 @@ var GetTreeFieldsPathCommand = handle.HTTPCommand(
 			Until event.ID `json:"until" query:"until"`
 		},
 	) (GetTreeFieldsPathReturns, error) {
-		slog.Info("GetTreeFieldsPathCommand", "t", t, "args", args)
+		// slog.Info("GetTreeFieldsPathCommand", "t", t, "args", args)
 
 		returns := GetTreeFieldsPathReturns{}
 		var err error
@@ -276,7 +275,7 @@ var WriteTreeFieldsPathCommand = handle.HTTPCommand(
 			Fields io.ReadCloser `json:"-"`
 		},
 	) (WriteTreeFieldsPathReturns, error) {
-		slog.Info("WriteTreeFieldsPathCommand", "t", t, "args", args)
+		// slog.Info("WriteTreeFieldsPathCommand", "t", t, "args", args)
 
 		returns := WriteTreeFieldsPathReturns{}
 		var err error
@@ -520,7 +519,6 @@ var WriteEventsCommand = handle.Command(
 			Since  event.ID             `json:"since"`
 		},
 	) (WriteEventsReturns, error) {
-		slog.Info("WriteEventsCommand", "t", t, "args", args)
 		returns := WriteEventsReturns{}
 
 		set, err := event.PendingFromEntries(args.Events)
@@ -533,9 +531,9 @@ var WriteEventsCommand = handle.Command(
 
 		err = t.Writer.WriteEvents(ctx, args.Since, set,
 			func(i int, id event.ID, dataSize int64, dataSha256 []byte) {
-				slog.Info("write pending", "i", i, "id", id,
-					"dataSize", dataSize, "dataSha256", dataSha256,
-				)
+				// slog.Info("write pending", "i", i, "id", id,
+				// 	"dataSize", dataSize, "dataSha256", dataSha256,
+				// )
 				returns.IDs = append(returns.IDs, id)
 				returns.DataSHA256s = append(returns.DataSHA256s, event.SHA256DigestFromBytes(dataSha256))
 			})
@@ -644,7 +642,7 @@ var QueryEventsCommand = handle.Command(
 		}
 
 		var err error
-		slog.Info("QueryEventsCommand", "t", t, "args", args, "sq", sq)
+		// slog.Info("QueryEventsCommand", "t", t, "args", args, "sq", sq)
 		returns.Events, returns.MaxID, returns.More, err = t.Querier.QueryEvents(ctx, sq)
 		return returns, err
 	})

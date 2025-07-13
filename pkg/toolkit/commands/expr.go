@@ -3,7 +3,6 @@ package commands
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"reflect"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/engine"
@@ -88,14 +87,14 @@ type RootEnv[C any] struct {
 }
 
 func (i *RootEnv[C]) Initialize() {
-	slog.Info("RootEnv.Initialize", "caps", i.Capabilities)
+	// slog.Info("RootEnv.Initialize", "caps", i.Capabilities)
 	caps := map[string]Cap{}
 	xengine.FieldsImplementing(i.Capabilities, func(name string, tag reflect.StructTag, cap Cap) {
 		if capName, ok := tag.Lookup("cap"); ok {
 			name = capName
 		}
 		caps[name] = cap
-		slog.Info("registering cap", "name", name, "cap", cap)
+		// slog.Info("registering cap", "name", name, "cap", cap)
 	})
 	i.env = (*env)(nil).New(context.Background(), caps)
 }

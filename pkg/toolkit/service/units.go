@@ -58,8 +58,6 @@ type Service struct {
 type UnifiedExports exports.Exports
 
 func (s *Service) initialize() {
-	log.Printf("Service.initialize()")
-
 	if s.ExportsRoute == "" {
 		s.ExportsRoute = "/exports"
 	}
@@ -185,9 +183,9 @@ func (s *Service) initialize() {
 			if err != nil {
 				ute := &json.UnmarshalTypeError{}
 				if errors.As(err, &ute) {
-					log.Printf("error computing exports: %s: UnmarshalTypeError %v - %v - %v", err.Error(), ute.Value, ute.Type, ute.Offset)
+					slog.Error("error computing exports", "type", "UnmarshalTypeError", "err", err.Error(), "value", ute.Value, "type", ute.Type, "offset", ute.Offset)
 				} else {
-					log.Printf("error computing exports: %s", err.Error())
+					slog.Error("error computing exports", "err", err)
 				}
 				return
 			}
@@ -212,7 +210,7 @@ func (m *Service) InitializeCLI(root *cli.Command) {
 	// for figuring out if its a CLI or a daemon program...
 	root.Run = func(ctx *cli.Context, args []string) {
 		if err := m.Daemon.Run(ctx); err != nil {
-			log.Printf("daemon failed with %#v", err)
+			slog.Error("daemon failed", "err", err)
 			log.Fatal(err)
 		}
 	}

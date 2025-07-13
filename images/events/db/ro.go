@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
-	"reflect"
-	"time"
 
 	"github.com/ajbouh/substrate/pkg/toolkit/sqliteuri"
 
@@ -29,11 +27,11 @@ func wrapSQLError(err error, sql string, values ...interface{}) error {
 }
 
 func execContext(ctx context.Context, db Executor, query string, values ...any) (sql.Result, error) {
-	start := time.Now()
-	var err error
-	defer func() {
-		slog.Info("Executor.Execute", "executor", reflect.TypeOf(db).String(), "sql", query, "len(values)", len(values), "time", time.Since(start), "err", err)
-	}()
+	// start := time.Now()
+	// var err error
+	// defer func() {
+	// 	slog.Info("Executor.Execute", "executor", reflect.TypeOf(db).String(), "sql", query, "len(values)", len(values), "time", time.Since(start), "err", err)
+	// }()
 
 	res, err := db.ExecContext(ctx, query, values...)
 	if err != nil {
@@ -44,11 +42,11 @@ func execContext(ctx context.Context, db Executor, query string, values ...any) 
 }
 
 func queryContext(ctx context.Context, db Querier, query string, values ...any) (*sql.Rows, error) {
-	start := time.Now()
-	var err error
-	defer func() {
-		slog.Info("Querier.Query", "querier", reflect.TypeOf(db).String(), "sql", query, "len(values)", len(values), "time", time.Since(start), "err", err)
-	}()
+	// start := time.Now()
+	// var err error
+	// defer func() {
+	// 	slog.Info("Querier.Query", "querier", reflect.TypeOf(db).String(), "sql", query, "len(values)", len(values), "time", time.Since(start), "err", err)
+	// }()
 
 	r, err := db.QueryContext(ctx, query, values...)
 	if err != nil {

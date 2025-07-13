@@ -211,15 +211,15 @@ func urlPathEscape(s string) string {
 }
 
 func (e *CachingSingleServiceProvisioner) ServeHTTP(rw http.ResponseWriter, rq *http.Request) {
-	start := time.Now()
+	// start := time.Now()
 
 	// maybe should pass this through as a field
-	viewspec := rq.PathValue("viewspec")
+	// viewspec := rq.PathValue("viewspec")
 	rest := rq.PathValue("rest")
 
-	defer func() {
-		slog.Info("request", "remoteaddr", rq.RemoteAddr, "method", rq.Method, "url", rq.URL.String(), "viewspec", viewspec, "rest", rest, "dur", time.Since(start))
-	}()
+	// defer func() {
+	// 	slog.Info("request", "remoteaddr", rq.RemoteAddr, "method", rq.Method, "url", rq.URL.String(), "viewspec", viewspec, "rest", rest, "dur", time.Since(start))
+	// }()
 
 	cookies := rq.Cookies()
 	rq.Header.Del("Cookie")
