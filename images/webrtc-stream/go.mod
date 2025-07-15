@@ -13,7 +13,15 @@ require (
 	tractor.dev/toolkit-go v0.0.0-20250103001615-9a6753936c19
 )
 
-require github.com/pkg/errors v0.9.1 // indirect
+require (
+	github.com/kr/pretty v0.3.1 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
+	github.com/rogpeppe/go-internal v1.13.2-0.20241226121412-a5dc8ff20d0a // indirect
+	github.com/tidwall/gjson v1.18.0 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.0 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

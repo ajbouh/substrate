@@ -6,7 +6,7 @@ toolchain go1.22.6
 
 require (
 	github.com/ajbouh/substrate/pkg/toolkit v0.0.0-00010101000000-000000000000
-	github.com/google/go-cmp v0.6.0
+	github.com/google/go-cmp v0.7.0
 )
 
 require (

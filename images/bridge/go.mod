@@ -8,12 +8,12 @@ require (
 	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/go-audio/audio v1.0.0
 	github.com/go-audio/wav v1.1.0
-	github.com/google/go-cmp v0.6.0
-	github.com/gopxl/beep v1.4.0
+	github.com/google/go-cmp v0.7.0
+	github.com/gopxl/beep v1.4.1
 	github.com/gorilla/websocket v1.5.1
 	github.com/pion/interceptor v0.1.25
 	github.com/pion/rtcp v1.2.13
-	github.com/pion/rtp v1.8.5
+	github.com/pion/rtp v1.8.13
 	github.com/pion/webrtc/v3 v3.2.38
 	github.com/rs/xid v1.6.0
 	github.com/stretchr/testify v1.10.0
@@ -47,6 +47,9 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.4.0 // indirect
 	github.com/rogpeppe/go-internal v1.13.2-0.20241226121412-a5dc8ff20d0a // indirect
+	github.com/tidwall/gjson v1.18.0 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/net v0.34.0 // indirect

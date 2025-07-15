@@ -20,6 +20,7 @@ require (
 
 require (
 	github.com/go-logr/logr v1.4.2 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/onsi/gomega v1.30.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	golang.org/x/sys v0.29.0 // indirect

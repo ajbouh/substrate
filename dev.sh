@@ -6,7 +6,7 @@ HERE=$(cd $(dirname $0); pwd)
 
 : ${NAMESPACE:=substrate-nobody}
 
-CUE_VERSION="0.11.0"
+CUE_VERSION="0.14.0-alpha.2"
 CUE_PREFIX=cue_v${CUE_VERSION}_
 CUE_NATIVE_SUFFIX=$(uname -s | tr "[:upper:]" "[:lower:]")_$(uname -m)
 # HACK use amd64

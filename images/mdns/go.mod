@@ -14,6 +14,7 @@ require golang.org/x/net v0.34.0 // indirect
 require (
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/elnormous/contenttype v1.0.4 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/miekg/dns v1.1.62 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.4.0 // indirect
 	golang.org/x/mod v0.22.0 // indirect
