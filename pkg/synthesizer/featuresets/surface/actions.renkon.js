@@ -256,10 +256,7 @@ const actorAct = ({cue, records}) => {
             ({matchKey, matchVerb}) => matchKey(key) && matchVerb(v));
         candidates.sort((a, b) => b.weight - a.weight)
         
-        // if there's only one candidate, no need to fetch records
-        if (candidates.length > 1) {
-            candidates = candidates.filter(({matchRecords}) => matchRecords(records))
-        }
+        candidates = candidates.filter(({matchRecords}) => matchRecords(records))
 
         verbCandidates[v] = candidates
 
