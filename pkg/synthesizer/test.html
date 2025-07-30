@@ -1,0 +1,21 @@
+<script type="module">
+    import {Testing} from "./test.js"
+
+    const t = new Testing()
+    window.t = t
+    Promise.all([
+        t.url("./importexport.js"),
+        // t.url("./featuresets/code/code.featureset.js"),
+        t.url("./renkon-bundler.js"),
+        t.url("./featuresets/code/sandbox/sandbox.js"),
+    ]).then((_, err) => {
+        if (err) {
+            console.error(err)
+        }
+        setTimeout(function() { // Give document a chance to complete
+            if (window.document && document.body) {
+                document.body.style.backgroundColor = (err || t.failures == 0 ? '#99ff99' : '#ff9999');
+            }
+        }, 0);
+    })
+</script>

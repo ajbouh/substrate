@@ -6567,6 +6567,7 @@ const defaultGlobals = /* @__PURE__ */ new Set([
   "escape",
   "eval",
   "EventSource",
+  "globalThis",
   "fetch",
   "File",
   "FileList",
