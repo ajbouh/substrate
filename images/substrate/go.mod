@@ -1,11 +1,9 @@
 module github.com/ajbouh/substrate/images/substrate
 
-go 1.23.3
-
-toolchain go1.24.5
+go 1.24.3
 
 require (
-	cuelang.org/go v0.13.2
+	cuelang.org/go v0.14.0
 	github.com/ajbouh/substrate/pkg/cueloader v0.0.0-00010101000000-000000000000
 	github.com/ajbouh/substrate/pkg/toolkit v0.0.0-00010101000000-000000000000
 	github.com/caddyserver/certmagic v0.21.4
@@ -26,13 +24,13 @@ require (
 	github.com/smallstep/certificates v0.28.1
 	github.com/smallstep/truststore v0.13.0
 	go.step.sm/crypto v0.60.0
-	golang.org/x/net v0.39.0
-	golang.org/x/sync v0.14.0
+	golang.org/x/net v0.42.0
+	golang.org/x/sync v0.16.0
 	tractor.dev/toolkit-go v0.0.0-20250103001615-9a6753936c19
 )
 
 require (
-	cuelabs.dev/go/oci/ociregistry v0.0.0-20250304105642-27e071d2c9b1 // indirect
+	cuelabs.dev/go/oci/ociregistry v0.0.0-20250715075730-49cab49c8e9d // indirect
 	dario.cat/mergo v1.0.1 // indirect
 	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96 // indirect
@@ -79,7 +77,7 @@ require (
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/emicklei/proto v1.14.0 // indirect
+	github.com/emicklei/proto v1.14.2 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.4 // indirect
@@ -161,7 +159,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/sftp v1.13.9 // indirect
 	github.com/proglottis/gpgme v0.1.4 // indirect
-	github.com/protocolbuffers/txtpbfmt v0.0.0-20250129171521-feedd8250727 // indirect
+	github.com/protocolbuffers/txtpbfmt v0.0.0-20250627152318-f293424e46b5 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.4.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
@@ -182,7 +180,7 @@ require (
 	github.com/smallstep/scep v0.0.0-20240926084937-8cf1ca453101 // indirect
 	github.com/spf13/cast v1.7.0 // indirect
 	github.com/spf13/cobra v1.9.1 // indirect
-	github.com/spf13/pflag v1.0.6 // indirect
+	github.com/spf13/pflag v1.0.7 // indirect
 	github.com/stefanberger/go-pkcs11uri v0.0.0-20230803200340-78284954bff6 // indirect
 	github.com/sylabs/sif/v2 v2.21.1 // indirect
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635 // indirect
@@ -208,14 +206,14 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
-	golang.org/x/crypto v0.38.0 // indirect
-	golang.org/x/mod v0.24.0 // indirect
-	golang.org/x/oauth2 v0.29.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/term v0.32.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/crypto v0.40.0 // indirect
+	golang.org/x/mod v0.26.0 // indirect
+	golang.org/x/oauth2 v0.30.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
+	golang.org/x/term v0.33.0 // indirect
+	golang.org/x/text v0.27.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
-	golang.org/x/tools v0.32.0 // indirect
+	golang.org/x/tools v0.35.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250303144028-a0af3efb3deb // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250313205543-e70fdf4c4cb4 // indirect
 	google.golang.org/grpc v1.71.0 // indirect
