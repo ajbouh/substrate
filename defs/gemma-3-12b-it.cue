@@ -16,6 +16,8 @@ services: "gemma-3-12b-it": {
 
     environment: {
       LLAMA_ARG_MODEL: "/res/model/huggingface/local/gemma-3-12b-it-Q4_K_M.gguf"
+      // LLAMA_ARG_MAIN_GPU: "0"
+      LLAMA_ARG_SPLIT_MODE: "none"
       LLAMA_ARG_MMPROJ: "/res/mmproj/huggingface/local/mmproj-model-f16.gguf"
       LLAMA_ARG_PORT: environment["PORT"]
       LLAMA_ARG_HOST: "0.0.0.0"
