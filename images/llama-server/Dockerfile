@@ -1,1 +1,1 @@
-FROM ghcr.io/ggml-org/llama.cpp:server-cuda-b6019
+FROM ghcr.io/ggml-org/llama.cpp:server-cuda-b6121
