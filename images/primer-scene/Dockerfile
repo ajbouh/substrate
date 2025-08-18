@@ -23,6 +23,8 @@ RUN python3.11 -m ensurepip \
 # Copy the source code to the container
 COPY images/primer-scene/. .
 
+RUN PYTHONPATH=. python3.11 openapi.py > /openapi.json
+
 ENV PYTHONUNBUFFERED=1
 # ENV LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4
 ENTRYPOINT ["python3.11", "-m", "uvicorn", "app:app", "--host", "0.0.0.0"]

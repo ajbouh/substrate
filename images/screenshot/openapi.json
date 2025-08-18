@@ -1,0 +1,136 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Web Screenshot Service API",
+    "description": "An API that uses a headless Chrome instance to take screenshots of web pages. The behavior of the screenshot capture can be customized via URL query parameters.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "summary": "Capture a web page screenshot",
+        "description": "Renders a web page from a URL or raw HTML source in a headless browser and returns a screenshot. Users must provide either a 'url' or an 'html' query parameter.",
+        "operationId": "screenshotWebPage",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": false,
+            "description": "The full URL of the web page to capture. Required if 'html' parameter is not provided.",
+            "schema": {
+              "type": "string",
+              "format": "uri",
+              "example": "https://www.google.com"
+            }
+          },
+          {
+            "name": "html",
+            "in": "query",
+            "required": false,
+            "description": "The raw HTML source code to render and capture. Required if 'url' parameter is not provided.",
+            "schema": {
+              "type": "string",
+              "example": "<h1>Hello, World!</h1>"
+            }
+          },
+          {
+            "name": "quality",
+            "in": "query",
+            "required": false,
+            "description": "The quality of the image, from 1 to 100. If set to a value less than 100, the output format will be JPEG. Otherwise, it will be PNG.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 100
+            }
+          },
+          {
+            "name": "width",
+            "in": "query",
+            "required": false,
+            "description": "The width of the browser viewport in pixels.",
+            "schema": {
+              "type": "integer",
+              "default": 800
+            }
+          },
+          {
+            "name": "height",
+            "in": "query",
+            "required": false,
+            "description": "The height of the browser viewport in pixels.",
+            "schema": {
+              "type": "integer",
+              "default": 600
+            }
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": false,
+            "description": "Determines the area of the page to capture. 'viewport' captures the visible part of the page, while 'content' captures the full scrollable page.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "viewport",
+                "content"
+              ],
+              "default": "viewport"
+            }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "required": false,
+            "description": "An optional event name or selector to wait for before taking the screenshot, allowing for dynamic content to load.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully captured screenshot.",
+            "content": {
+              "image/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request. An invalid value was provided for one of the query parameters, or neither 'url' nor 'html' was provided.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "Error: Missing required parameter 'url' or 'html'"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error. The screenshot capture process failed on the server.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "context canceled"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

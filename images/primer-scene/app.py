@@ -8,7 +8,7 @@ import sys
 import os
 import json
 import io
-from fastapi import FastAPI, Response, Request
+from fastapi import FastAPI, Response, Request, Depends
 import bpy
 
 app = FastAPI(
@@ -34,6 +34,24 @@ def checksum(filepath):
 
         return hasher.hexdigest()
 
+_bpy = None
+def load_mainfile():
+    global _bpy
+    if _bpy is None:
+        bpy.ops.wm.open_mainfile(filepath=MAINFILE)
+        configure_rendering(bpy.context)
+        _bpy = SeamlessM4Tv2Model.from_pretrained(modelname)
+    return _bpy
+
+_out_dir = None
+def load_out_dir():
+    global _out_dir
+    if _out_dir is None:
+        MAINFILE = os.environ['MAINFILE']
+        mainfile_checksum = checksum(MAINFILE)
+        out_dir = os.environ['RENDER_DIR'] + "/" + os.path.splitext(os.path.basename(MAINFILE))[0] + "/" + mainfile_checksum
+    return _out_dir
+
 def configure_rendering(ctx, with_gpu: bool = True):
     # configure the rendering process
     ctx.scene.render.engine = "CYCLES"
@@ -57,18 +75,14 @@ def configure_rendering(ctx, with_gpu: bool = True):
             f"ID:{dev['id']} Name:{dev['name']} Type:{dev['type']} Use:{dev['use']}"
         )
 
-MAINFILE = os.environ['MAINFILE']
-mainfile_checksum = checksum(MAINFILE)
-out_dir = os.environ['RENDER_DIR'] + "/" + os.path.splitext(os.path.basename(MAINFILE))[0] + "/" + mainfile_checksum
-bpy.ops.wm.open_mainfile(filepath=MAINFILE)
-configure_rendering(bpy.context)
+
 
 from threading import Thread, Lock
 render_mutex = Lock()
 
 from bpy_extras.object_utils import world_to_camera_view
 
-def render_coordinates(camera, resolution_x, resolution_y, obj):
+def render_coordinates(bpy, camera, resolution_x, resolution_y, obj):
     coordinates = []
     def pop_closest_to(x, y, coordinates):
         coordinates.sort(key = lambda p: (p["x"] - x)**2 + (p["y"] - y)**2)
@@ -93,6 +107,8 @@ def digest_dict(d):
     return hashlib.sha256(a).hexdigest()
 
 def shot_info(
+    bpy,
+    out_dir,
     camera,
     cycles_samples,
     out_basename,
@@ -157,6 +173,7 @@ def shot_info(
                 # TODO get proper aspect ratio
                 # "aspect_ratio": 1,
                 "coordinates": render_coordinates(
+                    bpy=bpy,
                     camera=camera_obj,
                     resolution_x=resolution_x,
                     resolution_y=resolution_y,
@@ -171,6 +188,7 @@ def shot_info(
 def screens(
     screen_collection: str = 'AspectRatioGuides',
     screen_prefix: str = 'SCREEN_',
+    bpy=Depends(load_mainfile),
 ):
     return {
         (o.name): {
@@ -190,6 +208,8 @@ def shots(
     height: int = 1920,
     screen_collection: str = 'AspectRatioGuides',
     screen_prefix: str = 'SCREEN_',
+    bpy=Depends(load_mainfile),
+    out_dir=Depends(load_out_dir),
 ):
     return {
         camera.name: shot(
@@ -219,8 +239,12 @@ def shot(
     height: int = 1920,
     screen_collection: str = 'AspectRatioGuides',
     screen_prefix: str = 'SCREEN_',
+    bpy=Depends(load_mainfile),
+    out_dir=Depends(load_out_dir),
 ):
     info = shot_info(
+        bpy=bpy,
+        out_dir=out_dir,
         camera=camera,
         screens=[o for o in bpy.data.collections[screen_collection].objects if o.name.startswith(screen_prefix)],
         resolution_x = width,
@@ -250,8 +274,12 @@ def image(
     cycles_samples: int = 128,
     width: int = 1920,
     height: int = 1920,
+    bpy=Depends(load_mainfile),
+    out_dir=Depends(load_out_dir),
 ):
     info = shot_info(
+        bpy=bpy,
+        out_dir=out_dir,
         camera=camera,
         screens=[o for o in bpy.data.collections['SCREENS'].objects if o.name.startswith('SCREEN_')],
         resolution_x = width,

@@ -21,4 +21,6 @@ ENV PORT 8080
 COPY --from=build /app /app
 WORKDIR /data
 
+COPY images/screenshot/openapi.json /openapi.json
+
 ENTRYPOINT ["/app"]

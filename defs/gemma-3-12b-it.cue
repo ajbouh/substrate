@@ -5,9 +5,11 @@ enable: "gemma-3-12b-it": true
 resourcedirs: "huggingface:model:ggml-org/gemma-3-12b-it-GGUF:ec0cbabd8dbff316f659876a50202295c3c4a314:gemma-3-12b-it-Q4_K_M.gguf": _
 resourcedirs: "huggingface:model:ggml-org/gemma-3-12b-it-GGUF:ec0cbabd8dbff316f659876a50202295c3c4a314:mmproj-model-f16.gguf": _
 
+imagespecs: "gemma-3-12b-it": imagespecs["llama-server"]
+
 services: "gemma-3-12b-it": {
   instances: [string]: {
-    image_tag: imagespecs["llama-server"].image
+    image_tag: imagespecs["gemma-3-12b-it"].image
 
     resourcedirs: {
       model: "huggingface:model:ggml-org/gemma-3-12b-it-GGUF:ec0cbabd8dbff316f659876a50202295c3c4a314:gemma-3-12b-it-Q4_K_M.gguf"

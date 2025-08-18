@@ -22,5 +22,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Copy the source code to the container
 COPY images/seamlessm4t/. .
 
+RUN PYTHONPATH=. python3 openapi.py > /openapi.json
+
 ENV PYTHONUNBUFFERED=1
 ENTRYPOINT ["fastapi", "dev", "/app/app.py", "--host", "0.0.0.0"]

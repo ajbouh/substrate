@@ -3,9 +3,11 @@ package defs
 enable: "gpt-oss-120b": true
 resourcedirs: "huggingface:model:ggml-org/gpt-oss-120b-GGUF:a48e247410f0cc543e586c661ce63d82e79f2ad6": _
 
+imagespecs: "gpt-oss-120b": imagespecs["llama-server"]
+
 services: "gpt-oss-120b": {
   instances: [string]: {
-    image_tag: imagespecs["llama-server"].image
+    image_tag: imagespecs["gpt-oss-120b"].image
 
     resourcedirs: {
       model: "huggingface:model:ggml-org/gpt-oss-120b-GGUF:a48e247410f0cc543e586c661ce63d82e79f2ad6"

@@ -1,0 +1,1655 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "LLaMA.cpp Server API",
+    "description": "A set of RESTful APIs for interacting with a llama.cpp server instance.\nThis specification is based on the OpenAI API format for compatibility and includes additional llama.cpp-specific endpoints.\nThe project is available at https://github.com/ggml-org/llama.cpp.",
+    "version": "1.0.0",
+    "license": {
+      "name": "MIT",
+      "identifier": "MIT",
+      "url": "https://github.com/ggml-org/llama.cpp/blob/master/LICENSE"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8080"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "description": "Returns the health status of the server. This endpoint is public and does not require an API key.",
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Server is ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok"
+                      ]
+                    }
+                  }
+                },
+                "example": {
+                  "status": "ok"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Server is loading the model.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": {
+                    "code": 503,
+                    "message": "Loading model",
+                    "type": "unavailable_error"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/completion": {
+      "post": {
+        "tags": [
+          "LLaMA.cpp"
+        ],
+        "summary": "Create a completion",
+        "description": "Given a prompt, returns the predicted completion. This endpoint is not OpenAI-compatible.",
+        "operationId": "createCompletion",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompletionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionStreamChunk"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tokenize": {
+      "post": {
+        "tags": [
+          "Utility"
+        ],
+        "summary": "Tokenize text",
+        "description": "Converts a string of text into a sequence of token IDs.",
+        "operationId": "tokenize",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "content"
+                ],
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "description": "The text to tokenize."
+                  },
+                  "add_special": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "If true, special tokens (like BOS) will be inserted."
+                  },
+                  "parse_special": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "If false, special tokens are treated as plaintext."
+                  },
+                  "with_pieces": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "If true, returns token pieces along with IDs."
+                  }
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Successful response.",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "type": "object",
+                    "properties": {
+                      "tokens": {
+                        "type": "array",
+                        "items": {
+                          "oneOf": [
+                            {
+                              "type": "integer",
+                              "description": "A token ID."
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "integer"
+                                },
+                                "piece": {
+                                  "oneOf": [
+                                    {
+                                      "type": "string"
+                                    },
+                                    {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "integer"
+                                      }
+                                    }
+                                  ],
+                                  "description": "The token piece as a string or an array of bytes for non-UTF8 characters."
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/detokenize": {
+      "post": {
+        "tags": [
+          "Utility"
+        ],
+        "summary": "Detokenize tokens",
+        "description": "Converts a sequence of token IDs back into a string of text.",
+        "operationId": "detokenize",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tokens": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "The tokens to detokenize."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "content": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/apply-template": {
+      "post": {
+        "tags": [
+          "Utility"
+        ],
+        "summary": "Apply chat template",
+        "description": "Applies the model's chat template to a conversation without performing inference. Returns the formatted prompt string.",
+        "operationId": "applyTemplate",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "messages"
+                ],
+                "properties": {
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ChatMessage"
+                    },
+                    "description": "Chat turns in the same format as /v1/chat/completions."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "prompt": {
+                      "type": "string",
+                      "description": "The formatted prompt string."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/embedding": {
+      "post": {
+        "tags": [
+          "LLaMA.cpp"
+        ],
+        "summary": "Create embedding (non-OAI)",
+        "description": "Generates embeddings for the given text. This endpoint is not OpenAI-compatible.",
+        "operationId": "createEmbeddingNonOAI",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "content": {
+                    "type": "string",
+                    "description": "The text to embed."
+                  },
+                  "image_data": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ImageData"
+                    },
+                    "description": "Image data for multimodal models."
+                  },
+                  "embd_normalize": {
+                    "type": "integer",
+                    "description": "Normalization for pooled embeddings. -1: None, 0: Max abs, 1: Taxicab, 2: Euclidean/L2, >2: P-Norm."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response containing the embedding.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "embedding": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "format": "float"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rerank": {
+      "post": {
+        "tags": [
+          "LLaMA.cpp"
+        ],
+        "summary": "Rerank documents",
+        "description": "Reranks a list of documents against a query. Requires a reranker model.",
+        "operationId": "rerankDocuments",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "query",
+                  "documents"
+                ],
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  },
+                  "documents": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "top_n": {
+                    "type": "integer",
+                    "description": "The number of most relevant documents to return."
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "The model to use for reranking."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response containing the reranked documents.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/infill": {
+      "post": {
+        "tags": [
+          "Utility"
+        ],
+        "summary": "Perform infilling",
+        "description": "Generates text to fill in a gap between a prefix and a suffix. Accepts all parameters from the /completion endpoint.",
+        "operationId": "infill",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/CompletionRequest"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "input_prefix": {
+                        "type": "string",
+                        "description": "The text preceding the infill location."
+                      },
+                      "input_suffix": {
+                        "type": "string",
+                        "description": "The text following the infill location."
+                      },
+                      "input_extra": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "filename": {
+                              "type": "string"
+                            },
+                            "text": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "description": "Additional context for repo-level infilling."
+                      },
+                      "prompt": {
+                        "type": "string",
+                        "description": "Added after the FIM_MID token."
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionStreamChunk"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/props": {
+      "get": {
+        "summary": "Server properties",
+        "description": "Returns server properties, such as default generation settings and model information.",
+        "operationId": "getProps",
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerProperties"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Change server properties",
+        "description": "Change server global properties. Requires the server to be started with the --props flag.",
+        "operationId": "setProps",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Properties updated successfully."
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Prometheus metrics",
+        "description": "Returns server metrics in Prometheus format. Requires the server to be started with the --metrics flag.",
+        "operationId": "getMetrics",
+        "responses": {
+          "200": {
+            "description": "Prometheus metrics.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "tags": [
+          "OpenAI-Compatible"
+        ],
+        "summary": "List models",
+        "description": "Lists the currently available models. In a typical single-model setup, this will return information about the loaded model.",
+        "operationId": "listModels",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/completions": {
+      "post": {
+        "tags": [
+          "OpenAI-Compatible"
+        ],
+        "summary": "Create a completion (OpenAI compatible)",
+        "description": "Given a prompt, returns the predicted completion. Supports llama.cpp-specific features.",
+        "operationId": "createOAICompletion",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompletionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompletionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "tags": [
+          "OpenAI-Compatible"
+        ],
+        "summary": "Create a chat completion",
+        "description": "Generates a model response for the given chat conversation. Supports both standard and streaming responses.",
+        "operationId": "createChatCompletion",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatCompletionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatCompletionResponse"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatCompletionChunk"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/embeddings": {
+      "post": {
+        "tags": [
+          "OpenAI-Compatible"
+        ],
+        "summary": "Create embeddings",
+        "description": "Creates embedding vectors representing the input text. This endpoint must be enabled with the --embedding server flag.",
+        "operationId": "createEmbedding",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmbeddingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmbeddingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "API key authentication. Provide the key in the Authorization header as a Bearer token."
+      }
+    },
+    "schemas": {
+      "ErrorObject": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorObject"
+          }
+        }
+      },
+      "ImageData": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "string",
+            "format": "byte",
+            "description": "Base64-encoded image data."
+          },
+          "id": {
+            "type": "integer",
+            "description": "An ID for the image, used to reference it in the prompt."
+          }
+        }
+      },
+      "CompletionRequest": {
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "description": "The prompt for the completion.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "temperature": {
+            "type": "number",
+            "default": 0.8,
+            "description": "Adjust the randomness of the generated text."
+          },
+          "dynatemp_range": {
+            "type": "number",
+            "default": 0,
+            "description": "Dynamic temperature range. The final temperature will be in the range of `[temperature - dynatemp_range; temperature + dynatemp_range]`."
+          },
+          "dynatemp_exponent": {
+            "type": "number",
+            "default": 1,
+            "description": "Dynamic temperature exponent."
+          },
+          "top_k": {
+            "type": "integer",
+            "default": 40,
+            "description": "Limit the next token selection to the K most probable tokens."
+          },
+          "top_p": {
+            "type": "number",
+            "default": 0.95,
+            "description": "Limit the next token selection to a subset of tokens with a cumulative probability above a threshold P."
+          },
+          "min_p": {
+            "type": "number",
+            "default": 0.05,
+            "description": "The minimum probability for a token to be considered, relative to the probability of the most likely token."
+          },
+          "n_predict": {
+            "type": "integer",
+            "default": -1,
+            "description": "Set the maximum number of tokens to predict when generating text. Use -1 for infinity."
+          },
+          "n_indent": {
+            "type": "integer",
+            "default": 0,
+            "description": "Specify the minimum line indentation for the generated text in number of whitespace characters."
+          },
+          "n_keep": {
+            "type": "integer",
+            "default": 0,
+            "description": "Specify the number of tokens from the prompt to retain when the context size is exceeded and tokens need to be discarded. Use -1 to retain all tokens from the prompt."
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false,
+            "description": "Receive each predicted token in real-time instead of waiting for the completion to finish."
+          },
+          "stop": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Specify a JSON array of stopping strings. These words will not be included in the completion."
+          },
+          "typical_p": {
+            "type": "number",
+            "default": 1,
+            "description": "Enable locally typical sampling with parameter p."
+          },
+          "repeat_penalty": {
+            "type": "number",
+            "default": 1.1,
+            "description": "Control the repetition of token sequences in the generated text."
+          },
+          "repeat_last_n": {
+            "type": "integer",
+            "default": 64,
+            "description": "Last n tokens to consider for penalizing repetition. 0 is disabled, -1 is ctx-size."
+          },
+          "presence_penalty": {
+            "type": "number",
+            "default": 0,
+            "description": "Repeat alpha presence penalty. 0.0 is disabled."
+          },
+          "frequency_penalty": {
+            "type": "number",
+            "default": 0,
+            "description": "Repeat alpha frequency penalty. 0.0 is disabled."
+          },
+          "dry_multiplier": {
+            "type": "number",
+            "default": 0,
+            "description": "Set the DRY (Don't Repeat Yourself) repetition penalty multiplier."
+          },
+          "dry_base": {
+            "type": "number",
+            "default": 1.75,
+            "description": "Set the DRY repetition penalty base value."
+          },
+          "dry_allowed_length": {
+            "type": "integer",
+            "default": 2,
+            "description": "Tokens that extend repetition beyond this receive exponentially increasing penalty."
+          },
+          "dry_penalty_last_n": {
+            "type": "integer",
+            "default": -1,
+            "description": "How many tokens to scan for repetitions. 0 is disabled, -1 is context size."
+          },
+          "dry_sequence_breakers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "\n",
+              ":",
+              "\"",
+              "*"
+            ],
+            "description": "Specify an array of sequence breakers for DRY sampling."
+          },
+          "xtc_probability": {
+            "type": "number",
+            "default": 0,
+            "description": "Set the chance for token removal via XTC sampler. 0.0 is disabled."
+          },
+          "xtc_threshold": {
+            "type": "number",
+            "default": 0.1,
+            "description": "Set a minimum probability threshold for tokens to be removed via XTC sampler. > 0.5 disables XTC."
+          },
+          "mirostat": {
+            "type": "integer",
+            "default": 0,
+            "description": "Enable Mirostat sampling. 0 = disabled, 1 = Mirostat, 2 = Mirostat 2.0."
+          },
+          "mirostat_tau": {
+            "type": "number",
+            "default": 5,
+            "description": "Set the Mirostat target entropy, parameter tau."
+          },
+          "mirostat_eta": {
+            "type": "number",
+            "default": 0.1,
+            "description": "Set the Mirostat learning rate, parameter eta."
+          },
+          "grammar": {
+            "type": "string",
+            "description": "Set grammar for grammar-based sampling."
+          },
+          "json_schema": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Set a JSON schema for grammar-based sampling."
+          },
+          "seed": {
+            "type": "integer",
+            "default": -1,
+            "description": "Set the random number generator (RNG) seed. Use -1 for a random seed."
+          },
+          "ignore_eos": {
+            "type": "boolean",
+            "default": false,
+            "description": "Ignore end of stream token and continue generating."
+          },
+          "logit_bias": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "number"
+                }
+              }
+            ],
+            "description": "Modify the likelihood of a token appearing in the generated text completion."
+          },
+          "n_probs": {
+            "type": "integer",
+            "default": 0,
+            "description": "If greater than 0, the response contains the probabilities of top N tokens for each generated token."
+          },
+          "min_keep": {
+            "type": "integer",
+            "default": 0,
+            "description": "If greater than 0, force samplers to return N possible tokens at minimum."
+          },
+          "t_max_predict_ms": {
+            "type": "integer",
+            "default": 0,
+            "description": "Time limit in milliseconds for the prediction phase. 0 is disabled."
+          },
+          "image_data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImageData"
+            }
+          },
+          "id_slot": {
+            "type": "integer",
+            "default": -1,
+            "description": "Assign the completion task to a specific slot. If -1, the task will be assigned to an idle slot."
+          },
+          "cache_prompt": {
+            "type": "boolean",
+            "default": true,
+            "description": "Re-use KV cache from a previous request if possible."
+          },
+          "return_tokens": {
+            "type": "boolean",
+            "default": false,
+            "description": "Return the raw generated token ids in the `tokens` field."
+          },
+          "samplers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": [
+              "dry",
+              "top_k",
+              "typ_p",
+              "top_p",
+              "min_p",
+              "xtc",
+              "temperature"
+            ],
+            "description": "The order in which samplers should be applied. An array of strings representing sampler type names."
+          },
+          "timings_per_token": {
+            "type": "boolean",
+            "default": false,
+            "description": "Include prompt processing and text generation speed information in each response."
+          },
+          "post_sampling_probs": {
+            "type": "boolean",
+            "description": "Returns the probabilities of top `n_probs` tokens after applying the sampling chain."
+          },
+          "response_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "A list of response fields to include. If specified, only these fields will be returned."
+          },
+          "lora": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "scale": {
+                  "type": "number"
+                }
+              }
+            },
+            "description": "A list of LoRA adapters to be applied to this specific request."
+          }
+        }
+      },
+      "CompletionResponse": {
+        "type": "object",
+        "properties": {
+          "probs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "An object representing probabilities for a single token.",
+              "properties": {
+                "id": {
+                  "type": "integer"
+                },
+                "logprob": {
+                  "type": "number",
+                  "description": "The log probability of the token, present if post_sampling_probs is false."
+                },
+                "prob": {
+                  "type": "number",
+                  "description": "The probability of the token (0-1), present if post_sampling_probs is true."
+                },
+                "token": {
+                  "type": "string"
+                },
+                "bytes": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                },
+                "top_logprobs": {
+                  "type": "array",
+                  "description": "A list of the top log probabilities for this token position. Present if n_probs > 0 and post_sampling_probs is false.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      },
+                      "logprob": {
+                        "type": "number"
+                      },
+                      "token": {
+                        "type": "string"
+                      },
+                      "bytes": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                },
+                "top_probs": {
+                  "type": "array",
+                  "description": "A list of the top probabilities for this token position. Present if n_probs > 0 and post_sampling_probs is true.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "integer"
+                      },
+                      "prob": {
+                        "type": "number"
+                      },
+                      "token": {
+                        "type": "string"
+                      },
+                      "bytes": {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "content": {
+            "type": "string"
+          },
+          "tokens": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "stop": {
+            "type": "boolean"
+          },
+          "generation_settings": {
+            "$ref": "#/components/schemas/CompletionRequest"
+          },
+          "model": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "stop_type": {
+            "type": "string",
+            "enum": [
+              "none",
+              "eos",
+              "limit",
+              "word"
+            ]
+          },
+          "stopping_word": {
+            "type": "string"
+          },
+          "timings": {
+            "type": "object"
+          },
+          "tokens_cached": {
+            "type": "integer"
+          },
+          "tokens_evaluated": {
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CompletionStreamChunk": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "tokens": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "stop": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ServerProperties": {
+        "type": "object",
+        "properties": {
+          "default_generation_settings": {
+            "type": "object"
+          },
+          "total_slots": {
+            "type": "integer"
+          },
+          "model_path": {
+            "type": "string"
+          },
+          "chat_template": {
+            "type": "string"
+          },
+          "modalities": {
+            "type": "object",
+            "properties": {
+              "vision": {
+                "type": "boolean"
+              }
+            }
+          },
+          "build_info": {
+            "type": "string"
+          }
+        }
+      },
+      "ChatMessageContentPart": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "image_url"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "image_url": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": "string",
+                "description": "A data URI for a base64-encoded image, or a remote URL."
+              }
+            }
+          }
+        }
+      },
+      "ChatMessage": {
+        "type": "object",
+        "required": [
+          "role"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "system",
+              "user",
+              "assistant",
+              "tool"
+            ]
+          },
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatMessageContentPart"
+            },
+            "description": "The content of the message, which can be a string or an array of content parts for multimodal models."
+          },
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ToolCall"
+            }
+          },
+          "tool_call_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ChatCompletionRequest": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/CompletionRequest"
+          },
+          {
+            "type": "object",
+            "required": [
+              "messages"
+            ],
+            "properties": {
+              "messages": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ChatMessage"
+                }
+              },
+              "response_format": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "json_object"
+                    ]
+                  },
+                  "schema": {
+                    "type": "object",
+                    "additionalProperties": true
+                  }
+                }
+              },
+              "tools": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Tool"
+                }
+              },
+              "tool_choice": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "auto"
+                    ]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "function"
+                        ]
+                      },
+                      "function": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "chat_template_kwargs": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Additional parameters for the Jinja templating system."
+              },
+              "reasoning_format": {
+                "type": "string",
+                "description": "The reasoning format to be parsed."
+              },
+              "thinking_forced_open": {
+                "type": "boolean",
+                "description": "Force a reasoning model to always output the reasoning."
+              },
+              "parse_tool_calls": {
+                "type": "boolean",
+                "description": "Whether to parse the generated tool call."
+              }
+            }
+          }
+        ]
+      },
+      "ChatCompletionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "chatcmpl-123"
+          },
+          "object": {
+            "type": "string",
+            "example": "chat.completion"
+          },
+          "created": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatCompletionChoice"
+            }
+          },
+          "usage": {
+            "$ref": "#/components/schemas/UsageInfo"
+          }
+        }
+      },
+      "ChatCompletionChunk": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "example": "chat.completion.chunk"
+          },
+          "created": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatCompletionChunkChoice"
+            }
+          }
+        }
+      },
+      "Tool": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "function"
+            ]
+          },
+          "function": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "parameters": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "ToolCall": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "function"
+            ]
+          },
+          "function": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "arguments": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "ChatCompletionChoice": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "message": {
+            "$ref": "#/components/schemas/ChatMessage"
+          },
+          "finish_reason": {
+            "type": "string",
+            "enum": [
+              "stop",
+              "length",
+              "tool_calls"
+            ]
+          }
+        }
+      },
+      "ChatCompletionChunkChoice": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer"
+          },
+          "delta": {
+            "$ref": "#/components/schemas/ChatMessage"
+          },
+          "finish_reason": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "stop",
+              "length",
+              "tool_calls"
+            ]
+          }
+        }
+      },
+      "EmbeddingRequest": {
+        "type": "object",
+        "required": [
+          "input"
+        ],
+        "properties": {
+          "input": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The input text or texts to embed."
+          },
+          "model": {
+            "type": "string"
+          },
+          "encoding_format": {
+            "type": "string",
+            "enum": [
+              "float",
+              "base64"
+            ],
+            "default": "float"
+          }
+        }
+      },
+      "EmbeddingResponse": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "example": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Embedding"
+            }
+          },
+          "model": {
+            "type": "string"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/UsageInfo"
+          }
+        }
+      },
+      "Embedding": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "example": "embedding"
+          },
+          "embedding": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "index": {
+            "type": "integer"
+          }
+        }
+      },
+      "ModelList": {
+        "type": "object",
+        "properties": {
+          "object": {
+            "type": "string",
+            "default": "list"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Model"
+            }
+          }
+        }
+      },
+      "Model": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "default": "model"
+          },
+          "created": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "owned_by": {
+            "type": "string",
+            "default": "llamacpp"
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "vocab_type": {
+                "type": "integer"
+              },
+              "n_vocab": {
+                "type": "integer"
+              },
+              "n_ctx_train": {
+                "type": "integer"
+              },
+              "n_embd": {
+                "type": "integer"
+              },
+              "n_params": {
+                "type": "integer"
+              },
+              "size": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "UsageInfo": {
+        "type": "object",
+        "properties": {
+          "prompt_tokens": {
+            "type": "integer"
+          },
+          "completion_tokens": {
+            "type": "integer"
+          },
+          "total_tokens": {
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}

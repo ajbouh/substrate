@@ -7,7 +7,7 @@ import time
 from typing import Dict, List, Optional, Callable
 import urllib.request
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 import pycountry
 from pydantic import BaseModel
 import soundfile as sf
@@ -132,10 +132,19 @@ def soundfile_read_url_or_data(
         return sf.read(input, format=format, dtype=dtype, channels=channels, samplerate=samplerate)
 
 modelname = os.environ.get("MODEL", "facebook/seamless-m4t-v2-large")
-processor = AutoProcessor.from_pretrained(modelname)
-model = SeamlessM4Tv2Model.from_pretrained(modelname)
+_processor = None
+def load_processor():
+    global _processor
+    if _processor is None:
+        _processor = AutoProcessor.from_pretrained(modelname)
+    return _processor
 
-print("HIIII")
+_model = None
+def load_model():
+    global _model
+    if _model is None:
+        _model = SeamlessM4Tv2Model.from_pretrained(modelname)
+    return _model
 
 supported = {
     "afr": {"label": "Afrikaans",              "script": "Latn"}, #       | Sp, Tx | Tx     |
@@ -314,7 +323,7 @@ def read_audio(request: Request):
 
 # "transcribe" is a bit of a misnomer here...
 @app.post('/v1/transcribe')
-def transcribe(request: Request) -> Response:
+def transcribe(request: Request, model = Depends(load_model), processor = Depends(load_processor)) -> Response:
     tgt_lang = fuzzy_find_alpha_3(request.target_language or "eng", "target")
     duration = None
     translated_text = ""

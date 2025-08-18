@@ -19,5 +19,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Copy the source code to the container
 COPY images/styletts2/. .
 
+RUN PYTHONPATH=. python3 openapi.py > /openapi.json
+
 ENV PYTHONUNBUFFERED=1
 ENTRYPOINT ["uvicorn", "app:app", "--host", "0.0.0.0"]
