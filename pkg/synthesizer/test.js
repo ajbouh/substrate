@@ -1,5 +1,6 @@
 async function run(name, test, options={}) {
     let failed = false, faileddirectly = false, failedexplicitly = false, skipped = false, traplogs = true
+    let debugexplicitly = false
     const logs = [];
     const subtests = [];
     const consolelog = console.log
@@ -36,6 +37,12 @@ async function run(name, test, options={}) {
                 logs.push(['log', ...msg])
             } else {
                 consolelog(...msg)
+            }
+        },
+        debug(fn) {
+            if (options.debug) {
+                debugexplicitly = true
+                options.debug(fn)
             }
         },
         fail(msg, ...vals) {
@@ -91,6 +98,7 @@ async function run(name, test, options={}) {
         failed,
         faileddirectly,
         failedexplicitly,
+        debugexplicitly,
         logs,
         test,
         start,
@@ -161,7 +169,8 @@ export class Testing {
 
         await run(result.name, result.test, {
             ...result.options,
-            debugOnFail: true,
+            debugOnFail: result.debugexplicitly ? false : true,
+            debug: debugFn,
             runner: async (test, t) => {
                 if (debugTests.has(t.name)) {
                     debugFn(test)
