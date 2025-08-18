@@ -1,0 +1,237 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Wikipedia Search API",
+    "description": "An OpenAPI specification for the Wikipedia API's search functionality.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Wikimedia Foundation",
+      "url": "https://www.mediawiki.org/wiki/API:Main_page"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://en.wikipedia.org/w",
+      "description": "English Wikipedia API Server"
+    }
+  ],
+  "paths": {
+    "/api.php": {
+      "get": {
+        "summary": "Search Wikipedia",
+        "description": "Performs a full-text search on Wikipedia.",
+        "operationId": "searchWikipedia",
+        "tags": [
+          "Search"
+        ],
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "description": "The action to perform.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "query"
+              ]
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "The format of the output.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json"
+              ],
+              "default": "json"
+            }
+          },
+          {
+            "name": "list",
+            "in": "query",
+            "description": "The type of list to return.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "search"
+              ]
+            }
+          },
+          {
+            "name": "srsearch",
+            "in": "query",
+            "description": "The search term.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "srsort",
+            "in": "query",
+            "description": "The sorting order for the search results.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "relevance",
+                "last_edit_desc",
+                "last_edit_asc",
+                "create_timestamp_desc",
+                "create_timestamp_asc"
+              ],
+              "default": "relevance"
+            }
+          },
+          {
+            "name": "srwhat",
+            "in": "query",
+            "description": "What to search in.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "title",
+                "text",
+                "nearmatch"
+              ],
+              "default": "text"
+            }
+          },
+          {
+            "name": "origin",
+            "in": "query",
+            "description": "Used to overcome CORS restrictions. Use '*' for open access.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "*"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful search response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "batchcomplete": {
+                      "type": "string",
+                      "description": "Indicates whether the batch of requests is complete."
+                    },
+                    "continue": {
+                      "type": "object",
+                      "properties": {
+                        "sroffset": {
+                          "type": "integer",
+                          "description": "The offset to continue the search from."
+                        },
+                        "continue": {
+                          "type": "string",
+                          "description": "A continuation token."
+                        }
+                      }
+                    },
+                    "query": {
+                      "type": "object",
+                      "properties": {
+                        "searchinfo": {
+                          "type": "object",
+                          "properties": {
+                            "totalhits": {
+                              "type": "integer",
+                              "description": "The total number of hits for the search query."
+                            }
+                          }
+                        },
+                        "search": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "ns": {
+                                "type": "integer",
+                                "description": "The namespace number of the page."
+                              },
+                              "title": {
+                                "type": "string",
+                                "description": "The title of the page."
+                              },
+                              "pageid": {
+                                "type": "integer",
+                                "description": "The unique ID of the page."
+                              },
+                              "size": {
+                                "type": "integer",
+                                "description": "The size of the page in bytes."
+                              },
+                              "wordcount": {
+                                "type": "integer",
+                                "description": "The number of words on the page."
+                              },
+                              "snippet": {
+                                "type": "string",
+                                "description": "A snippet of the page text that matches the search query."
+                              },
+                              "timestamp": {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "The timestamp of the last edit."
+                              }
+                            },
+                            "required": [
+                              "ns",
+                              "title",
+                              "pageid",
+                              "size",
+                              "wordcount",
+                              "snippet",
+                              "timestamp"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "batchcomplete": "",
+                  "continue": {
+                    "sroffset": 10,
+                    "continue": "-||"
+                  },
+                  "query": {
+                    "searchinfo": {
+                      "totalhits": 36853
+                    },
+                    "search": [
+                      {
+                        "ns": 0,
+                        "title": "Cat",
+                        "pageid": 6978,
+                        "size": 108332,
+                        "wordcount": 10173,
+                        "snippet": "The <span class=\"searchmatch\">cat</span> (Felis catus) is a domestic species of small carnivorous mammal. It is the only domesticated species in the family Felidae and is often referred to as the",
+                        "timestamp": "2025-08-20T10:15:45Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request. A required parameter may be missing or invalid."
+          }
+        }
+      }
+    }
+  }
+}

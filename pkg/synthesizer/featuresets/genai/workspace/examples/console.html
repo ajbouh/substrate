@@ -1,0 +1,154 @@
+<pre>
+open devtools...
+
+here are some things to try
+
+    ---
+
+    // run all registered test units
+    await workspace.do({action: 'test'})
+
+    ---
+
+    // eval some javascript inside the workspace
+    await workspace.eval.javascript`console.log('hello')`
+
+    ---
+
+if you want chat enabled, set server= and aiChatService= url query parameters
+
+if you want other services added as functions, set server= and service= url query parameters
+
+if chat is enabled, here are some things to try:
+
+    ---
+
+    // perform a multi-step action
+    await workspace.eval['plan/markdown']`
+    1. pick 3 numbers
+    2. write a poem about these numbers
+    3. evaluate the poem for correctness. throw an error if it's not.
+    `
+    ---
+
+    // generate a page
+    await workspace.do({action: 'edit', name: 'simple-page', inputs: {instructions: 'make a simple html page'}})
+
+    // show it as an iframe in this document
+    await workspace.do({action: 'show', name: 'simple-page'})
+
+    // screenshot it
+    const screenshot = await workspace.do({action: 'screenshot', name: 'simple-page'})
+
+    // show the screenshot as an image in this document
+    await workspace.do({action: 'show', unit: screenshot})
+
+    ---
+</pre>
+<script type="module">
+    import importWorkspace from '../import.js'
+    import { Workspace } from '../workspace.js'
+
+    /**
+     * Retries an async function until success or timeout.
+     */
+    async function retryUntilSuccess(asyncFunction, {maxTimeMs, maxRetries = -1, retryDelayMs = 0}={}) {
+        let startTime = Date.now();
+        let retryCount = 0;
+
+        while (true) {
+            const elapsedTime = Date.now() - startTime;
+
+            if (elapsedTime > maxTimeMs) {
+                throw new Error(`Timeout after ${maxTimeMs}ms.`);
+            }
+
+            if (maxRetries !== -1 && retryCount >= maxRetries) {
+                throw new Error(`Max retries (${maxRetries}) reached.`);
+            }
+
+            try {
+                return await asyncFunction(); // Return immediately on success
+            } catch (error) {
+                retryCount++;
+                console.debug(`Attempt ${retryCount} failed: ${error.message}. Retrying in ${retryDelayMs}ms...`);
+                await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+            }
+        }
+    }
+
+    const workspace = new Workspace({ units: await importWorkspace() })
+    window.workspace = workspace
+    console.log('window.workspace is defined. use it like this:')
+    console.log("  await workspace.eval.javascript`console.log('hello')`")
+    console.log(`  workspace.read("workspace/do/edit")`)
+    console.log(`  await workspace.get("lib/openapi")`)
+    console.log(`  await workspace.do({action: 'test'})`)
+
+    const url = new URL(document.baseURI);
+    const server = url.searchParams.get("server") // 'https://substrate-b876.local'
+    const aiChatService = url.searchParams.get("aiChatService") // 'gpt-oss-120b'
+
+    const services = url.searchParams.getAll('service')
+
+    if (!server) {
+        console.log('server not configured, skipping chat, service and aiChatService configuration', server)
+    } else {
+        console.log('using server', server)
+
+        const { fetchServiceSchema, enumerateServiceFunctions } = await workspace.get("lib/openapi")
+
+        const units = {}
+        const functions = []
+
+        for (const service of services) {
+            console.log(`fetching schema for service ${service} schema...`)
+            const schema = await fetchServiceSchema(server, service)
+            console.log('found service schema', schema)
+
+            for (const fn of enumerateServiceFunctions(schema)) {
+                functions.push(fn)
+                console.log('adding function to workspace:', fn.internalName)
+                units[fn.internalName] = fn
+            }
+        }
+
+        if (aiChatService) {
+            const axExtension = (await import('../ext/ax/import.js')).default
+            console.log(`fetching schema for aiChatService ${aiChatService} schema...`)
+            const aiSchema = await fetchServiceSchema(server, aiChatService)
+            console.log('found aiChatService schema', aiSchema)
+
+            const getHealthUnit = [...enumerateServiceFunctions(aiSchema, {}, /^getHealth$/)][0]
+            if (getHealthUnit) {
+                const getHealth = await workspace.eval({unit: getHealthUnit})
+                console.log(`waiting for aiChatService ${aiChatService} to be ready...`)
+                await retryUntilSuccess(getHealth, {maxTimeMs: 10000, retryDelayMs: 1000})
+                console.log(`aiChatService ${aiChatService} is ready!`)
+            }
+
+            for (const fn of enumerateServiceFunctions(aiSchema, {}, /^createChatCompletion$/)) {
+                units[fn.internalName] = fn
+            }
+
+            // this is a hack
+            Object.assign(units, {
+                'chat/messages/init/globals': { evaluation: [...await workspace.get('chat/messages/init/globals'), ...functions.map(fn => fn.internalName)] },
+                ...await axExtension({
+                    createChatCompletion: units['createChatCompletion'],
+                }),
+            })
+        } else {
+            console.log('aiChatService not configured, skipping chat configuration')
+        }
+
+        workspace.write(units)
+
+        if (aiChatService) {
+            window.chat = (source) => workspace.eval['message/user']([source])
+            console.log('window.chat is defined. use it like this:')
+            console.log(`  await chat('hi')`)
+        }
+    }
+
+</script>

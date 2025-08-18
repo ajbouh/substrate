@@ -1,0 +1,148 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Wikipedia Page Content API",
+    "description": "An OpenAPI specification for fetching the parsed content of a Wikipedia page.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Wikimedia Foundation",
+      "url": "https://www.mediawiki.org/wiki/API:Main_page"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://en.wikipedia.org/w",
+      "description": "English Wikipedia API Server"
+    }
+  ],
+  "paths": {
+    "/api.php": {
+      "get": {
+        "summary": "Get Wikipedia Page Content",
+        "description": "Retrieves the parsed HTML content of a Wikipedia page. You must provide either a page title or a page ID.",
+        "operationId": "getWikipediaPage",
+        "tags": [
+          "Page Content"
+        ],
+        "parameters": [
+          {
+            "name": "action",
+            "in": "query",
+            "description": "The action to perform.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "parse"
+              ]
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "description": "The format of the output.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json"
+              ],
+              "default": "json"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "The title of the page to retrieve. Cannot be used with pageid.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageid",
+            "in": "query",
+            "description": "The unique ID of the page to retrieve. Cannot be used with page.",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "prop",
+            "in": "query",
+            "description": "Which properties to get. 'text' returns the parsed HTML.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "text",
+                "wikitext",
+                "sections"
+              ],
+              "default": "text"
+            }
+          },
+          {
+            "name": "origin",
+            "in": "query",
+            "description": "Used to overcome CORS restrictions. Use '*' for open access.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "*"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response with the page content.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "parse": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string",
+                          "description": "The title of the page."
+                        },
+                        "pageid": {
+                          "type": "integer",
+                          "description": "The unique ID of the page."
+                        },
+                        "text": {
+                          "type": "object",
+                          "properties": {
+                            "*": {
+                              "type": "string",
+                              "description": "The HTML content of the page."
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "parse": {
+                    "title": "Pizza",
+                    "pageid": 24768,
+                    "text": {
+                      "*": "<div class=\"mw-parser-output\"><p><b>Pizza</b> is a dish of Italian origin consisting of a usually round, flat base of leavened wheat-based dough topped with tomatoes, cheese, and often various other ingredients...</p></div>"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested page could not be found."
+          }
+        }
+      }
+    }
+  }
+}
