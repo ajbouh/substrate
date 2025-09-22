@@ -165,7 +165,16 @@ func main() {
 		log.Printf("%s %s %s", req.RemoteAddr, req.Method, req.URL.String())
 
 		query := req.URL.Query()
-		targetURL := query.Get("url")
+
+		var targetURL string
+		htmlContent := query.Get("html")
+		if htmlContent != "" {
+			// If 'html' param is present, create a data URI. This allows rendering raw HTML.
+			targetURL = "data:text/html," + url.PathEscape(htmlContent)
+		} else {
+			// Otherwise, fall back to the original 'url' param behavior.
+			targetURL = query.Get("url")
+		}
 
 		parsedTargetURL, err := url.Parse(targetURL)
 		if err != nil {
